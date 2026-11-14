@@ -117,12 +117,12 @@ ItemPredicateArgument.Context.listComponentTypes	port	crates/horizon-command/src
 ItemPredicateArgument.PredicateWrapper.decode	port	crates/horizon-command/src/item.rs::decode_predicate
 net/minecraft/commands/arguments/selector/EntitySelector#checkPermissions	inline	crates/horizon-command/src/selector.rs::SelectorParser::parse	@ selectors refused without permission, checked at parse time
 net/minecraft/commands/arguments/selector/EntitySelector#findSingleEntity	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::entities	gap: minor: no single-entity check here; callers check argument.entity.toomany
-net/minecraft/commands/arguments/selector/EntitySelector#findEntities	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::select
-net/minecraft/commands/arguments/selector/EntitySelector#addEntities	inline	crates/horizon-client/src/game/administration/commands/mod.rs::Game::select	per-level collection with the result limit
+net/minecraft/commands/arguments/selector/EntitySelector#findEntities	port	crates/horizon-client/src/game/administration/commands/selectors.rs::Game::select
+net/minecraft/commands/arguments/selector/EntitySelector#addEntities	inline	crates/horizon-client/src/game/administration/commands/selectors.rs::Game::select	per-level collection with the result limit
 net/minecraft/commands/arguments/selector/EntitySelector#findSinglePlayer	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::entities	gap: minor: no single-player check here
-net/minecraft/commands/arguments/selector/EntitySelector#findPlayers	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::select	players only when the selector has no entities
+net/minecraft/commands/arguments/selector/EntitySelector#findPlayers	port	crates/horizon-client/src/game/administration/commands/selectors.rs::Game::select	players only when the selector has no entities
 net/minecraft/commands/arguments/selector/EntitySelector#getPredicate	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::select_in_level	type, name, gamemode, level, distance and box filters
-net/minecraft/commands/arguments/selector/EntitySelector#sortAndLimit	inline	crates/horizon-client/src/game/administration/commands/mod.rs::Game::select	sort kinds and the limit
+net/minecraft/commands/arguments/selector/EntitySelector#sortAndLimit	inline	crates/horizon-client/src/game/administration/commands/selectors.rs::Game::select	sort kinds and the limit
 EntitySelectorParser.allowSelectors	inline	crates/horizon-command/src/args.rs::ArgType::parse	reg.permission >= 2 at each selector call site
 EntitySelectorParser.createAabb	inline	crates/horizon-client/src/game/administration/commands/mod.rs::Game::select_in_level	dx, dy, dz box from the origin
 EntitySelectorParser.finalizePredicates	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::select_in_level	player: x_rotation and y_rotation are parsed but never filter the selection; the level filter is here
