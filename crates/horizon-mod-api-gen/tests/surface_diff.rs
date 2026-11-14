@@ -73,6 +73,7 @@ fn run(dir: &Path, extra: &[&str]) -> (i32, String, String) {
 }
 
 #[test]
+#[ignore = "daily"]
 fn without_the_gate_a_break_reports_and_passes() {
     let dir = folder();
     let (code, out, _) = run(dir.path(), &["--notes", "changes", "--base-notes", "base"]);
@@ -84,6 +85,7 @@ fn without_the_gate_a_break_reports_and_passes() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn the_gate_fails_an_undeclared_break_and_passes_a_declared_one() {
     let dir = folder();
     let (code, _, err) = run(dir.path(), &["--gate"]);
@@ -109,6 +111,7 @@ fn the_gate_fails_an_undeclared_break_and_passes_a_declared_one() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_new_note_naming_an_unchanged_id_fails_and_an_old_or_edited_one_is_ignored() {
     let dir = folder();
     let stale = "ids = [\"fn:keep\"]\nwhy = \"Nothing.\"\n";
@@ -140,6 +143,7 @@ fn a_new_note_naming_an_unchanged_id_fails_and_an_old_or_edited_one_is_ignored()
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_malformed_note_or_surface_is_refused_by_name() {
     let dir = folder();
     note(
@@ -164,6 +168,7 @@ fn a_malformed_note_or_surface_is_refused_by_name() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn the_json_report_is_written() {
     let dir = folder();
     let (code, ..) = run(dir.path(), &["--json", "diff.json"]);

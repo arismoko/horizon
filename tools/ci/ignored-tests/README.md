@@ -9,6 +9,7 @@ One row per line, `#` starts a comment line:
 
     PACKAGE TEST REFERENCE [flaky|harness|gpu|needs|needs-plain] [# note]
     PACKAGE TEST TARGET daily REASON [# note]
+    PACKAGE TEST WHO manual # WHY
 
 REFERENCE is the issue or PR that tracks it (for `needs`, the environment variable). A listed test that passes
 fails the job until its row is removed, so a file only shrinks; `flaky` lets one pass. `harness` marks a parity
@@ -30,3 +31,27 @@ longer runs fails. Its package's shard runs it when that shard builds its target
 every other one; verify-static fails a row no leg runs. `python3 tools/ci/move_to_daily.py apply LIST` writes the
 attribute and the row (its docstring has the list format). The attribute is the source's mark and the row is the
 daily run's list of what must run: an attribute without a row in a package no shard covers would run nowhere.
+A launcher test is moved the same way (`daily-horizon-launcher.txt`): its own leg, `daily-rows-launcher`, runs it
+from `launcher/`, its own workspace, against its own lockfile. A launcher test that starts the launcher binary also belongs to
+the Windows release job `launcher-processes` (`launcher-windows-check.yml`), which runs those `tests/` targets by
+`--test` name: add its target there too.
+verify-static also checks both directions statically: a `#[ignore = "daily"]` function with no row, or a row with no
+such function, fails (`check_ignored_test_rows.py`; matched by package and function name).
+
+`manual` marks an ignored test that never runs in the daily shards, in `manual-<package>.txt`: WHO runs it
+(`by-hand`, `subprocess` for a child process its parent test starts, or the workflow file that runs it, such as
+`wasm-mods.yml`) and the note says why (a benchmark, a fixture writer, a real GPU, the OS keychain, ...). The shards
+skip it.
+
+A rowless `#[ignore]` in a target a package's shard builds (`horizon-client`'s targets, the other shard packages'
+libraries) still runs every day with `--include-ignored` and must pass, so it needs no row. Anywhere else it would run
+nowhere, so verify-static fails it until it has a row: `daily` to run it in the daily run, or `manual` to say who does.
+
+verify-static fails an un-ignored test that starts a child process (`check_process_tests.py`): it runs a
+`Command`, directly or through a helper of its file or one listed in `tools/ci/process-spawns.txt`. Such a test is a
+`daily` row with reason `child-process`.
+
+`verify` times its test binaries (`tools/ci/run_test_binaries.py --time-limits 2,5`): a test over 5 s fails by name,
+one over 2 s only warns, so it stays until someone moves it. The times are wall time with three binaries and their
+test threads running at once, not isolated measurements. Documentation examples and `verify`'s Python steps are not
+timed.

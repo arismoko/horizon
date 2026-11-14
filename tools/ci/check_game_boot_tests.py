@@ -11,7 +11,7 @@ Limits (tools/ci/rust_tests.py reads the source, it does not compile it): calls 
 in another file, a method reached through a trait, or a call a macro writes is not followed; a same-file helper
 and a fixture match any function or method of that name. Builds nothing.
 
-Usage: check_game_boot_tests.py [FILE.rs...]   (default: every tracked .rs file under crates/)
+Usage: check_game_boot_tests.py [FILE.rs...]   (default: every tracked .rs file under crates/ and launcher/)
 """
 
 import re
@@ -79,7 +79,7 @@ def offenders(source, names):
 
 
 def tracked_sources():
-    listing = subprocess.run(["git", "ls-files", "-z", "--", "crates/*.rs"], cwd=ROOT, capture_output=True,
+    listing = subprocess.run(["git", "ls-files", "-z", "--", "crates/*.rs", "launcher/*.rs"], cwd=ROOT, capture_output=True,
                              text=True, check=True)
     return [path for path in listing.stdout.split("\0") if path]
 

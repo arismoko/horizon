@@ -260,7 +260,7 @@ class DynaRoutingTests(unittest.TestCase):
         self.assertNotIn("cargo test", static)
         self.assertNotIn("Swatinem/rust-cache", static)
         self.assertNotIn("runner-packages.txt", static)
-        self.assertIn("cargo build $JOBS --profile test -p horizon-mod-package --features runtime-process --example holder_actor", runtime)
+        self.assertIn("python3 tools/ci/ignored_shards.py --prepare horizon-mod-package $JOBS", runtime)
         self.assertIn("python3 tools/ci/run_test_binaries.py --jobs 3 --time-limits 2,5 -- cargo test $JOBS --profile test --workspace --lib --bins --tests", runtime)
         self.assertIn("cargo test $JOBS --no-fail-fast --profile test --workspace --doc", runtime)
         tools = static.split("- name: Install Rust tools for isolated tooling fixtures\n", 1)[1].split("\n      - ", 1)[0]

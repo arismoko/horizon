@@ -1,6 +1,7 @@
 use super::boundary_arguments;
 
 #[test]
+#[ignore = "daily"]
 fn boolean_state_writes_refuse_before_mutation_without_changing_the_bool_contract() {
     let mut methods = String::new();
     for (name, ty, value) in [

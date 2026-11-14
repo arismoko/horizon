@@ -11,12 +11,14 @@ fn scratch() -> PathBuf {
     path
 }
 #[test]
+#[ignore = "daily"]
 fn modprofile_state_and_report_side_effects() {
     // Other game tests may enter process-wide mod guards. Run this service test alone.
     if std::env::var_os("HORIZON_MODPROFILE_TEST_CHILD").is_none() {
         assert!(
             std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
+                    "--include-ignored",
                     "--exact",
                     "game::commands::modprofile::tests::modprofile_state_and_report_side_effects"
                 ])

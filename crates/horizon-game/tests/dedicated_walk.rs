@@ -85,6 +85,7 @@ fn join(port: u16, name: &str) -> horizon_protocol::Result<Connection> {
 /// against real worldgen, not a flat test world. #2845: a pass left unbalanced stopped the
 /// server about 30 level ticks after a walking bot joined.
 #[test]
+#[ignore = "daily"]
 fn a_dedicated_server_keeps_ticking_while_a_player_walks() {
     use std::{
         io::{BufRead, Write},

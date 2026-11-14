@@ -112,13 +112,14 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn unbound_passes_block_until_restore_consumption_and_unwind() {
         // The admission signal is process-wide. Isolate this test from other
         // tests legitimately lifting owners concurrently in the same runner.
         const CHILD: &str = "HORIZON_SAVE_LEASE_TEST_CHILD";
         if std::env::var_os(CHILD).is_none() {
             let output = std::process::Command::new(std::env::current_exe().unwrap())
-                .args(["--exact", "join_seq::visibility::tests::unbound_passes_block_until_restore_consumption_and_unwind"])
+                .args(["--include-ignored", "--exact", "join_seq::visibility::tests::unbound_passes_block_until_restore_consumption_and_unwind"])
                 .env(CHILD, "1")
                 .output()
                 .unwrap();

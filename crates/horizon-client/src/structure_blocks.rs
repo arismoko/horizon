@@ -344,11 +344,13 @@ mod tests {
     use horizon_world::loot::{ExplorationMap, LootStack};
 
     #[test]
+    #[ignore = "daily"]
     fn declared_structure_entities_keep_template_payload_not_template_type() {
         const CHILD: &str = "HORIZON_TEST_DECLARED_STRUCTURE_ENTITY";
         if std::env::var_os(CHILD).is_none() {
             let output = std::process::Command::new(std::env::current_exe().unwrap())
                     .args([
+                        "--include-ignored",
                         "--exact",
                         "structure_blocks::tests::declared_structure_entities_keep_template_payload_not_template_type",
                     ])

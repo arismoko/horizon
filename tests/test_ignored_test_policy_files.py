@@ -41,6 +41,19 @@ class PolicyFiles(unittest.TestCase):
             ignored_tests.Row("pkg", "b::test", "adapter", "gpu", "tools/ci/ignored-tests/gpu.txt"),
         ])
 
+    def test_a_manual_row_says_who_runs_it_and_why(self):
+        self.write("manual-pkg.txt", "pkg a::bench by-hand manual # a microbenchmark\n"
+                                      "pkg b::child subprocess manual # a child of b::parent\n"
+                                      "pkg c::fixture wasm-mods.yml manual # built by the workflow\n")
+        self.assertEqual([(row.test, row.reference, row.mark) for row in ignored_tests.listed_entries()],
+                         [("a::bench", "by-hand", "manual"), ("b::child", "subprocess", "manual"),
+                          ("c::fixture", "wasm-mods.yml", "manual")])
+        self.assertEqual(ignored_tests.known_failures()[("pkg", "a::bench")], "manual")
+        for row, refusal in (("pkg a::bench by-hand manual\n", "WHY"), ("pkg a::bench somebody manual # x\n", "WHO"),
+                             ("pkg a::bench nothing.yml manual # x\n", "no workflow")):
+            self.write("manual-pkg.txt", row)
+            self.assertIn(refusal, self.exit_message(ignored_tests.listed_entries))
+
     def test_a_test_in_two_files_names_both(self):
         self.write("flaky.txt", "pkg a::test #1 flaky\n")
         self.write("issue-9.txt", "# tracked\npkg a::test #9\n")

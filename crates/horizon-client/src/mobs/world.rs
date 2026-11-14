@@ -1058,6 +1058,7 @@ mod scaffolding_sight_tests {
 #[cfg(test)]
 mod missing_data_report_tests {
     #[test]
+    #[ignore = "daily"]
     fn missing_mob_data_reports_one_counted_skip_per_test() {
         const CHILD: &str = "HORIZON_MISSING_MOB_DATA_REPORT_CHILD";
         if std::env::var_os(CHILD).is_some() {
@@ -1091,7 +1092,7 @@ mod missing_data_report_tests {
         .unwrap()
         .1;
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", test]) // Deliberately keep libtest's default capture.
+            .args(["--include-ignored", "--exact", test]) // Deliberately keep libtest's default capture.
             .env(CHILD, "1")
             .output()
             .unwrap();

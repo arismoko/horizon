@@ -1097,6 +1097,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_refused_command_ends_the_trip_with_the_games_reason() {
         let (tx, rx) = mpsc::channel::<Request>();
         let server = thread::spawn(move || {
@@ -1210,6 +1211,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn the_blocks_run_b_a_a_b_and_each_arm_is_timed_by_pass() {
         let (tx, rx) = mpsc::channel::<Request>();
         let server = culling_server(rx, false, true, None);
@@ -1263,6 +1265,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_setting_that_was_on_is_on_again_after_the_run() {
         let (tx, rx) = mpsc::channel::<Request>();
         let server = culling_server(rx, true, true, None);
@@ -1282,6 +1285,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn the_setting_is_put_back_when_the_run_fails_midway() {
         let (tx, rx) = mpsc::channel::<Request>();
         // The 3rd block is A: the setting is off when it fails.
@@ -1307,6 +1311,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_refused_switch_ends_the_run_with_the_games_reason_and_changes_nothing() {
         let (tx, rx) = mpsc::channel::<Request>();
         let server = culling_server(rx, false, false, None);

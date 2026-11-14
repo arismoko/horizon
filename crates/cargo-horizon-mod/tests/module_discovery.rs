@@ -89,6 +89,7 @@ impl Drop for Fixture {
 }
 
 #[test]
+#[ignore = "daily"]
 fn internals_add_uses_launcher_module_catalog_hash() {
     let fixture = Fixture::new(true);
     fixture.run(&["internals", "add", METHOD, "--kind", "method"]);
@@ -100,6 +101,7 @@ fn internals_add_uses_launcher_module_catalog_hash() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn inject_add_head_uses_launcher_module_catalog_hash() {
     let fixture = Fixture::new(true);
     fixture.run(&[
@@ -113,6 +115,7 @@ fn inject_add_head_uses_launcher_module_catalog_hash() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn module_free_add_commands_keep_prebuilt_output_and_never_run_launcher() {
     for args in [
         vec!["internals", "add", METHOD, "--kind", "method"],

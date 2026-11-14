@@ -46,7 +46,7 @@ class Budgets(unittest.TestCase):
                          f'{root}/../{root.name}/{path}:176:1',
                          f'{root}/{path}:999999:1',
                          f'{root}/{path}:176:0',
-                         f'{root}/crates/horizon-client/src/game.rs:1:1',
+                         f'{root}/crates/horizon-client/src/not_tracked.rs:1:1',
                          f'{root}/.local/private.rs:1:1'):
             with self.subTest(location=rejected):
                 log = self.render(f"test safe ... FAILED\nthread 'safe' panicked at {rejected}:\n"
@@ -111,12 +111,33 @@ class Budgets(unittest.TestCase):
                      for control in ('\x00', '\x01', '\x1b', '\x7f', '\x85')]
         locations += [path + ':abc:5', path + ':109:abc',
                       'crates/private.txt:1:1', 'crates/symlink.rs:1:1',
-                      'crates/horizon-client/src/game.rs:1:1']
+                      'crates/horizon-client/src/not_tracked.rs:1:1']
         for location in locations:
             with self.subTest(location=location):
                 log = self.render(f"test safe ... FAILED\nthread 'safe' panicked at {location}:\nPRIVATE\n")
                 self.assertNotIn('  panicked at ', log)
                 self.assertNotIn('PRIVATE', log)
+
+    def test_a_location_in_a_large_tracked_source_of_any_package_is_reported(self):
+        # horizon-client-lib's sources live under crates/horizon-client/ through its manifest, and motion.rs is
+        # over 256 KB: its failure's location was withheld (#4028) while smaller horizon-client files were shown.
+        ci.tracked_rust_paths.cache_clear()
+        ci.source_lines.cache_clear()
+        for location in ('crates/horizon-client/src/motion.rs:6115:9',
+                         'crates/horizon-client-lib/../horizon-client/src/motion.rs:6115:9'):
+            log = self.render("test motion::tests::resident_fluid_heights_are_measured_from_the_feet ... FAILED\n"
+                              "thread 'motion::tests::resident_fluid_heights_are_measured_from_the_feet' panicked at "
+                              f"{location}:\nassertion `left == right` failed\n left: 1\n right: 2\n")
+            self.assertIn('  panicked at crates/horizon-client/src/motion.rs:6115:9', log)
+            self.assertIn('0 locations withheld', log)
+        # Past the read bound a tracked source still stays withheld.
+        ci.tracked_rust_paths.cache_clear()
+        with patch.object(ci, 'SOURCE_BYTES', 1000):
+            log = self.render("test t ... FAILED\nthread 't' panicked at crates/horizon-client/src/motion.rs:1:1:\n"
+                              "assertion failed: x\n")
+        self.assertIn('panic location withheld', log)
+        ci.tracked_rust_paths.cache_clear()
+        ci.source_lines.cache_clear()
 
     def test_non_regular_git_entry_never_read_as_source(self):
         import subprocess
@@ -156,7 +177,7 @@ class Budgets(unittest.TestCase):
         self.assertIn('total byte budget 200', metadata)
 
     def test_multibyte_identity_and_per_test_budget(self):
-        log = self.render('test ' + '界' * 400 + ' ... FAILED\n')
+        log = self.render('test ' + '界' * 290 + ' ... FAILED\n')
         payload = log.split('failure diagnostics: ')[0]
         self.assertLessEqual(len(payload.encode()), 500)
         self.assertIn('shortened: per-test byte budget', payload)

@@ -550,6 +550,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[ignore = "daily"]
     fn a_relative_folder_reaches_the_game_whole() {
         use std::os::unix::fs::PermissionsExt;
         // Relative to this process's folder (the crate's, under cargo test), as `--dir srv` gives it.
@@ -610,6 +611,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[ignore = "daily"]
     fn the_check_runs_the_program() {
         use std::os::unix::fs::PermissionsExt;
         let root =

@@ -17,6 +17,9 @@ BRACES = re.compile(r"[{}]")
 FN = re.compile(r"\bfn\s+(?:r#)?([A-Za-z_]\w*)")
 ATTRIBUTE = re.compile(r"#\s*\[\s*((?:\w+\s*::\s*)*\w+)")
 # The attributes that make a function a test: `#[test]`, and the `#[tokio::test]`-style ones of async runtimes.
+# The daily run's mark, and the literal `functions` must keep for `Function.is_daily` to see it.
+DAILY_MARK = re.compile(r'#\s*\[\s*ignore\s*=\s*"daily"\s*\]')
+DAILY_KEEP = frozenset({"daily"})
 TEST_ATTRIBUTES = re.compile(r"^(?:test|(?:\w+::)+test)$")
 
 
@@ -33,7 +36,14 @@ class Function(NamedTuple):
 
     @property
     def is_ignored(self):
-        return "ignore" in self.attributes or bool(re.search(r"\bignore\b", self.attribute_text))
+        """An unconditional `#[ignore]`. A conditional one (`#[cfg_attr(windows, ignore)]`) does not count: the test
+        still runs in some configuration, so the checks treat it as not ignored."""
+        return "ignore" in self.attributes
+
+    @property
+    def is_daily(self):
+        """Marked `#[ignore = "daily"]` (read from `functions(source, keep=DAILY_KEEP)`, which keeps that literal)."""
+        return bool(DAILY_MARK.search(self.attribute_text))
 
 
 def blank(source, keep=frozenset()):

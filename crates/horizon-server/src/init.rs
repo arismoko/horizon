@@ -309,6 +309,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn unattended_init_writes_everything() {
         let dir = std::env::temp_dir().join(format!("horizon-server-init-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -352,6 +353,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn no_eula_no_server() {
         let dir = std::env::temp_dir().join(format!("horizon-server-eula-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -367,6 +369,7 @@ mod tests {
 
     /// `Config::check` refuses these at every start, so `init` must not write a `server.toml` that holds them.
     #[test]
+    #[ignore = "daily"]
     fn init_refuses_a_port_or_world_name_the_server_would_refuse() {
         for (label, world, port, refusal) in [
             ("port-0", None, Some(0), "server.port"),
@@ -401,6 +404,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn init_op_gets_the_op_permission_level_of_the_imported_properties() {
         // `PlayerList.op` writes `operatorUserPermissions()`, the level of `op-permission-level`.
         let dir = std::env::temp_dir().join(format!(

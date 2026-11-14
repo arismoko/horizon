@@ -428,7 +428,11 @@ fn measure_child_compile() {
         let start = std::time::Instant::now();
         assert!(
             std::process::Command::new(std::env::current_exe().unwrap())
-                .args(["--exact", "module_cache::tests::compiler_actor"])
+                .args([
+                    "--include-ignored",
+                    "--exact",
+                    "module_cache::tests::compiler_actor"
+                ])
                 .env_clear()
                 .env("HORIZON_COMPILER_INPUT", &input.0)
                 .env("HORIZON_COMPILER_OUTPUT", ModuleCache::key(&engine, &bytes))
@@ -457,7 +461,11 @@ fn actor_command(input: &Path, key: &str, mode: &str) -> std::process::Command {
     let mut command = std::process::Command::new(std::env::current_exe().unwrap());
     command
         .env_clear()
-        .args(["--exact", "module_cache::tests::compiler_actor"])
+        .args([
+            "--include-ignored",
+            "--exact",
+            "module_cache::tests::compiler_actor",
+        ])
         .env("HORIZON_COMPILER_INPUT", input)
         .env("HORIZON_COMPILER_OUTPUT", key)
         .env("HORIZON_COMPILER_MODE", mode);
@@ -486,6 +494,7 @@ fn missing(_: &Path, _: &str) -> std::process::Command {
 }
 
 #[test]
+#[ignore = "daily"]
 fn child_success_avoids_in_process_compile() {
     let (_dir, cache, _, bytes) = fixture();
     let engine = crate::runtime::engine().unwrap();

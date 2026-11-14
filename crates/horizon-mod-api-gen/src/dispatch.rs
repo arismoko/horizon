@@ -1490,6 +1490,7 @@ fn main() {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn block_crossing_runtime_and_mutants() {
         let state: Type = syn::parse_quote!(&mut BlockState);
         let sibling: Type = syn::parse_quote!(&mut u32);
@@ -1658,6 +1659,7 @@ fn main() {
         syn::parse_str::<syn::Block>(&body).unwrap();
     }
     #[test]
+    #[ignore = "daily"]
     fn unsubscribed_owned_values_never_convert_or_allocate() {
         for record in ["ItemStack", "ParticleOptions"] {
             let stack: Type = syn::parse_str(&format!("&{record}")).unwrap();
@@ -2014,6 +2016,7 @@ fn main() {{ generated::dispatch_setting_changed(&mut (), "a", "toggle"); assert
     }
 
     #[test]
+    #[ignore = "daily"]
     fn settings_boundary_owns_and_caches_values() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let source = std::fs::read_to_string(
@@ -2165,6 +2168,7 @@ fn main() {{ game::run(std::env::args_os().nth(1).unwrap().into()); }}
     }
 
     #[test]
+    #[ignore = "daily"]
     fn an_answered_collect_names_the_mod_of_each_entry() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let hook = Hook {
