@@ -150,12 +150,6 @@ impl TagMerge {
         warning
     }
 
-    /// The last mod file's additions (an empty set after a replace).
-    #[cfg(test)]
-    pub(super) fn values(&self) -> &[J] {
-        self.layers.last().map_or(&[], |(values, _)| values)
-    }
-
     /// The layers' entries for [`merge_tag`].
     pub(super) fn layers(&self) -> Vec<TagLayers<'_>> {
         self.layers
