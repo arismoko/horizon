@@ -1,3 +1,0 @@
-fn overwrite() -> Result<()> {
-    Ok(())
-}

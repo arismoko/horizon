@@ -1,4 +1,0 @@
-target/
-mod.wasm
-# Built by `cargo horizon-mod build --wasm`, which also writes [wasm] into horizon-mod.toml.
-Cargo.lock
