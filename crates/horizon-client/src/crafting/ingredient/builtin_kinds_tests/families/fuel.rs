@@ -1016,3 +1016,4 @@ fn cooking_fuel_zero_speed_is_valid_without_defaults_or_bounds() {
         ])
     );
 }
+

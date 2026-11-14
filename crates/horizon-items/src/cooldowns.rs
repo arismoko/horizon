@@ -34,23 +34,28 @@ impl UseCooldown {
     }
     /// The component as a stack's saved `components` holds it.
     pub fn from_tag(t: &Tag) -> Option<Self> {
+        let (seconds, group) = Self::fields_from_tag(t)?;
+        Some(Self {
+            seconds,
+            group: group.and_then(|tag| match tag {
+                Tag::String(s) => Some(Arc::from(s.to_string_lossy())),
+                _ => None,
+            }),
+        })
+    }
+    /// Borrow the persistent record fields, using `NbtOps`' boxed-number float conversion.
+    /// Codec validation belongs to the caller; this also serves existing saved-stack readers.
+    pub fn fields_from_tag(t: &Tag) -> Option<(f32, Option<&Tag>)> {
         let Tag::Compound(c) = t else {
             return None;
         };
-        let text = |k: &str| match c.get(&horizon_core::nbt::JavaString::from(k)) {
-            Some(Tag::String(s)) => Some(s.to_string_lossy()),
-            _ => None,
+        let field = |name: &str| {
+            c.iter()
+                .find(|(key, _)| key.0.iter().copied().eq(name.encode_utf16()))
+                .map(|(_, value)| value)
         };
-        // NbtOps.getNumberValue: any numeric tag (vanilla's codec reads a
-        // positive float).
-        let seconds = horizon_world::datafix::dynamic::as_number(
-            c.get(&horizon_core::nbt::JavaString::from("seconds"))?,
-        )?
-        .float_value();
-        Some(Self {
-            seconds,
-            group: text("cooldown_group").map(Arc::from),
-        })
+        let seconds = horizon_world::datafix::dynamic::as_number(field("seconds")?)?.float_value();
+        Some((seconds, field("cooldown_group")))
     }
 }
 

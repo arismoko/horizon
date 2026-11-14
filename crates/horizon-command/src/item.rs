@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:use_cooldown",
     "minecraft:tropical_fish/pattern_color",
     "minecraft:cooking_fuel",
     "minecraft:tropical_fish/base_color",
@@ -107,6 +108,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
     if id == "minecraft:cooking_fuel" {
         return horizon_items::item_data::cooking_fuel::decode(value);
     }
+    if id == "minecraft:use_cooldown" { return use_cooldown(value); }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
         let Tag::Compound(_) = value else {
@@ -180,6 +182,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
+        "minecraft:use_cooldown" => use_cooldown(t).map(|_| ()),
         "minecraft:cooking_fuel" => horizon_items::item_data::cooking_fuel::decode(t).map(|_| ()),
         "minecraft:brewing_fuel" => horizon_items::item_data::brewing_fuel::decode(t).map(|_| ()),
         "minecraft:compostable" => {
@@ -374,6 +377,23 @@ fn string_enum(t: &Tag, names: &[&str]) -> Result<(), String> {
     } else {
         Err(format!("Unknown element name:{}", value.to_string_lossy()))
     }
+}
+/// `UseCooldown.CODEC`: required positive finite seconds and an optional identifier.
+fn use_cooldown(value: &Tag) -> Result<Tag, String> {
+    let Tag::Compound(_) = value else {
+        return Err(not_map(value));
+    };
+    let (seconds, group) = horizon_items::cooldowns::UseCooldown::fields_from_tag(value)
+        .ok_or("Expected numeric 'seconds' field")?;
+    if !seconds.is_finite() || seconds <= 0.0 {
+        return Err(format!("Value must be positive: {seconds}"));
+    }
+    let mut record = Compound::new();
+    record.insert("seconds".into(), Tag::Float(seconds.to_bits()));
+    if let Some(group) = group {
+        record.insert("cooldown_group".into(), identifier_payload(group)?);
+    }
+    Ok(Tag::Compound(record))
 }
 fn enchantment_map(t: &Tag, reg: &Registries) -> Result<(), String> {
     let Tag::Compound(map) = t else {

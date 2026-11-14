@@ -695,3 +695,216 @@ fn minimum_attack_charge_recipe_decodes_and_matches_float_values() {
     assert!(!positive.test_in(&context, &no_default));
 }
 
+#[test]
+fn use_cooldown_recipe_decodes_record_and_matches_borrowed_values() {
+    const ID: &str = "minecraft:use_cooldown";
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:stick".into(),
+        horizon_core::nbt::Compound::from_iter([(
+            ID.into(),
+            Tag::compound([
+                ("seconds", Tag::Int(2)),
+                ("cooldown_group", Tag::String(":shared".into())),
+                ("ignored", Tag::Int(99)),
+            ]),
+        )]),
+    )]));
+    let ingredient_json = |value: serde_json::Value| serde_json::json!({"type":"neoforge:components","items":"minecraft:stick","components":{(ID):value}});
+    let compile = |ingredient: serde_json::Value| {
+        let root = tempfile::tempdir().unwrap();
+        crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:use_cooldown".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless",
+                    "ingredients":[ingredient],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load(),
+        )
+        .unwrap()
+    };
+    let json = ingredient_json(serde_json::json!({
+        "seconds":2.0,"cooldown_group":"shared","unknown":false
+    }));
+    let recipes = compile(json.clone());
+    assert_eq!(recipes.crafting.len(), 1);
+    let ingredient = Ingredient::parse(&json, &items).unwrap();
+    let canonical = Tag::compound([
+        ("seconds", Tag::Float(2.0f32.to_bits())),
+        ("cooldown_group", Tag::String("minecraft:shared".into())),
+    ]);
+    assert_eq!(
+        ingredient.shown.as_ref().unwrap()[0]
+            .data()
+            .unwrap()
+            .other(ID),
+        Some(&canonical)
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let mut stack = ItemStack::new("minecraft:stick", 1);
+    assert!(recipes.recipe_matches(&context, "fixture:use_cooldown", &[Some(stack.clone())], 1));
+    for group in ["shared", ":shared", "minecraft:shared"] {
+        stack.data_mut().set_other(
+            ID,
+            Some(Tag::compound([
+                ("seconds", Tag::Double(2.0f64.to_bits())),
+                ("cooldown_group", Tag::String(group.into())),
+                ("ignored", Tag::String("different".into())),
+            ])),
+        );
+        let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+            assert!(ingredient.test_in(&context, &stack));
+        });
+        assert_eq!(allocations.calls, 0, "{allocations:?}");
+        assert!(recipes.recipe_matches(
+            &context,
+            "fixture:use_cooldown",
+            &[Some(stack.clone())],
+            1
+        ));
+    }
+    for value in [
+        Tag::compound([("seconds", Tag::Int(2))]),
+        Tag::compound([
+            ("seconds", Tag::Int(3)),
+            ("cooldown_group", Tag::String("shared".into())),
+        ]),
+        Tag::compound([
+            ("seconds", Tag::Int(2)),
+            ("cooldown_group", Tag::String("fixture:shared".into())),
+        ]),
+    ] {
+        stack.data_mut().set_other(ID, Some(value));
+        assert!(!recipes.recipe_matches(
+            &context,
+            "fixture:use_cooldown",
+            &[Some(stack.clone())],
+            1
+        ));
+    }
+    stack.data_mut().set_other(ID, None);
+    stack.data_mut().set_other(
+        "!minecraft:use_cooldown",
+        Some(Tag::compound([] as [(&str, Tag); 0])),
+    );
+    assert!(!ingredient.test_in(&context, &stack));
+
+    let decode = |value: &Tag| {
+        horizon_command::item::decoded_component_value(ID, value, &items.component_registry)
+    };
+    for number in [
+        Tag::Byte(2),
+        Tag::Short(2),
+        Tag::Int(2),
+        Tag::Long(2),
+        Tag::Float(2.0f32.to_bits()),
+        Tag::Double(2.0f64.to_bits()),
+    ] {
+        assert_eq!(
+            decode(&Tag::compound([("seconds", number)])).unwrap(),
+            Tag::compound([("seconds", Tag::Float(2.0f32.to_bits()))])
+        );
+    }
+    for (number, bits) in [
+        (Tag::Long(16_777_217), 16_777_216.0f32.to_bits()),
+        (Tag::Long(i64::MAX), (i64::MAX as f32).to_bits()),
+        (
+            Tag::Double(f64::from(f32::MAX).to_bits()),
+            f32::MAX.to_bits(),
+        ),
+        (Tag::Float(1), 1),
+    ] {
+        assert_eq!(
+            decode(&Tag::compound([("seconds", number)])).unwrap(),
+            Tag::compound([("seconds", Tag::Float(bits))])
+        );
+    }
+    for number in [
+        Tag::Int(0),
+        Tag::Int(-1),
+        Tag::Long(i64::MIN),
+        Tag::Float((-0.0f32).to_bits()),
+        Tag::Float(f32::NAN.to_bits()),
+        Tag::Float(f32::INFINITY.to_bits()),
+        Tag::Float(f32::NEG_INFINITY.to_bits()),
+        Tag::Double(f64::MAX.to_bits()),
+        Tag::Double(f64::MIN_POSITIVE.to_bits()),
+        Tag::String("2".into()),
+    ] {
+        assert!(decode(&Tag::compound([("seconds", number)])).is_err());
+    }
+    for units in [vec![0xd800], vec![0xdc00], vec![0xd83d, 0xde00]] {
+        assert!(
+            decode(&Tag::compound([
+                ("seconds", Tag::Int(2)),
+                (
+                    "cooldown_group",
+                    Tag::String(horizon_core::nbt::JavaString(units))
+                ),
+            ]))
+            .is_err()
+        );
+    }
+    for value in [
+        serde_json::json!({}),
+        serde_json::json!(2),
+        serde_json::json!({"seconds":0}),
+        serde_json::json!({"seconds":-1}),
+        serde_json::json!({"seconds":1e100}),
+        serde_json::json!({"seconds":"2"}),
+        serde_json::json!({"seconds":2,"cooldown_group":7}),
+        serde_json::json!({"seconds":2,"cooldown_group":"Minecraft:shared"}),
+        serde_json::json!({"seconds":2,"cooldown_group":"bad group"}),
+        serde_json::json!({"seconds":2,"cooldown_group":"a:b:c"}),
+    ] {
+        let json = ingredient_json(value);
+        assert!(compile(json.clone()).crafting.is_empty(), "{json}");
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(json["components"].as_object().unwrap())
+                .unwrap(),
+            removed: Vec::new(),
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:use_cooldown:"),
+            "{error}"
+        );
+    }
+    let absent_group = ingredient_json(serde_json::json!({"seconds":2}));
+    let no_group = compile(absent_group);
+    assert_eq!(no_group.crafting.len(), 1);
+    stack.data_mut().set_other("!minecraft:use_cooldown", None);
+    stack
+        .data_mut()
+        .set_other(ID, Some(Tag::compound([("seconds", Tag::Int(2))])));
+    assert!(no_group.recipe_matches(&context, "fixture:use_cooldown", &[Some(stack.clone())], 1));
+    stack.data_mut().set_other(
+        ID,
+        Some(Tag::compound([
+            ("seconds", Tag::Int(2)),
+            ("cooldown_group", Tag::String("".into())),
+        ])),
+    );
+    assert!(!no_group.recipe_matches(&context, "fixture:use_cooldown", &[Some(stack)], 1));
+    for group in ["", ":", "minecraft:"] {
+        assert_eq!(
+            decode(&Tag::compound([
+                ("seconds", Tag::Int(2)),
+                ("cooldown_group", Tag::String(group.into())),
+            ]))
+            .unwrap(),
+            Tag::compound([
+                ("seconds", Tag::Float(2.0f32.to_bits())),
+                ("cooldown_group", Tag::String("minecraft:".into())),
+            ])
+        );
+    }
+}

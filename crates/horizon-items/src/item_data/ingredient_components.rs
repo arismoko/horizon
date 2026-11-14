@@ -40,6 +40,25 @@ pub fn removed(stack: &ItemStack, id: &str) -> bool {
 /// Presence is checked by the caller, so empty decoded enchantment maps compare equal.
 pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
     match id {
+        "minecraft:use_cooldown" => {
+            fn fields(stack: &ItemStack) -> Option<(f32, Option<&Tag>)> {
+                stack
+                    .data()
+                    .and_then(|d| d.other("minecraft:use_cooldown"))
+                    .and_then(crate::cooldowns::UseCooldown::fields_from_tag)
+            }
+            match (fields(a), fields(b)) {
+                (Some((a, ga)), Some((b, gb))) => {
+                    a.to_bits() == b.to_bits()
+                        && match (ga, gb) {
+                            (None, None) => true,
+                            (Some(a), Some(b)) => identifier_equal(Some(a), Some(b)),
+                            _ => false,
+                        }
+                }
+                _ => false,
+            }
+        }
         "minecraft:cooking_fuel" => super::cooking_fuel::equal(
             a.data().and_then(|d| d.other(id)),
             b.data().and_then(|d| d.other(id)),
