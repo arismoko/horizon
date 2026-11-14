@@ -32,7 +32,7 @@ with no engine snapshot returns `RegistrationReadError::Unavailable`.
 
 A mod that does slow work while the game starts shows it on the startup loading screen
 (NeoForge's `StartupNotificationManager` and `ProgressMeter`). `RegistrationContext::progress(label,
-steps)` opens a bar under the game's stage bar and returns a `StartupProgress`: `step()`, `set(n)` and
+steps)` opens a bar under the game's stage bar and returns `Result<StartupProgress, StartupProgressError>` (handle `TooManyBars` when 64 bars are already open): `step()`, `set(n)` and
 `label(text)` move it, and dropping it removes the bar. The mod may keep the handle past
 `register` and step it or call `bar.message(text)` from a worker thread or from `client_setup`.
 `RegistrationContext::message(text)` shows a line for a few seconds. The newest four bars and the

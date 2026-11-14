@@ -262,7 +262,6 @@ fn __horizon_mod_hooks() -> Box<dyn Hooks> {
             registrar: &mut dyn mod_api::Registrar,
             cx: &mod_api::RegistrationContext,
         ) {
-            startup_progress::register(cx);
             cx.warn("wire_test.warn.optional", &["café", "jei"]);
             arm_pose_registration::check(registrar);
             biome_region_registration::register(registrar);

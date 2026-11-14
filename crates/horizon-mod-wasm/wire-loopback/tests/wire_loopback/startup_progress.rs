@@ -10,9 +10,9 @@ impl Record {
     }
 }
 impl mod_api::StartupScreen for Record {
-    fn open(&self, label: String, steps: u32) -> u32 {
+    fn open(&self, label: String, steps: u32) -> Result<u32, mod_api::StartupProgressError> {
         self.push(format!("open {label} {steps}"));
-        9
+        Ok(9)
     }
     fn step(&self, bar: u32) {
         self.push(format!("step {bar}"));
@@ -31,8 +31,8 @@ impl mod_api::StartupScreen for Record {
     }
 }
 
-pub(super) fn register(cx: &mod_api::RegistrationContext) {
-    let bar = cx.progress("loopback", 10);
+fn register(cx: &mod_api::RegistrationContext) {
+    let bar = cx.progress("loopback", 10).unwrap();
     for _ in 0..4 {
         bar.step();
     }
@@ -45,7 +45,46 @@ fn wire_loopback_a_guest_bar_reaches_the_game_screen_by_id() {
     mod_api::__private::game::install_startup_screen(record.clone()).unwrap();
     mod_api::__private::initialize().unwrap();
     let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::World);
-    install_counter();
+    struct Fixture;
+    impl Hooks for Fixture {
+        fn subscribed(&self) -> &'static [Option<mod_api::HookId>] {
+            &[]
+        }
+        fn register(&self, _: &mut dyn mod_api::Registrar, context: &mod_api::RegistrationContext) {
+            let module = WasmMod {
+                group: 0,
+                subscribed: &[],
+                listeners: &[],
+                corrupt: false,
+            };
+            let mut cx = Box::new(boundary::Cx::default());
+            cx.module = &module;
+            cx.frames.push(boundary::Frame::default());
+            let pointer = &mut *cx as *mut boundary::Cx;
+            // SAFETY: the module and context outlive the synchronous calls and scopes.
+            let _resources = unsafe { boundary::resource_scope(pointer, true) };
+            let mut out = Writer::new();
+            out.put(context);
+            let transport: guest::Transport = Rc::new(move |id, bytes| {
+                let mut out = Writer::new();
+                // SAFETY: the outer fixture owns the context until this transport drops.
+                let _resources = unsafe { boundary::resource_scope(pointer, false) };
+                unsafe { boundary::serve(id, pointer, bytes, &mut out) }.unwrap();
+                out.into_bytes()
+            });
+            let _transport = TransportScope(None);
+            guest::set_transport(Some(transport));
+            let _guest = guest::resource_scope();
+            let context: mod_api::RegistrationContext = Reader::new(out.bytes()).take().unwrap();
+            register(&context);
+        }
+    }
+    mod_api::__private::install_parts(
+        &[mod_api::ModEntry::new("startup_fixture", Box::new(Fixture))],
+        &mod_api::__private::part_tests::rule_schema(),
+        |_| false,
+    )
+    .unwrap();
     // Tests running beside this one may register too: count calls, not their order.
     let calls = record.0.lock().unwrap().clone();
     let count = |call: &str| calls.iter().filter(|made| *made == call).count();

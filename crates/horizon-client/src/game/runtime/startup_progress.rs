@@ -12,7 +12,7 @@ const LINE_TIME: Duration = Duration::from_secs(5);
 const SHOWN_BARS: usize = 4;
 /// The most lines drawn, newest last.
 const SHOWN_LINES: usize = 3;
-/// Bars open at once: past this, a new bar is not kept and its calls do nothing.
+/// Bars open at once: past this, opening a bar returns `TooManyBars`.
 const MAX_BARS: usize = 64;
 /// Lines kept for drawing.
 const MAX_LINES: usize = 32;
@@ -135,11 +135,11 @@ impl ModProgress {
 }
 
 impl mod_api::StartupScreen for ModProgress {
-    fn open(&self, label: String, steps: u32) -> u32 {
+    fn open(&self, label: String, steps: u32) -> Result<u32, mod_api::StartupProgressError> {
         let label = one_line(&label);
         let mut state = self.state();
         if state.bars.len() >= MAX_BARS {
-            return 0;
+            return Err(mod_api::StartupProgressError::TooManyBars);
         }
         if self.dedicated {
             log::info!("{label}");
@@ -158,7 +158,7 @@ impl mod_api::StartupScreen for ModProgress {
             steps,
             logged: 0,
         });
-        id
+        Ok(id)
     }
     fn step(&self, bar: u32) {
         self.update(bar, |bar| bar.done = bar.done.saturating_add(1));
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn multibyte_labels_stop_at_the_last_complete_character() {
         let screen = ModProgress::new(false);
-        screen.open(format!("{}界", "é".repeat(127)), 1);
+        screen.open(format!("{}界", "é".repeat(127)), 1).unwrap();
         let bars = screen.shown(Instant::now()).0;
         assert_eq!(bars[0].0, "é".repeat(127));
         screen.message("é".repeat(128));
@@ -217,26 +217,31 @@ mod tests {
     #[test]
     fn sixty_fifth_bar_is_refused_and_ids_do_not_alias_after_wrap() {
         let screen = ModProgress::new(false);
-        let first = screen.open("first".into(), 1);
+        let first = screen.open("first".into(), 1).unwrap();
         screen.state().next = u32::MAX;
-        let second = screen.open("second".into(), 1);
-        assert_ne!(first, second);
+        let second = screen.open("second".into(), 1).unwrap();
+        assert_eq!(first, 1);
+        assert_eq!(second, 2);
         for _ in 2..64 {
-            assert_ne!(screen.open("kept".into(), 1), 0);
+            screen.open("kept".into(), 1).unwrap();
         }
         let before = screen.shown(Instant::now()).0;
-        assert_eq!(screen.open("refused".into(), 1), 0);
+        assert_eq!(
+            screen.open("refused".into(), 1),
+            Err(mod_api::StartupProgressError::TooManyBars)
+        );
+        assert_eq!(screen.state().bars.len(), 64);
         screen.step(0);
         screen.close(0);
         assert_eq!(screen.shown(Instant::now()).0, before);
         screen.close(first);
-        assert_ne!(screen.open("replacement".into(), 1), 0);
+        screen.open("replacement".into(), 1).unwrap();
     }
 
     #[test]
     fn zero_step_bar_remains_finite_and_clamped() {
         let screen = ModProgress::new(false);
-        let bar = screen.open("empty".into(), 0);
+        let bar = screen.open("empty".into(), 0).unwrap();
         screen.step(bar);
         screen.set(bar, u32::MAX);
         assert_eq!(screen.shown(Instant::now()).0, [("empty".into(), 0.0)]);
@@ -248,6 +253,7 @@ mod tests {
         for n in 0..33 {
             screen.message(format!("message {n}"));
         }
+        assert_eq!(screen.state().lines.len(), 32);
         let now = Instant::now();
         assert_eq!(
             screen.shown(now).1,
@@ -260,7 +266,7 @@ mod tests {
     fn bars_read_their_steps_newest_first_and_leave_when_closed() {
         let screen = ModProgress::new(false);
         let now = Instant::now;
-        let first = screen.open("Baking\nmodels".into(), 10);
+        let first = screen.open("Baking\nmodels".into(), 10).unwrap();
         for _ in 0..4 {
             screen.step(first);
         }
@@ -271,7 +277,9 @@ mod tests {
         screen.set(first, 99);
         assert_eq!(screen.shown(now()).0[0].1, 1.0);
         // A fifth bar at once: the oldest is not drawn until a newer one closes.
-        let more: Vec<u32> = (0..4).map(|i| screen.open(format!("bar {i}"), 2)).collect();
+        let more: Vec<u32> = (0..4)
+            .map(|i| screen.open(format!("bar {i}"), 2).unwrap())
+            .collect();
         let labels = |screen: &ModProgress| -> Vec<String> {
             screen
                 .shown(now())

@@ -3,13 +3,46 @@
 use crate::wire::{Reader, Wire, WireError, Writer};
 use std::sync::{Arc, OnceLock};
 
+/// A startup progress operation was refused.
+#[derive(Clone, Debug, PartialEq, Eq, horizon_mod_api_macros::Wire)]
+#[non_exhaustive]
+pub enum StartupProgressError {
+    /// The screen already has 64 open bars. Close a bar before retrying.
+    TooManyBars,
+    /// The game's screen has already been installed.
+    AlreadyInstalled,
+    /// The screen callback could not cross the mod boundary.
+    Refused {
+        /// The mod whose callback was refused.
+        source: crate::Identifier,
+        /// Why the boundary refused the call.
+        reason: String,
+    },
+}
+impl std::fmt::Display for StartupProgressError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooManyBars => f.write_str("the startup screen already has 64 open bars"),
+            Self::AlreadyInstalled => f.write_str("the startup screen is already installed"),
+            Self::Refused { source, reason } => write!(f, "{source}: {reason}"),
+        }
+    }
+}
+impl std::error::Error for StartupProgressError {}
+impl From<(crate::Identifier, String)> for StartupProgressError {
+    fn from((source, reason): (crate::Identifier, String)) -> Self {
+        Self::Refused { source, reason }
+    }
+}
+
 /// The game's side of the startup loading screen. A mod reaches it through
 /// [`RegistrationContext::progress`](crate::RegistrationContext::progress) and
 /// [`RegistrationContext::message`](crate::RegistrationContext::message), not directly. A wasm
 /// mod holds the game's screen by id and each call crosses to the game.
 pub trait StartupScreen: Send + Sync + 'static {
     /// Open a bar of `steps` steps under the stage bar; the answer names it.
-    fn open(&self, label: String, steps: u32) -> u32;
+    /// Returns `StartupProgressError::TooManyBars` if 64 bars are already open.
+    fn open(&self, label: String, steps: u32) -> Result<u32, StartupProgressError>;
     /// One more of bar `bar`'s steps is done.
     fn step(&self, bar: u32);
     /// Bar `bar` has done `done` of its steps.
@@ -28,10 +61,10 @@ static SCREEN: OnceLock<Arc<dyn StartupScreen>> = OnceLock::new();
 /// Install the game's startup screen, once, before mods register.
 // hidden: engine plumbing, re-exported through __private for the game.
 #[doc(hidden)]
-pub fn install_startup_screen(screen: Arc<dyn StartupScreen>) -> Result<(), &'static str> {
+pub fn install_startup_screen(screen: Arc<dyn StartupScreen>) -> Result<(), StartupProgressError> {
     SCREEN
         .set(screen)
-        .map_err(|_| "the startup screen is already installed")
+        .map_err(|_| StartupProgressError::AlreadyInstalled)
 }
 
 pub(crate) fn installed() -> Option<Arc<dyn StartupScreen>> {
@@ -96,15 +129,20 @@ impl crate::RegistrationContext {
     /// Open a bar of `steps` steps labelled `label` on the startup loading screen, under the
     /// game's own stage bar, the newest bar first (NeoForge's `addProgressBar`). On a dedicated
     /// server, which has no screen, the label and every tenth of the steps are logged.
-    pub fn progress(&self, label: &str, steps: u32) -> StartupProgress {
+    /// Returns `TooManyBars` when 64 bars are already open; no bar is created.
+    pub fn progress(
+        &self,
+        label: &str,
+        steps: u32,
+    ) -> Result<StartupProgress, StartupProgressError> {
         let bar = self
             .startup
             .as_ref()
-            .map_or(0, |screen| screen.open(label.to_owned(), steps));
-        StartupProgress {
+            .map_or(Ok(0), |screen| screen.open(label.to_owned(), steps))?;
+        Ok(StartupProgress {
             screen: self.startup.clone(),
             bar,
-        }
+        })
     }
 
     /// Show `text` on the startup loading screen for a few seconds (NeoForge's
@@ -129,9 +167,9 @@ mod tests {
         }
     }
     impl StartupScreen for Record {
-        fn open(&self, label: String, steps: u32) -> u32 {
+        fn open(&self, label: String, steps: u32) -> Result<u32, StartupProgressError> {
             self.push(format!("open {label} {steps}"));
-            7
+            Ok(7)
         }
         fn step(&self, bar: u32) {
             self.push(format!("step {bar}"));
@@ -155,7 +193,7 @@ mod tests {
         let screen = Arc::new(Record::default());
         let mut context = crate::RegistrationContext::new();
         context.startup = Some(screen.clone());
-        let bar = context.progress("Baking", 10);
+        let bar = context.progress("Baking", 10).unwrap();
         for _ in 0..4 {
             bar.step();
         }
@@ -184,7 +222,7 @@ mod tests {
         );
         // Without a game screen, nothing happens.
         let none = crate::RegistrationContext::new();
-        none.progress("idle", 1).step();
+        none.progress("idle", 1).unwrap().step();
         none.message("unheard");
     }
 }
