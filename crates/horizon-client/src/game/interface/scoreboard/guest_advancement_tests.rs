@@ -91,8 +91,8 @@ fn selector_reads_independent_host_and_guest_progress() {
         );
         let select = |g: &mut Game<'_>, condition: &str| {
             let text = format!("@a[advancements={{{ROOT}={condition}}}]");
-            let s = horizon_client::command::selector::parse(
-                &mut horizon_client::command::Reader::new(&text),
+            let s = horizon_client_core::command::selector::parse(
+                &mut horizon_client_core::command::Reader::new(&text),
                 &horizon_client::command::args::Registries::default(),
                 true,
             )

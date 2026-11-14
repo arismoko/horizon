@@ -33,14 +33,15 @@ mod world_cmds;
 use super::{Dim, Game, Screen, chat::PLAYER_NAME, vehicle_teleport::TeleportMotion};
 use horizon_client::{
     command::{
-        Arg, CommandError, Context, Reader,
-        args::{BlockInput, Coordinates, GameMode, ItemInput, Selector, Sort},
+        Arg, Context,
+        args::{BlockInput, GameMode, ItemInput},
         vanilla::DIFFICULTIES,
     },
     gamerules::{self, Value},
     items::ItemStack,
     text::{self, Style, Text},
 };
+use horizon_client_core::command::{CommandError, Coordinates, Selector, Sort, java_equals};
 use horizon_core::{geometry::Vec3, random::RandomSource};
 use horizon_protocol::packets::play::{self, Clientbound as C};
 use horizon_world::registry::BlockStateId;
@@ -274,7 +275,7 @@ impl Game<'_> {
         };
         let ok = result.is_ok();
         if let Err(e) = result {
-            if e.input.is_some() {
+            if e.input.utf8().is_some() {
                 self.syntax_failure(&e, command);
             } else {
                 self.command_failure(e.message);
@@ -301,7 +302,7 @@ impl Game<'_> {
     }
     pub(in crate::game) fn syntax_failure(&mut self, e: &CommandError, command: &str) {
         self.command_failure(e.message.clone());
-        let Some(input) = &e.input else { return };
+        let Some(input) = e.input.utf8() else { return };
         let cursor = e.cursor.min(input.len());
         let suggest = Style {
             click: Some(text::ClickEvent::SuggestCommand(format!("/{command}"))),
@@ -657,7 +658,7 @@ impl Game<'_> {
                 }
                 for (name, neg) in &s.names {
                     let n = self.target_name(t).plain();
-                    if (n == *name) == *neg {
+                    if java_equals(name, &n) == *neg {
                         return None;
                     }
                 }
@@ -4176,38 +4177,6 @@ impl Game<'_> {
             focused,
         );
         Ok(1)
-    }
-    /// MessageArgument: `@p`-style selectors in a message become names.
-    pub(super) fn expand_selectors(&mut self, raw: &str) -> Text {
-        let mut out = Text::empty();
-        let mut rest = raw;
-        while let Some(at) = rest.find('@') {
-            out.push(&rest[..at]);
-            let mut reader = Reader::new(&rest[at..]);
-            match (horizon_client::command::ArgType::Entity {
-                single: false,
-                players: false,
-            })
-            .parse(&mut reader, &self.ui.registries)
-            {
-                Ok(Arg::Entity(s)) if reader.cursor > 1 => {
-                    let found = self.select(&s);
-                    for (i, t) in found.iter().enumerate() {
-                        if i > 0 {
-                            out.push(", ");
-                        }
-                        out.push(self.target_name(*t));
-                    }
-                    rest = &rest[at + reader.cursor..];
-                }
-                _ => {
-                    out.push("@");
-                    rest = &rest[at + 1..];
-                }
-            }
-        }
-        out.push(rest);
-        out
     }
 }
 

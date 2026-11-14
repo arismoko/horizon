@@ -210,17 +210,27 @@ impl Game<'_> {
                 (Some("@a"), ..) => (0..guests.len()).filter(placed).collect(),
                 (_, Some(name), _) => {
                     let named: Vec<usize> = (0..guests.len())
-                        .filter(|&k| placed(&k) && guests[k].name.eq_ignore_ascii_case(name))
+                        .filter(|&k| {
+                            placed(&k)
+                                && horizon_core::text::eq_ignore_ascii_case_utf16(
+                                    &name.0,
+                                    &guests[k].name,
+                                )
+                        })
                         .collect();
                     if named.is_empty() {
                         // No player has that name: the one going by it as a nickname (`~` optional).
-                        let bare = |s: &str| s.strip_prefix('~').unwrap_or(s).to_ascii_lowercase();
-                        let wanted = bare(name);
+                        let wanted = name.0.strip_prefix(&[126]).unwrap_or(&name.0);
                         let nicknamed = |k: &usize| {
                             host.hub
                                 .nicknames
                                 .get(&guests[*k].uuid)
-                                .is_some_and(|nick| bare(nick) == wanted)
+                                .is_some_and(|nick| {
+                                    horizon_core::text::eq_ignore_ascii_case_utf16(
+                                        wanted,
+                                        nick.strip_prefix('~').unwrap_or(nick),
+                                    )
+                                })
                         };
                         (0..guests.len())
                             .filter(|k| placed(k) && nicknamed(k))

@@ -3232,13 +3232,13 @@ pub(super) mod tests {
                     .update(0, |guest| guest.dimension = value);
             }
             game.lan_acting = Some(real_id);
-            let selector = horizon_client::command::args::Selector {
+            let selector = horizon_client_core::command::Selector {
                 kind: 'a',
                 limit: usize::MAX,
                 ..Default::default()
             };
             assert_eq!(game.select(&selector).len(), 1);
-            let named = horizon_client::command::args::Selector {
+            let named = horizon_client_core::command::Selector {
                 player_name: Some("fake".into()),
                 ..Default::default()
             };
@@ -3278,7 +3278,7 @@ pub(super) mod tests {
                 assert_eq!(game.stats.get("custom", "minecraft:jump"), before);
                 game.trigger("minecraft:tick", |_, _| panic!("fake criterion evaluated"));
                 assert_eq!(game.award_recipes(&["minecraft:test".into()]), 0);
-                let source = horizon_client::command::args::Selector {
+                let source = horizon_client_core::command::Selector {
                     kind: 's',
                     limit: 1,
                     ..Default::default()
@@ -3287,12 +3287,12 @@ pub(super) mod tests {
                     game.select(&source),
                     vec![super::super::commands::Target::Player]
                 );
-                let named = horizon_client::command::args::Selector {
+                let named = horizon_client_core::command::Selector {
                     player_name: Some("fake".into()),
                     ..Default::default()
                 };
                 assert!(game.select(&named).is_empty());
-                let uuid = horizon_client::command::args::Selector {
+                let uuid = horizon_client_core::command::Selector {
                     uuid: Some(2),
                     ..Default::default()
                 };

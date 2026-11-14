@@ -1,29 +1,44 @@
 //! NBT paths (`NbtPathArgument`): `foo.bar[0]`, `[]`, `list[{id:1}]`,
 //! `{root:match}`, with get, set, insert and remove on a tag tree, and the
 //! partial NBT comparison (`NbtUtils.compareNbt`) selectors and conditions use.
+use crate::command::{CmdResult, CommandError, CommandString, Reader, java_equals};
 pub use horizon_core::nbt::compare_nbt;
-use horizon_core::nbt::{Compound, JavaString, Tag, parse_snbt};
+use horizon_core::nbt::{Compound, JavaString, Tag};
 
 /// An error carrying the translation key and its arguments.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PathError {
-    pub key: &'static str,
+    pub key: String,
     pub args: Vec<String>,
-    /// Byte offset in the path text (parse errors).
+    /// Encoding-relative cursor: UTF-8 bytes or Java UTF-16 units (parse errors).
     pub cursor: usize,
 }
 impl PathError {
     fn new(key: &'static str, args: Vec<String>, cursor: usize) -> Self {
-        Self { key, args, cursor }
+        Self {
+            key: key.to_owned(),
+            args,
+            cursor,
+        }
+    }
+}
+
+impl From<CommandError> for PathError {
+    fn from(error: CommandError) -> Self {
+        Self {
+            key: error.key,
+            args: error.translation_args.into_vec(),
+            cursor: error.cursor,
+        }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 enum Node {
     /// `name`
-    Child(String),
+    Child(JavaString),
     /// `name{pattern}`
-    MatchChild(String, Tag),
+    MatchChild(JavaString, Tag),
     /// `[]`
     AllElements,
     /// `[n]`
@@ -35,17 +50,10 @@ enum Node {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct NbtPath {
-    original: String,
+    original: JavaString,
     nodes: Vec<Node>,
-    /// Byte offset just after each node in `original`.
+    /// UTF-16 offset just after each node in `original`.
     ends: Vec<usize>,
-}
-
-fn key(s: &str) -> JavaString {
-    JavaString::from(s)
-}
-fn get_child<'a>(c: &'a Compound, name: &str) -> Option<&'a Tag> {
-    c.get(&key(name))
 }
 
 // ---- list-like tags ----------------------------------------------------------
@@ -128,38 +136,38 @@ fn with_elements<R>(tag: &mut Tag, f: impl FnOnce(&mut Vec<Tag>, ElementKind) ->
 }
 
 impl NbtPath {
-    /// `NbtPathArgument.parse` from the start of `text`; returns the path and
-    /// the bytes consumed (it stops at a space).
-    pub fn parse_prefix(text: &str) -> Result<(NbtPath, usize), PathError> {
-        let b = text.as_bytes();
-        let mut i = 0;
+    /// `NbtPathArgument.parse`, shared by UTF-8 commands and persistent Java-string codecs.
+    pub fn parse_reader<S: CommandString + ?Sized>(reader: &mut Reader<S>) -> CmdResult<Self> {
+        let start = reader.cursor;
         let mut nodes = Vec::new();
         let mut ends = Vec::new();
         let mut first = true;
-        while i < b.len() && b[i] != b' ' {
-            let (node, next) = parse_node(text, i, first)?;
-            nodes.push(node);
-            i = next;
-            ends.push(i);
+        let mut units = 0;
+        let mut previous = start;
+        while reader.can_read() && reader.peek_scalar() != Some(' ') {
+            nodes.push(parse_node(reader, first)?);
+            units += reader.java_len(previous, reader.cursor);
+            ends.push(units);
+            previous = reader.cursor;
             first = false;
-            if i < b.len() && !matches!(b[i], b' ' | b'[' | b'{') {
-                if b[i] != b'.' {
-                    return Err(PathError::new("parsing.expected", vec![".".into()], i));
-                }
-                i += 1;
+            if reader.can_read() && !matches!(reader.peek_scalar(), Some(' ' | '[' | '{')) {
+                reader.expect('.')?;
             }
         }
-        Ok((
-            NbtPath {
-                original: text[..i].to_owned(),
-                nodes,
-                ends,
-            },
-            i,
-        ))
+        Ok(Self {
+            original: reader.java_slice(start, reader.cursor),
+            nodes,
+            ends,
+        })
     }
-    pub fn parse(text: &str) -> Result<NbtPath, PathError> {
-        let (p, used) = Self::parse_prefix(text)?;
+    /// Parse a command argument, retaining the original UTF-8 byte cursor.
+    pub fn parse_prefix(text: &str) -> Result<(Self, usize), PathError> {
+        let mut reader = Reader::new(text);
+        let path = Self::parse_reader(&mut reader).map_err(PathError::from)?;
+        Ok((path, reader.cursor))
+    }
+    pub fn parse(text: &str) -> Result<Self, PathError> {
+        let (path, used) = Self::parse_prefix(text)?;
         if used != text.len() {
             return Err(PathError::new(
                 "arguments.nbtpath.node.invalid",
@@ -167,10 +175,21 @@ impl NbtPath {
                 used,
             ));
         }
-        Ok(p)
+        Ok(path)
     }
-    pub fn as_str(&self) -> &str {
-        &self.original
+    /// Compile the complete Java string without transcoding or changing surrogate identity.
+    pub fn parse_utf16(text: &[u16]) -> Result<Self, PathError> {
+        let mut reader = Reader::from_utf16(text);
+        let path = Self::parse_reader(&mut reader).map_err(PathError::from)?;
+        crate::command::ensure_fully_read(&reader).map_err(PathError::from)?;
+        Ok(path)
+    }
+    pub fn as_java_str(&self) -> &[u16] {
+        &self.original.0
+    }
+    /// Printable diagnostic text; raw surrogates are escaped, never replaced.
+    pub fn display(&self) -> String {
+        crate::command::display_java(&self.original.0)
     }
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
@@ -183,7 +202,7 @@ impl NbtPath {
             match node {
                 Node::MatchRoot(_) => {}
                 Node::Child(name) | Node::MatchChild(name, _)
-                    if fields.next().copied() == Some(name.as_str()) => {}
+                    if fields.next().is_some_and(|field| java_equals(name, field)) => {}
                 _ => return false,
             }
         }
@@ -193,7 +212,9 @@ impl NbtPath {
         let end = self.ends[node];
         PathError::new(
             "arguments.nbtpath.nothing_found",
-            vec![self.original[..end.min(self.original.len())].to_owned()],
+            vec![crate::command::display_java(
+                &self.original.0[..end.min(self.original.0.len())],
+            )],
             0,
         )
     }
@@ -204,14 +225,14 @@ impl NbtPath {
         match node {
             Node::Child(name) => {
                 if let Tag::Compound(c) = parent
-                    && let Some(t) = get_child(c, name)
+                    && let Some(t) = c.get(name)
                 {
                     out.push(t);
                 }
             }
             Node::MatchChild(name, pattern) => {
                 if let Tag::Compound(c) = parent
-                    && let Some(t) = get_child(c, name)
+                    && let Some(t) = c.get(name)
                     && compare_nbt(pattern, Some(t))
                 {
                     out.push(t);
@@ -475,28 +496,28 @@ fn step_mut(
     match node {
         Node::Child(name) => {
             if let Tag::Compound(c) = parent {
-                let k = key(name);
-                if !c.contains_key(&k) {
+                let k = name;
+                if !c.contains_key(k) {
                     let Some(make) = create else { return };
                     c.insert(k.clone(), make());
                 }
-                if let Some(t) = c.get_mut(&k) {
+                if let Some(t) = c.get_mut(k) {
                     out(t);
                 }
             }
         }
         Node::MatchChild(name, pattern) => {
             if let Tag::Compound(c) = parent {
-                let k = key(name);
-                if !c.contains_key(&k) {
+                let k = name;
+                if !c.contains_key(k) {
                     if create.is_none() {
                         return;
                     }
                     c.insert(k.clone(), pattern.clone());
-                    if let Some(t) = c.get_mut(&k) {
+                    if let Some(t) = c.get_mut(k) {
                         out(t);
                     }
-                } else if let Some(t) = c.get_mut(&k)
+                } else if let Some(t) = c.get_mut(k)
                     && compare_nbt(pattern, Some(t))
                 {
                     out(t);
@@ -564,16 +585,16 @@ fn set_tag(node: &Node, parent: &mut Tag, value: &Tag) -> usize {
     match node {
         Node::Child(name) => {
             if let Tag::Compound(c) = parent {
-                let prev = c.insert(key(name), value.clone());
+                let prev = c.insert(name.clone(), value.clone());
                 return usize::from(prev.as_ref() != Some(value));
             }
             0
         }
         Node::MatchChild(name, pattern) => {
             if let Tag::Compound(c) = parent {
-                let k = key(name);
-                if compare_nbt(pattern, c.get(&k)) && c.get(&k) != Some(value) {
-                    c.insert(k, value.clone());
+                let k = name;
+                if compare_nbt(pattern, c.get(k)) && c.get(k) != Some(value) {
+                    c.insert(k.clone(), value.clone());
                     return 1;
                 }
             }
@@ -638,14 +659,14 @@ fn set_tag(node: &Node, parent: &mut Tag, value: &Tag) -> usize {
 fn remove_tag(node: &Node, parent: &mut Tag) -> usize {
     match node {
         Node::Child(name) => match parent {
-            Tag::Compound(c) => usize::from(c.remove(&key(name)).is_some()),
+            Tag::Compound(c) => usize::from(c.remove(name).is_some()),
             _ => 0,
         },
         Node::MatchChild(name, pattern) => match parent {
             Tag::Compound(c) => {
-                let k = key(name);
-                if compare_nbt(pattern, c.get(&k)) {
-                    usize::from(c.remove(&k).is_some())
+                let k = name;
+                if compare_nbt(pattern, c.get(k)) {
+                    usize::from(c.remove(k).is_some())
                 } else {
                     0
                 }
@@ -687,152 +708,91 @@ fn remove_tag(node: &Node, parent: &mut Tag) -> usize {
 
 // ---- parsing -------------------------------------------------------------------
 
-fn parse_node(text: &str, i: usize, first: bool) -> Result<(Node, usize), PathError> {
-    let b = text.as_bytes();
-    let invalid = |at: usize| PathError::new("arguments.nbtpath.node.invalid", vec![], at);
-    match b[i] {
-        b'"' | b'\'' => {
-            let (name, next) = read_quoted(text, i)?;
-            read_object_node(text, name, next)
+fn parse_node<S: CommandString + ?Sized>(reader: &mut Reader<S>, first: bool) -> CmdResult<Node> {
+    let invalid =
+        |reader: &Reader<S>| CommandError::tr_at("arguments.nbtpath.node.invalid", &[], reader);
+    match reader.peek_scalar() {
+        Some('"' | '\'') => {
+            let name = reader.read_java_string()?;
+            read_object_node(reader, name)
         }
-        b'[' => {
-            let mut j = i + 1;
-            match b.get(j) {
-                Some(b'{') => {
-                    let (pattern, next) = parse_compound(text, j)?;
-                    j = next;
-                    expect(text, j, b']')?;
-                    Ok((Node::MatchElement(pattern), j + 1))
-                }
-                Some(b']') => Ok((Node::AllElements, j + 1)),
-                _ => {
-                    let start = j;
-                    // StringReader.readInt scans all allowed number characters
-                    // before parsing, including malformed signs and decimal points.
-                    while b
-                        .get(j)
-                        .is_some_and(|c| c.is_ascii_digit() || matches!(c, b'-' | b'.'))
-                    {
-                        j += 1;
-                    }
-                    if start == j {
-                        return Err(PathError::new("parsing.int.expected", vec![], start));
-                    }
-                    let n: i32 = text[start..j].parse().map_err(|_| {
-                        PathError::new(
-                            "parsing.int.invalid",
-                            vec![text[start..j].to_owned()],
-                            start,
-                        )
-                    })?;
-                    expect(text, j, b']')?;
-                    Ok((Node::Index(n), j + 1))
-                }
-            }
-        }
-        b'{' => {
-            if !first {
-                return Err(invalid(i));
-            }
-            let (pattern, next) = parse_compound(text, i)?;
-            Ok((Node::MatchRoot(pattern), next))
-        }
-        _ => {
-            let mut j = i;
-            while j < b.len()
-                && !matches!(b[j], b' ' | b'"' | b'\'' | b'[' | b']' | b'.' | b'{' | b'}')
-            {
-                j += 1;
-            }
-            if j == i {
-                return Err(invalid(i));
-            }
-            read_object_node(text, text[i..j].to_owned(), j)
-        }
-    }
-}
-fn read_object_node(text: &str, name: String, i: usize) -> Result<(Node, usize), PathError> {
-    if name.is_empty() {
-        return Err(PathError::new("arguments.nbtpath.node.invalid", vec![], i));
-    }
-    if text.as_bytes().get(i) == Some(&b'{') {
-        let (pattern, next) = parse_compound(text, i)?;
-        return Ok((Node::MatchChild(name, pattern), next));
-    }
-    Ok((Node::Child(name), i))
-}
-fn expect(text: &str, i: usize, c: u8) -> Result<(), PathError> {
-    if text.as_bytes().get(i) == Some(&c) {
-        Ok(())
-    } else {
-        Err(PathError::new(
-            "parsing.expected",
-            vec![(c as char).to_string()],
-            i,
-        ))
-    }
-}
-fn read_quoted(text: &str, i: usize) -> Result<(String, usize), PathError> {
-    let quote = text.as_bytes()[i] as char;
-    let mut out = String::new();
-    let mut escaped = false;
-    for (o, c) in text[i + 1..].char_indices() {
-        if escaped {
-            if c != quote && c != '\\' {
-                return Err(PathError::new(
-                    "parsing.quote.escape",
-                    vec![c.to_string()],
-                    i + 1 + o,
+        Some('[') => {
+            reader.skip();
+            if !reader.can_read() {
+                // Vanilla peeks beyond the end here, exposing StringIndexOutOfBoundsException.
+                let len = reader.java_len(0, reader.cursor);
+                let message = format!("Index {len} out of bounds for length {len}");
+                return Err(CommandError::tr_at(
+                    "command.exception",
+                    &[&message],
+                    reader,
                 ));
             }
-            out.push(c);
-            escaped = false;
-        } else if c == '\\' {
-            escaped = true;
-        } else if c == quote {
-            return Ok((out, i + 1 + o + c.len_utf8()));
-        } else {
-            out.push(c);
-        }
-    }
-    Err(PathError::new(
-        "parsing.quote.expected.end",
-        vec![],
-        text.len(),
-    ))
-}
-fn parse_compound(text: &str, i: usize) -> Result<(Tag, usize), PathError> {
-    // Find the balanced end of the braces, then parse the SNBT inside.
-    let b = text.as_bytes();
-    let mut depth = 0;
-    let mut quote: Option<u8> = None;
-    let mut j = i;
-    while j < b.len() {
-        let c = b[j];
-        match quote {
-            Some(_) if c == b'\\' => j += 1,
-            Some(q) if c == q => quote = None,
-            Some(_) => {}
-            None if c == b'"' || c == b'\'' => quote = Some(c),
-            None if c == b'{' || c == b'[' => depth += 1,
-            None if c == b'}' || c == b']' => {
-                depth -= 1;
-                if depth == 0 {
-                    let (tag, _) = parse_snbt(&text[i..=j])
-                        .map_err(|e| PathError::new("argument.nbt.invalid", vec![e], i))?;
-                    return Ok((tag, j + 1));
+            match reader.peek_scalar() {
+                Some('{') => {
+                    let pattern = Tag::Compound(reader.read_compound()?);
+                    reader.expect(']')?;
+                    Ok(Node::MatchElement(pattern))
+                }
+                Some(']') => {
+                    reader.skip();
+                    Ok(Node::AllElements)
+                }
+                _ => {
+                    let index = reader.read_int()?;
+                    reader.expect(']')?;
+                    Ok(Node::Index(index))
                 }
             }
-            None => {}
         }
-        j += 1;
+        Some('{') => {
+            if !first {
+                return Err(invalid(reader));
+            }
+            Ok(Node::MatchRoot(Tag::Compound(reader.read_compound()?)))
+        }
+        _ => {
+            let start = reader.cursor;
+            while reader.can_read()
+                && !matches!(
+                    reader.peek_scalar(),
+                    Some(' ' | '"' | '\'' | '[' | ']' | '.' | '{' | '}')
+                )
+            {
+                reader.skip();
+            }
+            if reader.cursor == start {
+                return Err(invalid(reader));
+            }
+            let name = reader.java_slice(start, reader.cursor);
+            read_object_node(reader, name)
+        }
     }
-    Err(PathError::new("argument.nbt.expected.compound", vec![], i))
+}
+fn read_object_node<S: CommandString + ?Sized>(
+    reader: &mut Reader<S>,
+    name: JavaString,
+) -> CmdResult<Node> {
+    if name.0.is_empty() {
+        return Err(CommandError::tr_at(
+            "arguments.nbtpath.node.invalid",
+            &[],
+            reader,
+        ));
+    }
+    if reader.peek_scalar() == Some('{') {
+        return Ok(Node::MatchChild(
+            name,
+            Tag::Compound(reader.read_compound()?),
+        ));
+    }
+    Ok(Node::Child(name))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use horizon_core::nbt::parse_snbt;
     #[test]
     fn quoted_escapes_and_index_tokens_match_brigadier() {
         let cases = [
@@ -936,7 +896,7 @@ mod tests {
         assert_eq!(NbtPath::parse("a[1").unwrap_err().key, "parsing.expected");
         assert_eq!(NbtPath::parse("a]").unwrap_err().key, "parsing.expected");
         let (p, used) = NbtPath::parse_prefix("a.b[0] rest").unwrap();
-        assert_eq!((p.as_str(), used), ("a.b[0]", 6));
+        assert_eq!((p.as_java_str(), used), (&[97, 46, 98, 91, 48, 93][..], 6));
     }
 
     #[test]
@@ -1105,5 +1065,45 @@ mod tests {
         assert!(!compare_nbt(&tag("{z:1}"), Some(&actual)));
         assert!(compare_nbt(&tag("{b:{c:[]}}"), Some(&tag("{b:{c:[]}}"))));
         assert!(!compare_nbt(&tag("{b:{c:[]}}"), Some(&actual)));
+    }
+}
+
+#[cfg(test)]
+mod java_source_tests {
+    use super::*;
+    #[test]
+    fn surrogate_field_names_select_and_mutate_only_the_exact_java_key() {
+        let mut fields = Compound::new();
+        fields.insert(JavaString(vec![0xd800]), Tag::Int(7));
+        fields.insert(JavaString(vec![0xfffd]), Tag::Int(8));
+        let mut root = Tag::Compound(fields);
+        for source in [&[34, 0xd800, 34][..], &[0xd800][..]] {
+            let path = NbtPath::parse_utf16(source).unwrap();
+            assert_eq!(path.get(&root).unwrap(), [Tag::Int(7)]);
+            assert_eq!(path.set(&mut root, &Tag::Int(9)).unwrap(), 1);
+            assert_eq!(path.get(&root).unwrap(), [Tag::Int(9)]);
+            assert_eq!(path.set(&mut root, &Tag::Int(7)).unwrap(), 1);
+        }
+        assert_eq!(root.get("\u{fffd}"), Some(&Tag::Int(8)));
+    }
+    #[test]
+    fn surrogate_keys_inside_path_patterns_use_the_canonical_snbt_grammar() {
+        let source = [123, 34, 0xd800, 34, 58, 49, 125, 46, 34, 0xdfff, 34];
+        let path = NbtPath::parse_utf16(&source).unwrap();
+        let mut fields = Compound::new();
+        fields.insert(JavaString(vec![0xd800]), Tag::Int(1));
+        fields.insert(JavaString(vec![0xdfff]), Tag::Int(2));
+        assert_eq!(path.get(&Tag::Compound(fields)).unwrap(), [Tag::Int(2)]);
+        for source in [
+            &[34, 0xd800, 92, 113, 34][..],
+            &[34, 0xd800][..],
+            &[34, 0xd800, 34, 91, 46, 93][..],
+        ] {
+            assert!(NbtPath::parse_utf16(source).is_err());
+        }
+        assert_eq!(
+            NbtPath::parse_utf16(&[34, 0xd800, 34, 32]).unwrap_err().key,
+            "command.trailing_data"
+        );
     }
 }

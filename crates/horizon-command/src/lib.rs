@@ -12,7 +12,6 @@ pub mod component;
 pub mod item;
 pub mod network;
 pub mod packrat;
-pub mod selector;
 pub mod snbt;
 pub mod tree_data;
 pub mod tree_execute;
@@ -27,253 +26,15 @@ pub use args::{
     Arg, ArgType, CustomArgument, CustomArgumentKind, CustomCompletionAction, CustomSuggestion,
     Registries, modify_custom_completions,
 };
-use horizon_client_core::text::Text;
 
 /// The command id of a mod's command (`Dispatcher::with_mod_commands`).
 pub const MOD_COMMAND: &str = "mod";
 /// The command id of the client's own `/profiler` (`Dispatcher::with_profiler`).
 pub const PROFILER_COMMAND: &str = "horizon:profiler";
 
-/// A command error (CommandSyntaxException): the message and, for parse
-/// errors, the input and cursor it occurred at.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CommandError {
-    pub message: Text,
-    pub input: Option<String>,
-    pub cursor: usize,
-    /// BuiltInExceptions.literalIncorrect (summarised specially by the chat UI).
-    pub literal_incorrect: bool,
-    /// The translation key of the exception type, when known (the
-    /// exception "type" vanilla code compares against).
-    pub key: String,
-}
-impl CommandError {
-    pub fn new(message: Text) -> Self {
-        Self {
-            message,
-            input: None,
-            cursor: 0,
-            literal_incorrect: false,
-            key: String::new(),
-        }
-    }
-    pub fn tr(key: &str, args: &[&dyn std::fmt::Display]) -> Self {
-        let mut e = Self::new(Text::tr(key, args));
-        e.key = key.to_owned();
-        e
-    }
-    pub fn at(message: Text, reader: &Reader) -> Self {
-        Self {
-            message,
-            input: Some(reader.string.to_owned()),
-            cursor: reader.cursor,
-            literal_incorrect: false,
-            key: String::new(),
-        }
-    }
-    pub fn tr_at(key: &str, args: &[&dyn std::fmt::Display], reader: &Reader) -> Self {
-        let mut e = Self::at(Text::tr(key, args), reader);
-        e.key = key.to_owned();
-        e
-    }
-    /// CommandSyntaxException.getContext: up to ten characters before the
-    /// cursor followed by "<--[HERE]".
-    pub fn context(&self) -> Option<String> {
-        let input = self.input.as_ref()?;
-        let cursor = self.cursor.min(input.len());
-        let start = (0..=cursor.saturating_sub(10))
-            .rev()
-            .find(|&i| input.is_char_boundary(i))
-            .unwrap_or(0);
-        let mut out = String::new();
-        if cursor > 10 {
-            out.push_str("...");
-        }
-        out.push_str(&input[start..cursor]);
-        out.push_str("<--[HERE]");
-        Some(out)
-    }
-    /// The message as shown by command suggestions ("... at position N: ...").
-    pub fn with_context(&self) -> Text {
-        match self.context() {
-            Some(context) => Text::translate(
-                "command.context.parse_error",
-                &[
-                    self.message.clone(),
-                    Text::literal(self.cursor.to_string()),
-                    Text::literal(context),
-                ],
-            ),
-            None => self.message.clone(),
-        }
-    }
-}
-pub type CmdResult<T> = Result<T, CommandError>;
-
-/// Brigadier StringReader over a command line (byte cursor on char boundaries).
-#[derive(Clone, Debug)]
-pub struct Reader<'a> {
-    pub string: &'a str,
-    pub cursor: usize,
-}
-impl<'a> Reader<'a> {
-    pub fn new(string: &'a str) -> Self {
-        Self { string, cursor: 0 }
-    }
-    pub fn can_read(&self) -> bool {
-        self.cursor < self.string.len()
-    }
-    pub fn can_read_n(&self, n: usize) -> bool {
-        self.string[self.cursor..].chars().take(n).count() == n
-    }
-    pub fn peek(&self) -> char {
-        self.string[self.cursor..].chars().next().unwrap_or('\0')
-    }
-    pub fn peek_at(&self, offset: usize) -> char {
-        self.string[self.cursor..]
-            .chars()
-            .nth(offset)
-            .unwrap_or('\0')
-    }
-    pub fn skip(&mut self) {
-        self.cursor += self.peek().len_utf8();
-    }
-    pub fn read(&mut self) -> char {
-        let c = self.peek();
-        self.skip();
-        c
-    }
-    pub fn remaining(&self) -> &'a str {
-        &self.string[self.cursor..]
-    }
-    pub fn skip_whitespace(&mut self) {
-        while self.can_read() && Self::is_java_whitespace(self.peek()) {
-            self.skip();
-        }
-    }
-    pub fn is_java_whitespace(c: char) -> bool {
-        matches!(
-            c,
-            '\t'..='\r'
-                | '\u{1C}'..='\u{20}'
-                | '\u{1680}'
-                | '\u{2000}'..='\u{2006}'
-                | '\u{2008}'..='\u{200A}'
-                | '\u{2028}'
-                | '\u{2029}'
-                | '\u{205F}'
-                | '\u{3000}'
-        )
-    }
-    pub fn is_allowed_number(c: char) -> bool {
-        c.is_ascii_digit() || c == '.' || c == '-'
-    }
-    pub fn is_allowed_in_unquoted(c: char) -> bool {
-        c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '+')
-    }
-    fn read_number_text(&mut self) -> &'a str {
-        let start = self.cursor;
-        while self.can_read() && Self::is_allowed_number(self.peek()) {
-            self.skip();
-        }
-        &self.string[start..self.cursor]
-    }
-    fn number<T: std::str::FromStr>(&mut self, kind: &str) -> CmdResult<T> {
-        let start = self.cursor;
-        let text = self.read_number_text();
-        if text.is_empty() {
-            return Err(CommandError::tr_at(
-                &format!("parsing.{kind}.expected"),
-                &[],
-                self,
-            ));
-        }
-        // Java's parsers reject a trailing '.'-less exponent etc. the same way.
-        match text.parse::<T>() {
-            Ok(v) if !(kind == "int" || kind == "long") || !text.contains('.') => Ok(v),
-            _ => {
-                self.cursor = start;
-                Err(CommandError::tr_at(
-                    &format!("parsing.{kind}.invalid"),
-                    &[&text],
-                    self,
-                ))
-            }
-        }
-    }
-    pub fn read_int(&mut self) -> CmdResult<i32> {
-        self.number("int")
-    }
-    pub fn read_double(&mut self) -> CmdResult<f64> {
-        self.number("double")
-    }
-    pub fn read_float(&mut self) -> CmdResult<f32> {
-        self.number("float")
-    }
-    pub fn read_unquoted_string(&mut self) -> &'a str {
-        let start = self.cursor;
-        while self.can_read() && Self::is_allowed_in_unquoted(self.peek()) {
-            self.skip();
-        }
-        &self.string[start..self.cursor]
-    }
-    pub fn read_string_until(&mut self, terminator: char) -> CmdResult<String> {
-        let mut out = String::new();
-        let mut escaped = false;
-        while self.can_read() {
-            let c = self.read();
-            if escaped {
-                if c == terminator || c == '\\' {
-                    out.push(c);
-                    escaped = false;
-                } else {
-                    self.cursor -= c.len_utf8();
-                    return Err(CommandError::tr_at("parsing.quote.escape", &[&c], self));
-                }
-            } else if c == '\\' {
-                escaped = true;
-            } else if c == terminator {
-                return Ok(out);
-            } else {
-                out.push(c);
-            }
-        }
-        Err(CommandError::tr_at("parsing.quote.expected.end", &[], self))
-    }
-    pub fn read_string(&mut self) -> CmdResult<String> {
-        if !self.can_read() {
-            return Ok(String::new());
-        }
-        let next = self.peek();
-        if next == '"' || next == '\'' {
-            self.skip();
-            return self.read_string_until(next);
-        }
-        Ok(self.read_unquoted_string().to_owned())
-    }
-    pub fn read_boolean(&mut self) -> CmdResult<bool> {
-        let start = self.cursor;
-        let value = self.read_string()?;
-        if value.is_empty() {
-            return Err(CommandError::tr_at("parsing.bool.expected", &[], self));
-        }
-        match value.as_str() {
-            "true" => Ok(true),
-            "false" => Ok(false),
-            _ => {
-                self.cursor = start;
-                Err(CommandError::tr_at("parsing.bool.invalid", &[&value], self))
-            }
-        }
-    }
-    pub fn expect(&mut self, c: char) -> CmdResult<()> {
-        if !self.can_read() || self.peek() != c {
-            return Err(CommandError::tr_at("parsing.expected", &[&c], self));
-        }
-        self.skip();
-        Ok(())
-    }
-}
+use horizon_client_core::command::{
+    CmdResult, CommandError, Reader, SuggestionsBuilder, resource_matches, suggest_resources,
+};
 
 #[derive(Clone, Debug)]
 pub enum NodeKind {
@@ -446,7 +207,7 @@ impl ParseResults {
             return Some(self.errors[0].1.clone());
         }
         let reader = Reader {
-            string: &self.input,
+            string: self.input.as_str(),
             cursor: self.cursor,
         };
         Some(if self.context.range.0 == self.context.range.1 {
@@ -494,79 +255,10 @@ impl ParseResults {
                 "command.unknown.command",
                 &[],
                 &Reader {
-                    string: &self.input,
+                    string: self.input.as_str(),
                     cursor: self.cursor,
                 },
             )),
-        }
-    }
-}
-/// SuggestionsBuilder: suggestions for the text from `start` to the cursor.
-pub struct SuggestionsBuilder<'a> {
-    pub input: &'a str,
-    pub start: usize,
-    pub out: Vec<Suggestion>,
-}
-impl<'a> SuggestionsBuilder<'a> {
-    pub fn new(input: &'a str, start: usize) -> Self {
-        Self {
-            input,
-            start: start.min(input.len()),
-            out: Vec::new(),
-        }
-    }
-    pub fn remaining(&self) -> &'a str {
-        &self.input[self.start..]
-    }
-    pub fn remaining_lower(&self) -> String {
-        self.remaining().to_lowercase()
-    }
-    pub fn suggest(&mut self, text: impl Into<String>) {
-        let text = text.into();
-        if text != self.remaining() {
-            self.out.push(Suggestion {
-                range: (self.start, self.input.len()),
-                text,
-                tooltip: None,
-                int_value: None,
-            });
-        }
-    }
-    /// SuggestionsBuilder.suggest(int).
-    pub fn suggest_int(&mut self, value: i32) {
-        self.out.push(Suggestion {
-            range: (self.start, self.input.len()),
-            text: value.to_string(),
-            tooltip: None,
-            int_value: Some(value),
-        });
-    }
-    pub fn suggest_tooltip(&mut self, text: impl Into<String>, tooltip: impl Into<String>) {
-        let text = text.into();
-        if text != self.remaining() {
-            self.out.push(Suggestion {
-                range: (self.start, self.input.len()),
-                text,
-                tooltip: Some(tooltip.into()),
-                int_value: None,
-            });
-        }
-    }
-    pub fn offset(&self, start: usize) -> SuggestionsBuilder<'a> {
-        SuggestionsBuilder::new(self.input, start)
-    }
-    /// SuggestionsBuilder.add: keep another builder's suggestions (with their own ranges).
-    pub fn add(&mut self, other: SuggestionsBuilder) {
-        self.out.extend(other.out);
-    }
-    /// SharedSuggestionProvider.suggest: candidates matching the remaining
-    /// text at the start or after a `.`, `_` or `/`.
-    pub fn suggest_matching<'b>(&mut self, candidates: impl IntoIterator<Item = &'b str>) {
-        let lower = self.remaining_lower();
-        for c in candidates {
-            if args::matches_sub_str(&lower, &c.to_lowercase()) {
-                self.suggest(c);
-            }
         }
     }
 }
@@ -662,14 +354,14 @@ impl Suggests {
                 }
             }
             Suggests::Functions => {
-                args::suggest_resources(builder, &reg.function_tags, "#");
-                args::suggest_resources(builder, &reg.functions, "");
+                suggest_resources(builder, &reg.function_tags, "#");
+                suggest_resources(builder, &reg.functions, "");
             }
             Suggests::Fixed(values) => builder.suggest_matching(values.iter().copied()),
             Suggests::SummonableEntities => {
                 let contents = builder.remaining_lower();
                 for id in &reg.summonable {
-                    if args::resource_matches(&contents, id) {
+                    if resource_matches(&contents, id) {
                         let (ns, path) = id.split_once(':').unwrap_or(("minecraft", id));
                         let name = horizon_client_core::lang::get(&format!(
                             "entity.{ns}.{}",
@@ -685,9 +377,9 @@ impl Suggests {
                     _ => "minecraft:overworld".to_owned(),
                 };
                 match reg.clock_time_markers.get(&clock) {
-                    Some(markers) => args::suggest_resources(builder, markers, ""),
+                    Some(markers) => suggest_resources(builder, markers, ""),
                     None if clock == "minecraft:overworld" => {
-                        args::suggest_resources(builder, &reg.time_markers, "")
+                        suggest_resources(builder, &reg.time_markers, "")
                     }
                     None => {}
                 }

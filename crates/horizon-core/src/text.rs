@@ -1,5 +1,17 @@
 //! Java text conversions shared by registry and client resource binding.
 
+/// Compare UTF-16 with UTF-8 using ASCII case folding, without lossy conversion.
+pub fn eq_ignore_ascii_case_utf16(left: &[u16], right: &str) -> bool {
+    let fold = |unit| match unit {
+        65..=90 => unit + 32,
+        _ => unit,
+    };
+    left.iter()
+        .copied()
+        .map(fold)
+        .eq(right.encode_utf16().map(fold))
+}
+
 /// JDK 25 Integer.parseInt decimal semantics, including BMP decimal digits.
 pub fn parse_java_integer(text: &str) -> Option<i32> {
     parse_java_decimal(text, i128::from(i32::MAX)).map(|value| value as i32)
@@ -86,6 +98,14 @@ pub fn parse_java_uuid(name: &str) -> Option<u128> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn utf16_names_compare_without_replacement_or_casefold_allocation() {
+        assert!(eq_ignore_ascii_case_utf16(&[65, 108, 233], "alé"));
+        assert!(!eq_ignore_ascii_case_utf16(&[0xd800], "\u{fffd}"));
+        assert!(!eq_ignore_ascii_case_utf16(&[0x00c9], "é"));
+        assert!(!eq_ignore_ascii_case_utf16(&[65, 66], "a"));
+    }
 
     #[test]
     fn decimal_integer_and_long_boundaries_follow_java() {

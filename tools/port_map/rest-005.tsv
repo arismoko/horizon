@@ -119,7 +119,7 @@ CommandSourceStack.withSigningContext	skip:service		chat message signing
 CommandSourceStack.getPlayer	port	crates/horizon-client/src/game/administration/commands/players.rs::Game::source_entity	the source entity; callers check for a player
 CommandSourceStack.shouldFilterMessageTo	skip:service		chat text filtering
 CommandSourceStack.sendChatMessage	port	crates/horizon-client/src/lan/hub.rs::Hub::chat	gap: minor: console and command block sources are not sent here
-CommandSourceStack.suggestRegistryElements	port	crates/horizon-command/src/args.rs::suggest_resources	registry tags and elements
+CommandSourceStack.suggestRegistryElements	port	crates/horizon-client-core/src/command.rs::suggest_resources	registry tags and elements
 CommandSourceStack.getLookup	skip:data		registry lookup; registries come from tables
 Commands.<init>	port	crates/horizon-command/src/vanilla.rs::build	registers the command tree
 Commands.mapSource	inline	crates/horizon-client/src/game/administration/commands/execute.rs::Game::with_source	source mapped onto the parse
@@ -128,17 +128,17 @@ Commands.finishParsing	port	crates/horizon-client/src/game/administration/comman
 Commands.executeCommandInContext	port	crates/horizon-client/src/game/administration/commands/execute.rs::Game::run_chain	gap: minor: max_command_forks is not enforced
 Commands.validate	skip:debug		startup check of the command tree
 Commands.createCompilationContext	skip:data		datapack compile-time context
-ParserUtils.readWhile	port	crates/horizon-command/src/lib.rs::Reader::read_unquoted_string	reads while characters are allowed
-SharedSuggestionProvider.suggestRegistryElements	port	crates/horizon-command/src/args.rs::suggest_resources	registry tags and elements
+ParserUtils.readWhile	port	crates/horizon-client-core/src/command.rs::Reader::read_unquoted_string	reads while characters are allowed
+SharedSuggestionProvider.suggestRegistryElements	port	crates/horizon-client-core/src/command.rs::suggest_resources	registry tags and elements
 SharedSuggestionProvider.listSuggestions	port	crates/horizon-command/src/args.rs::ArgType::suggest	suggestions per argument type
 SharedSuggestionProvider.suggest2DCoordinates	port	crates/horizon-command/src/args.rs::suggest_coordinates	x z suggestions
-AngleArgument.SingleAngle.getAngle	port	crates/horizon-command/src/args.rs::Coord::get	gap: minor: the wrap to -180..180 is not confirmed
+AngleArgument.SingleAngle.getAngle	port	crates/horizon-client-core/src/command.rs::Coord::get	gap: minor: the wrap to -180..180 is not confirmed
 ArgumentSignatures.signCommand	port	crates/horizon-client/src/game/network/remote_chat.rs::Game::send_command	each message argument at the next chain link
 DimensionArgument.listSuggestions	port	crates/horizon-command/src/args.rs::ArgType::suggest	dimension suggestions
 DimensionArgument.getDimension	inline	crates/horizon-client/src/game/administration/commands/execute.rs::Game::modify	dimension resolved where execute in reads it
 EntityAnchorArgument.parse	port	crates/horizon-command/src/args.rs::ArgType::parse	eyes or feet
 EntityArgument.parse	port	crates/horizon-command/src/args.rs::ArgType::parse	the selector is read by selector.rs::parse
-EntityArgument.listSuggestions	port	crates/horizon-command/src/selector.rs::suggest	selector and player name suggestions
+EntityArgument.listSuggestions	port	crates/horizon-client-core/src/command/selector.rs::suggest	selector and player name suggestions
 EntityArgument.Info.serializeToNetwork	port	crates/horizon-client/src/lan/commands.rs::properties	entity flags: single and players only
 EntityArgument.Info.deserializeFromNetwork	port	crates/horizon-command/src/network.rs::argument_type	entity flags of a received command tree
 EntityArgument.Info.serializeToJson	skip:data		JSON of the argument template; Horizon reads tree data from files

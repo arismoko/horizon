@@ -84,18 +84,18 @@ BlockPosArgument.parse	port	crates/horizon-command/src/args.rs::ArgType::parse	A
 BlockPosArgument.listSuggestions	port	crates/horizon-command/src/args.rs::suggest_coordinates	3D block coordinates
 ColumnPosArgument.getColumnPos	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::block_pos_arg	gap: minor: returns the full block position; callers drop y
 ColumnPosArgument.listSuggestions	port	crates/horizon-command/src/args.rs::suggest_coordinates	2D coordinates
-LocalCoordinates.apply	port	crates/horizon-command/src/args.rs::Coordinates::position	Local arm: ^ offsets from the source position and rotation
+LocalCoordinates.apply	port	crates/horizon-client-core/src/command.rs::Coordinates::position	Local arm: ^ offsets from the source position and rotation
 Vec2Argument.getVec2	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::resolve_coords	gap: minor: returns the 3D position; callers keep x and z
 Vec2Argument.listSuggestions	port	crates/horizon-command/src/args.rs::suggest_coordinates	2D coordinates
 Vec3Argument.vec3	skip:java		builder: Horizon names ArgType::Vec3 in the command tree
 Vec3Argument.parse	port	crates/horizon-command/src/args.rs::ArgType::parse	ArgType::Vec3 arm (local or world)
 Vec3Argument.listSuggestions	port	crates/horizon-command/src/args.rs::suggest_coordinates	3D coordinates
-WorldCoordinate.get	port	crates/horizon-command/src/args.rs::Coord::get
-WorldCoordinate.parseDouble	port	crates/horizon-command/src/args.rs::parse_coord_double	center correction for whole numbers
-WorldCoordinates.getPosition	port	crates/horizon-command/src/args.rs::Coordinates::position
-WorldCoordinates.getRotation	port	crates/horizon-command/src/args.rs::Coordinates::rotation
-WorldCoordinates.parseInt	port	crates/horizon-command/src/args.rs::parse_world	block = true
-WorldCoordinates.parseDouble	port	crates/horizon-command/src/args.rs::parse_world	block = false, center per axis
+WorldCoordinate.get	port	crates/horizon-client-core/src/command.rs::Coord::get
+WorldCoordinate.parseDouble	port	crates/horizon-client-core/src/command.rs::parse_coord_double	center correction for whole numbers
+WorldCoordinates.getPosition	port	crates/horizon-client-core/src/command.rs::Coordinates::position
+WorldCoordinates.getRotation	port	crates/horizon-client-core/src/command.rs::Coordinates::rotation
+WorldCoordinates.parseInt	port	crates/horizon-client-core/src/command.rs::parse_world	block = true
+WorldCoordinates.parseDouble	port	crates/horizon-client-core/src/command.rs::parse_world	block = false, center per axis
 WorldCoordinates.absolute	skip:java		builder: Horizon constructs Coordinates::World with absolute Coord values
 FunctionArgument.getFunction	port	crates/horizon-client/src/game/administration/functions.rs::Game::functions_named	arguments.function.unknown
 FunctionArgument.getFunctionTag	port	crates/horizon-client/src/game/administration/functions.rs::Game::functions_named	player: an unknown #tag is empty here, so /function says no functions; vanilla says arguments.function.tag.unknown
@@ -115,7 +115,7 @@ ItemPredicateArgument.Context.lookupComponentType	port	crates/horizon-command/sr
 ItemPredicateArgument.Context.lookupPredicateType	port	crates/horizon-command/src/item.rs::lookup	predicate id lookup and validation
 ItemPredicateArgument.Context.listComponentTypes	port	crates/horizon-command/src/item.rs::ItemState::suggest_component	persistent (non-transient) component names
 ItemPredicateArgument.PredicateWrapper.decode	port	crates/horizon-command/src/item.rs::decode_predicate
-net/minecraft/commands/arguments/selector/EntitySelector#checkPermissions	inline	crates/horizon-command/src/selector.rs::SelectorParser::parse	@ selectors refused without permission, checked at parse time
+net/minecraft/commands/arguments/selector/EntitySelector#checkPermissions	inline	crates/horizon-client-core/src/command/selector.rs::SelectorParser::parse	@ selectors refused without permission, checked at parse time
 net/minecraft/commands/arguments/selector/EntitySelector#findSingleEntity	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::entities	gap: minor: no single-entity check here; callers check argument.entity.toomany
 net/minecraft/commands/arguments/selector/EntitySelector#findEntities	port	crates/horizon-client/src/game/administration/commands/selectors.rs::Game::select
 net/minecraft/commands/arguments/selector/EntitySelector#addEntities	inline	crates/horizon-client/src/game/administration/commands/selectors.rs::Game::select	per-level collection with the result limit
@@ -127,16 +127,16 @@ EntitySelectorParser.allowSelectors	inline	crates/horizon-command/src/args.rs::A
 EntitySelectorParser.createAabb	inline	crates/horizon-client/src/game/administration/commands/mod.rs::Game::select_in_level	dx, dy, dz box from the origin
 EntitySelectorParser.finalizePredicates	port	crates/horizon-client/src/game/administration/commands/mod.rs::Game::select_in_level	player: x_rotation and y_rotation are parsed but never filter the selection; the level filter is here
 EntitySelectorParser.createRotationPredicate	inline	crates/horizon-client/src/game/administration/commands/mod.rs::rotation_in	x_rotation is the pitch and y_rotation the yaw, wrapped and compared with the wrapped range that runs through 180 when its minimum is above its maximum
-EntitySelectorParser.shouldInvertValue	port	crates/horizon-command/src/selector.rs::SelectorParser::should_invert
-EntitySelectorParser.fillSelectorSuggestions	port	crates/horizon-command/src/selector.rs::SelectorParser::fill_selectors
-EntitySelectorParser.suggestNameOrSelector	inline	crates/horizon-command/src/selector.rs::SelectorParser::fill_suggestions
-EntitySelectorParser.suggestName	inline	crates/horizon-command/src/selector.rs::SelectorParser::fill_suggestions
-EntitySelectorParser.suggestSelector	inline	crates/horizon-command/src/selector.rs::SelectorParser::fill_suggestions
-EntitySelectorParser.suggestOptionsKeyOrClose	inline	crates/horizon-command/src/selector.rs::SelectorParser::fill_suggestions	option names and ]
-EntitySelectorParser.suggestOptionsNextOrClose	inline	crates/horizon-command/src/selector.rs::SelectorParser::fill_suggestions	, and ] suggestions
+EntitySelectorParser.shouldInvertValue	port	crates/horizon-client-core/src/command/selector.rs::SelectorParser::should_invert
+EntitySelectorParser.fillSelectorSuggestions	port	crates/horizon-client-core/src/command/selector.rs::SelectorParser::fill_selectors
+EntitySelectorParser.suggestNameOrSelector	inline	crates/horizon-client-core/src/command/selector.rs::SelectorParser::fill_suggestions
+EntitySelectorParser.suggestName	inline	crates/horizon-client-core/src/command/selector.rs::SelectorParser::fill_suggestions
+EntitySelectorParser.suggestSelector	inline	crates/horizon-client-core/src/command/selector.rs::SelectorParser::fill_suggestions
+EntitySelectorParser.suggestOptionsKeyOrClose	inline	crates/horizon-client-core/src/command/selector.rs::SelectorParser::fill_suggestions	option names and ]
+EntitySelectorParser.suggestOptionsNextOrClose	inline	crates/horizon-client-core/src/command/selector.rs::SelectorParser::fill_suggestions	, and ] suggestions
 EntitySelectorOptions.register	skip:data		option table is a const list (OPTIONS) in selector.rs
-EntitySelectorOptions.rollbackAndThrow	port	crates/horizon-command/src/selector.rs::rollback
-EntitySelectorOptions.get	inline	crates/horizon-command/src/selector.rs::SelectorParser::parse_options	unknown and inapplicable option checks via can_use
+EntitySelectorOptions.rollbackAndThrow	port	crates/horizon-client-core/src/command/selector.rs::rollback
+EntitySelectorOptions.get	inline	crates/horizon-client-core/src/command/selector.rs::SelectorParser::parse_options	unknown and inapplicable option checks via can_use
 ChainModifiers.setFlag	inline	crates/horizon-client/src/game/administration/commands/execute.rs::Game::run_execute	forked flag set while walking the chain
 CustomCommandExecutor.WithErrorHandling.run	port	crates/horizon-client/src/game/administration/commands/execute.rs::Game::run_leaf	error sends failure to the store callbacks
 ExecutionContext.createTopFrame	skip:java		frame object of the queue; Horizon keeps the return value and depth in exec state

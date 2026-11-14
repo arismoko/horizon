@@ -1,12 +1,13 @@
-//! Resolve a parsed entity selector against the game's loaded levels.
-use super::{Game, Selector, Sort, Target};
+//! Entity selector resolution and message expansion against loaded levels.
+use super::{Arg, Game, Selector, Sort, Target, Text};
+use horizon_client_core::command::Reader;
 use horizon_core::random::RandomSource;
 
 impl Game<'_> {
     /// EntitySelector.findEntities.
     pub(in crate::game) fn select(&mut self, s: &Selector) -> Vec<Target> {
         if let Some(name) = &s.player_name {
-            return self.player_named(name).into_iter().collect();
+            return self.player_named_java(name).into_iter().collect();
         }
         if let Some(uuid) = s.uuid {
             return self.target_by_uuid(uuid).into_iter().collect();
@@ -76,5 +77,37 @@ impl Game<'_> {
             .take(s.limit.max(1))
             .map(|(t, _)| t)
             .collect()
+    }
+    /// MessageArgument: `@p`-style selectors in a message become names.
+    pub(in crate::game) fn expand_selectors(&mut self, raw: &str) -> Text {
+        let mut out = Text::empty();
+        let mut rest = raw;
+        while let Some(at) = rest.find('@') {
+            out.push(&rest[..at]);
+            let mut reader = Reader::new(&rest[at..]);
+            match (horizon_client::command::ArgType::Entity {
+                single: false,
+                players: false,
+            })
+            .parse(&mut reader, &self.ui.registries)
+            {
+                Ok(Arg::Entity(s)) if reader.cursor > 1 => {
+                    let found = self.select(&s);
+                    for (i, t) in found.iter().enumerate() {
+                        if i > 0 {
+                            out.push(", ");
+                        }
+                        out.push(self.target_name(*t));
+                    }
+                    rest = &rest[at + reader.cursor..];
+                }
+                _ => {
+                    out.push("@");
+                    rest = &rest[at + 1..];
+                }
+            }
+        }
+        out.push(rest);
+        out
     }
 }

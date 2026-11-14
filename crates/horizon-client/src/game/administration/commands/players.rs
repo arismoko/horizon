@@ -6,7 +6,8 @@
 //! swapped in (`for_player`), as their own turn, what it tells them going to
 //! their chat.
 use super::{Game, Target};
-use horizon_client::{command::args::Selector, lan::guest::Guest, text::Text};
+use horizon_client::{lan::guest::Guest, text::Text};
+use horizon_client_core::command::Selector;
 use horizon_protocol::packets::play::{self, Clientbound as C};
 
 impl Target {
@@ -78,29 +79,35 @@ impl Game<'_> {
     /// (`native_set_nickname`), a name no player has finds the player going
     /// by it, without its `~` or with it (quoted), so `/msg` and `/tell`
     /// reach a player by the name chat shows. No nickname, no change.
-    pub(super) fn player_named(&self, name: &str) -> Option<Target> {
-        if !self.lan_acting_fake
-            && self.player.is_some()
-            && name.eq_ignore_ascii_case(self.acting_player_name())
-        {
+    pub(super) fn player_named_java(&self, name: &horizon_core::nbt::JavaString) -> Option<Target> {
+        self.player_named_matching(|candidate| {
+            horizon_core::text::eq_ignore_ascii_case_utf16(&name.0, candidate)
+        })
+        .or_else(|| self.player_nicknamed(&name.0))
+    }
+    fn player_named_matching(&self, matches: impl Fn(&str) -> bool) -> Option<Target> {
+        if !self.lan_acting_fake && self.player.is_some() && matches(self.acting_player_name()) {
             return Some(Target::Player);
         }
         self.command_players()
-            .find(|g| g.name.eq_ignore_ascii_case(name))
-            .map(|g| Target::Guest(g.conn))
-            .or_else(|| self.player_nicknamed(name))
+            .find(|guest| matches(&guest.name))
+            .map(|guest| Target::Guest(guest.conn))
     }
 
     /// The player whose nickname is `name` (any case, a leading `~` either
     /// side ignored).
-    fn player_nicknamed(&self, name: &str) -> Option<Target> {
-        let bare = |s: &str| s.strip_prefix('~').unwrap_or(s).to_ascii_lowercase();
-        let wanted = bare(name);
+    fn player_nicknamed(&self, name: &[u16]) -> Option<Target> {
+        let wanted = name.strip_prefix(&[126]).unwrap_or(name);
         let hub = &self.lan.as_ref()?.hub;
         let uuid = hub
             .nicknames
             .iter()
-            .find(|(_, nick)| bare(nick) == wanted)?
+            .find(|(_, nick)| {
+                horizon_core::text::eq_ignore_ascii_case_utf16(
+                    wanted,
+                    nick.strip_prefix('~').unwrap_or(nick),
+                )
+            })?
             .0;
         self.target_by_uuid(*uuid)
     }

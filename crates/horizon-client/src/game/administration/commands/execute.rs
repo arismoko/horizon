@@ -2,7 +2,8 @@
 //! filtering command sources, then run the final command once per source,
 //! reporting each result to the `store` callbacks of its source.
 use super::{Arg, Context, Dim, Game, R, Target, data::DataRef, err};
-use horizon_client::{command::CommandError, nbt_path::NbtPath, text::Text};
+use horizon_client::{nbt_path::NbtPath, text::Text};
+use horizon_client_core::command::CommandError;
 use horizon_core::nbt::Tag;
 
 /// `CommandSourceStack` fields Horizon models: the executing entity (None for

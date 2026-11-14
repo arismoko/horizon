@@ -2,6 +2,7 @@
 //! SNBT text components, with the data-fixer-upper error messages
 //! (ComponentArgument, StyleArgument and component-valued item data).
 use super::codec::{get, no_key, not_list, not_map};
+use horizon_client_core::{command, registries::Registries};
 use horizon_core::nbt::{Compound, Tag};
 
 /// A DataResult error: its message and whether it carries a partial result.
@@ -243,20 +244,17 @@ fn style_fields(map: &Compound) -> R {
     }
     Ok(())
 }
-fn selector_string(t: &Tag) -> bool {
-    let Some(s) = string_of(t) else { return false };
-    let reg = super::args::Registries {
-        permission: 4,
-        ..Default::default()
+fn selector_string(t: &Tag, reg: &Registries) -> bool {
+    let Tag::String(source) = t else {
+        return false;
     };
-    let mut r = super::Reader::new(&s);
-    super::selector::parse(&mut r, &reg, true).is_ok() && !r.can_read()
+    command::selector::parse_utf16(&source.0, reg).is_ok()
 }
-fn optional_component(map: &Compound, key: &str) -> bool {
-    get(map, key).is_none_or(|v| component(v).is_ok())
+fn optional_component(map: &Compound, key: &str, reg: &Registries) -> bool {
+    get(map, key).is_none_or(|v| component(v, reg).is_ok())
 }
 /// The content codecs (PlainText, Translatable, Keybind, Score, Selector, Nbt, Object).
-fn content(kind: &str, map: &Compound) -> bool {
+fn content(kind: &str, map: &Compound, reg: &Registries) -> bool {
     match kind {
         "text" => get(map, "text").is_some_and(is_string),
         "translatable" => {
@@ -272,27 +270,29 @@ fn content(kind: &str, map: &Compound) -> bool {
             _ => false,
         },
         "selector" => {
-            get(map, "selector").is_some_and(selector_string)
-                && optional_component(map, "separator")
+            get(map, "selector").is_some_and(|v| selector_string(v, reg))
+                && optional_component(map, "separator", reg)
         }
         "nbt" => {
-            let path_ok = get(map, "nbt")
-                .and_then(string_of)
-                .is_some_and(|p| horizon_client_core::nbt_path::NbtPath::parse(&p).is_ok());
+            let path_ok = get(map, "nbt").is_some_and(|value| match value {
+                Tag::String(path) => {
+                    horizon_client_core::nbt_path::NbtPath::parse_utf16(&path.0).is_ok()
+                }
+                _ => false,
+            });
             let source = if let Some(e) = get(map, "entity") {
-                selector_string(e)
+                selector_string(e, reg)
             } else if let Some(b) = get(map, "block") {
-                string_of(b).is_some_and(|s| {
-                    let reg = super::args::Registries::default();
-                    let mut r = super::Reader::new(&s);
-                    super::ArgType::BlockPos.parse(&mut r, &reg).is_ok() && !r.can_read()
-                })
+                match b {
+                    Tag::String(source) => command::parse_block_pos_utf16(&source.0).is_ok(),
+                    _ => false,
+                }
             } else if let Some(s) = get(map, "storage") {
                 identifier(s).is_ok()
             } else {
                 false
             };
-            path_ok && source && optional_component(map, "separator")
+            path_ok && source && optional_component(map, "separator", reg)
         }
         "object" => {
             let kind = get(map, "object").and_then(string_of);
@@ -320,7 +320,7 @@ const CONTENT_TYPES: [&str; 7] = [
     "nbt",
     "object",
 ];
-fn full(t: &Tag) -> R {
+fn full(t: &Tag, reg: &Registries) -> R {
     let Tag::Compound(map) = t else {
         return err(not_map(t));
     };
@@ -331,34 +331,107 @@ fn full(t: &Tag) -> R {
         if !CONTENT_TYPES.contains(&name.as_str()) {
             return err(format!("Unknown element id: {name}"));
         }
-        content(&name, map)
+        content(&name, map, reg)
     } else {
-        CONTENT_TYPES.iter().any(|k| content(k, map))
+        CONTENT_TYPES.iter().any(|k| content(k, map, reg))
     };
     if !contents_ok {
         return err("No matching codec found");
     }
     if let Some(extra) = get(map, "extra") {
-        match non_empty_list(extra, &component) {
+        match non_empty_list(extra, &|v| component(v, reg)) {
             Ok(()) => {}
             Err(e) => return partial(e.msg),
         }
     }
     style_fields(map)
 }
-fn component(t: &Tag) -> R {
-    either(either(string(t), || non_empty_list(t, &component)), || {
-        full(t)
-    })
+fn component(t: &Tag, reg: &Registries) -> R {
+    either(
+        either(string(t), || non_empty_list(t, &|v| component(v, reg))),
+        || full(t, reg),
+    )
 }
 /// ComponentSerialization.CODEC.parse: the error message on failure.
-pub fn decode(t: &Tag) -> Result<(), String> {
-    component(t).map_err(|e| e.msg)
+pub fn decode(t: &Tag, reg: &Registries) -> Result<(), String> {
+    component(t, reg).map_err(|e| e.msg)
 }
 /// Style.Serializer.CODEC.parse.
 pub fn decode_style(t: &Tag) -> Result<(), String> {
     match t {
         Tag::Compound(map) => style_fields(map).map_err(|e| e.msg),
         _ => Err(not_map(t)),
+    }
+}
+
+#[cfg(test)]
+mod lossless_source_tests {
+    use super::*;
+    use horizon_core::nbt::JavaString;
+    fn registries() -> Registries {
+        Registries {
+            permission: 4,
+            entity_types: vec!["minecraft:pig".into()],
+            ..Registries::default()
+        }
+    }
+    #[test]
+    fn persistent_component_sources_accept_raw_java_surrogates() {
+        let selector = JavaString(vec![64, 101, 91, 110, 97, 109, 101, 61, 34, 0xd800, 34, 93]);
+        assert!(
+            decode(
+                &Tag::compound([("selector", Tag::String(selector.clone()))]),
+                &registries()
+            )
+            .is_ok()
+        );
+        let nbt = Tag::compound([
+            ("nbt", Tag::String(JavaString(vec![34, 0xdfff, 34]))),
+            ("entity", Tag::String(selector)),
+        ]);
+        assert!(decode(&nbt, &registries()).is_ok());
+        let block = Tag::compound([
+            ("nbt", Tag::String(JavaString(vec![34, 0xd800, 34]))),
+            ("block", Tag::String("~ ~ ~".into())),
+        ]);
+        assert!(decode(&block, &registries()).is_ok());
+    }
+    #[test]
+    fn persistent_component_sources_require_complete_grammar_and_real_registry_ids() {
+        let reg = registries();
+        for source in [
+            "@e[type=missing]",
+            "@e[] trailing",
+            "@e[name=\"bad\\q\"]",
+            "@e[distance=3..1]",
+        ] {
+            assert!(
+                decode(
+                    &Tag::compound([("selector", Tag::String(source.into()))]),
+                    &reg
+                )
+                .is_err(),
+                "{source}"
+            );
+        }
+        for (path, position) in [
+            (
+                JavaString(vec![34, 0xd800, 34, 32]),
+                JavaString::from("~ ~ ~"),
+            ),
+            (JavaString::from("a"), JavaString::from("~ ~ ~ trailing")),
+            (
+                JavaString::from("a"),
+                JavaString(vec![48, 32, 48, 32, 0xd800]),
+            ),
+        ] {
+            assert!(
+                decode(
+                    &Tag::compound([("nbt", Tag::String(path)), ("block", Tag::String(position))]),
+                    &reg
+                )
+                .is_err()
+            );
+        }
     }
 }

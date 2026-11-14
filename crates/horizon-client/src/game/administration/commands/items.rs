@@ -2,13 +2,14 @@
 //! slots of the player, mobs, armor stands, item frames and containers.
 use super::{Arg, Context, Game, R, Target, err};
 use horizon_client::{
-    command::{CommandError, args::ItemInput},
+    command::args::ItemInput,
     containers::BlockEntity,
     furnace::FurnaceCooking,
     items::ItemStack,
     scoreboard_cmd::{Holder, Tracker},
     text::Text,
 };
+use horizon_client_core::command::CommandError;
 use horizon_core::nbt::Tag;
 
 mod contents;
@@ -810,7 +811,8 @@ impl Game<'_> {
         id: &str,
         components: Option<&str>,
     ) -> R<horizon_world::component_patch::ComponentMap<String, Tag>> {
-        use horizon_client::command::{Reader, args::read_identifier, snbt::parse_tag_argument};
+        use horizon_client::command::snbt::parse_tag_argument;
+        use horizon_client_core::command::{Reader, read_identifier};
         use horizon_world::component_patch::{ComponentMap, Patch, Prototype};
         let mut prototype = Vec::new();
         if let Some(item) = self.items().get(id) {

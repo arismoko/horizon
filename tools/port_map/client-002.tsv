@@ -118,7 +118,7 @@ ClientRegistryLayer.createRegistryAccess	skip:data		registry layers come from Ho
 ClientSuggestionProvider.getOnlinePlayerNames	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::remote_online_names	sorted names of the server's player list
 ClientSuggestionProvider.getCustomTabSuggestions	port	crates/horizon-client-core/src/registries.rs::Registries::custom_tab_suggestions	the player names and the server's custom completions, each once
 ClientSuggestionProvider.getSelectedEntities	port	crates/horizon-client/src/game/entities/pick_entity.rs::Game::crosshair_entity_uuid	the UUID of the entity under the crosshair, before any block; the command suggestions add it
-ClientSuggestionProvider.suggestRegistryElements	port	crates/horizon-command/src/args.rs::suggest_resources	registry ids come from Horizon's registry tables
+ClientSuggestionProvider.suggestRegistryElements	port	crates/horizon-client-core/src/command.rs::suggest_resources	registry ids come from Horizon's registry tables
 ClientSuggestionProvider.getRelevantCoordinates	port	crates/horizon-command/src/args.rs::suggest_coordinates	the block under the crosshair for block positions
 ClientSuggestionProvider.getAbsoluteCoordinates	port	crates/horizon-command/src/args.rs::suggest_coordinates	gap: minor: the exact hit point is not offered; Vec3 arguments only get ~
 ClientSuggestionProvider.modifyCustomCompletions	port	crates/horizon-client-core/src/registries.rs::modify_custom_completions	ADD, REMOVE or SET on the set the connection keeps

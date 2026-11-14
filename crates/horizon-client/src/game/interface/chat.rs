@@ -2419,8 +2419,10 @@ mod tests {
                     .count(),
                 1
             );
-            let mut suggestions =
-                horizon_command::SuggestionsBuilder::new("minecraft:apple[example:", 0);
+            let mut suggestions = horizon_client_core::command::SuggestionsBuilder::new(
+                "minecraft:apple[example:",
+                0,
+            );
             horizon_command::item::suggest_stack(&mut suggestions, &game.ui.registries);
             assert!(
                 suggestions
@@ -2756,19 +2758,19 @@ mod tests {
         assert!(summonable.contains(&"minecraft:wind_charge".to_string()));
         assert!(summonable.contains(&"minecraft:breeze_wind_charge".to_string()));
 
-        assert!(horizon_client::command::args::resource_matches(
+        assert!(horizon_client_core::command::resource_matches(
             "wind",
             "minecraft:wind_charge"
         ));
-        assert!(horizon_client::command::args::resource_matches(
+        assert!(horizon_client_core::command::resource_matches(
             "wind",
             "minecraft:breeze_wind_charge"
         ));
-        assert!(horizon_client::command::args::resource_matches(
+        assert!(horizon_client_core::command::resource_matches(
             "minecraft:wind_charg",
             "minecraft:wind_charge"
         ));
-        assert!(!horizon_client::command::args::resource_matches(
+        assert!(!horizon_client_core::command::resource_matches(
             "minecraft:wind_charg",
             "minecraft:breeze_wind_charge"
         ));

@@ -64,7 +64,7 @@ command above to inspect the selection rather than relying on historical counts.
 | 35 | Dispensers (43) | `G/dispenser.rs`, `G/dispense_fixture.rs` (the harness side) | dispenser |
 | 36 | Audio and music (38) | `R/audio.rs`, `R/sound_engine.rs`, `R/sound_events.rs`, `L/music.rs`, `G/music.rs`, `L/ambience.rs`, `G/subtitle_hud.rs` | sound_engine, sound_event, music, situational_music, ambient_sound, subtitle |
 | 37 | Integrated server and levels (34) | `G/integrated.rs`, `G/levels.rs`, `G/server_travel.rs` | server_dimension_players, server_dimension_item, `lan_e2e` (server-thread by default; portals, levels, distance, lava) |
-| 38 | Command parsing (34) | `C/` (`args.rs`, `selector.rs`, `tree_*.rs`, `vanilla.rs`); `cargo test -p horizon-command` | command_parse (corpus `tools/command_parse_corpus.py`) |
+| 38 | Command parsing (34) | `K/command.rs` and `K/command/selector.rs` (shared UTF-8/UTF-16 reader, selector and position grammar), `K/nbt_path.rs`; `C/` (arguments, trees and adapters); `cargo test -p horizon-client-core -p horizon-command` | command_parse (corpus `tools/command_parse_corpus.py`); persistent component sources use the same parsers with explicit registry snapshots |
 | 39 | Benchmarks (34) | `L/benchmark.rs`, `tools/perf_bench.py`, `crates/horizon-system/`, `crates/horizon-bench/` | `python3 -m unittest tests.test_perf_bench`; [benchmark.md](benchmark.md) |
 | 40 | Explosions and TNT (31) | `G/entities/explosion.rs`, `G/entities/tnt.rs`, `G/blocks/nether_portal.rs`, `G/entities/vehicle_teleport.rs` | sulfur_portal_blast (calculator oracle; actual portal, `/tp` and mod cross-level arrivals, immediate item merges, transient TNT portal protection and disk reset); lan_e2e blast |
 

@@ -1,7 +1,8 @@
 //! BlockStateParser: block states (`stone`, `oak_stairs[facing=up]{...}`)
 //! and block predicates (`#logs[axis=y]`), with vanilla's suggestions.
-use super::args::{BlockInput, Registries, read_identifier, suggest_resources};
+use super::args::{BlockInput, Registries};
 use super::{CmdResult, CommandError, Reader, SuggestionsBuilder};
+use horizon_client_core::command::{read_identifier, suggest_resources};
 
 #[derive(Clone, Debug)]
 enum Sugg {
@@ -45,7 +46,7 @@ fn is_int_property(values: &[String]) -> bool {
 /// Property.getValue.
 fn property_value(values: &[String], raw: &str) -> Option<String> {
     if is_int_property(values) {
-        let v: i32 = super::args::java_parse_int(raw)?;
+        let v: i32 = horizon_client_core::command::java_parse_int(raw)?;
         let s = v.to_string();
         return values.contains(&s).then_some(s);
     }

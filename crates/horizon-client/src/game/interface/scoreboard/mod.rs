@@ -5,10 +5,7 @@
 use super::{Game, chat::PLAYER_NAME, commands::Target};
 use horizon_client::actions::Action;
 use horizon_client::{
-    command::{
-        Context,
-        args::{IntRange, Selector},
-    },
+    command::Context,
     hud::HudBatch,
     hud_layout, hud_overlays,
     lan::{guest::Guest, playerdata::ints_uuid},
@@ -18,6 +15,7 @@ use horizon_client::{
     tab_list::TabPlayer,
     text::Text,
 };
+use horizon_client_core::command::{IntRange, Selector};
 use horizon_core::nbt::Tag;
 use std::collections::{HashMap, HashSet};
 
@@ -362,10 +360,9 @@ impl Game<'_> {
                 // NbtPredicate: the entity's saved data contains the pattern.
                 let data = self.command_target_nbt(t);
                 for (pattern, negated) in &s.nbt {
-                    let matches = match (&data, horizon_core::nbt::parse_snbt(pattern)) {
-                        (Some(d), Ok((p, _))) => horizon_client::nbt_path::compare_nbt(&p, Some(d)),
-                        _ => false,
-                    };
+                    let matches = data.as_ref().is_some_and(|data| {
+                        horizon_client::nbt_path::compare_nbt(pattern, Some(data))
+                    });
                     if matches == *negated {
                         ok = false;
                     }
@@ -403,9 +400,9 @@ impl Game<'_> {
     fn advancements_match(
         &self,
         target: Target,
-        wanted: &[(String, horizon_client::command::args::AdvCondition)],
+        wanted: &[(String, horizon_client_core::command::AdvCondition)],
     ) -> bool {
-        use horizon_client::command::args::AdvCondition;
+        use horizon_client_core::command::AdvCondition;
         let progress = match target {
             Target::Player => &self.adv.progress,
             Target::Guest(conn) => match self.command_guest(conn) {
@@ -775,7 +772,7 @@ impl Game<'_> {
     pub(super) fn cmd_scoreboard(&mut self, id: &str, ctx: &Context) -> super::commands::R<i32> {
         let mut env = GameEnv { g: self };
         let result = scoreboard_cmd::execute(id, ctx, &mut env).unwrap_or_else(|| {
-            Err(horizon_client::command::CommandError::tr(
+            Err(horizon_client_core::command::CommandError::tr(
                 "command.failed",
                 &[],
             ))
@@ -824,7 +821,7 @@ impl Game<'_> {
         }
     }
     pub(super) fn resolve_selector_text(&mut self, raw: &str) -> String {
-        let mut reader = horizon_client::command::Reader::new(raw);
+        let mut reader = horizon_client_core::command::Reader::new(raw);
         let ty = horizon_client::command::args::ArgType::Entity {
             single: false,
             players: false,

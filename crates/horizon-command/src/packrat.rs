@@ -2,7 +2,8 @@
 //! terms, named rules with per-position memoisation, scopes with frames,
 //! cuts, and the "longest only" error collector whose entries become both
 //! the parse error and the completion suggestions.
-use super::{CmdResult, CommandError, Reader, SuggestionsBuilder, args};
+use super::{CmdResult, CommandError, Reader, SuggestionsBuilder};
+use horizon_client_core::command::suggest_resources;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -316,7 +317,7 @@ impl<V: Value> Grammar<V> {
             match sugg {
                 Sugg::Empty => {}
                 Sugg::Values(v) => offset.suggest_matching(v.iter().map(String::as_str)),
-                Sugg::Resources(ids) => args::suggest_resources(&mut offset, ids.iter(), ""),
+                Sugg::Resources(ids) => suggest_resources(&mut offset, ids.iter(), ""),
             }
         }
         builder.add(offset);

@@ -3,14 +3,13 @@
 //! (ChatScreen + EditBox + CommandSuggestions: history navigation, argument
 //! colouring, usage hints, parse errors and tab completion).
 use crate::{
-    command::{
-        Dispatcher, ParseResults, Registries, Suggestion, SuggestionsBuilder, merge_suggestions,
-    },
+    command::{Dispatcher, ParseResults, Registries, Suggestion, merge_suggestions},
     hud::{HudAtlas, HudBatch},
     hud_layout::{self, GuiDraw, PoseOp},
     screen_draw::{self as d, Draw, Measure, TextField},
     text::{self, ClickEvent, Style, Text},
 };
+use horizon_client_core::command::SuggestionsBuilder;
 
 #[cfg(test)]
 #[path = "chat_tests.rs"]
@@ -1686,12 +1685,12 @@ impl ChatScreen {
                     }
                 }
                 if literals > 0 {
-                    let reader = crate::command::Reader {
-                        string: &parse.input,
+                    let reader = horizon_client_core::command::Reader {
+                        string: parse.input.as_str(),
                         cursor: parse.cursor,
                     };
                     self.usage.push(
-                        crate::command::CommandError::tr_at(
+                        horizon_client_core::command::CommandError::tr_at(
                             "command.unknown.argument",
                             &[],
                             &reader,

@@ -1,12 +1,12 @@
 //! `/forceload`, `/fillbiome`, `/worldborder` and `/loot`.
 use super::{Arg, Context, Game, R, Target, err, items::Owner};
 use horizon_client::{
-    command::CommandError,
     items::ItemStack,
     scoreboard_cmd::{Holder, Tracker},
     text::Text,
     worldborder::{MAX_CENTER, MAX_SIZE},
 };
+use horizon_client_core::command::CommandError;
 use horizon_core::{position::ChunkPos, random::RandomSource};
 
 /// `LocationCheck.test` / `BlockPredicate`: the measured loaded block-state subset.

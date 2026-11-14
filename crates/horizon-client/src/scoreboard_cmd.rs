@@ -2,16 +2,14 @@
 //! TeamCommand, TriggerCommand, `CommandResponseTracker`) against a
 //! [`Scoreboard`], with the world supplied through [`Env`].
 use crate::{
-    command::{
-        Arg, CmdResult, CommandError, Context,
-        args::{ScoreHolderArg, Selector},
-    },
+    command::{Arg, Context, args::ScoreHolderArg},
     scoreboard::{
         self as sb, Comp, NumberFormat, RenderType, Scoreboard, Visibility, comp_text,
         criteria_read_only, literal,
     },
     text::{self, Text},
 };
+use horizon_client_core::command::{CmdResult, CommandError, Selector};
 
 /// A score holder a command resolved: the scoreboard name and the name
 /// shown in feedback.

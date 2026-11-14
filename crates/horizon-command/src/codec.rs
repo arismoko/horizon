@@ -3,8 +3,9 @@
 //! providers, dialogs), reproducing the codec error messages vanilla reports.
 mod slot_sources;
 
-use super::args::{Registries, is_id_char, parse_identifier, slot_ranges};
+use super::args::{Registries, slot_ranges};
 use super::{CmdResult, CommandError, Reader};
+use horizon_client_core::{command::is_id_char, identifier::parse_identifier};
 use horizon_core::nbt::{Compound, JavaString, Tag};
 
 pub fn snbt(t: &Tag) -> String {

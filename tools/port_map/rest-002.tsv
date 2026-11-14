@@ -11,8 +11,8 @@ MinMaxBounds.Bounds.asRange	inline	crates/horizon-client/src/advancements.rs::ra
 MinMaxBounds.Bounds.asPoint	skip:java		codec writer: a single exact value
 MinMaxBounds.Bounds.map	skip:java		converts bounds between number types in Java
 MinMaxBounds.Bounds.createCodec	skip:java		codec for a number or a min/max object; range_f reads the JSON directly
-MinMaxBounds.Bounds.readNumber	port	crates/horizon-command/src/args.rs::read_bounds	reads one number of a range argument
-MinMaxBounds.Bounds.isAllowedInputChar	inline	crates/horizon-command/src/args.rs::read_bounds	the digit, minus and single dot test inside read_bounds
+MinMaxBounds.Bounds.readNumber	port	crates/horizon-client-core/src/command.rs::read_bounds	reads one number of a range argument
+MinMaxBounds.Bounds.isAllowedInputChar	inline	crates/horizon-client-core/src/command.rs::read_bounds	the digit, minus and single dot test inside read_bounds
 MinMaxBounds.Doubles.matchesSqr	inline	crates/horizon-client/src/advancements.rs::distance	takes the square root and tests the range; same result as the squared bounds
 MinMaxBounds.Ints.matchesSqr	skip:other		no caller in vanilla 26.3
 MobEffectsPredicate.matches	inline	crates/horizon-client/src/advancements.rs::entity	gap: minor: ambient and visible flags are not checked; no vanilla advancement uses them

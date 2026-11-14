@@ -59,8 +59,8 @@ fn discarded_mob_leaves_selectors_and_saves_while_frozen() {
     let removed_uuid = game.uuid_for(42);
     let dying_uuid = game.uuid_for(43);
     let selector = |game: &Game<'_>, text: &str| {
-        horizon_client::command::selector::parse(
-            &mut horizon_client::command::Reader::new(text),
+        horizon_client_core::command::selector::parse(
+            &mut horizon_client_core::command::Reader::new(text),
             &game.ui.registries,
             true,
         )

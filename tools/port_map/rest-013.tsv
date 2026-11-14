@@ -14,8 +14,8 @@ Identifier.resolveAgainst	missing		vanilla resolves namespace/path under a root 
 Identifier.toLanguageKey	inline	crates/horizon-client/src/title/buffet.rs::display_name	spelled out behind a 'biome.' prefix there (toLanguageKey("biome")); the namespace and path are joined by hand, and '/' is turned into '.' as well
 Identifier.toShortLanguageKey	skip:other		string helper; translation keys are built where a Text is made
 Identifier.toShortString	skip:other		string helper; the minecraft: prefix is stripped at each display site
-Identifier.readGreedy	port	crates/horizon-command/src/args.rs::read_identifier	reads id characters while they are allowed
-Identifier.isAllowedInIdentifier	port	crates/horizon-command/src/args.rs::is_id_char	same character set
+Identifier.readGreedy	port	crates/horizon-client-core/src/command.rs::read_identifier	reads id characters while they are allowed
+Identifier.isAllowedInIdentifier	port	crates/horizon-client-core/src/command.rs::is_id_char	same character set
 Identifier.isValidPath	inline	crates/horizon-core/src/identifier.rs::Identifier::from_parts	path check inside from_parts; '/' is allowed
 Identifier.isValidNamespace	port	crates/horizon-core/src/identifier.rs::Identifier::from_parts	gap: minor: vanilla rejects the namespace '..'; from_parts accepts it (horizon-client-core parse_identifier has that check)
 Identifier.assertValidNamespace	inline	crates/horizon-core/src/identifier.rs::Identifier::from_parts	returns Err(Namespace) instead of throwing
