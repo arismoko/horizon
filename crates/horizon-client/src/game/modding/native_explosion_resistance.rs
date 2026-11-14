@@ -112,10 +112,8 @@ impl Game<'_> {
         }
         // The calculator `level.explode` would have: the same selection, read the same way.
         let rules = self.blast_rules(None, false);
-        let damage_type = super::creatures::damage_type(
-            DamageKind::Explosion,
-            self.blast_attacker().is_some(),
-        );
+        let damage_type =
+            super::creatures::damage_type(DamageKind::Explosion, self.blast_attacker().is_some());
         let start = self.explosion_start(
             blast.center,
             blast.radius,
@@ -172,11 +170,9 @@ fn cell_count(cells: &ResistanceCells) -> Result<usize, ResistanceCellsError> {
         }
     };
     let count = match cells {
-        ResistanceCells::Box { min, max } => {
-            span(min[0], max[0])?
-                .saturating_mul(span(min[1], max[1])?)
-                .saturating_mul(span(min[2], max[2])?)
-        }
+        ResistanceCells::Box { min, max } => span(min[0], max[0])?
+            .saturating_mul(span(min[1], max[1])?)
+            .saturating_mul(span(min[2], max[2])?),
         ResistanceCells::Columns {
             columns,
             min_y,
@@ -204,7 +200,10 @@ mod tests {
             cells([0, 0, 0], [63, 63, 64]),
             Err(ResistanceCellsError::TooMany(266_240))
         );
-        assert_eq!(cells([0, 5, 0], [0, 4, 0]), Err(ResistanceCellsError::Inverted));
+        assert_eq!(
+            cells([0, 5, 0], [0, 4, 0]),
+            Err(ResistanceCellsError::Inverted)
+        );
         assert_eq!(
             cells([i32::MIN; 3], [i32::MAX; 3]),
             Err(ResistanceCellsError::TooMany(u64::MAX))
