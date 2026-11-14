@@ -187,7 +187,7 @@ impl Game<'_> {
     /// the level it shows, whatever the server calls it, or one the server opened
     /// for viewing (`client_level_key`). None with no world open, or for a
     /// dimension the server hasn't loaded. API 373.
-    pub(super) fn level(&self, dimension: &str) -> Option<LevelRef> {
+    pub(in crate::game) fn level(&self, dimension: &str) -> Option<LevelRef> {
         let epoch = self.native_lifecycle.epoch()?;
         if !self.is_logical_server() {
             return Some(LevelRef::new(epoch, self.client_level_key(dimension)?));
@@ -199,7 +199,7 @@ impl Game<'_> {
     }
     /// The client level in place as a handle: the level this window shows and
     /// ticks. None before login, while reconfiguring, or with no world open.
-    pub(super) fn native_client_level(&self) -> Option<LevelRef> {
+    pub(in crate::game) fn native_client_level(&self) -> Option<LevelRef> {
         let epoch = self.native_lifecycle.epoch()?;
         let remote = self.remote.as_ref().filter(|r| r.has_level())?;
         Some(LevelRef::new(epoch, remote.level_key))

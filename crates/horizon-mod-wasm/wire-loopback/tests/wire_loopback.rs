@@ -405,6 +405,13 @@ fn __horizon_mod_hooks() -> Box<dyn Hooks> {
             )));
             *event.remaining = None;
         }
+        fn fishing_medium(
+            &self,
+            host: mod_api::HostSide<'_>,
+            event: &mut mod_api::FishingMediumEvent,
+        ) -> Option<mod_api::FishingMedium> {
+            fishing_medium::answer(host, event)
+        }
         fn viewed_level_sound(
             &self,
             _: &mut dyn mod_api::ClientHost,

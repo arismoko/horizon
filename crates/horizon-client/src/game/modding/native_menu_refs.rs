@@ -141,7 +141,7 @@ impl Game<'_> {
     }
 
     /// The local player in a logged-in client world.
-    pub(super) fn local_player(&self) -> Option<PlayerRef> {
+    pub(in crate::game) fn local_player(&self) -> Option<PlayerRef> {
         let remote = self.remote.as_ref().filter(|remote| remote.logged_in)?;
         self.player(remote.profile)
     }

@@ -725,7 +725,7 @@ impl Game<'_> {
     /// Resolve a real online player by UUID, never a fake. A fake is reached
     /// through the handle returned by its factory. During a nested player swap,
     /// outer players whose records are displaced return None.
-    pub(super) fn player(&self, uuid: u128) -> Option<PlayerRef> {
+    pub(in crate::game) fn player(&self, uuid: u128) -> Option<PlayerRef> {
         let epoch = self.native_lifecycle.epoch()?;
         if let Some(remote) = self
             .remote

@@ -1,29 +1,22 @@
-/// Where a fishing bobber outside water floats and fishes, as a mod's
-/// `native_fishing_medium` answers it: lava, the void under an island, a
-/// cloud. Below `surface` the bobber floats and fishes as in still water,
-/// above it it falls as anywhere else. API @API:fishing_medium@.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(in crate::game) struct NativeFishingMedium {
-    /// The height the bobber floats at (world Y), as water's surface is.
-    pub surface: f64,
-    /// The loot table a catch from here rolls (`mymod:gameplay/lava_fishing`);
-    /// None rolls vanilla's `minecraft:gameplay/fishing`.
-    pub loot_table: Option<String>,
-    /// The ticks a fish takes to come, drawn from `min..=max` when the bobber
-    /// starts waiting, less the rod's Lure as in water (vanilla draws 100 to
-    /// 600). None keeps vanilla's draw.
-    pub lure_ticks: Option<(i32, i32)>,
-}
+use super::*;
 
-impl super::Game<'_> {
-    // API exposure is held until a shared native/wasm representation is approved.
+/// The hook points. Each does nothing in Horizon.
+impl Game<'_> {
+    /// Whether the fishing bobber `bobber` at `position` in `level`, flying or floating outside
+    /// water and not hooked to an entity, is in a medium a mod lets it fish in
+    /// (`fishing_medium`): lava, the void below an island, a cloud. `owner` is the player who
+    /// cast it and `owner_position` where they stand. The first mod to answer wins. Asked each
+    /// tick on the server, with the caster's state swapped in, and on each client that draws
+    /// the bobber; only called when a mod listens.
     pub(in crate::game) fn native_fishing_medium(
         &mut self,
-        _dimension: &str,
-        _hook: u32,
-        _position: [f64; 3],
-        _owner: Option<[f64; 3]>,
-        _medium: &mut Option<NativeFishingMedium>,
+        level: LevelRef,
+        bobber: EntityRef,
+        position: [f64; 3],
+        owner: Option<PlayerRef>,
+        owner_position: Option<[f64; 3]>,
+        medium: &mut Option<Answered<mod_api::FishingMedium>>,
     ) {
+        self.fire_fishing_medium(level, bobber, position, owner, owner_position, medium);
     }
 }
