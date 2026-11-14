@@ -6,95 +6,95 @@ use mod_api::*;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-impl<E: Legacy + Subsystems> mod_api::prelude::AdvancementsServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::AdvancementsServerHost for HostOf<E> {
     fn advancement(&mut self, id: &Identifier) -> Option<AdvancementInfo> {
-        <E as mod_api::prelude::AdvancementsServerHost>::advancement(&mut *self.0, id)
+        <E as mod_api::prelude::AdvancementsServerHost>::advancement(&mut self.0, id)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesHost for HostOf<E> {
     fn block_entity(&self, level: LevelRef, pos: [i32; 3]) -> Option<BlockEntityRef> {
-        <E as mod_api::prelude::BlockEntitiesHost>::block_entity(&*self.0, level, pos)
+        <E as mod_api::prelude::BlockEntitiesHost>::block_entity(&self.0, level, pos)
     }
     fn block_entity_identity(
         &self,
         level: LevelRef,
         pos: [i32; 3],
     ) -> Option<BlockEntityRef> {
-        <E as mod_api::prelude::BlockEntitiesHost>::block_entity_identity(&*self.0, level, pos)
+        <E as mod_api::prelude::BlockEntitiesHost>::block_entity_identity(&self.0, level, pos)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesServerHost for HostOf<E> {
     fn block_entity_sync(&mut self, pos: [i32; 3]) {
-        <E as mod_api::prelude::BlockEntitiesServerHost>::block_entity_sync(&mut *self.0, pos)
+        <E as mod_api::prelude::BlockEntitiesServerHost>::block_entity_sync(&mut self.0, pos)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesBackend for HostOf<E> {
     fn block_entity_kind(&self, entity: BlockEntityRef) -> Option<BlockEntityTypeKey> {
-        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_kind(&*self.0, entity)
+        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_kind(&self.0, entity)
     }
     fn block_entity_position(&self, entity: BlockEntityRef) -> Option<[i32; 3]> {
-        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_position(&*self.0, entity)
+        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_position(&self.0, entity)
     }
     fn block_entity_level(&self, entity: BlockEntityRef) -> Option<LevelRef> {
-        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_level(&*self.0, entity)
+        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_level(&self.0, entity)
     }
     fn block_entity_data(&self, entity: BlockEntityRef) -> Option<Compound> {
-        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_data(&*self.0, entity)
+        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_data(&self.0, entity)
     }
     fn block_entity_lock(&self, entity: BlockEntityRef) -> Option<Compound> {
-        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_lock(&*self.0, entity)
+        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_lock(&self.0, entity)
     }
     fn block_entity_name(&self, entity: BlockEntityRef) -> Option<String> {
-        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_name(&*self.0, entity)
+        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_name(&self.0, entity)
     }
     fn block_entity_viewers(&self, entity: BlockEntityRef) -> Option<Vec<PlayerRef>> {
-        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_viewers(&*self.0, entity)
+        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_viewers(&self.0, entity)
     }
     fn block_entity_data_slots(&self, entity: BlockEntityRef) -> Option<Vec<i32>> {
-        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_data_slots(&*self.0, entity)
+        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_data_slots(&self.0, entity)
     }
     fn block_entity_item_slot(
         &self,
         entity: BlockEntityRef,
         slot: u32,
     ) -> Result<Option<ItemStack>, BlockEntityItemError> {
-        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_item_slot(&*self.0, entity, slot)
+        <E as mod_api::prelude::BlockEntitiesBackend>::block_entity_item_slot(&self.0, entity, slot)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesBackendMut for HostOf<E> {
     fn block_entity_set_lock(
         &mut self,
         entity: BlockEntityRef,
         lock: Option<Compound>,
     ) -> Result<bool, BlockEntityError> {
-        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_lock(&mut *self.0, entity, lock)
+        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_lock(&mut self.0, entity, lock)
     }
     fn block_entity_merge_data(
         &mut self,
         entity: BlockEntityRef,
         data: Compound,
     ) -> Result<bool, BlockEntityError> {
-        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_merge_data(&mut *self.0, entity, data)
+        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_merge_data(&mut self.0, entity, data)
     }
     fn block_entity_replace_data(
         &mut self,
         entity: BlockEntityRef,
         data: Compound,
     ) -> Result<bool, BlockEntityError> {
-        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_replace_data(&mut *self.0, entity, data)
+        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_replace_data(&mut self.0, entity, data)
     }
     fn block_entity_set_changed(
         &mut self,
         entity: BlockEntityRef,
     ) -> Result<bool, BlockEntityError> {
-        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_changed(&mut *self.0, entity)
+        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_changed(&mut self.0, entity)
     }
     fn block_entity_set_name(
         &mut self,
         entity: BlockEntityRef,
         name: Option<&str>,
     ) -> Result<bool, BlockEntityError> {
-        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_name(&mut *self.0, entity, name)
+        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_name(&mut self.0, entity, name)
     }
     fn block_entity_set_data_slot(
         &mut self,
@@ -102,14 +102,14 @@ impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesBackendMut for HostO
         slot: u32,
         value: i32,
     ) -> Result<bool, BlockEntityError> {
-        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_data_slot(&mut *self.0, entity, slot, value)
+        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_data_slot(&mut self.0, entity, slot, value)
     }
     fn block_entity_set_data_slots(
         &mut self,
         entity: BlockEntityRef,
         values: Vec<i32>,
     ) -> Result<bool, BlockEntityDataError> {
-        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_data_slots(&mut *self.0, entity, values)
+        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_data_slots(&mut self.0, entity, values)
     }
     fn block_entity_set_item_slot(
         &mut self,
@@ -118,38 +118,38 @@ impl<E: Legacy + Subsystems> mod_api::prelude::BlockEntitiesBackendMut for HostO
         slot: u32,
         stack: Option<ItemStack>,
     ) -> Result<bool, BlockEntityItemError> {
-        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_item_slot(&mut *self.0, entity, tx, slot, stack)
+        <E as mod_api::prelude::BlockEntitiesBackendMut>::block_entity_set_item_slot(&mut self.0, entity, tx, slot, stack)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BlockStatesHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BlockStatesHost for HostOf<E> {
     fn lit_block_name(&self, pos: [i32; 3]) -> Option<BlockKey> {
-        <E as mod_api::prelude::BlockStatesHost>::lit_block_name(&*self.0, pos)
+        <E as mod_api::prelude::BlockStatesHost>::lit_block_name(&self.0, pos)
     }
     fn fluid_key(&self, id: &str) -> Option<FluidKey> {
-        <E as mod_api::prelude::BlockStatesHost>::fluid_key(&*self.0, id)
+        <E as mod_api::prelude::BlockStatesHost>::fluid_key(&self.0, id)
     }
     fn block_state_id(&self, name: &str) -> Option<BlockState> {
-        <E as mod_api::prelude::BlockStatesHost>::block_state_id(&*self.0, name)
+        <E as mod_api::prelude::BlockStatesHost>::block_state_id(&self.0, name)
     }
     fn block_state_string(&self, state: BlockState) -> Option<String> {
-        <E as mod_api::prelude::BlockStatesHost>::block_state_string(&*self.0, state)
+        <E as mod_api::prelude::BlockStatesHost>::block_state_string(&self.0, state)
     }
     fn block_state_default(&self, block: BlockKey) -> Option<BlockState> {
-        <E as mod_api::prelude::BlockStatesHost>::block_state_default(&*self.0, block)
+        <E as mod_api::prelude::BlockStatesHost>::block_state_default(&self.0, block)
     }
     fn item_crafting_remainder(&self, stack: &ItemStack) -> Option<ItemStack> {
-        <E as mod_api::prelude::BlockStatesHost>::item_crafting_remainder(&*self.0, stack)
+        <E as mod_api::prelude::BlockStatesHost>::item_crafting_remainder(&self.0, stack)
     }
     fn block_item(&self, block: BlockKey) -> Option<ItemKey> {
-        <E as mod_api::prelude::BlockStatesHost>::block_item(&*self.0, block)
+        <E as mod_api::prelude::BlockStatesHost>::block_item(&self.0, block)
     }
     fn item_block(&self, item: ItemKey) -> Option<BlockKey> {
-        <E as mod_api::prelude::BlockStatesHost>::item_block(&*self.0, item)
+        <E as mod_api::prelude::BlockStatesHost>::item_block(&self.0, item)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BlockStatesServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BlockStatesServerHost for HostOf<E> {
     fn set_block_property(&mut self, pos: [i32; 3], key: &str, value: &str) -> bool {
-        <E as mod_api::prelude::BlockStatesServerHost>::set_block_property(&mut *self.0, pos, key, value)
+        <E as mod_api::prelude::BlockStatesServerHost>::set_block_property(&mut self.0, pos, key, value)
     }
     fn set_block_property_with(
         &mut self,
@@ -158,19 +158,19 @@ impl<E: Legacy + Subsystems> mod_api::prelude::BlockStatesServerHost for HostOf<
         value: &str,
         flags: i32,
     ) -> bool {
-        <E as mod_api::prelude::BlockStatesServerHost>::set_block_property_with(&mut *self.0, pos, key, value, flags)
+        <E as mod_api::prelude::BlockStatesServerHost>::set_block_property_with(&mut self.0, pos, key, value, flags)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BlockStatesBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BlockStatesBackend for HostOf<E> {
     fn block_metadata_name(&self, block: BlockKey) -> Result<&str, BlockStateError> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_metadata_name(&*self.0, block)
+        <E as mod_api::prelude::BlockStatesBackend>::block_metadata_name(&self.0, block)
     }
     fn block_metadata_property(
         &self,
         state: BlockStateRecord,
         name: &str,
     ) -> Result<Option<&str>, BlockStateError> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_metadata_property(&*self.0, state, name)
+        <E as mod_api::prelude::BlockStatesBackend>::block_metadata_property(&self.0, state, name)
     }
     fn block_metadata_with(
         &self,
@@ -178,35 +178,35 @@ impl<E: Legacy + Subsystems> mod_api::prelude::BlockStatesBackend for HostOf<'_,
         name: &str,
         value: &str,
     ) -> Result<BlockStateRecord, BlockStateError> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_metadata_with(&*self.0, state, name, value)
+        <E as mod_api::prelude::BlockStatesBackend>::block_metadata_with(&self.0, state, name, value)
     }
     fn block_metadata_of(
         &self,
         block: BlockKey,
         properties: &[StateConstraint],
     ) -> Result<BlockStateRecord, BlockStateError> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_metadata_of(&*self.0, block, properties)
+        <E as mod_api::prelude::BlockStatesBackend>::block_metadata_of(&self.0, block, properties)
     }
     fn block_state_replaceable(&self, state: BlockState) -> Option<bool> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_state_replaceable(&*self.0, state)
+        <E as mod_api::prelude::BlockStatesBackend>::block_state_replaceable(&self.0, state)
     }
     fn block_state_destroy_speed(&self, state: BlockState) -> Option<f32> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_state_destroy_speed(&*self.0, state)
+        <E as mod_api::prelude::BlockStatesBackend>::block_state_destroy_speed(&self.0, state)
     }
     fn block_state_sound(&self, state: BlockState) -> Option<BlockSoundType> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_state_sound(&*self.0, state)
+        <E as mod_api::prelude::BlockStatesBackend>::block_state_sound(&self.0, state)
     }
     fn block_state_has_block_entity(&self, state: BlockState) -> Option<bool> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_state_has_block_entity(&*self.0, state)
+        <E as mod_api::prelude::BlockStatesBackend>::block_state_has_block_entity(&self.0, state)
     }
     fn block_state_map_color(&self, state: BlockState) -> Option<u8> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_state_map_color(&*self.0, state)
+        <E as mod_api::prelude::BlockStatesBackend>::block_state_map_color(&self.0, state)
     }
     fn block_states_of(&self, block: BlockKey) -> Option<BlockStateRange> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_states_of(&*self.0, block)
+        <E as mod_api::prelude::BlockStatesBackend>::block_states_of(&self.0, block)
     }
     fn block_state_definition(&self, block: BlockKey) -> Option<Vec<StateProperty>> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_state_definition(&*self.0, block)
+        <E as mod_api::prelude::BlockStatesBackend>::block_state_definition(&self.0, block)
     }
     fn block_state_matches(
         &self,
@@ -214,210 +214,210 @@ impl<E: Legacy + Subsystems> mod_api::prelude::BlockStatesBackend for HostOf<'_,
         block: BlockKey,
         constraints: &[StateConstraint],
     ) -> Option<Result<bool, StateMatchError>> {
-        <E as mod_api::prelude::BlockStatesBackend>::block_state_matches(&*self.0, state, block, constraints)
+        <E as mod_api::prelude::BlockStatesBackend>::block_state_matches(&self.0, state, block, constraints)
     }
     fn fluid_state_definition(&self, fluid: FluidKey) -> Option<FluidDefinition> {
-        <E as mod_api::prelude::BlockStatesBackend>::fluid_state_definition(&*self.0, fluid)
+        <E as mod_api::prelude::BlockStatesBackend>::fluid_state_definition(&self.0, fluid)
     }
     fn fluid_type_properties(&self, fluid: FluidKey) -> Option<FluidTypeProperties> {
-        <E as mod_api::prelude::BlockStatesBackend>::fluid_type_properties(&*self.0, fluid)
+        <E as mod_api::prelude::BlockStatesBackend>::fluid_type_properties(&self.0, fluid)
     }
     fn fluid_legacy_block(&self, state: FluidState) -> Option<BlockStateId> {
-        <E as mod_api::prelude::BlockStatesBackend>::fluid_legacy_block(&*self.0, state)
+        <E as mod_api::prelude::BlockStatesBackend>::fluid_legacy_block(&self.0, state)
     }
     fn fluid_state_validate(
         &self,
         fluid: FluidKey,
         constraints: &[StateConstraint],
     ) -> Result<(), FluidStateError> {
-        <E as mod_api::prelude::BlockStatesBackend>::fluid_state_validate(&*self.0, fluid, constraints)
+        <E as mod_api::prelude::BlockStatesBackend>::fluid_state_validate(&self.0, fluid, constraints)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BossBarsServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BossBarsServerHost for HostOf<E> {
     fn boss_bar(&self, id: &str) -> Option<BossBarRef> {
-        <E as mod_api::prelude::BossBarsServerHost>::boss_bar(&*self.0, id)
+        <E as mod_api::prelude::BossBarsServerHost>::boss_bar(&self.0, id)
     }
     fn boss_bars(&self) -> Vec<BossBarRef> {
-        <E as mod_api::prelude::BossBarsServerHost>::boss_bars(&*self.0)
+        <E as mod_api::prelude::BossBarsServerHost>::boss_bars(&self.0)
     }
     fn create_boss_bar(
         &mut self,
         id: &str,
         name: Text,
     ) -> Result<Option<BossBarRef>, TextFormError> {
-        <E as mod_api::prelude::BossBarsServerHost>::create_boss_bar(&mut *self.0, id, name)
+        <E as mod_api::prelude::BossBarsServerHost>::create_boss_bar(&mut self.0, id, name)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BossBarsBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BossBarsBackend for HostOf<E> {
     fn boss_bar_id(&self, bar: BossBarRef) -> Option<String> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_id(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_id(&self.0, bar)
     }
     fn boss_bar_name(&self, bar: BossBarRef) -> Result<Option<Text>, TextFormError> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_name(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_name(&self.0, bar)
     }
     fn boss_bar_color(&self, bar: BossBarRef) -> Option<BossBarColor> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_color(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_color(&self.0, bar)
     }
     fn boss_bar_overlay(&self, bar: BossBarRef) -> Option<BossBarOverlay> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_overlay(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_overlay(&self.0, bar)
     }
     fn boss_bar_darken_screen(&self, bar: BossBarRef) -> Option<bool> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_darken_screen(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_darken_screen(&self.0, bar)
     }
     fn boss_bar_play_boss_music(&self, bar: BossBarRef) -> Option<bool> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_play_boss_music(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_play_boss_music(&self.0, bar)
     }
     fn boss_bar_create_world_fog(&self, bar: BossBarRef) -> Option<bool> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_create_world_fog(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_create_world_fog(&self.0, bar)
     }
     fn boss_bar_value(&self, bar: BossBarRef) -> Option<i32> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_value(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_value(&self.0, bar)
     }
     fn boss_bar_max(&self, bar: BossBarRef) -> Option<i32> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_max(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_max(&self.0, bar)
     }
     fn boss_bar_visible(&self, bar: BossBarRef) -> Option<bool> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_visible(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_visible(&self.0, bar)
     }
     fn boss_bar_players(&self, bar: BossBarRef) -> Option<Vec<PlayerRef>> {
-        <E as mod_api::prelude::BossBarsBackend>::boss_bar_players(&*self.0, bar)
+        <E as mod_api::prelude::BossBarsBackend>::boss_bar_players(&self.0, bar)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::BossBarsBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::BossBarsBackendMut for HostOf<E> {
     fn boss_bar_set_name(
         &mut self,
         bar: BossBarRef,
         name: Text,
     ) -> Result<bool, TextFormError> {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_name(&mut *self.0, bar, name)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_name(&mut self.0, bar, name)
     }
     fn boss_bar_set_color(&mut self, bar: BossBarRef, color: BossBarColor) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_color(&mut *self.0, bar, color)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_color(&mut self.0, bar, color)
     }
     fn boss_bar_set_overlay(
         &mut self,
         bar: BossBarRef,
         overlay: BossBarOverlay,
     ) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_overlay(&mut *self.0, bar, overlay)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_overlay(&mut self.0, bar, overlay)
     }
     fn boss_bar_set_darken_screen(&mut self, bar: BossBarRef, darken: bool) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_darken_screen(&mut *self.0, bar, darken)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_darken_screen(&mut self.0, bar, darken)
     }
     fn boss_bar_set_play_boss_music(&mut self, bar: BossBarRef, music: bool) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_play_boss_music(&mut *self.0, bar, music)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_play_boss_music(&mut self.0, bar, music)
     }
     fn boss_bar_set_create_world_fog(&mut self, bar: BossBarRef, fog: bool) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_create_world_fog(&mut *self.0, bar, fog)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_create_world_fog(&mut self.0, bar, fog)
     }
     fn boss_bar_set_value(&mut self, bar: BossBarRef, value: i32) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_value(&mut *self.0, bar, value)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_value(&mut self.0, bar, value)
     }
     fn boss_bar_set_max(&mut self, bar: BossBarRef, max: i32) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_max(&mut *self.0, bar, max)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_max(&mut self.0, bar, max)
     }
     fn boss_bar_set_visible(&mut self, bar: BossBarRef, visible: bool) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_visible(&mut *self.0, bar, visible)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_set_visible(&mut self.0, bar, visible)
     }
     fn boss_bar_add_player(&mut self, bar: BossBarRef, player: PlayerRef) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_add_player(&mut *self.0, bar, player)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_add_player(&mut self.0, bar, player)
     }
     fn boss_bar_remove_player(&mut self, bar: BossBarRef, player: PlayerRef) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_remove_player(&mut *self.0, bar, player)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_remove_player(&mut self.0, bar, player)
     }
     fn boss_bar_remove(&mut self, bar: BossBarRef) -> bool {
-        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_remove(&mut *self.0, bar)
+        <E as mod_api::prelude::BossBarsBackendMut>::boss_bar_remove(&mut self.0, bar)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ClientInputClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ClientInputClientHost for HostOf<E> {
     fn claim_items(&mut self, mod_id: &str, ids: &[String]) {
-        <E as mod_api::prelude::ClientInputClientHost>::claim_items(&mut *self.0, mod_id, ids)
+        <E as mod_api::prelude::ClientInputClientHost>::claim_items(&mut self.0, mod_id, ids)
     }
     fn poll(&mut self, mod_id: &str) -> Vec<ModEvent> {
-        <E as mod_api::prelude::ClientInputClientHost>::poll(&mut *self.0, mod_id)
+        <E as mod_api::prelude::ClientInputClientHost>::poll(&mut self.0, mod_id)
     }
     fn cursor(&self) -> [f32; 2] {
-        <E as mod_api::prelude::ClientInputClientHost>::cursor(&*self.0)
+        <E as mod_api::prelude::ClientInputClientHost>::cursor(&self.0)
     }
     fn mod_key(&self, mod_id: &str, name: &str) -> Option<(String, ClientModifiers)> {
-        <E as mod_api::prelude::ClientInputClientHost>::mod_key(&*self.0, mod_id, name)
+        <E as mod_api::prelude::ClientInputClientHost>::mod_key(&self.0, mod_id, name)
     }
     fn is_down(&self, mod_id: &str, id: &str) -> bool {
-        <E as mod_api::prelude::ClientInputClientHost>::is_down(&*self.0, mod_id, id)
+        <E as mod_api::prelude::ClientInputClientHost>::is_down(&self.0, mod_id, id)
     }
     fn consume_click(&mut self, mod_id: &str, id: &str) -> bool {
-        <E as mod_api::prelude::ClientInputClientHost>::consume_click(&mut *self.0, mod_id, id)
+        <E as mod_api::prelude::ClientInputClientHost>::consume_click(&mut self.0, mod_id, id)
     }
     fn playing(&self) -> bool {
-        <E as mod_api::prelude::ClientInputClientHost>::playing(&*self.0)
+        <E as mod_api::prelude::ClientInputClientHost>::playing(&self.0)
     }
     fn mapping(&self, name: &str) -> Result<Option<KeyMapping>, TextFormError> {
-        <E as mod_api::prelude::ClientInputClientHost>::mapping(&*self.0, name)
+        <E as mod_api::prelude::ClientInputClientHost>::mapping(&self.0, name)
     }
     fn millis(&self) -> u64 {
-        <E as mod_api::prelude::ClientInputClientHost>::millis(&*self.0)
+        <E as mod_api::prelude::ClientInputClientHost>::millis(&self.0)
     }
     fn modifiers(&self) -> ClientModifiers {
-        <E as mod_api::prelude::ClientInputClientHost>::modifiers(&*self.0)
+        <E as mod_api::prelude::ClientInputClientHost>::modifiers(&self.0)
     }
     fn clipboard_text(&self) -> Option<String> {
-        <E as mod_api::prelude::ClientInputClientHost>::clipboard_text(&*self.0)
+        <E as mod_api::prelude::ClientInputClientHost>::clipboard_text(&self.0)
     }
     fn set_clipboard_text(&self, text: &str) -> bool {
-        <E as mod_api::prelude::ClientInputClientHost>::set_clipboard_text(&*self.0, text)
+        <E as mod_api::prelude::ClientInputClientHost>::set_clipboard_text(&self.0, text)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ClientOptionsClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ClientOptionsClientHost for HostOf<E> {
     fn input_options(&self) -> ClientInputOptions {
-        <E as mod_api::prelude::ClientOptionsClientHost>::input_options(&*self.0)
+        <E as mod_api::prelude::ClientOptionsClientHost>::input_options(&self.0)
     }
     fn graphics_options(&self) -> ClientGraphicsOptions {
-        <E as mod_api::prelude::ClientOptionsClientHost>::graphics_options(&*self.0)
+        <E as mod_api::prelude::ClientOptionsClientHost>::graphics_options(&self.0)
     }
     fn gui_options(&self) -> ClientGuiOptions {
-        <E as mod_api::prelude::ClientOptionsClientHost>::gui_options(&*self.0)
+        <E as mod_api::prelude::ClientOptionsClientHost>::gui_options(&self.0)
     }
     fn chat_options(&self) -> ClientChatOptions {
-        <E as mod_api::prelude::ClientOptionsClientHost>::chat_options(&*self.0)
+        <E as mod_api::prelude::ClientOptionsClientHost>::chat_options(&self.0)
     }
     fn audio_options(&self) -> ClientAudioOptions {
-        <E as mod_api::prelude::ClientOptionsClientHost>::audio_options(&*self.0)
+        <E as mod_api::prelude::ClientOptionsClientHost>::audio_options(&self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ClientRenderClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ClientRenderClientHost for HostOf<E> {
     fn instance_group_write(
         &self,
         group: InstanceGroupRef,
         first: u32,
         instances: &[ModelInstance],
     ) -> Result<(), GroupError> {
-        <E as mod_api::prelude::ClientRenderClientHost>::instance_group_write(&*self.0, group, first, instances)
+        <E as mod_api::prelude::ClientRenderClientHost>::instance_group_write(&self.0, group, first, instances)
     }
     fn instance_group_set_len(
         &self,
         group: InstanceGroupRef,
         len: u32,
     ) -> Result<(), GroupError> {
-        <E as mod_api::prelude::ClientRenderClientHost>::instance_group_set_len(&*self.0, group, len)
+        <E as mod_api::prelude::ClientRenderClientHost>::instance_group_set_len(&self.0, group, len)
     }
     fn instance_group_set_transform(
         &self,
         group: InstanceGroupRef,
         transform: [f32; 12],
     ) -> Result<(), GroupError> {
-        <E as mod_api::prelude::ClientRenderClientHost>::instance_group_set_transform(&*self.0, group, transform)
+        <E as mod_api::prelude::ClientRenderClientHost>::instance_group_set_transform(&self.0, group, transform)
     }
     fn instance_group_destroy(&self, group: InstanceGroupRef) -> Result<(), GroupError> {
-        <E as mod_api::prelude::ClientRenderClientHost>::instance_group_destroy(&*self.0, group)
+        <E as mod_api::prelude::ClientRenderClientHost>::instance_group_destroy(&self.0, group)
     }
     fn refresh_render_visibility(&mut self) {
-        <E as mod_api::prelude::ClientRenderClientHost>::refresh_render_visibility(&mut *self.0)
+        <E as mod_api::prelude::ClientRenderClientHost>::refresh_render_visibility(&mut self.0)
     }
     fn refresh_biome_colors(&mut self) {
-        <E as mod_api::prelude::ClientRenderClientHost>::refresh_biome_colors(&mut *self.0)
+        <E as mod_api::prelude::ClientRenderClientHost>::refresh_biome_colors(&mut self.0)
     }
     fn mod_image(&mut self, width: u32, height: u32, rgba: &[u8]) -> bool {
-        <E as mod_api::prelude::ClientRenderClientHost>::mod_image(&mut *self.0, width, height, rgba)
+        <E as mod_api::prelude::ClientRenderClientHost>::mod_image(&mut self.0, width, height, rgba)
     }
     fn block_tint_color(
         &self,
@@ -425,409 +425,409 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ClientRenderClientHost for HostOf
         tint_index: i32,
         pos: [i32; 3],
     ) -> Option<u32> {
-        <E as mod_api::prelude::ClientRenderClientHost>::block_tint_color(&*self.0, state, tint_index, pos)
+        <E as mod_api::prelude::ClientRenderClientHost>::block_tint_color(&self.0, state, tint_index, pos)
     }
     fn block_sprites(&self, blocks: &[BlockState]) -> Vec<Option<BlockSprites>> {
-        <E as mod_api::prelude::ClientRenderClientHost>::block_sprites(&*self.0, blocks)
+        <E as mod_api::prelude::ClientRenderClientHost>::block_sprites(&self.0, blocks)
     }
     fn texture_sprites(&self, textures: &[&str]) -> Vec<Option<SpriteRef>> {
-        <E as mod_api::prelude::ClientRenderClientHost>::texture_sprites(&*self.0, textures)
+        <E as mod_api::prelude::ClientRenderClientHost>::texture_sprites(&self.0, textures)
     }
     fn gui_sprite(&self, sprite: &Identifier) -> Option<AtlasRegion> {
-        <E as mod_api::prelude::ClientRenderClientHost>::gui_sprite(&*self.0, sprite)
+        <E as mod_api::prelude::ClientRenderClientHost>::gui_sprite(&self.0, sprite)
     }
     fn block_sprites_version(&self) -> u64 {
-        <E as mod_api::prelude::ClientRenderClientHost>::block_sprites_version(&*self.0)
+        <E as mod_api::prelude::ClientRenderClientHost>::block_sprites_version(&self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ClientTextClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ClientTextClientHost for HostOf<E> {
     fn text_string(&self, text: &Text) -> Result<String, TextFormError> {
-        <E as mod_api::prelude::ClientTextClientHost>::text_string(&*self.0, text)
+        <E as mod_api::prelude::ClientTextClientHost>::text_string(&self.0, text)
     }
     fn text_visual_order(
         &self,
         text: &Text,
     ) -> Result<Vec<VisualTextCharacter>, TextFormError> {
-        <E as mod_api::prelude::ClientTextClientHost>::text_visual_order(&*self.0, text)
+        <E as mod_api::prelude::ClientTextClientHost>::text_visual_order(&self.0, text)
     }
     fn text_width(&self, text: &Text) -> Result<i32, TextFormError> {
-        <E as mod_api::prelude::ClientTextClientHost>::text_width(&*self.0, text)
+        <E as mod_api::prelude::ClientTextClientHost>::text_width(&self.0, text)
     }
     fn text_split(&self, text: &Text, width: i32) -> Result<Vec<Text>, TextFormError> {
-        <E as mod_api::prelude::ClientTextClientHost>::text_split(&*self.0, text, width)
+        <E as mod_api::prelude::ClientTextClientHost>::text_split(&self.0, text, width)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ClientViewHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ClientViewHost for HostOf<E> {
     fn block_collision(&self, pos: [i32; 3]) -> Vec<[f64; 6]> {
-        <E as mod_api::prelude::ClientViewHost>::block_collision(&*self.0, pos)
+        <E as mod_api::prelude::ClientViewHost>::block_collision(&self.0, pos)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ClientViewClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ClientViewClientHost for HostOf<E> {
     fn hud_mode(&self) -> HudMode {
-        <E as mod_api::prelude::ClientViewClientHost>::hud_mode(&*self.0)
+        <E as mod_api::prelude::ClientViewClientHost>::hud_mode(&self.0)
     }
     fn set_hud_mode(&mut self, mode: HudMode) {
-        <E as mod_api::prelude::ClientViewClientHost>::set_hud_mode(&mut *self.0, mode)
+        <E as mod_api::prelude::ClientViewClientHost>::set_hud_mode(&mut self.0, mode)
     }
     fn camera_type(&self) -> CameraType {
-        <E as mod_api::prelude::ClientViewClientHost>::camera_type(&*self.0)
+        <E as mod_api::prelude::ClientViewClientHost>::camera_type(&self.0)
     }
     fn set_camera_type(&self, camera_type: CameraType) {
-        <E as mod_api::prelude::ClientViewClientHost>::set_camera_type(&*self.0, camera_type)
+        <E as mod_api::prelude::ClientViewClientHost>::set_camera_type(&self.0, camera_type)
     }
     fn is_paused(&self) -> bool {
-        <E as mod_api::prelude::ClientViewClientHost>::is_paused(&*self.0)
+        <E as mod_api::prelude::ClientViewClientHost>::is_paused(&self.0)
     }
     fn clock(&self) -> Option<Clock> {
-        <E as mod_api::prelude::ClientViewClientHost>::clock(&*self.0)
+        <E as mod_api::prelude::ClientViewClientHost>::clock(&self.0)
     }
     fn raycast(&self, distance: f32) -> Option<Hit> {
-        <E as mod_api::prelude::ClientViewClientHost>::raycast(&*self.0, distance)
+        <E as mod_api::prelude::ClientViewClientHost>::raycast(&self.0, distance)
     }
     fn view_hit(&self) -> Option<(f32, Hit)> {
-        <E as mod_api::prelude::ClientViewClientHost>::view_hit(&*self.0)
+        <E as mod_api::prelude::ClientViewClientHost>::view_hit(&self.0)
     }
     fn camera(&self) -> Option<Camera> {
-        <E as mod_api::prelude::ClientViewClientHost>::camera(&*self.0)
+        <E as mod_api::prelude::ClientViewClientHost>::camera(&self.0)
     }
     fn camera_entity(&self) -> Option<EntityRef> {
-        <E as mod_api::prelude::ClientViewClientHost>::camera_entity(&*self.0)
+        <E as mod_api::prelude::ClientViewClientHost>::camera_entity(&self.0)
     }
     fn client_surface_heights(
         &self,
         columns: &[(i32, i32)],
         heightmap: Heightmap,
     ) -> Result<Vec<Option<i32>>, String> {
-        <E as mod_api::prelude::ClientViewClientHost>::client_surface_heights(&*self.0, columns, heightmap)
+        <E as mod_api::prelude::ClientViewClientHost>::client_surface_heights(&self.0, columns, heightmap)
     }
     fn set_camera_entity(&mut self, entity: EntityRef) -> bool {
-        <E as mod_api::prelude::ClientViewClientHost>::set_camera_entity(&mut *self.0, entity)
+        <E as mod_api::prelude::ClientViewClientHost>::set_camera_entity(&mut self.0, entity)
     }
     fn crosshair_target(&self) -> Option<CrosshairTarget> {
-        <E as mod_api::prelude::ClientViewClientHost>::crosshair_target(&*self.0)
+        <E as mod_api::prelude::ClientViewClientHost>::crosshair_target(&self.0)
     }
     fn targeting(&self) -> ClientTargeting {
-        <E as mod_api::prelude::ClientViewClientHost>::targeting(&*self.0)
+        <E as mod_api::prelude::ClientViewClientHost>::targeting(&self.0)
     }
     fn set_targeting(&self, targeting: ClientTargeting) -> bool {
-        <E as mod_api::prelude::ClientViewClientHost>::set_targeting(&*self.0, targeting)
+        <E as mod_api::prelude::ClientViewClientHost>::set_targeting(&self.0, targeting)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ConfigHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ConfigHost for HostOf<E> {
     fn dist(&self) -> Dist {
-        <E as mod_api::prelude::ConfigHost>::dist(&*self.0)
+        <E as mod_api::prelude::ConfigHost>::dist(&self.0)
     }
     fn game_version(&self) -> &'static str {
-        <E as mod_api::prelude::ConfigHost>::game_version(&*self.0)
+        <E as mod_api::prelude::ConfigHost>::game_version(&self.0)
     }
     fn horizon_version(&self) -> &'static str {
-        <E as mod_api::prelude::ConfigHost>::horizon_version(&*self.0)
+        <E as mod_api::prelude::ConfigHost>::horizon_version(&self.0)
     }
     fn on(&self, mod_id: &str) -> bool {
-        <E as mod_api::prelude::ConfigHost>::on(&*self.0, mod_id)
+        <E as mod_api::prelude::ConfigHost>::on(&self.0, mod_id)
     }
     fn setting(&self, mod_id: &str, key: &str) -> Option<String> {
-        <E as mod_api::prelude::ConfigHost>::setting(&*self.0, mod_id, key)
+        <E as mod_api::prelude::ConfigHost>::setting(&self.0, mod_id, key)
     }
     fn set_setting(&self, mod_id: &str, key: &str, value: &str) {
-        <E as mod_api::prelude::ConfigHost>::set_setting(&*self.0, mod_id, key, value)
+        <E as mod_api::prelude::ConfigHost>::set_setting(&self.0, mod_id, key, value)
     }
     fn config_files(&self) -> &'static dyn ConfigFiles {
-        <E as mod_api::prelude::ConfigHost>::config_files(&*self.0)
+        <E as mod_api::prelude::ConfigHost>::config_files(&self.0)
     }
     fn dimension(&self) -> &'static str {
-        <E as mod_api::prelude::ConfigHost>::dimension(&*self.0)
+        <E as mod_api::prelude::ConfigHost>::dimension(&self.0)
     }
     fn server_has_time(&self) -> bool {
-        <E as mod_api::prelude::ConfigHost>::server_has_time(&*self.0)
+        <E as mod_api::prelude::ConfigHost>::server_has_time(&self.0)
     }
     fn instance_dir(&self) -> PathBuf {
-        <E as mod_api::prelude::ConfigHost>::instance_dir(&*self.0)
+        <E as mod_api::prelude::ConfigHost>::instance_dir(&self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ConfigServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ConfigServerHost for HostOf<E> {
     fn game_tests_enabled(&self) -> bool {
-        <E as mod_api::prelude::ConfigServerHost>::game_tests_enabled(&*self.0)
+        <E as mod_api::prelude::ConfigServerHost>::game_tests_enabled(&self.0)
     }
     fn tick_stats(&self) -> (f32, f64) {
-        <E as mod_api::prelude::ConfigServerHost>::tick_stats(&*self.0)
+        <E as mod_api::prelude::ConfigServerHost>::tick_stats(&self.0)
     }
     fn tick_times(&self) -> Vec<u64> {
-        <E as mod_api::prelude::ConfigServerHost>::tick_times(&*self.0)
+        <E as mod_api::prelude::ConfigServerHost>::tick_times(&self.0)
     }
     fn server_view_distance(&self) -> Option<i32> {
-        <E as mod_api::prelude::ConfigServerHost>::server_view_distance(&*self.0)
+        <E as mod_api::prelude::ConfigServerHost>::server_view_distance(&self.0)
     }
     fn server_simulation_distance(&self) -> Option<i32> {
-        <E as mod_api::prelude::ConfigServerHost>::server_simulation_distance(&*self.0)
+        <E as mod_api::prelude::ConfigServerHost>::server_simulation_distance(&self.0)
     }
     fn server_set_view_distance(&mut self, distance: i32) -> bool {
-        <E as mod_api::prelude::ConfigServerHost>::server_set_view_distance(&mut *self.0, distance)
+        <E as mod_api::prelude::ConfigServerHost>::server_set_view_distance(&mut self.0, distance)
     }
     fn server_set_simulation_distance(&mut self, distance: i32) -> bool {
-        <E as mod_api::prelude::ConfigServerHost>::server_set_simulation_distance(&mut *self.0, distance)
+        <E as mod_api::prelude::ConfigServerHost>::server_set_simulation_distance(&mut self.0, distance)
     }
     fn set_tick_rate(&mut self, rate: f32) -> bool {
-        <E as mod_api::prelude::ConfigServerHost>::set_tick_rate(&mut *self.0, rate)
+        <E as mod_api::prelude::ConfigServerHost>::set_tick_rate(&mut self.0, rate)
     }
     fn world_dir(&self) -> Option<PathBuf> {
-        <E as mod_api::prelude::ConfigServerHost>::world_dir(&*self.0)
+        <E as mod_api::prelude::ConfigServerHost>::world_dir(&self.0)
     }
     fn game_rules(&self) -> Vec<(String, GameRuleValue)> {
-        <E as mod_api::prelude::ConfigServerHost>::game_rules(&*self.0)
+        <E as mod_api::prelude::ConfigServerHost>::game_rules(&self.0)
     }
     fn game_rule(&self, id: &str) -> Result<GameRuleValue, GameRuleReadError> {
-        <E as mod_api::prelude::ConfigServerHost>::game_rule(&*self.0, id)
+        <E as mod_api::prelude::ConfigServerHost>::game_rule(&self.0, id)
     }
     fn reload_resources(&self) -> &dyn ServerReloadResources {
-        <E as mod_api::prelude::ConfigServerHost>::reload_resources(&*self.0)
+        <E as mod_api::prelude::ConfigServerHost>::reload_resources(&self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ConfigClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ConfigClientHost for HostOf<E> {
     fn translate(&self, key: &str) -> Option<String> {
-        <E as mod_api::prelude::ConfigClientHost>::translate(&*self.0, key)
+        <E as mod_api::prelude::ConfigClientHost>::translate(&self.0, key)
     }
     fn setting_bool(&self, key: &str) -> Option<bool> {
-        <E as mod_api::prelude::ConfigClientHost>::setting_bool(&*self.0, key)
+        <E as mod_api::prelude::ConfigClientHost>::setting_bool(&self.0, key)
     }
     fn setting_choice(&self, key: &str) -> Option<u32> {
-        <E as mod_api::prelude::ConfigClientHost>::setting_choice(&*self.0, key)
+        <E as mod_api::prelude::ConfigClientHost>::setting_choice(&self.0, key)
     }
     fn setting_f64(&self, key: &str) -> Option<f64> {
-        <E as mod_api::prelude::ConfigClientHost>::setting_f64(&*self.0, key)
+        <E as mod_api::prelude::ConfigClientHost>::setting_f64(&self.0, key)
     }
     fn setting_color(&self, key: &str) -> Option<u32> {
-        <E as mod_api::prelude::ConfigClientHost>::setting_color(&*self.0, key)
+        <E as mod_api::prelude::ConfigClientHost>::setting_color(&self.0, key)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::DataMapsBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::DataMapsBackend for HostOf<E> {
     fn data_map_value(
         &self,
         registry: &str,
         entry: &str,
         map: &str,
     ) -> Result<Option<Tag>, DataMapError> {
-        <E as mod_api::prelude::DataMapsBackend>::data_map_value(&*self.0, registry, entry, map)
+        <E as mod_api::prelude::DataMapsBackend>::data_map_value(&self.0, registry, entry, map)
     }
     fn data_map_entries(
         &self,
         registry: &str,
         map: &str,
     ) -> Result<Vec<(String, Tag)>, DataMapError> {
-        <E as mod_api::prelude::DataMapsBackend>::data_map_entries(&*self.0, registry, map)
+        <E as mod_api::prelude::DataMapsBackend>::data_map_entries(&self.0, registry, map)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::DisplaysServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::DisplaysServerHost for HostOf<E> {
     fn display(&self, entity: EntityRef) -> Option<DisplayRef> {
-        <E as mod_api::prelude::DisplaysServerHost>::display(&*self.0, entity)
+        <E as mod_api::prelude::DisplaysServerHost>::display(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::DisplaysBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::DisplaysBackend for HostOf<E> {
     fn display_kind(&self, display: DisplayRef) -> Option<DisplayKind> {
-        <E as mod_api::prelude::DisplaysBackend>::display_kind(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_kind(&self.0, display)
     }
     fn display_transformation(&self, display: DisplayRef) -> Option<Transformation> {
-        <E as mod_api::prelude::DisplaysBackend>::display_transformation(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_transformation(&self.0, display)
     }
     fn display_billboard(&self, display: DisplayRef) -> Option<Billboard> {
-        <E as mod_api::prelude::DisplaysBackend>::display_billboard(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_billboard(&self.0, display)
     }
     fn display_brightness(&self, display: DisplayRef) -> Option<(u8, u8)> {
-        <E as mod_api::prelude::DisplaysBackend>::display_brightness(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_brightness(&self.0, display)
     }
     fn display_view_range(&self, display: DisplayRef) -> Option<f32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_view_range(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_view_range(&self.0, display)
     }
     fn display_shadow_radius(&self, display: DisplayRef) -> Option<f32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_shadow_radius(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_shadow_radius(&self.0, display)
     }
     fn display_shadow_strength(&self, display: DisplayRef) -> Option<f32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_shadow_strength(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_shadow_strength(&self.0, display)
     }
     fn display_width(&self, display: DisplayRef) -> Option<f32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_width(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_width(&self.0, display)
     }
     fn display_height(&self, display: DisplayRef) -> Option<f32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_height(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_height(&self.0, display)
     }
     fn display_glow_color_override(&self, display: DisplayRef) -> Option<i32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_glow_color_override(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_glow_color_override(&self.0, display)
     }
     fn display_interpolation_duration(&self, display: DisplayRef) -> Option<i32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_interpolation_duration(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_interpolation_duration(&self.0, display)
     }
     fn display_start_interpolation(&self, display: DisplayRef) -> Option<i32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_start_interpolation(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_start_interpolation(&self.0, display)
     }
     fn display_teleport_duration(&self, display: DisplayRef) -> Option<i32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_teleport_duration(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_teleport_duration(&self.0, display)
     }
     fn display_text(&self, display: DisplayRef) -> Result<Option<Text>, TextFormError> {
-        <E as mod_api::prelude::DisplaysBackend>::display_text(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_text(&self.0, display)
     }
     fn display_line_width(&self, display: DisplayRef) -> Option<i32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_line_width(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_line_width(&self.0, display)
     }
     fn display_background(&self, display: DisplayRef) -> Option<i32> {
-        <E as mod_api::prelude::DisplaysBackend>::display_background(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_background(&self.0, display)
     }
     fn display_text_opacity(&self, display: DisplayRef) -> Option<i8> {
-        <E as mod_api::prelude::DisplaysBackend>::display_text_opacity(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_text_opacity(&self.0, display)
     }
     fn display_text_shadow(&self, display: DisplayRef) -> Option<bool> {
-        <E as mod_api::prelude::DisplaysBackend>::display_text_shadow(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_text_shadow(&self.0, display)
     }
     fn display_see_through(&self, display: DisplayRef) -> Option<bool> {
-        <E as mod_api::prelude::DisplaysBackend>::display_see_through(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_see_through(&self.0, display)
     }
     fn display_default_background(&self, display: DisplayRef) -> Option<bool> {
-        <E as mod_api::prelude::DisplaysBackend>::display_default_background(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_default_background(&self.0, display)
     }
     fn display_alignment(&self, display: DisplayRef) -> Option<TextAlignment> {
-        <E as mod_api::prelude::DisplaysBackend>::display_alignment(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_alignment(&self.0, display)
     }
     fn display_block_state(&self, display: DisplayRef) -> Option<BlockState> {
-        <E as mod_api::prelude::DisplaysBackend>::display_block_state(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_block_state(&self.0, display)
     }
     fn display_item(&self, display: DisplayRef) -> Option<ItemStack> {
-        <E as mod_api::prelude::DisplaysBackend>::display_item(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_item(&self.0, display)
     }
     fn display_item_context(&self, display: DisplayRef) -> Option<ItemDisplayContext> {
-        <E as mod_api::prelude::DisplaysBackend>::display_item_context(&*self.0, display)
+        <E as mod_api::prelude::DisplaysBackend>::display_item_context(&self.0, display)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::DisplaysBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::DisplaysBackendMut for HostOf<E> {
     fn display_set_transformation(
         &mut self,
         display: DisplayRef,
         transformation: Transformation,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_transformation(&mut *self.0, display, transformation)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_transformation(&mut self.0, display, transformation)
     }
     fn display_set_billboard(
         &mut self,
         display: DisplayRef,
         billboard: Billboard,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_billboard(&mut *self.0, display, billboard)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_billboard(&mut self.0, display, billboard)
     }
     fn display_set_brightness(
         &mut self,
         display: DisplayRef,
         brightness: Option<(u8, u8)>,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_brightness(&mut *self.0, display, brightness)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_brightness(&mut self.0, display, brightness)
     }
     fn display_set_view_range(&mut self, display: DisplayRef, range: f32) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_view_range(&mut *self.0, display, range)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_view_range(&mut self.0, display, range)
     }
     fn display_set_shadow_radius(&mut self, display: DisplayRef, radius: f32) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_shadow_radius(&mut *self.0, display, radius)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_shadow_radius(&mut self.0, display, radius)
     }
     fn display_set_shadow_strength(
         &mut self,
         display: DisplayRef,
         strength: f32,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_shadow_strength(&mut *self.0, display, strength)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_shadow_strength(&mut self.0, display, strength)
     }
     fn display_set_width(&mut self, display: DisplayRef, width: f32) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_width(&mut *self.0, display, width)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_width(&mut self.0, display, width)
     }
     fn display_set_height(&mut self, display: DisplayRef, height: f32) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_height(&mut *self.0, display, height)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_height(&mut self.0, display, height)
     }
     fn display_set_glow_color_override(
         &mut self,
         display: DisplayRef,
         color: i32,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_glow_color_override(&mut *self.0, display, color)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_glow_color_override(&mut self.0, display, color)
     }
     fn display_set_interpolation_duration(
         &mut self,
         display: DisplayRef,
         ticks: i32,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_interpolation_duration(&mut *self.0, display, ticks)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_interpolation_duration(&mut self.0, display, ticks)
     }
     fn display_set_start_interpolation(
         &mut self,
         display: DisplayRef,
         ticks: i32,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_start_interpolation(&mut *self.0, display, ticks)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_start_interpolation(&mut self.0, display, ticks)
     }
     fn display_set_teleport_duration(
         &mut self,
         display: DisplayRef,
         ticks: i32,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_teleport_duration(&mut *self.0, display, ticks)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_teleport_duration(&mut self.0, display, ticks)
     }
     fn display_set_text(
         &mut self,
         display: DisplayRef,
         text: Text,
     ) -> Result<bool, TextFormError> {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_text(&mut *self.0, display, text)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_text(&mut self.0, display, text)
     }
     fn display_set_line_width(&mut self, display: DisplayRef, width: i32) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_line_width(&mut *self.0, display, width)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_line_width(&mut self.0, display, width)
     }
     fn display_set_background(&mut self, display: DisplayRef, argb: i32) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_background(&mut *self.0, display, argb)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_background(&mut self.0, display, argb)
     }
     fn display_set_text_opacity(&mut self, display: DisplayRef, opacity: i8) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_text_opacity(&mut *self.0, display, opacity)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_text_opacity(&mut self.0, display, opacity)
     }
     fn display_set_text_shadow(&mut self, display: DisplayRef, on: bool) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_text_shadow(&mut *self.0, display, on)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_text_shadow(&mut self.0, display, on)
     }
     fn display_set_see_through(&mut self, display: DisplayRef, on: bool) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_see_through(&mut *self.0, display, on)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_see_through(&mut self.0, display, on)
     }
     fn display_set_default_background(&mut self, display: DisplayRef, on: bool) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_default_background(&mut *self.0, display, on)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_default_background(&mut self.0, display, on)
     }
     fn display_set_alignment(
         &mut self,
         display: DisplayRef,
         alignment: TextAlignment,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_alignment(&mut *self.0, display, alignment)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_alignment(&mut self.0, display, alignment)
     }
     fn display_set_block_state(
         &mut self,
         display: DisplayRef,
         state: BlockState,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_block_state(&mut *self.0, display, state)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_block_state(&mut self.0, display, state)
     }
     fn display_set_item(
         &mut self,
         display: DisplayRef,
         stack: Option<ItemStack>,
     ) -> Result<bool, StackWriteError> {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_item(&mut *self.0, display, stack)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_item(&mut self.0, display, stack)
     }
     fn display_set_item_context(
         &mut self,
         display: DisplayRef,
         context: ItemDisplayContext,
     ) -> bool {
-        <E as mod_api::prelude::DisplaysBackendMut>::display_set_item_context(&mut *self.0, display, context)
+        <E as mod_api::prelude::DisplaysBackendMut>::display_set_item_context(&mut self.0, display, context)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::DrawClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::DrawClientHost for HostOf<E> {
     fn fluid_name(&self, fluid: &str) -> String {
-        <E as mod_api::prelude::DrawClientHost>::fluid_name(&*self.0, fluid)
+        <E as mod_api::prelude::DrawClientHost>::fluid_name(&self.0, fluid)
     }
     fn bake_layer(&self, layer: &str) -> Option<ModelPart> {
-        <E as mod_api::prelude::DrawClientHost>::bake_layer(&*self.0, layer)
+        <E as mod_api::prelude::DrawClientHost>::bake_layer(&self.0, layer)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::EffectsClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::EffectsClientHost for HostOf<E> {
     fn muffle_sounds(
         &mut self,
         amount: f32,
@@ -835,19 +835,19 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EffectsClientHost for HostOf<'_, 
         ticks: u32,
         exempt: &[&str],
     ) -> bool {
-        <E as mod_api::prelude::EffectsClientHost>::muffle_sounds(&mut *self.0, amount, lowpass, ticks, exempt)
+        <E as mod_api::prelude::EffectsClientHost>::muffle_sounds(&mut self.0, amount, lowpass, ticks, exempt)
     }
     fn flame_particle(&mut self, at: [f64; 3], soul: bool) {
-        <E as mod_api::prelude::EffectsClientHost>::flame_particle(&mut *self.0, at, soul)
+        <E as mod_api::prelude::EffectsClientHost>::flame_particle(&mut self.0, at, soul)
     }
     fn play_local_sound(&self, sound: &SoundPlay, after: u32) -> Option<SoundRef> {
-        <E as mod_api::prelude::EffectsClientHost>::play_local_sound(&*self.0, sound, after)
+        <E as mod_api::prelude::EffectsClientHost>::play_local_sound(&self.0, sound, after)
     }
     fn particle_count(&self) -> u32 {
-        <E as mod_api::prelude::EffectsClientHost>::particle_count(&*self.0)
+        <E as mod_api::prelude::EffectsClientHost>::particle_count(&self.0)
     }
     fn clear_particles(&self) -> bool {
-        <E as mod_api::prelude::EffectsClientHost>::clear_particles(&*self.0)
+        <E as mod_api::prelude::EffectsClientHost>::clear_particles(&self.0)
     }
     fn add_particle(
         &mut self,
@@ -855,43 +855,43 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EffectsClientHost for HostOf<'_, 
         at: [f64; 3],
         velocity: [f64; 3],
     ) -> bool {
-        <E as mod_api::prelude::EffectsClientHost>::add_particle(&mut *self.0, options, at, velocity)
+        <E as mod_api::prelude::EffectsClientHost>::add_particle(&mut self.0, options, at, velocity)
     }
     fn create_fireworks(&mut self, request: &FireworksRequest) -> bool {
-        <E as mod_api::prelude::EffectsClientHost>::create_fireworks(&mut *self.0, request)
+        <E as mod_api::prelude::EffectsClientHost>::create_fireworks(&mut self.0, request)
     }
     fn sound_events(&self) -> Vec<Identifier> {
-        <E as mod_api::prelude::EffectsClientHost>::sound_events(&*self.0)
+        <E as mod_api::prelude::EffectsClientHost>::sound_events(&self.0)
     }
     fn audio_devices(&self) -> Vec<String> {
-        <E as mod_api::prelude::EffectsClientHost>::audio_devices(&*self.0)
+        <E as mod_api::prelude::EffectsClientHost>::audio_devices(&self.0)
     }
     fn audio_device(&self) -> String {
-        <E as mod_api::prelude::EffectsClientHost>::audio_device(&*self.0)
+        <E as mod_api::prelude::EffectsClientHost>::audio_device(&self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::EffectsClientBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::EffectsClientBackend for HostOf<E> {
     fn sound_state(&self, sound: SoundRef) -> Option<SoundState> {
-        <E as mod_api::prelude::EffectsClientBackend>::sound_state(&*self.0, sound)
+        <E as mod_api::prelude::EffectsClientBackend>::sound_state(&self.0, sound)
     }
     fn sound_stop(&self, sound: SoundRef) -> bool {
-        <E as mod_api::prelude::EffectsClientBackend>::sound_stop(&*self.0, sound)
+        <E as mod_api::prelude::EffectsClientBackend>::sound_stop(&self.0, sound)
     }
     fn sound_fade(&self, sound: SoundRef, volume: f32, ticks: u32) -> bool {
-        <E as mod_api::prelude::EffectsClientBackend>::sound_fade(&*self.0, sound, volume, ticks)
+        <E as mod_api::prelude::EffectsClientBackend>::sound_fade(&self.0, sound, volume, ticks)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesHost for HostOf<E> {
     fn entity(&self, id: u32) -> Option<EntityRef> {
-        <E as mod_api::prelude::EntitiesHost>::entity(&*self.0, id)
+        <E as mod_api::prelude::EntitiesHost>::entity(&self.0, id)
     }
     fn level(&self, dimension: &str) -> Option<LevelRef> {
-        <E as mod_api::prelude::EntitiesHost>::level(&*self.0, dimension)
+        <E as mod_api::prelude::EntitiesHost>::level(&self.0, dimension)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesServerHost for HostOf<E> {
     fn entity_by_uuid(&self, uuid: EntityUuid) -> Option<EntityRef> {
-        <E as mod_api::prelude::EntitiesServerHost>::entity_by_uuid(&*self.0, uuid)
+        <E as mod_api::prelude::EntitiesServerHost>::entity_by_uuid(&self.0, uuid)
     }
     fn summon(
         &mut self,
@@ -900,7 +900,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesServerHost for HostOf<'_,
         pos: [f64; 3],
         nbt: Compound,
     ) -> Option<u32> {
-        <E as mod_api::prelude::EntitiesServerHost>::summon(&mut *self.0, dimension, kind, pos, nbt)
+        <E as mod_api::prelude::EntitiesServerHost>::summon(&mut self.0, dimension, kind, pos, nbt)
     }
     fn set_experience_orb(
         &mut self,
@@ -910,7 +910,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesServerHost for HostOf<'_,
         count: Option<u32>,
         age: Option<u32>,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesServerHost>::set_experience_orb(&mut *self.0, dimension, id, value, count, age)
+        <E as mod_api::prelude::EntitiesServerHost>::set_experience_orb(&mut self.0, dimension, id, value, count, age)
     }
     fn experience_orbs(
         &self,
@@ -918,7 +918,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesServerHost for HostOf<'_,
         min: [f64; 3],
         max: [f64; 3],
     ) -> Vec<ExperienceOrb> {
-        <E as mod_api::prelude::EntitiesServerHost>::experience_orbs(&*self.0, dimension, min, max)
+        <E as mod_api::prelude::EntitiesServerHost>::experience_orbs(&self.0, dimension, min, max)
     }
     fn spawn_falling_block(
         &mut self,
@@ -928,289 +928,289 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesServerHost for HostOf<'_,
         velocity: [f64; 3],
         falling: Falling,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesServerHost>::spawn_falling_block(&mut *self.0, dimension, state, pos, velocity, falling)
+        <E as mod_api::prelude::EntitiesServerHost>::spawn_falling_block(&mut self.0, dimension, state, pos, velocity, falling)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackend for HostOf<E> {
     fn entity_tags(&self, entity: EntityRef) -> Option<Vec<String>> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_tags(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_tags(&self.0, entity)
     }
     fn entity_name(&self, entity: EntityRef) -> Option<String> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_name(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_name(&self.0, entity)
     }
     fn entity_custom_name_visible(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_custom_name_visible(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_custom_name_visible(&self.0, entity)
     }
     fn entity_classification(&self, entity: EntityRef) -> Option<MobCategory> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_classification(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_classification(&self.0, entity)
     }
     fn entity_added_to_level(&self, entity: EntityRef) -> bool {
-        <E as mod_api::prelude::EntitiesBackend>::entity_added_to_level(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_added_to_level(&self.0, entity)
     }
     fn entity_position(&self, entity: EntityRef) -> Option<[f64; 3]> {
         mod_api::__private::check_access(
             "entity_position",
             mod_api::__private::LoadAccess::WorldOnly,
         );
-        crate::bodies::entity_position(&*self.0, entity)
+        crate::bodies::entity_position(&self.0, entity)
     }
     fn entity_block_position(&self, entity: EntityRef) -> Option<[i32; 3]> {
         mod_api::__private::check_access(
             "entity_block_position",
             mod_api::__private::LoadAccess::WorldOnly,
         );
-        crate::bodies::entity_block_position(&*self.0, entity)
+        crate::bodies::entity_block_position(&self.0, entity)
     }
     fn entity_rotation(&self, entity: EntityRef) -> Option<[f32; 2]> {
         mod_api::__private::check_access(
             "entity_rotation",
             mod_api::__private::LoadAccess::WorldOnly,
         );
-        crate::bodies::entity_rotation(&*self.0, entity)
+        crate::bodies::entity_rotation(&self.0, entity)
     }
     fn entity_kind(&self, entity: EntityRef) -> Option<String> {
         mod_api::__private::check_access(
             "entity_kind",
             mod_api::__private::LoadAccess::WorldOnly,
         );
-        crate::bodies::entity_kind(&*self.0, entity)
+        crate::bodies::entity_kind(&self.0, entity)
     }
     fn entity_level(&self, entity: EntityRef) -> Option<LevelRef> {
         mod_api::__private::check_access(
             "entity_level",
             mod_api::__private::LoadAccess::WorldOnly,
         );
-        crate::bodies::entity_level(&*self.0, entity)
+        crate::bodies::entity_level(&self.0, entity)
     }
     fn entity_permanently_invulnerable(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_permanently_invulnerable(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_permanently_invulnerable(&self.0, entity)
     }
     fn entity_invulnerable_time(&self, entity: EntityRef) -> Option<i32> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_invulnerable_time(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_invulnerable_time(&self.0, entity)
     }
     fn entity_damage_cooldown_time(&self, entity: EntityRef) -> Option<i32> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_damage_cooldown_time(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_damage_cooldown_time(&self.0, entity)
     }
     fn entity_invulnerable_to_damage(
         &self,
         entity: EntityRef,
         damage_type: &str,
     ) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_invulnerable_to_damage(&*self.0, entity, damage_type)
+        <E as mod_api::prelude::EntitiesBackend>::entity_invulnerable_to_damage(&self.0, entity, damage_type)
     }
     fn entity_entities_team_damage_allowed(
         &self,
         entity: EntityRef,
         source: EntityRef,
     ) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_entities_team_damage_allowed(&*self.0, entity, source)
+        <E as mod_api::prelude::EntitiesBackend>::entity_entities_team_damage_allowed(&self.0, entity, source)
     }
     fn entity_invulnerable_to_piercing_weapon(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_invulnerable_to_piercing_weapon(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_invulnerable_to_piercing_weapon(&self.0, entity)
     }
     fn entity_velocity(&self, entity: EntityRef) -> Option<[f64; 3]> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_velocity(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_velocity(&self.0, entity)
     }
     fn entity_on_ground(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_on_ground(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_on_ground(&self.0, entity)
     }
     fn entity_bounding_box(&self, entity: EntityRef) -> Option<[[f64; 3]; 2]> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_bounding_box(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_bounding_box(&self.0, entity)
     }
     fn entity_eye_height(&self, entity: EntityRef) -> Option<f64> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_eye_height(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_eye_height(&self.0, entity)
     }
     fn entity_eye_position(&self, entity: EntityRef) -> Option<[f64; 3]> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_eye_position(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_eye_position(&self.0, entity)
     }
     fn entity_view_vector(&self, entity: EntityRef) -> Option<[f64; 3]> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_view_vector(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_view_vector(&self.0, entity)
     }
     fn entity_up_vector(&self, entity: EntityRef) -> Option<[f64; 3]> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_up_vector(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_up_vector(&self.0, entity)
     }
     fn entity_on_block(&self, entity: EntityRef) -> Option<[i32; 3]> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_on_block(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_on_block(&self.0, entity)
     }
     fn entity_pick(&self, entity: EntityRef, distance: f64) -> Option<ClipHit> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_pick(&*self.0, entity, distance)
+        <E as mod_api::prelude::EntitiesBackend>::entity_pick(&self.0, entity, distance)
     }
     fn entity_is_multipart(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_multipart(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_multipart(&self.0, entity)
     }
     fn entity_parts(&self, entity: EntityRef) -> Option<Vec<EntityRef>> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_parts(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_parts(&self.0, entity)
     }
     fn entity_distance_to_sqr(&self, entity: EntityRef, pos: [f64; 3]) -> Option<f64> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_distance_to_sqr(&*self.0, entity, pos)
+        <E as mod_api::prelude::EntitiesBackend>::entity_distance_to_sqr(&self.0, entity, pos)
     }
     fn entity_head_yaw(&self, entity: EntityRef) -> Option<f32> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_head_yaw(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_head_yaw(&self.0, entity)
     }
     fn entity_direction(&self, entity: EntityRef) -> Option<&'static str> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_direction(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_direction(&self.0, entity)
     }
     fn entity_dimensions(&self, entity: EntityRef) -> Option<[f64; 2]> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_dimensions(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_dimensions(&self.0, entity)
     }
     fn entity_no_physics(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_no_physics(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_no_physics(&self.0, entity)
     }
     fn entity_vehicle(&self, entity: EntityRef) -> Option<EntityRef> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_vehicle(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_vehicle(&self.0, entity)
     }
     fn entity_is_passenger(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_passenger(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_passenger(&self.0, entity)
     }
     fn entity_root_vehicle(&self, entity: EntityRef) -> Option<EntityRef> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_root_vehicle(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_root_vehicle(&self.0, entity)
     }
     fn entity_passengers(&self, entity: EntityRef) -> Option<Vec<EntityRef>> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_passengers(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_passengers(&self.0, entity)
     }
     fn entity_is_vehicle(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_vehicle(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_vehicle(&self.0, entity)
     }
     fn entity_indirect_passengers(&self, entity: EntityRef) -> Option<Vec<EntityRef>> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_indirect_passengers(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_indirect_passengers(&self.0, entity)
     }
     fn entity_controlling_passenger(&self, entity: EntityRef) -> Option<LivingRef> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_controlling_passenger(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_controlling_passenger(&self.0, entity)
     }
     fn entity_is_passenger_of_same_vehicle(
         &self,
         entity: EntityRef,
         other: EntityRef,
     ) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_passenger_of_same_vehicle(&*self.0, entity, other)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_passenger_of_same_vehicle(&self.0, entity, other)
     }
     fn entity_dismount_location(
         &self,
         vehicle: EntityRef,
         passenger: LivingRef,
     ) -> Option<[f64; 3]> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_dismount_location(&*self.0, vehicle, passenger)
+        <E as mod_api::prelude::EntitiesBackend>::entity_dismount_location(&self.0, vehicle, passenger)
     }
     fn entity_leash_holder(&self, entity: EntityRef) -> Option<LeashHolder> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_leash_holder(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_leash_holder(&self.0, entity)
     }
     fn entity_sound_source(&self, entity: EntityRef) -> Option<SoundSource> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_sound_source(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_sound_source(&self.0, entity)
     }
     fn entity_spectator(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_spectator(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_spectator(&self.0, entity)
     }
     fn entity_is_shift_key_down(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_shift_key_down(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_shift_key_down(&self.0, entity)
     }
     fn entity_is_crouching(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_crouching(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_crouching(&self.0, entity)
     }
     fn entity_is_sprinting(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_sprinting(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_sprinting(&self.0, entity)
     }
     fn entity_fluid_heights(&self, entity: EntityRef) -> Option<Vec<(String, f64)>> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_fluid_heights(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_fluid_heights(&self.0, entity)
     }
     fn entity_eye_fluid(&self, entity: EntityRef) -> Option<Option<String>> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_eye_fluid(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_eye_fluid(&self.0, entity)
     }
     fn entity_is_in_water(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_in_water(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_in_water(&self.0, entity)
     }
     fn entity_is_in_lava(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_in_lava(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_in_lava(&self.0, entity)
     }
     fn entity_fire_immune(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_fire_immune(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_fire_immune(&self.0, entity)
     }
     fn entity_fire_ticks(&self, entity: EntityRef) -> Option<i32> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_fire_ticks(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_fire_ticks(&self.0, entity)
     }
     fn entity_portal_cooldown(&self, entity: EntityRef) -> Option<i32> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_portal_cooldown(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_portal_cooldown(&self.0, entity)
     }
     fn entity_air_supply(&self, entity: EntityRef) -> Option<i32> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_air_supply(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_air_supply(&self.0, entity)
     }
     fn entity_max_air_supply(&self, entity: EntityRef) -> Option<i32> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_max_air_supply(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_max_air_supply(&self.0, entity)
     }
     fn entity_is_silent(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_silent(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_silent(&self.0, entity)
     }
     fn entity_glowing(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_glowing(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_glowing(&self.0, entity)
     }
     fn entity_no_gravity(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_no_gravity(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_no_gravity(&self.0, entity)
     }
     fn entity_ticks_frozen(&self, entity: EntityRef) -> Option<i32> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_ticks_frozen(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_ticks_frozen(&self.0, entity)
     }
     fn entity_tick_count(&self, entity: EntityRef) -> Option<i32> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_tick_count(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_tick_count(&self.0, entity)
     }
     fn entity_is_invisible(&self, entity: EntityRef) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_is_invisible(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_is_invisible(&self.0, entity)
     }
     fn entity_pose(&self, entity: EntityRef) -> Option<&'static str> {
-        <E as mod_api::prelude::EntitiesBackend>::entity_pose(&*self.0, entity)
+        <E as mod_api::prelude::EntitiesBackend>::entity_pose(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<E> {
     fn entity_nbt(&mut self, entity: EntityRef) -> Option<Compound> {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_nbt(&mut *self.0, entity)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_nbt(&mut self.0, entity)
     }
     fn entity_merge_nbt(&mut self, entity: EntityRef, nbt: Compound) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_merge_nbt(&mut *self.0, entity, nbt)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_merge_nbt(&mut self.0, entity, nbt)
     }
     fn entity_add_tag(&mut self, entity: EntityRef, tag: &str) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_add_tag(&mut *self.0, entity, tag)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_add_tag(&mut self.0, entity, tag)
     }
     fn entity_remove_tag(&mut self, entity: EntityRef, tag: &str) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_remove_tag(&mut *self.0, entity, tag)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_remove_tag(&mut self.0, entity, tag)
     }
     fn entity_set_custom_name(
         &mut self,
         entity: EntityRef,
         name: Option<Text>,
     ) -> Result<bool, TextFormError> {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_custom_name(&mut *self.0, entity, name)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_custom_name(&mut self.0, entity, name)
     }
     fn entity_set_custom_name_visible(
         &mut self,
         entity: EntityRef,
         visible: bool,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_custom_name_visible(&mut *self.0, entity, visible)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_custom_name_visible(&mut self.0, entity, visible)
     }
     fn entity_reset_fall_distance(&mut self, entity: EntityRef) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_reset_fall_distance(&mut *self.0, entity)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_reset_fall_distance(&mut self.0, entity)
     }
     fn entity_uuid(&mut self, entity: EntityRef) -> Option<u128> {
         mod_api::__private::check_access(
             "entity_uuid",
             mod_api::__private::LoadAccess::WorldOnly,
         );
-        crate::bodies::entity_uuid(&mut *self.0, entity)
+        crate::bodies::entity_uuid(&mut self.0, entity)
     }
     fn entity_set_invulnerable(
         &mut self,
         entity: EntityRef,
         invulnerable: bool,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_invulnerable(&mut *self.0, entity, invulnerable)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_invulnerable(&mut self.0, entity, invulnerable)
     }
     fn entity_set_damage_cooldown_time(
         &mut self,
         entity: EntityRef,
         ticks: i32,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_damage_cooldown_time(&mut *self.0, entity, ticks)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_damage_cooldown_time(&mut self.0, entity, ticks)
     }
     fn entity_set_invulnerable_time(&mut self, entity: EntityRef, ticks: i32) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_invulnerable_time(&mut *self.0, entity, ticks)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_invulnerable_time(&mut self.0, entity, ticks)
     }
     fn entity_hurt(
         &mut self,
@@ -1220,10 +1220,10 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<'_,
         direct: Option<EntityRef>,
         causing: Option<EntityRef>,
     ) -> Option<bool> {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_hurt(&mut *self.0, entity, damage_type, amount, direct, causing)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_hurt(&mut self.0, entity, damage_type, amount, direct, causing)
     }
     fn entity_set_velocity(&mut self, entity: EntityRef, velocity: [f64; 3]) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_velocity(&mut *self.0, entity, velocity)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_velocity(&mut self.0, entity, velocity)
     }
     fn entity_teleport_to(
         &mut self,
@@ -1231,7 +1231,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<'_,
         pos: [f64; 3],
         rotation: Option<[f32; 2]>,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_teleport_to(&mut *self.0, entity, pos, rotation)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_teleport_to(&mut self.0, entity, pos, rotation)
     }
     fn entity_teleport_to_level(
         &mut self,
@@ -1240,7 +1240,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<'_,
         pos: [f64; 3],
         rotation: Option<[f32; 2]>,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_teleport_to_level(&mut *self.0, entity, dimension, pos, rotation)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_teleport_to_level(&mut self.0, entity, dimension, pos, rotation)
     }
     fn entity_run_command(
         &mut self,
@@ -1248,29 +1248,29 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<'_,
         line: &str,
         level: PermissionLevel,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_run_command(&mut *self.0, entity, line, level)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_run_command(&mut self.0, entity, line, level)
     }
     fn entity_set_rotation(&mut self, entity: EntityRef, yaw: f32, pitch: f32) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_rotation(&mut *self.0, entity, yaw, pitch)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_rotation(&mut self.0, entity, yaw, pitch)
     }
     fn entity_set_head_yaw(&mut self, entity: EntityRef, yaw: f32) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_head_yaw(&mut *self.0, entity, yaw)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_head_yaw(&mut self.0, entity, yaw)
     }
     fn entity_push(&mut self, entity: EntityRef, delta: [f64; 3]) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_push(&mut *self.0, entity, delta)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_push(&mut self.0, entity, delta)
     }
     fn entity_set_collision_exclusions(
         &mut self,
         entity: EntityRef,
         boxes: &[[f64; 6]],
     ) -> Result<(), CollisionExclusionsError> {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_collision_exclusions(&mut *self.0, entity, boxes)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_collision_exclusions(&mut self.0, entity, boxes)
     }
     fn entity_discard(&mut self, entity: EntityRef) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_discard(&mut *self.0, entity)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_discard(&mut self.0, entity)
     }
     fn entity_remove(&mut self, entity: EntityRef, reason: RemovalReason) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_remove(&mut *self.0, entity, reason)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_remove(&mut self.0, entity, reason)
     }
     fn entity_spawn_at_location(
         &mut self,
@@ -1278,7 +1278,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<'_,
         stack: ItemStack,
         y_offset: f32,
     ) -> Result<Option<EntityRef>, StackWriteError> {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_spawn_at_location(&mut *self.0, entity, stack, y_offset)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_spawn_at_location(&mut self.0, entity, stack, y_offset)
     }
     fn entity_start_riding(
         &mut self,
@@ -1286,26 +1286,26 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<'_,
         vehicle: EntityRef,
         force: bool,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_start_riding(&mut *self.0, entity, vehicle, force)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_start_riding(&mut self.0, entity, vehicle, force)
     }
     fn entity_stop_riding(&mut self, entity: EntityRef) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_stop_riding(&mut *self.0, entity)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_stop_riding(&mut self.0, entity)
     }
     fn entity_eject_passengers(&mut self, entity: EntityRef) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_eject_passengers(&mut *self.0, entity)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_eject_passengers(&mut self.0, entity)
     }
     fn entity_leash_to(&mut self, entity: EntityRef, holder: EntityRef) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_leash_to(&mut *self.0, entity, holder)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_leash_to(&mut self.0, entity, holder)
     }
     fn entity_leash_to_knot(&mut self, entity: EntityRef, pos: [i32; 3]) -> bool {
         mod_api::__private::check_access(
             "entity_leash_to_knot",
             mod_api::__private::LoadAccess::WorldOnly,
         );
-        crate::bodies::entity_leash_to_knot(&mut *self.0, entity, pos)
+        crate::bodies::entity_leash_to_knot(&mut self.0, entity, pos)
     }
     fn entity_detach_leash(&mut self, entity: EntityRef, drop_lead: bool) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_detach_leash(&mut *self.0, entity, drop_lead)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_detach_leash(&mut self.0, entity, drop_lead)
     }
     fn entity_play_sound(
         &mut self,
@@ -1314,64 +1314,64 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<'_,
         volume: f32,
         pitch: f32,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_play_sound(&mut *self.0, entity, sound, volume, pitch)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_play_sound(&mut self.0, entity, sound, volume, pitch)
     }
     fn entity_game_event(&mut self, entity: EntityRef, event: &str) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_game_event(&mut *self.0, entity, event)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_game_event(&mut self.0, entity, event)
     }
     fn entity_broadcast_event(&mut self, entity: EntityRef, id: u8) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_broadcast_event(&mut *self.0, entity, id)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_broadcast_event(&mut self.0, entity, id)
     }
     fn entity_set_remaining_fire_ticks(
         &mut self,
         entity: EntityRef,
         ticks: i32,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_remaining_fire_ticks(&mut *self.0, entity, ticks)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_remaining_fire_ticks(&mut self.0, entity, ticks)
     }
     fn entity_clear_fire(&mut self, entity: EntityRef) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_clear_fire(&mut *self.0, entity)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_clear_fire(&mut self.0, entity)
     }
     fn entity_extinguish_fire(&mut self, entity: EntityRef) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_extinguish_fire(&mut *self.0, entity)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_extinguish_fire(&mut self.0, entity)
     }
     fn entity_set_air_supply(&mut self, entity: EntityRef, air: i32) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_air_supply(&mut *self.0, entity, air)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_air_supply(&mut self.0, entity, air)
     }
     fn entity_set_silent(&mut self, entity: EntityRef, silent: bool) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_silent(&mut *self.0, entity, silent)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_silent(&mut self.0, entity, silent)
     }
     fn entity_set_glowing(&mut self, entity: EntityRef, glowing: bool) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_glowing(&mut *self.0, entity, glowing)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_glowing(&mut self.0, entity, glowing)
     }
     fn entity_set_hanging_direction(
         &mut self,
         entity: EntityRef,
         direction: Direction,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_hanging_direction(&mut *self.0, entity, direction)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_hanging_direction(&mut self.0, entity, direction)
     }
     fn entity_set_item_frame_rotation(
         &mut self,
         entity: EntityRef,
         rotation: u8,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_item_frame_rotation(&mut *self.0, entity, rotation)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_item_frame_rotation(&mut self.0, entity, rotation)
     }
     fn entity_set_no_gravity(&mut self, entity: EntityRef, no_gravity: bool) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_no_gravity(&mut *self.0, entity, no_gravity)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_no_gravity(&mut self.0, entity, no_gravity)
     }
     fn entity_set_no_physics(&mut self, entity: EntityRef, no_physics: bool) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_no_physics(&mut *self.0, entity, no_physics)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_no_physics(&mut self.0, entity, no_physics)
     }
     fn entity_set_ticks_frozen(&mut self, entity: EntityRef, ticks: i32) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_ticks_frozen(&mut *self.0, entity, ticks)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_ticks_frozen(&mut self.0, entity, ticks)
     }
     fn entity_set_portal_cooldown(&mut self, entity: EntityRef, ticks: i32) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_portal_cooldown(&mut *self.0, entity, ticks)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_portal_cooldown(&mut self.0, entity, ticks)
     }
     fn entity_set_invisible(&mut self, entity: EntityRef, invisible: bool) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_invisible(&mut *self.0, entity, invisible)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_set_invisible(&mut self.0, entity, invisible)
     }
     fn entity_play_bound_sound(
         &mut self,
@@ -1381,37 +1381,37 @@ impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesBackendMut for HostOf<'_,
         volume: f32,
         pitch: f32,
     ) -> bool {
-        <E as mod_api::prelude::EntitiesBackendMut>::entity_play_bound_sound(&mut *self.0, entity, sound, source, volume, pitch)
+        <E as mod_api::prelude::EntitiesBackendMut>::entity_play_bound_sound(&mut self.0, entity, sound, source, volume, pitch)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesClientBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::EntitiesClientBackendMut for HostOf<E> {
     fn entity_sprint_particles(&mut self, entity: EntityRef) -> bool {
-        <E as mod_api::prelude::EntitiesClientBackendMut>::entity_sprint_particles(&mut *self.0, entity)
+        <E as mod_api::prelude::EntitiesClientBackendMut>::entity_sprint_particles(&mut self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::FluidsHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::FluidsHost for HostOf<E> {
     fn cauldron_content_for_block(&self, block: BlockKey) -> Option<CauldronContent> {
-        <E as mod_api::prelude::FluidsHost>::cauldron_content_for_block(&*self.0, block)
+        <E as mod_api::prelude::FluidsHost>::cauldron_content_for_block(&self.0, block)
     }
     fn cauldron_content_for_fluid(&self, fluid: FluidKey) -> Option<CauldronContent> {
-        <E as mod_api::prelude::FluidsHost>::cauldron_content_for_fluid(&*self.0, fluid)
+        <E as mod_api::prelude::FluidsHost>::cauldron_content_for_fluid(&self.0, fluid)
     }
     fn cauldron_level(&self, state: BlockState) -> Option<u32> {
-        <E as mod_api::prelude::FluidsHost>::cauldron_level(&*self.0, state)
+        <E as mod_api::prelude::FluidsHost>::cauldron_level(&self.0, state)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackend for HostOf<E> {
     fn energy_amount(&self, at: BlockSide) -> Option<u32> {
-        <E as mod_api::prelude::FluidsEnergyBackend>::energy_amount(&*self.0, at)
+        <E as mod_api::prelude::FluidsEnergyBackend>::energy_amount(&self.0, at)
     }
     fn energy_capacity(&self, at: BlockSide) -> u32 {
-        <E as mod_api::prelude::FluidsEnergyBackend>::energy_capacity(&*self.0, at)
+        <E as mod_api::prelude::FluidsEnergyBackend>::energy_capacity(&self.0, at)
     }
     fn fluid_tank_count(&self, at: BlockSide) -> Option<usize> {
-        <E as mod_api::prelude::FluidsEnergyBackend>::fluid_tank_count(&*self.0, at)
+        <E as mod_api::prelude::FluidsEnergyBackend>::fluid_tank_count(&self.0, at)
     }
     fn fluid_tank(&self, at: BlockSide, tank: usize) -> Option<FluidStack> {
-        <E as mod_api::prelude::FluidsEnergyBackend>::fluid_tank(&*self.0, at, tank)
+        <E as mod_api::prelude::FluidsEnergyBackend>::fluid_tank(&self.0, at, tank)
     }
     fn fluid_tank_capacity(
         &self,
@@ -1419,15 +1419,15 @@ impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackend for HostOf<'_
         tank: usize,
         fluid: &FluidStack,
     ) -> u32 {
-        <E as mod_api::prelude::FluidsEnergyBackend>::fluid_tank_capacity(&*self.0, at, tank, fluid)
+        <E as mod_api::prelude::FluidsEnergyBackend>::fluid_tank_capacity(&self.0, at, tank, fluid)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackendMut for HostOf<E> {
     fn energy_insert(&mut self, at: BlockSide, amount: u32, tx: &Transaction) -> u32 {
-        <E as mod_api::prelude::FluidsEnergyBackendMut>::energy_insert(&mut *self.0, at, amount, tx)
+        <E as mod_api::prelude::FluidsEnergyBackendMut>::energy_insert(&mut self.0, at, amount, tx)
     }
     fn energy_extract(&mut self, at: BlockSide, amount: u32, tx: &Transaction) -> u32 {
-        <E as mod_api::prelude::FluidsEnergyBackendMut>::energy_extract(&mut *self.0, at, amount, tx)
+        <E as mod_api::prelude::FluidsEnergyBackendMut>::energy_extract(&mut self.0, at, amount, tx)
     }
     fn fluid_tank_insert(
         &mut self,
@@ -1436,7 +1436,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackendMut for HostOf
         fluid: FluidStack,
         tx: &Transaction,
     ) -> Option<FluidStack> {
-        <E as mod_api::prelude::FluidsEnergyBackendMut>::fluid_tank_insert(&mut *self.0, at, tank, fluid, tx)
+        <E as mod_api::prelude::FluidsEnergyBackendMut>::fluid_tank_insert(&mut self.0, at, tank, fluid, tx)
     }
     fn fluid_tank_extract(
         &mut self,
@@ -1445,7 +1445,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackendMut for HostOf
         max: u32,
         tx: &Transaction,
     ) -> Option<FluidStack> {
-        <E as mod_api::prelude::FluidsEnergyBackendMut>::fluid_tank_extract(&mut *self.0, at, tank, max, tx)
+        <E as mod_api::prelude::FluidsEnergyBackendMut>::fluid_tank_extract(&mut self.0, at, tank, max, tx)
     }
     fn level_pickup_fluid(
         &mut self,
@@ -1454,7 +1454,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackendMut for HostOf
         player: Option<PlayerRef>,
         tx: &Transaction,
     ) -> Option<FluidStack> {
-        <E as mod_api::prelude::FluidsEnergyBackendMut>::level_pickup_fluid(&mut *self.0, level, pos, player, tx)
+        <E as mod_api::prelude::FluidsEnergyBackendMut>::level_pickup_fluid(&mut self.0, level, pos, player, tx)
     }
     fn level_place_fluid(
         &mut self,
@@ -1465,7 +1465,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackendMut for HostOf
         validate: bool,
         tx: &Transaction,
     ) -> bool {
-        <E as mod_api::prelude::FluidsEnergyBackendMut>::level_place_fluid(&mut *self.0, level, pos, fluid, player, validate, tx)
+        <E as mod_api::prelude::FluidsEnergyBackendMut>::level_place_fluid(&mut self.0, level, pos, fluid, player, validate, tx)
     }
     fn level_play_fluid_effects(
         &mut self,
@@ -1476,91 +1476,91 @@ impl<E: Legacy + Subsystems> mod_api::prelude::FluidsEnergyBackendMut for HostOf
         player: Option<PlayerRef>,
         tx: &Transaction,
     ) -> bool {
-        <E as mod_api::prelude::FluidsEnergyBackendMut>::level_play_fluid_effects(&mut *self.0, level, pos, fluid, pickup, player, tx)
+        <E as mod_api::prelude::FluidsEnergyBackendMut>::level_play_fluid_effects(&mut self.0, level, pos, fluid, pickup, player, tx)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ItemEntitiesHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ItemEntitiesHost for HostOf<E> {
     fn item_entity(&self, entity: EntityRef) -> Option<ItemEntityRef> {
-        <E as mod_api::prelude::ItemEntitiesHost>::item_entity(&*self.0, entity)
+        <E as mod_api::prelude::ItemEntitiesHost>::item_entity(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ItemEntitiesBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ItemEntitiesBackend for HostOf<E> {
     fn item_entity_stack(&self, item: ItemEntityRef) -> Option<ItemStack> {
-        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_stack(&*self.0, item)
+        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_stack(&self.0, item)
     }
     fn item_entity_pickup_delay(&self, item: ItemEntityRef) -> Option<i32> {
-        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_pickup_delay(&*self.0, item)
+        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_pickup_delay(&self.0, item)
     }
     fn item_entity_age(&self, item: ItemEntityRef) -> Option<i32> {
-        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_age(&*self.0, item)
+        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_age(&self.0, item)
     }
     fn item_entity_target(&self, item: ItemEntityRef) -> Option<u128> {
-        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_target(&*self.0, item)
+        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_target(&self.0, item)
     }
     fn item_entity_owner(&self, item: ItemEntityRef) -> Option<EntityRef> {
-        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_owner(&*self.0, item)
+        <E as mod_api::prelude::ItemEntitiesBackend>::item_entity_owner(&self.0, item)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ItemEntitiesBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ItemEntitiesBackendMut for HostOf<E> {
     fn item_entity_set_stack(
         &mut self,
         item: ItemEntityRef,
         stack: ItemStack,
     ) -> Result<bool, StackWriteError> {
-        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_stack(&mut *self.0, item, stack)
+        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_stack(&mut self.0, item, stack)
     }
     fn item_entity_set_pickup_delay(&mut self, item: ItemEntityRef, ticks: i32) -> bool {
-        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_pickup_delay(&mut *self.0, item, ticks)
+        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_pickup_delay(&mut self.0, item, ticks)
     }
     fn item_entity_set_default_pickup_delay(&mut self, item: ItemEntityRef) -> bool {
-        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_default_pickup_delay(&mut *self.0, item)
+        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_default_pickup_delay(&mut self.0, item)
     }
     fn item_entity_set_no_pickup_delay(&mut self, item: ItemEntityRef) -> bool {
-        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_no_pickup_delay(&mut *self.0, item)
+        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_no_pickup_delay(&mut self.0, item)
     }
     fn item_entity_set_never_pickup(&mut self, item: ItemEntityRef) -> bool {
-        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_never_pickup(&mut *self.0, item)
+        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_never_pickup(&mut self.0, item)
     }
     fn item_entity_set_target(
         &mut self,
         item: ItemEntityRef,
         target: Option<u128>,
     ) -> bool {
-        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_target(&mut *self.0, item, target)
+        <E as mod_api::prelude::ItemEntitiesBackendMut>::item_entity_set_target(&mut self.0, item, target)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ItemParticlesClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ItemParticlesClientHost for HostOf<E> {
     fn item_particle_options(&self, stack: &ItemStack) -> Option<ParticleOptions> {
-        <E as mod_api::prelude::ItemParticlesClientHost>::item_particle_options(&*self.0, stack)
+        <E as mod_api::prelude::ItemParticlesClientHost>::item_particle_options(&self.0, stack)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ItemsHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ItemsHost for HostOf<E> {
     fn max_stack_size(&self, item: ItemKey) -> Option<u32> {
-        <E as mod_api::prelude::ItemsHost>::max_stack_size(&*self.0, item)
+        <E as mod_api::prelude::ItemsHost>::max_stack_size(&self.0, item)
     }
     fn max_damage(&self, item: ItemKey) -> Option<u32> {
-        <E as mod_api::prelude::ItemsHost>::max_damage(&*self.0, item)
+        <E as mod_api::prelude::ItemsHost>::max_damage(&self.0, item)
     }
     fn item_key(&self, id: &Identifier) -> Option<ItemKey> {
-        <E as mod_api::prelude::ItemsHost>::item_key(&*self.0, id)
+        <E as mod_api::prelude::ItemsHost>::item_key(&self.0, id)
     }
     fn item_default_component(&self, item: ItemKey, component: &str) -> Option<Tag> {
-        <E as mod_api::prelude::ItemsHost>::item_default_component(&*self.0, item, component)
+        <E as mod_api::prelude::ItemsHost>::item_default_component(&self.0, item, component)
     }
     fn item_burn_time(&self, item: ItemKey) -> Option<i32> {
-        <E as mod_api::prelude::ItemsHost>::item_burn_time(&*self.0, item)
+        <E as mod_api::prelude::ItemsHost>::item_burn_time(&self.0, item)
     }
     fn item_compost_chance(&self, item: ItemKey) -> Option<f32> {
-        <E as mod_api::prelude::ItemsHost>::item_compost_chance(&*self.0, item)
+        <E as mod_api::prelude::ItemsHost>::item_compost_chance(&self.0, item)
     }
     fn enchantments_compatible(&self, a: &str, b: &str) -> bool {
-        <E as mod_api::prelude::ItemsHost>::enchantments_compatible(&*self.0, a, b)
+        <E as mod_api::prelude::ItemsHost>::enchantments_compatible(&self.0, a, b)
     }
     fn entity_type_in_tag(&self, entity_type: &str, tag: &str) -> bool {
-        <E as mod_api::prelude::ItemsHost>::entity_type_in_tag(&*self.0, entity_type, tag)
+        <E as mod_api::prelude::ItemsHost>::entity_type_in_tag(&self.0, entity_type, tag)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ItemsServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ItemsServerHost for HostOf<E> {
     fn dispense_default(
         &mut self,
         dimension: &str,
@@ -1568,76 +1568,76 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsServerHost for HostOf<'_, E>
         facing: Direction,
         stack: ItemStack,
     ) -> Result<Option<ItemStack>, StackWriteError> {
-        <E as mod_api::prelude::ItemsServerHost>::dispense_default(&mut *self.0, dimension, pos, facing, stack)
+        <E as mod_api::prelude::ItemsServerHost>::dispense_default(&mut self.0, dimension, pos, facing, stack)
     }
     fn scratch_stack(
         &mut self,
         tx: &Transaction,
         stack: ItemStack,
     ) -> Result<Option<ItemPlace>, StackWriteError> {
-        <E as mod_api::prelude::ItemsServerHost>::scratch_stack(&mut *self.0, tx, stack)
+        <E as mod_api::prelude::ItemsServerHost>::scratch_stack(&mut self.0, tx, stack)
     }
     fn scratch_take(
         &mut self,
         tx: &Transaction,
         place: &ItemPlace,
     ) -> Option<ItemStack> {
-        <E as mod_api::prelude::ItemsServerHost>::scratch_take(&mut *self.0, tx, place)
+        <E as mod_api::prelude::ItemsServerHost>::scratch_take(&mut self.0, tx, place)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ItemsClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ItemsClientHost for HostOf<E> {
     fn give(&mut self, item: ItemKey, count: u32) -> Result<(), String> {
-        <E as mod_api::prelude::ItemsClientHost>::give(&mut *self.0, item, count)
+        <E as mod_api::prelude::ItemsClientHost>::give(&mut self.0, item, count)
     }
     fn enchantments(&self) -> Vec<EnchantmentInfo> {
-        <E as mod_api::prelude::ItemsClientHost>::enchantments(&*self.0)
+        <E as mod_api::prelude::ItemsClientHost>::enchantments(&self.0)
     }
     fn enchantment_min_cost(&self, id: &str, level: u32) -> Option<i32> {
-        <E as mod_api::prelude::ItemsClientHost>::enchantment_min_cost(&*self.0, id, level)
+        <E as mod_api::prelude::ItemsClientHost>::enchantment_min_cost(&self.0, id, level)
     }
     fn enchantment_supports(&self, id: &str, item: ItemKey) -> bool {
-        <E as mod_api::prelude::ItemsClientHost>::enchantment_supports(&*self.0, id, item)
+        <E as mod_api::prelude::ItemsClientHost>::enchantment_supports(&self.0, id, item)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<E> {
     fn item_resource_damageable(&self, stack: &ItemStack) -> bool {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_damageable(&*self.0, stack)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_damageable(&self.0, stack)
     }
     fn item_resource_foil(&self, stack: &ItemStack) -> bool {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_foil(&*self.0, stack)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_foil(&self.0, stack)
     }
     fn item_resource_repairable(&self, stack: &ItemStack, material: ItemKey) -> bool {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_repairable(&*self.0, stack, material)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_repairable(&self.0, stack, material)
     }
     fn item_resource_use_duration(&self, stack: &ItemStack) -> Option<i32> {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_use_duration(&*self.0, stack)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_use_duration(&self.0, stack)
     }
     fn item_resource_creator_mod_id(&self, stack: &ItemStack) -> Option<String> {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_creator_mod_id(&*self.0, stack)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_creator_mod_id(&self.0, stack)
     }
     fn item_resource_bar(&self, stack: &ItemStack) -> Option<ItemBar> {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_bar(&*self.0, stack)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_bar(&self.0, stack)
     }
     fn item_resource_entity_attack_range(
         &self,
         stack: &ItemStack,
         attacker: LivingRef,
     ) -> Option<ItemAttackRange> {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_entity_attack_range(&*self.0, stack, attacker)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_entity_attack_range(&self.0, stack, attacker)
     }
     fn item_resource_damage_source(
         &self,
         stack: &ItemStack,
         attacker: LivingRef,
     ) -> Option<ItemDamageSource> {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_damage_source(&*self.0, stack, attacker)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_damage_source(&self.0, stack, attacker)
     }
     fn item_resource_can_be_hurt_by(
         &self,
         stack: &ItemStack,
         source: &ItemDamageSource,
     ) -> Option<bool> {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_can_be_hurt_by(&*self.0, stack, source)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_can_be_hurt_by(&self.0, stack, source)
     }
     fn item_resource_attack_damage_bonus(
         &self,
@@ -1646,7 +1646,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
         target: EntityRef,
         base_damage: f32,
     ) -> Option<f32> {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_attack_damage_bonus(&*self.0, stack, attacker, target, base_damage)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_attack_damage_bonus(&self.0, stack, attacker, target, base_damage)
     }
     fn item_resource_tooltip(
         &self,
@@ -1654,30 +1654,30 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
         advanced: bool,
         creative: bool,
     ) -> Option<Vec<TooltipElement>> {
-        <E as mod_api::prelude::ItemsBackend>::item_resource_tooltip(&*self.0, stack, advanced, creative)
+        <E as mod_api::prelude::ItemsBackend>::item_resource_tooltip(&self.0, stack, advanced, creative)
     }
     fn container_size(&self, at: BlockSide) -> Option<usize> {
-        <E as mod_api::prelude::ItemsBackend>::container_size(&*self.0, at)
+        <E as mod_api::prelude::ItemsBackend>::container_size(&self.0, at)
     }
     fn container_stack(&self, at: BlockSide, slot: usize) -> Option<ItemStack> {
-        <E as mod_api::prelude::ItemsBackend>::container_stack(&*self.0, at, slot)
+        <E as mod_api::prelude::ItemsBackend>::container_stack(&self.0, at, slot)
     }
     fn container_capacity(&self, at: BlockSide, slot: usize, stack: &ItemStack) -> u32 {
-        <E as mod_api::prelude::ItemsBackend>::container_capacity(&*self.0, at, slot, stack)
+        <E as mod_api::prelude::ItemsBackend>::container_capacity(&self.0, at, slot, stack)
     }
     fn container_kind_amount(
         &self,
         at: BlockSide,
         resource: &ItemResource,
     ) -> Option<u64> {
-        <E as mod_api::prelude::ItemsBackend>::container_kind_amount(&*self.0, at, resource)
+        <E as mod_api::prelude::ItemsBackend>::container_kind_amount(&self.0, at, resource)
     }
     fn container_kind_space(
         &self,
         at: BlockSide,
         resource: &ItemResource,
     ) -> Option<u64> {
-        <E as mod_api::prelude::ItemsBackend>::container_kind_space(&*self.0, at, resource)
+        <E as mod_api::prelude::ItemsBackend>::container_kind_space(&self.0, at, resource)
     }
     fn container_listing(
         &self,
@@ -1685,23 +1685,23 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
         from: usize,
         limit: usize,
     ) -> Option<Vec<Option<ItemStack>>> {
-        <E as mod_api::prelude::ItemsBackend>::container_listing(&*self.0, at, from, limit)
+        <E as mod_api::prelude::ItemsBackend>::container_listing(&self.0, at, from, limit)
     }
     fn item_has_enchantment_effect(&self, stack: &ItemStack, effect: &str) -> bool {
-        <E as mod_api::prelude::ItemsBackend>::item_has_enchantment_effect(&*self.0, stack, effect)
+        <E as mod_api::prelude::ItemsBackend>::item_has_enchantment_effect(&self.0, stack, effect)
     }
     fn item_equippable_slot(&self, stack: &ItemStack) -> Option<String> {
-        <E as mod_api::prelude::ItemsBackend>::item_equippable_slot(&*self.0, stack)
+        <E as mod_api::prelude::ItemsBackend>::item_equippable_slot(&self.0, stack)
     }
     fn item_container_slots(&self, stack: &ItemStack) -> Option<Vec<Option<ItemStack>>> {
-        <E as mod_api::prelude::ItemsBackend>::item_container_slots(&*self.0, stack)
+        <E as mod_api::prelude::ItemsBackend>::item_container_slots(&self.0, stack)
     }
     fn item_container_insert(
         &self,
         stack: &ItemStack,
         item: &ItemStack,
     ) -> Option<(u32, ItemStack)> {
-        <E as mod_api::prelude::ItemsBackend>::item_container_insert(&*self.0, stack, item)
+        <E as mod_api::prelude::ItemsBackend>::item_container_insert(&self.0, stack, item)
     }
     fn item_container_extract(
         &self,
@@ -1709,7 +1709,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
         slot: usize,
         max: u32,
     ) -> Option<(Option<ItemStack>, ItemStack)> {
-        <E as mod_api::prelude::ItemsBackend>::item_container_extract(&*self.0, stack, slot, max)
+        <E as mod_api::prelude::ItemsBackend>::item_container_extract(&self.0, stack, slot, max)
     }
     fn item_container_insert_slot(
         &self,
@@ -1717,7 +1717,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
         slot: usize,
         item: &ItemStack,
     ) -> Option<(u32, ItemStack)> {
-        <E as mod_api::prelude::ItemsBackend>::item_container_insert_slot(&*self.0, stack, slot, item)
+        <E as mod_api::prelude::ItemsBackend>::item_container_insert_slot(&self.0, stack, slot, item)
     }
     fn item_container_capacity(
         &self,
@@ -1725,10 +1725,10 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
         slot: usize,
         item: &ItemStack,
     ) -> u32 {
-        <E as mod_api::prelude::ItemsBackend>::item_container_capacity(&*self.0, stack, slot, item)
+        <E as mod_api::prelude::ItemsBackend>::item_container_capacity(&self.0, stack, slot, item)
     }
     fn item_bundle_slots(&self, stack: &ItemStack) -> Option<Vec<Option<ItemStack>>> {
-        <E as mod_api::prelude::ItemsBackend>::item_bundle_slots(&*self.0, stack)
+        <E as mod_api::prelude::ItemsBackend>::item_bundle_slots(&self.0, stack)
     }
     fn item_bundle_capacity(
         &self,
@@ -1736,7 +1736,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
         slot: usize,
         item: &ItemStack,
     ) -> u32 {
-        <E as mod_api::prelude::ItemsBackend>::item_bundle_capacity(&*self.0, stack, slot, item)
+        <E as mod_api::prelude::ItemsBackend>::item_bundle_capacity(&self.0, stack, slot, item)
     }
     fn item_bundle_insert_slot(
         &self,
@@ -1744,7 +1744,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
         slot: usize,
         item: &ItemStack,
     ) -> Option<(u32, ItemStack)> {
-        <E as mod_api::prelude::ItemsBackend>::item_bundle_insert_slot(&*self.0, stack, slot, item)
+        <E as mod_api::prelude::ItemsBackend>::item_bundle_insert_slot(&self.0, stack, slot, item)
     }
     fn item_bundle_extract(
         &self,
@@ -1752,26 +1752,26 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackend for HostOf<'_, E> {
         slot: usize,
         max: u32,
     ) -> Option<(Option<ItemStack>, ItemStack)> {
-        <E as mod_api::prelude::ItemsBackend>::item_bundle_extract(&*self.0, stack, slot, max)
+        <E as mod_api::prelude::ItemsBackend>::item_bundle_extract(&self.0, stack, slot, max)
     }
     fn entity_container_size(&self, entity: u32) -> Option<usize> {
-        <E as mod_api::prelude::ItemsBackend>::entity_container_size(&*self.0, entity)
+        <E as mod_api::prelude::ItemsBackend>::entity_container_size(&self.0, entity)
     }
     fn entity_automation_size(&self, entity: u32) -> Option<usize> {
-        <E as mod_api::prelude::ItemsBackend>::entity_automation_size(&*self.0, entity)
+        <E as mod_api::prelude::ItemsBackend>::entity_automation_size(&self.0, entity)
     }
     fn entity_equipment_size(&self, entity: u32) -> Option<usize> {
-        <E as mod_api::prelude::ItemsBackend>::entity_equipment_size(&*self.0, entity)
+        <E as mod_api::prelude::ItemsBackend>::entity_equipment_size(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackendMut for HostOf<E> {
     fn container_set_stack_limit(
         &mut self,
         at: BlockSide,
         limit: u32,
         tx: &Transaction,
     ) -> bool {
-        <E as mod_api::prelude::ItemsBackendMut>::container_set_stack_limit(&mut *self.0, at, limit, tx)
+        <E as mod_api::prelude::ItemsBackendMut>::container_set_stack_limit(&mut self.0, at, limit, tx)
     }
     fn item_resource_enchant_randomly(
         &mut self,
@@ -1780,7 +1780,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackendMut for HostOf<'_, E>
         power: i32,
         pool: &Identifier,
     ) -> Result<Option<ItemStack>, StackWriteError> {
-        <E as mod_api::prelude::ItemsBackendMut>::item_resource_enchant_randomly(&mut *self.0, stack, level, power, pool)
+        <E as mod_api::prelude::ItemsBackendMut>::item_resource_enchant_randomly(&mut self.0, stack, level, power, pool)
     }
     fn container_insert(
         &mut self,
@@ -1790,7 +1790,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackendMut for HostOf<'_, E>
         amount: u32,
         tx: &Transaction,
     ) -> Result<Option<ItemStack>, StackWriteError> {
-        <E as mod_api::prelude::ItemsBackendMut>::container_insert(&mut *self.0, at, slot, resource, amount, tx)
+        <E as mod_api::prelude::ItemsBackendMut>::container_insert(&mut self.0, at, slot, resource, amount, tx)
     }
     fn container_extract(
         &mut self,
@@ -1799,7 +1799,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackendMut for HostOf<'_, E>
         max: u32,
         tx: &Transaction,
     ) -> Option<ItemStack> {
-        <E as mod_api::prelude::ItemsBackendMut>::container_extract(&mut *self.0, at, slot, max, tx)
+        <E as mod_api::prelude::ItemsBackendMut>::container_extract(&mut self.0, at, slot, max, tx)
     }
     fn container_insert_kind(
         &mut self,
@@ -1808,7 +1808,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackendMut for HostOf<'_, E>
         amount: u64,
         tx: &Transaction,
     ) -> u64 {
-        <E as mod_api::prelude::ItemsBackendMut>::container_insert_kind(&mut *self.0, at, resource, amount, tx)
+        <E as mod_api::prelude::ItemsBackendMut>::container_insert_kind(&mut self.0, at, resource, amount, tx)
     }
     fn container_extract_kind(
         &mut self,
@@ -1817,10 +1817,10 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackendMut for HostOf<'_, E>
         amount: u64,
         tx: &Transaction,
     ) -> u64 {
-        <E as mod_api::prelude::ItemsBackendMut>::container_extract_kind(&mut *self.0, at, resource, amount, tx)
+        <E as mod_api::prelude::ItemsBackendMut>::container_extract_kind(&mut self.0, at, resource, amount, tx)
     }
     fn game_stack(&mut self, place: &ItemPlace) -> Option<ItemStack> {
-        <E as mod_api::prelude::ItemsBackendMut>::game_stack(&mut *self.0, place)
+        <E as mod_api::prelude::ItemsBackendMut>::game_stack(&mut self.0, place)
     }
     fn game_insert(
         &mut self,
@@ -1829,7 +1829,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackendMut for HostOf<'_, E>
         amount: u32,
         tx: &Transaction,
     ) -> Result<u32, StackWriteError> {
-        <E as mod_api::prelude::ItemsBackendMut>::game_insert(&mut *self.0, place, resource, amount, tx)
+        <E as mod_api::prelude::ItemsBackendMut>::game_insert(&mut self.0, place, resource, amount, tx)
     }
     fn game_extract(
         &mut self,
@@ -1838,86 +1838,86 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ItemsBackendMut for HostOf<'_, E>
         amount: u32,
         tx: &Transaction,
     ) -> Result<u32, StackWriteError> {
-        <E as mod_api::prelude::ItemsBackendMut>::game_extract(&mut *self.0, place, resource, amount, tx)
+        <E as mod_api::prelude::ItemsBackendMut>::game_extract(&mut self.0, place, resource, amount, tx)
     }
     fn drop_at(
         &mut self,
         pos: [i32; 3],
         stack: ItemStack,
     ) -> Result<(), StackWriteError> {
-        <E as mod_api::prelude::ItemsBackendMut>::drop_at(&mut *self.0, pos, stack)
+        <E as mod_api::prelude::ItemsBackendMut>::drop_at(&mut self.0, pos, stack)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::KeysHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::KeysHost for HostOf<E> {
     fn block_key(&self, id: &str) -> Option<BlockKey> {
-        <E as mod_api::prelude::KeysHost>::block_key(&*self.0, id)
+        <E as mod_api::prelude::KeysHost>::block_key(&self.0, id)
     }
     fn effect_key(&self, id: &str) -> Option<EffectKey> {
-        <E as mod_api::prelude::KeysHost>::effect_key(&*self.0, id)
+        <E as mod_api::prelude::KeysHost>::effect_key(&self.0, id)
     }
     fn block_keys(&self) -> Vec<BlockKey> {
-        <E as mod_api::prelude::KeysHost>::block_keys(&*self.0)
+        <E as mod_api::prelude::KeysHost>::block_keys(&self.0)
     }
     fn item_keys(&self) -> Vec<ItemKey> {
-        <E as mod_api::prelude::KeysHost>::item_keys(&*self.0)
+        <E as mod_api::prelude::KeysHost>::item_keys(&self.0)
     }
     fn entity_type_keys(&self) -> Vec<EntityTypeKey> {
-        <E as mod_api::prelude::KeysHost>::entity_type_keys(&*self.0)
+        <E as mod_api::prelude::KeysHost>::entity_type_keys(&self.0)
     }
     fn menu_keys(&self) -> Vec<MenuKey> {
-        <E as mod_api::prelude::KeysHost>::menu_keys(&*self.0)
+        <E as mod_api::prelude::KeysHost>::menu_keys(&self.0)
     }
     fn enchantment_keys(&self) -> Vec<EnchantmentKey> {
-        <E as mod_api::prelude::KeysHost>::enchantment_keys(&*self.0)
+        <E as mod_api::prelude::KeysHost>::enchantment_keys(&self.0)
     }
     fn registry_protocol_id(
         &self,
         registry: &Identifier,
         name: &Identifier,
     ) -> Option<i32> {
-        <E as mod_api::prelude::KeysHost>::registry_protocol_id(&*self.0, registry, name)
+        <E as mod_api::prelude::KeysHost>::registry_protocol_id(&self.0, registry, name)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::KeysBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::KeysBackend for HostOf<E> {
     fn block_key_id(&self, key: BlockKey) -> String {
-        <E as mod_api::prelude::KeysBackend>::block_key_id(&*self.0, key)
+        <E as mod_api::prelude::KeysBackend>::block_key_id(&self.0, key)
     }
     fn item_key_id(&self, key: ItemKey) -> String {
-        <E as mod_api::prelude::KeysBackend>::item_key_id(&*self.0, key)
+        <E as mod_api::prelude::KeysBackend>::item_key_id(&self.0, key)
     }
     fn effect_key_id(&self, key: EffectKey) -> String {
-        <E as mod_api::prelude::KeysBackend>::effect_key_id(&*self.0, key)
+        <E as mod_api::prelude::KeysBackend>::effect_key_id(&self.0, key)
     }
     fn effect_category(&self, key: EffectKey) -> Option<EffectCategory> {
-        <E as mod_api::prelude::KeysBackend>::effect_category(&*self.0, key)
+        <E as mod_api::prelude::KeysBackend>::effect_category(&self.0, key)
     }
     fn fluid_key_id(&self, key: FluidKey) -> String {
-        <E as mod_api::prelude::KeysBackend>::fluid_key_id(&*self.0, key)
+        <E as mod_api::prelude::KeysBackend>::fluid_key_id(&self.0, key)
     }
     fn block_entity_type_key_id(&self, key: BlockEntityTypeKey) -> String {
-        <E as mod_api::prelude::KeysBackend>::block_entity_type_key_id(&*self.0, key)
+        <E as mod_api::prelude::KeysBackend>::block_entity_type_key_id(&self.0, key)
     }
     fn entity_type_key_id(&self, key: EntityTypeKey) -> String {
-        <E as mod_api::prelude::KeysBackend>::entity_type_key_id(&*self.0, key)
+        <E as mod_api::prelude::KeysBackend>::entity_type_key_id(&self.0, key)
     }
     fn menu_key_id(&self, key: MenuKey) -> String {
-        <E as mod_api::prelude::KeysBackend>::menu_key_id(&*self.0, key)
+        <E as mod_api::prelude::KeysBackend>::menu_key_id(&self.0, key)
     }
     fn enchantment_key_id(&self, key: EnchantmentKey) -> String {
-        <E as mod_api::prelude::KeysBackend>::enchantment_key_id(&*self.0, key)
+        <E as mod_api::prelude::KeysBackend>::enchantment_key_id(&self.0, key)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::LevelsHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::LevelsHost for HostOf<E> {
     fn is_loaded(&self, id: &str) -> bool {
-        <E as mod_api::prelude::LevelsHost>::is_loaded(&*self.0, id)
+        <E as mod_api::prelude::LevelsHost>::is_loaded(&self.0, id)
     }
     fn chunk(&self, level: LevelRef, pos: [i32; 2]) -> Option<ChunkRef> {
-        <E as mod_api::prelude::LevelsHost>::chunk(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsHost>::chunk(&self.0, level, pos)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<E> {
     fn level_has_water_ticket(&self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackend>::level_has_water_ticket(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_has_water_ticket(&self.0, level, pos)
     }
     fn level_find_closest_biome(
         &self,
@@ -1925,7 +1925,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         biome: &str,
         parameters: BiomeSearch,
     ) -> Option<BiomeSearchResult> {
-        <E as mod_api::prelude::LevelsBackend>::level_find_closest_biome(&*self.0, level, biome, parameters)
+        <E as mod_api::prelude::LevelsBackend>::level_find_closest_biome(&self.0, level, biome, parameters)
     }
     fn level_find_nearest_structure(
         &self,
@@ -1933,23 +1933,23 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         structure: &str,
         parameters: StructureSearch,
     ) -> Option<StructureSearchResult> {
-        <E as mod_api::prelude::LevelsBackend>::level_find_nearest_structure(&*self.0, level, structure, parameters)
+        <E as mod_api::prelude::LevelsBackend>::level_find_nearest_structure(&self.0, level, structure, parameters)
     }
     fn level_get_sky_darken(&self, level: LevelRef) -> Option<i32> {
-        <E as mod_api::prelude::LevelsBackend>::level_get_sky_darken(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_get_sky_darken(&self.0, level)
     }
     fn level_block_floor_height(&self, level: LevelRef, pos: [i32; 3]) -> Option<f64> {
-        <E as mod_api::prelude::LevelsBackend>::level_block_floor_height(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_block_floor_height(&self.0, level, pos)
     }
     fn level_biome_at(&self, level: LevelRef, pos: [i32; 3]) -> Option<String> {
-        <E as mod_api::prelude::LevelsBackend>::level_biome_at(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_biome_at(&self.0, level, pos)
     }
     fn level_datapack_entries(
         &self,
         level: LevelRef,
         registry: &str,
     ) -> Option<Vec<String>> {
-        <E as mod_api::prelude::LevelsBackend>::level_datapack_entries(&*self.0, level, registry)
+        <E as mod_api::prelude::LevelsBackend>::level_datapack_entries(&self.0, level, registry)
     }
     fn level_datapack_handle(
         &self,
@@ -1957,14 +1957,14 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         registry: &str,
         entry: &str,
     ) -> Result<DatapackHandle, DatapackReadError> {
-        <E as mod_api::prelude::LevelsBackend>::level_datapack_handle(&*self.0, level, registry, entry)
+        <E as mod_api::prelude::LevelsBackend>::level_datapack_handle(&self.0, level, registry, entry)
     }
     fn level_datapack_read(
         &self,
         level: LevelRef,
         handle: &DatapackHandle,
     ) -> Result<Vec<(String, DatapackValue)>, DatapackReadError> {
-        <E as mod_api::prelude::LevelsBackend>::level_datapack_read(&*self.0, level, handle)
+        <E as mod_api::prelude::LevelsBackend>::level_datapack_read(&self.0, level, handle)
     }
     fn level_block_break_speed(
         &self,
@@ -1972,20 +1972,20 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         pos: [i32; 3],
         tool: Option<&ItemStack>,
     ) -> Option<f32> {
-        <E as mod_api::prelude::LevelsBackend>::level_block_break_speed(&*self.0, level, pos, tool)
+        <E as mod_api::prelude::LevelsBackend>::level_block_break_speed(&self.0, level, pos, tool)
     }
     fn level_client_biome(&self, level: LevelRef, pos: [i32; 3]) -> Option<String> {
-        <E as mod_api::prelude::LevelsBackend>::level_client_biome(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_client_biome(&self.0, level, pos)
     }
     fn level_biome_spawners(
         &self,
         level: LevelRef,
         biome: &str,
     ) -> Option<Vec<BiomeSpawners>> {
-        <E as mod_api::prelude::LevelsBackend>::level_biome_spawners(&*self.0, level, biome)
+        <E as mod_api::prelude::LevelsBackend>::level_biome_spawners(&self.0, level, biome)
     }
     fn level_biome_effects(&self, level: LevelRef, biome: &str) -> Option<BiomeEffects> {
-        <E as mod_api::prelude::LevelsBackend>::level_biome_effects(&*self.0, level, biome)
+        <E as mod_api::prelude::LevelsBackend>::level_biome_effects(&self.0, level, biome)
     }
     fn level_biome_in_tag(
         &self,
@@ -1993,51 +1993,51 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         biome: &str,
         tag: &str,
     ) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_biome_in_tag(&*self.0, level, biome, tag)
+        <E as mod_api::prelude::LevelsBackend>::level_biome_in_tag(&self.0, level, biome, tag)
     }
     fn level_biome_properties(
         &self,
         level: LevelRef,
         biome: &str,
     ) -> Option<BiomeProperties> {
-        <E as mod_api::prelude::LevelsBackend>::level_biome_properties(&*self.0, level, biome)
+        <E as mod_api::prelude::LevelsBackend>::level_biome_properties(&self.0, level, biome)
     }
     fn level_logical_height(&self, level: LevelRef) -> Option<i32> {
-        <E as mod_api::prelude::LevelsBackend>::level_logical_height(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_logical_height(&self.0, level)
     }
     fn level_world_border(&self, level: LevelRef) -> Option<[f64; 4]> {
-        <E as mod_api::prelude::LevelsBackend>::level_world_border(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_world_border(&self.0, level)
     }
     fn dimension_key_id(&self, key: DimensionKey) -> Option<String> {
-        <E as mod_api::prelude::LevelsBackend>::dimension_key_id(&*self.0, key)
+        <E as mod_api::prelude::LevelsBackend>::dimension_key_id(&self.0, key)
     }
     fn level_chunk_ref(&self, level: LevelRef, pos: [i32; 2]) -> Option<ChunkRef> {
-        <E as mod_api::prelude::LevelsBackend>::level_chunk_ref(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_chunk_ref(&self.0, level, pos)
     }
     fn chunk_forced(&self, chunk: ChunkRef) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::chunk_forced(&*self.0, chunk)
+        <E as mod_api::prelude::LevelsBackend>::chunk_forced(&self.0, chunk)
     }
     fn level_forced_chunks(&self, level: LevelRef) -> Option<Vec<[i32; 2]>> {
-        <E as mod_api::prelude::LevelsBackend>::level_forced_chunks(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_forced_chunks(&self.0, level)
     }
     fn level_mod_forced_chunks(
         &self,
         level: LevelRef,
         controller: TicketController,
     ) -> Option<Vec<(TicketOwner, [i32; 2], bool)>> {
-        <E as mod_api::prelude::LevelsBackend>::level_mod_forced_chunks(&*self.0, level, controller)
+        <E as mod_api::prelude::LevelsBackend>::level_mod_forced_chunks(&self.0, level, controller)
     }
     fn chunk_loaded(&self, chunk: ChunkRef) -> bool {
-        <E as mod_api::prelude::LevelsBackend>::chunk_loaded(&*self.0, chunk)
+        <E as mod_api::prelude::LevelsBackend>::chunk_loaded(&self.0, chunk)
     }
     fn chunk_status(&self, chunk: ChunkRef) -> Option<ChunkStatus> {
-        <E as mod_api::prelude::LevelsBackend>::chunk_status(&*self.0, chunk)
+        <E as mod_api::prelude::LevelsBackend>::chunk_status(&self.0, chunk)
     }
     fn chunk_is_slime_chunk(&self, chunk: ChunkRef) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::chunk_is_slime_chunk(&*self.0, chunk)
+        <E as mod_api::prelude::LevelsBackend>::chunk_is_slime_chunk(&self.0, chunk)
     }
     fn chunk_watchers(&self, chunk: ChunkRef) -> Option<Vec<PlayerRef>> {
-        <E as mod_api::prelude::LevelsBackend>::chunk_watchers(&*self.0, chunk)
+        <E as mod_api::prelude::LevelsBackend>::chunk_watchers(&self.0, chunk)
     }
     fn level_recipe_for(
         &self,
@@ -2045,10 +2045,10 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         recipe_type: &Identifier,
         inputs: &RecipeInput,
     ) -> Result<Option<RecipeMatch>, RecipeLookupError> {
-        <E as mod_api::prelude::LevelsBackend>::level_recipe_for(&*self.0, level, recipe_type, inputs)
+        <E as mod_api::prelude::LevelsBackend>::level_recipe_for(&self.0, level, recipe_type, inputs)
     }
     fn level_all_entities(&self, level: LevelRef) -> Option<Vec<EntityRef>> {
-        <E as mod_api::prelude::LevelsBackend>::level_all_entities(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_all_entities(&self.0, level)
     }
     fn level_entities_in(
         &self,
@@ -2056,13 +2056,13 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         min: [f64; 3],
         max: [f64; 3],
     ) -> Option<Vec<EntityRef>> {
-        <E as mod_api::prelude::LevelsBackend>::level_entities_in(&*self.0, level, min, max)
+        <E as mod_api::prelude::LevelsBackend>::level_entities_in(&self.0, level, min, max)
     }
     fn level_online_players(&self, level: LevelRef) -> Option<Vec<PlayerRef>> {
-        <E as mod_api::prelude::LevelsBackend>::level_online_players(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_online_players(&self.0, level)
     }
     fn level_block_state(&self, level: LevelRef, pos: [i32; 3]) -> Option<BlockState> {
-        <E as mod_api::prelude::LevelsBackend>::level_block_state(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_block_state(&self.0, level, pos)
     }
     fn level_block_transform(
         &self,
@@ -2073,10 +2073,10 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         pos: [i32; 3],
         hit: BlockHit,
     ) -> Option<BlockTransformPreview> {
-        <E as mod_api::prelude::LevelsBackend>::level_block_transform(&*self.0, level, player, hand, stack, pos, hit)
+        <E as mod_api::prelude::LevelsBackend>::level_block_transform(&self.0, level, player, hand, stack, pos, hit)
     }
     fn level_block(&self, level: LevelRef, pos: [i32; 3]) -> Option<BlockKey> {
-        <E as mod_api::prelude::LevelsBackend>::level_block(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_block(&self.0, level, pos)
     }
     fn level_block_property(
         &self,
@@ -2084,13 +2084,13 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         pos: [i32; 3],
         key: &str,
     ) -> Option<String> {
-        <E as mod_api::prelude::LevelsBackend>::level_block_property(&*self.0, level, pos, key)
+        <E as mod_api::prelude::LevelsBackend>::level_block_property(&self.0, level, pos, key)
     }
     fn level_in_place(&self, level: LevelRef) -> bool {
-        <E as mod_api::prelude::LevelsBackend>::level_in_place(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_in_place(&self.0, level)
     }
     fn level_is_loaded(&self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackend>::level_is_loaded(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_is_loaded(&self.0, level, pos)
     }
     fn level_brightness(
         &self,
@@ -2098,38 +2098,38 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         layer: LightLayer,
         pos: [i32; 3],
     ) -> Option<i32> {
-        <E as mod_api::prelude::LevelsBackend>::level_brightness(&*self.0, level, layer, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_brightness(&self.0, level, layer, pos)
     }
     fn level_height(&self, level: LevelRef) -> Option<(i32, i32)> {
-        <E as mod_api::prelude::LevelsBackend>::level_height(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_height(&self.0, level)
     }
     fn level_in_world_bounds(&self, level: LevelRef, pos: [i32; 3]) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_in_world_bounds(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_in_world_bounds(&self.0, level, pos)
     }
     fn level_in_spawnable_bounds(&self, level: LevelRef, pos: [i32; 3]) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_in_spawnable_bounds(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_in_spawnable_bounds(&self.0, level, pos)
     }
     fn level_entity_ticking(&self, level: LevelRef, pos: [i32; 3]) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_entity_ticking(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_entity_ticking(&self.0, level, pos)
     }
     fn level_should_tick_blocks_at(
         &self,
         level: LevelRef,
         pos: [i32; 3],
     ) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_should_tick_blocks_at(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_should_tick_blocks_at(&self.0, level, pos)
     }
     fn level_game_time(&self, level: LevelRef) -> Option<i64> {
-        <E as mod_api::prelude::LevelsBackend>::level_game_time(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_game_time(&self.0, level)
     }
     fn level_day_time(&self, level: LevelRef) -> Option<i64> {
-        <E as mod_api::prelude::LevelsBackend>::level_day_time(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_day_time(&self.0, level)
     }
     fn level_clock_time(&self, level: LevelRef) -> Option<i64> {
-        <E as mod_api::prelude::LevelsBackend>::level_clock_time(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_clock_time(&self.0, level)
     }
     fn level_fluid_flow(&self, level: LevelRef, pos: [i32; 3]) -> Option<Vec3> {
-        <E as mod_api::prelude::LevelsBackend>::level_fluid_flow(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_fluid_flow(&self.0, level, pos)
     }
     fn level_block_shape(
         &self,
@@ -2138,7 +2138,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         pos: [i32; 3],
         kind: BlockShapeKind,
     ) -> Option<Vec<[f64; 6]>> {
-        <E as mod_api::prelude::LevelsBackend>::level_block_shape(&*self.0, level, state, pos, kind)
+        <E as mod_api::prelude::LevelsBackend>::level_block_shape(&self.0, level, state, pos, kind)
     }
     fn level_clip(
         &self,
@@ -2148,7 +2148,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         blocks: ClipBlock,
         fluids: ClipFluid,
     ) -> Option<ClipHit> {
-        <E as mod_api::prelude::LevelsBackend>::level_clip(&*self.0, level, from, to, blocks, fluids)
+        <E as mod_api::prelude::LevelsBackend>::level_clip(&self.0, level, from, to, blocks, fluids)
     }
     fn level_block_face_sturdy(
         &self,
@@ -2157,7 +2157,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         face: BlockFace,
         support: SupportType,
     ) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_block_face_sturdy(&*self.0, level, pos, face, support)
+        <E as mod_api::prelude::LevelsBackend>::level_block_face_sturdy(&self.0, level, pos, face, support)
     }
     fn level_signal(
         &self,
@@ -2165,7 +2165,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         pos: [i32; 3],
         direction: Direction,
     ) -> Option<i32> {
-        <E as mod_api::prelude::LevelsBackend>::level_signal(&*self.0, level, pos, direction)
+        <E as mod_api::prelude::LevelsBackend>::level_signal(&self.0, level, pos, direction)
     }
     fn level_direct_signal(
         &self,
@@ -2173,107 +2173,107 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         pos: [i32; 3],
         direction: Direction,
     ) -> Option<i32> {
-        <E as mod_api::prelude::LevelsBackend>::level_direct_signal(&*self.0, level, pos, direction)
+        <E as mod_api::prelude::LevelsBackend>::level_direct_signal(&self.0, level, pos, direction)
     }
     fn level_direct_signal_to(&self, level: LevelRef, pos: [i32; 3]) -> Option<i32> {
-        <E as mod_api::prelude::LevelsBackend>::level_direct_signal_to(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_direct_signal_to(&self.0, level, pos)
     }
     fn level_best_neighbor_signal(&self, level: LevelRef, pos: [i32; 3]) -> Option<i32> {
-        <E as mod_api::prelude::LevelsBackend>::level_best_neighbor_signal(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_best_neighbor_signal(&self.0, level, pos)
     }
     fn level_has_neighbor_signal(&self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackend>::level_has_neighbor_signal(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_has_neighbor_signal(&self.0, level, pos)
     }
     fn level_dimension_shape(&self, level: LevelRef) -> Option<LevelDimensionShape> {
-        <E as mod_api::prelude::LevelsBackend>::level_dimension_shape(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_dimension_shape(&self.0, level)
     }
     fn level_dimension_type(&self, level: LevelRef) -> Option<LevelDimensionType> {
-        <E as mod_api::prelude::LevelsBackend>::level_dimension_type(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_dimension_type(&self.0, level)
     }
     fn level_sea_level(&self, level: LevelRef) -> Option<i32> {
-        <E as mod_api::prelude::LevelsBackend>::level_sea_level(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_sea_level(&self.0, level)
     }
     fn level_seed(&self, level: LevelRef) -> Option<i64> {
-        <E as mod_api::prelude::LevelsBackend>::level_seed(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_seed(&self.0, level)
     }
     fn level_difficulty(&self, level: LevelRef) -> Option<&'static str> {
-        <E as mod_api::prelude::LevelsBackend>::level_difficulty(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_difficulty(&self.0, level)
     }
     fn level_local_difficulty(
         &self,
         level: LevelRef,
         pos: [i32; 3],
     ) -> Option<Difficulty> {
-        <E as mod_api::prelude::LevelsBackend>::level_local_difficulty(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_local_difficulty(&self.0, level, pos)
     }
     fn level_game_rule_bool(
         &self,
         level: LevelRef,
         key: BoolGameRuleKey,
     ) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_game_rule_bool(&*self.0, level, key)
+        <E as mod_api::prelude::LevelsBackend>::level_game_rule_bool(&self.0, level, key)
     }
     fn level_game_rule(
         &self,
         level: LevelRef,
         rule: &str,
     ) -> Result<Option<GameRuleValue>, LevelReadError> {
-        <E as mod_api::prelude::LevelsBackend>::level_game_rule(&*self.0, level, rule)
+        <E as mod_api::prelude::LevelsBackend>::level_game_rule(&self.0, level, rule)
     }
     fn level_game_rules(
         &self,
         level: LevelRef,
     ) -> Result<Vec<(String, GameRuleValue)>, LevelReadError> {
-        <E as mod_api::prelude::LevelsBackend>::level_game_rules(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_game_rules(&self.0, level)
     }
     fn level_weather(&self, level: LevelRef) -> Option<(f32, f32)> {
-        <E as mod_api::prelude::LevelsBackend>::level_weather(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_weather(&self.0, level)
     }
     fn level_is_raining(&self, level: LevelRef) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_is_raining(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_is_raining(&self.0, level)
     }
     fn level_is_raining_at(&self, level: LevelRef, pos: [i32; 3]) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_is_raining_at(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_is_raining_at(&self.0, level, pos)
     }
     fn level_enabled_features(&self, level: LevelRef) -> Option<FeatureFlags> {
-        <E as mod_api::prelude::LevelsBackend>::level_enabled_features(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_enabled_features(&self.0, level)
     }
     fn level_is_thundering(&self, level: LevelRef) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_is_thundering(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_is_thundering(&self.0, level)
     }
     fn level_random(&self, level: LevelRef) -> Option<LegacyRandom> {
-        <E as mod_api::prelude::LevelsBackend>::level_random(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_random(&self.0, level)
     }
     fn level_raid(&self, level: LevelRef, id: i32) -> Option<RaidRef> {
-        <E as mod_api::prelude::LevelsBackend>::level_raid(&*self.0, level, id)
+        <E as mod_api::prelude::LevelsBackend>::level_raid(&self.0, level, id)
     }
     fn level_raid_at(&self, level: LevelRef, pos: [i32; 3]) -> Option<RaidRef> {
-        <E as mod_api::prelude::LevelsBackend>::level_raid_at(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_raid_at(&self.0, level, pos)
     }
     fn level_raids(&self, level: LevelRef) -> Option<Vec<RaidRef>> {
-        <E as mod_api::prelude::LevelsBackend>::level_raids(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_raids(&self.0, level)
     }
     fn level_fluid_state(&self, level: LevelRef, pos: [i32; 3]) -> Option<FluidState> {
-        <E as mod_api::prelude::LevelsBackend>::level_fluid_state(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_fluid_state(&self.0, level, pos)
     }
     fn level_loaded_chunks(&self, level: LevelRef) -> Option<Vec<ChunkRef>> {
-        <E as mod_api::prelude::LevelsBackend>::level_loaded_chunks(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_loaded_chunks(&self.0, level)
     }
     fn level_collision_boxes(
         &self,
         level: LevelRef,
         aabb: [f64; 6],
     ) -> Option<Vec<[f64; 6]>> {
-        <E as mod_api::prelude::LevelsBackend>::level_collision_boxes(&*self.0, level, aabb)
+        <E as mod_api::prelude::LevelsBackend>::level_collision_boxes(&self.0, level, aabb)
     }
     fn level_respawn_data(&self, level: LevelRef) -> Option<RespawnData> {
-        <E as mod_api::prelude::LevelsBackend>::level_respawn_data(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_respawn_data(&self.0, level)
     }
     fn level_map_data(&self, level: LevelRef, id: i32) -> Option<MapState> {
-        <E as mod_api::prelude::LevelsBackend>::level_map_data(&*self.0, level, id)
+        <E as mod_api::prelude::LevelsBackend>::level_map_data(&self.0, level, id)
     }
     fn level_can_see_sky(&self, level: LevelRef, pos: [i32; 3]) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_can_see_sky(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_can_see_sky(&self.0, level, pos)
     }
     fn level_line_of_sight(
         &self,
@@ -2281,17 +2281,17 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         from: [f64; 3],
         to: [f64; 3],
     ) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_line_of_sight(&*self.0, level, from, to)
+        <E as mod_api::prelude::LevelsBackend>::level_line_of_sight(&self.0, level, from, to)
     }
     fn level_has_collisions(&self, level: LevelRef, aabb: [f64; 6]) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_has_collisions(&*self.0, level, aabb)
+        <E as mod_api::prelude::LevelsBackend>::level_has_collisions(&self.0, level, aabb)
     }
     fn level_fluid_shape(
         &self,
         level: LevelRef,
         pos: [i32; 3],
     ) -> Option<Vec<[f64; 6]>> {
-        <E as mod_api::prelude::LevelsBackend>::level_fluid_shape(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_fluid_shape(&self.0, level, pos)
     }
     fn level_fluid_tick_delay(
         &self,
@@ -2299,17 +2299,17 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         fluid: FluidKey,
         pos: [i32; 3],
     ) -> Option<i32> {
-        <E as mod_api::prelude::LevelsBackend>::level_fluid_tick_delay(&*self.0, level, fluid, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_fluid_tick_delay(&self.0, level, fluid, pos)
     }
     fn level_fluid_height(&self, level: LevelRef, pos: [i32; 3]) -> Option<f32> {
-        <E as mod_api::prelude::LevelsBackend>::level_fluid_height(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_fluid_height(&self.0, level, pos)
     }
     fn level_fluid_height_for_camera(
         &self,
         level: LevelRef,
         pos: [i32; 3],
     ) -> Option<f32> {
-        <E as mod_api::prelude::LevelsBackend>::level_fluid_height_for_camera(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_fluid_height_for_camera(&self.0, level, pos)
     }
     fn level_fluid_can_be_replaced_with(
         &self,
@@ -2318,7 +2318,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         fluid: FluidKey,
         direction: Direction,
     ) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_fluid_can_be_replaced_with(&*self.0, level, pos, fluid, direction)
+        <E as mod_api::prelude::LevelsBackend>::level_fluid_can_be_replaced_with(&self.0, level, pos, fluid, direction)
     }
     fn level_ray_trace_entities(
         &self,
@@ -2328,40 +2328,40 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackend for HostOf<'_, E> {
         margin: f64,
         exclude: Option<EntityRef>,
     ) -> Option<Vec<EntityRayHit>> {
-        <E as mod_api::prelude::LevelsBackend>::level_ray_trace_entities(&*self.0, level, from, to, margin, exclude)
+        <E as mod_api::prelude::LevelsBackend>::level_ray_trace_entities(&self.0, level, from, to, margin, exclude)
     }
     fn level_spawn_limits(&self, level: LevelRef) -> Option<SpawnLimits> {
-        <E as mod_api::prelude::LevelsBackend>::level_spawn_limits(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_spawn_limits(&self.0, level)
     }
     fn level_spawn_flags(&self, level: LevelRef) -> Option<SpawnFlags> {
-        <E as mod_api::prelude::LevelsBackend>::level_spawn_flags(&*self.0, level)
+        <E as mod_api::prelude::LevelsBackend>::level_spawn_flags(&self.0, level)
     }
     fn level_can_spawn_entities_in_chunk(
         &self,
         level: LevelRef,
         pos: [i32; 2],
     ) -> Option<bool> {
-        <E as mod_api::prelude::LevelsBackend>::level_can_spawn_entities_in_chunk(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_can_spawn_entities_in_chunk(&self.0, level, pos)
     }
     fn level_capability_generation(
         &self,
         level: LevelRef,
         pos: [i32; 3],
     ) -> Option<u64> {
-        <E as mod_api::prelude::LevelsBackend>::level_capability_generation(&*self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackend>::level_capability_generation(&self.0, level, pos)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<E> {
     fn level_add_water_ticket(
         &mut self,
         level: LevelRef,
         min: [i32; 3],
         max: [i32; 3],
     ) -> Option<WaterTicket> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_add_water_ticket(&mut *self.0, level, min, max)
+        <E as mod_api::prelude::LevelsBackendMut>::level_add_water_ticket(&mut self.0, level, min, max)
     }
     fn water_ticket_remove(&mut self, water_ticket: WaterTicket) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::water_ticket_remove(&mut *self.0, water_ticket)
+        <E as mod_api::prelude::LevelsBackendMut>::water_ticket_remove(&mut self.0, water_ticket)
     }
     fn level_spawn_mob(
         &mut self,
@@ -2370,26 +2370,26 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         pos: [f64; 3],
         reason: SpawnReason,
     ) -> Option<EntityRef> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_spawn_mob(&mut *self.0, level, kind, pos, reason)
+        <E as mod_api::prelude::LevelsBackendMut>::level_spawn_mob(&mut self.0, level, kind, pos, reason)
     }
     fn level_set_spawn_limits(&mut self, level: LevelRef, limits: SpawnLimits) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_spawn_limits(&mut *self.0, level, limits)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_spawn_limits(&mut self.0, level, limits)
     }
     fn level_set_spawn_flags(&mut self, level: LevelRef, flags: SpawnFlags) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_spawn_flags(&mut *self.0, level, flags)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_spawn_flags(&mut self.0, level, flags)
     }
     fn level_register_passage(
         &mut self,
         level: LevelRef,
         passage: Passage,
     ) -> Result<PassageId, PassageRegistrationError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_register_passage(&mut *self.0, level, passage)
+        <E as mod_api::prelude::LevelsBackendMut>::level_register_passage(&mut self.0, level, passage)
     }
     fn level_remove_passage(&mut self, level: LevelRef, id: PassageId) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_remove_passage(&mut *self.0, level, id)
+        <E as mod_api::prelude::LevelsBackendMut>::level_remove_passage(&mut self.0, level, id)
     }
     fn chunk_set_forced(&mut self, chunk: ChunkRef, forced: bool) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::chunk_set_forced(&mut *self.0, chunk, forced)
+        <E as mod_api::prelude::LevelsBackendMut>::chunk_set_forced(&mut self.0, chunk, forced)
     }
     fn chunk_set_mod_forced(
         &mut self,
@@ -2399,7 +2399,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         forced: bool,
         natural_spawning: bool,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::chunk_set_mod_forced(&mut *self.0, chunk, controller, owner, forced, natural_spawning)
+        <E as mod_api::prelude::LevelsBackendMut>::chunk_set_mod_forced(&mut self.0, chunk, controller, owner, forced, natural_spawning)
     }
     fn level_set_block(
         &mut self,
@@ -2408,7 +2408,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         state: BlockState,
         flags: BlockUpdateFlags,
     ) -> Result<bool, LevelWriteError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_block(&mut *self.0, level, pos, state, flags)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_block(&mut self.0, level, pos, state, flags)
     }
     fn level_remove_block(
         &mut self,
@@ -2416,13 +2416,13 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         pos: [i32; 3],
         moved: bool,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_remove_block(&mut *self.0, level, pos, moved)
+        <E as mod_api::prelude::LevelsBackendMut>::level_remove_block(&mut self.0, level, pos, moved)
     }
     fn level_check_light(&mut self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_check_light(&mut *self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackendMut>::level_check_light(&mut self.0, level, pos)
     }
     fn level_invalidate_capabilities(&mut self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_invalidate_capabilities(&mut *self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackendMut>::level_invalidate_capabilities(&mut self.0, level, pos)
     }
     fn level_destroy_block(
         &mut self,
@@ -2432,7 +2432,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         tool: Option<&ItemStack>,
         collect: bool,
     ) -> Result<Option<Vec<ItemStack>>, StackWriteError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_destroy_block(&mut *self.0, level, pos, drop, tool, collect)
+        <E as mod_api::prelude::LevelsBackendMut>::level_destroy_block(&mut self.0, level, pos, drop, tool, collect)
     }
     fn level_set_respawn_data(
         &mut self,
@@ -2441,10 +2441,10 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         yaw: f32,
         pitch: f32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_respawn_data(&mut *self.0, level, pos, yaw, pitch)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_respawn_data(&mut self.0, level, pos, yaw, pitch)
     }
     fn level_set_clock_time(&mut self, level: LevelRef, time: i64) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_clock_time(&mut *self.0, level, time)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_clock_time(&mut self.0, level, time)
     }
     fn level_set_game_rule(
         &mut self,
@@ -2452,23 +2452,23 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         rule: &str,
         value: GameRuleValue,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_game_rule(&mut *self.0, level, rule, value)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_game_rule(&mut self.0, level, rule, value)
     }
     fn level_set_map_data(&mut self, level: LevelRef, id: i32, colors: &[u8]) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_map_data(&mut *self.0, level, id, colors)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_map_data(&mut self.0, level, id, colors)
     }
     fn level_block_tick(&mut self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_block_tick(&mut *self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackendMut>::level_block_tick(&mut self.0, level, pos)
     }
     fn level_request_save(&mut self, level: LevelRef) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_request_save(&mut *self.0, level)
+        <E as mod_api::prelude::LevelsBackendMut>::level_request_save(&mut self.0, level)
     }
     fn level_set_world_border_center(
         &mut self,
         level: LevelRef,
         center: [f64; 2],
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_world_border_center(&mut *self.0, level, center)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_world_border_center(&mut self.0, level, center)
     }
     fn level_set_world_border_size(
         &mut self,
@@ -2476,7 +2476,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         size: f64,
         ticks: i64,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_world_border_size(&mut *self.0, level, size, ticks)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_world_border_size(&mut self.0, level, size, ticks)
     }
     fn level_set_world_border_damage(
         &mut self,
@@ -2484,7 +2484,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         per_block: f64,
         safe_zone: f64,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_world_border_damage(&mut *self.0, level, per_block, safe_zone)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_world_border_damage(&mut self.0, level, per_block, safe_zone)
     }
     fn level_set_world_border_warning(
         &mut self,
@@ -2492,7 +2492,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         distance: i32,
         ticks: i32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_world_border_warning(&mut *self.0, level, distance, ticks)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_world_border_warning(&mut self.0, level, distance, ticks)
     }
     fn level_set_weather(
         &mut self,
@@ -2502,7 +2502,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         raining: bool,
         thundering: bool,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_weather(&mut *self.0, level, clear_ticks, weather_ticks, raining, thundering)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_weather(&mut self.0, level, clear_ticks, weather_ticks, raining, thundering)
     }
     fn level_set_weather_levels(
         &mut self,
@@ -2510,20 +2510,20 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         rain: f32,
         thunder: f32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_weather_levels(&mut *self.0, level, rain, thunder)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_weather_levels(&mut self.0, level, rain, thunder)
     }
     fn level_block_random_tick(&mut self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_block_random_tick(&mut *self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackendMut>::level_block_random_tick(&mut self.0, level, pos)
     }
     fn level_fluid_tick(&mut self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_fluid_tick(&mut *self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackendMut>::level_fluid_tick(&mut self.0, level, pos)
     }
     fn level_lightning_target(
         &mut self,
         level: LevelRef,
         pos: [i32; 3],
     ) -> Option<[i32; 3]> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_lightning_target(&mut *self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackendMut>::level_lightning_target(&mut self.0, level, pos)
     }
     fn level_block_drops(
         &mut self,
@@ -2532,7 +2532,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         tool: Option<&ItemStack>,
         entity: Option<EntityRef>,
     ) -> Result<Option<Vec<ItemStack>>, StackWriteError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_block_drops(&mut *self.0, level, pos, tool, entity)
+        <E as mod_api::prelude::LevelsBackendMut>::level_block_drops(&mut self.0, level, pos, tool, entity)
     }
     fn level_roll_loot(
         &mut self,
@@ -2542,7 +2542,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         tool: Option<&ItemStack>,
         entity: Option<EntityRef>,
     ) -> Result<Option<Vec<ItemStack>>, StackWriteError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_roll_loot(&mut *self.0, level, table, origin, tool, entity)
+        <E as mod_api::prelude::LevelsBackendMut>::level_roll_loot(&mut self.0, level, table, origin, tool, entity)
     }
     fn level_set_break_progress(
         &mut self,
@@ -2551,10 +2551,10 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         pos: [i32; 3],
         progress: i32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_break_progress(&mut *self.0, level, breaker, pos, progress)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_break_progress(&mut self.0, level, breaker, pos, progress)
     }
     fn level_send_block_updated(&mut self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_send_block_updated(&mut *self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackendMut>::level_send_block_updated(&mut self.0, level, pos)
     }
     fn level_play_sound(
         &mut self,
@@ -2565,7 +2565,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         volume: f32,
         pitch: f32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_play_sound(&mut *self.0, level, sound, at, source, volume, pitch)
+        <E as mod_api::prelude::LevelsBackendMut>::level_play_sound(&mut self.0, level, sound, at, source, volume, pitch)
     }
     fn level_send_particles(
         &mut self,
@@ -2577,7 +2577,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         speed: f64,
         count: i32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_send_particles(&mut *self.0, level, options, state, at, spread, speed, count)
+        <E as mod_api::prelude::LevelsBackendMut>::level_send_particles(&mut self.0, level, options, state, at, spread, speed, count)
     }
     fn level_level_event(
         &mut self,
@@ -2586,7 +2586,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         pos: [i32; 3],
         data: i32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_level_event(&mut *self.0, level, id, pos, data)
+        <E as mod_api::prelude::LevelsBackendMut>::level_level_event(&mut self.0, level, id, pos, data)
     }
     fn level_global_level_event(
         &mut self,
@@ -2595,7 +2595,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         pos: [i32; 3],
         data: i32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_global_level_event(&mut *self.0, level, id, pos, data)
+        <E as mod_api::prelude::LevelsBackendMut>::level_global_level_event(&mut self.0, level, id, pos, data)
     }
     fn level_game_event(
         &mut self,
@@ -2604,7 +2604,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         at: [f64; 3],
         context: GameEventContext,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_game_event(&mut *self.0, level, event, at, context)
+        <E as mod_api::prelude::LevelsBackendMut>::level_game_event(&mut self.0, level, event, at, context)
     }
     fn level_block_event(
         &mut self,
@@ -2614,7 +2614,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         a: i32,
         b: i32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_block_event(&mut *self.0, level, pos, block, a, b)
+        <E as mod_api::prelude::LevelsBackendMut>::level_block_event(&mut self.0, level, pos, block, a, b)
     }
     fn level_explode(
         &mut self,
@@ -2625,7 +2625,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         fire: bool,
         interaction: ExplosionInteraction,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_explode(&mut *self.0, level, source, center, radius, fire, interaction)
+        <E as mod_api::prelude::LevelsBackendMut>::level_explode(&mut self.0, level, source, center, radius, fire, interaction)
     }
     fn level_strike_lightning(
         &mut self,
@@ -2633,7 +2633,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         at: [f64; 3],
         visual_only: bool,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_strike_lightning(&mut *self.0, level, at, visual_only)
+        <E as mod_api::prelude::LevelsBackendMut>::level_strike_lightning(&mut self.0, level, at, visual_only)
     }
     fn level_pop_resource(
         &mut self,
@@ -2641,7 +2641,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         pos: [i32; 3],
         stack: ItemStack,
     ) -> Result<Option<EntityRef>, StackWriteError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_pop_resource(&mut *self.0, level, pos, stack)
+        <E as mod_api::prelude::LevelsBackendMut>::level_pop_resource(&mut self.0, level, pos, stack)
     }
     fn level_spawn_item(
         &mut self,
@@ -2652,7 +2652,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         stack: ItemStack,
         pickup_delay: u32,
     ) -> Result<Option<EntityRef>, StackWriteError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_spawn_item(&mut *self.0, level, x, y, z, stack, pickup_delay)
+        <E as mod_api::prelude::LevelsBackendMut>::level_spawn_item(&mut self.0, level, x, y, z, stack, pickup_delay)
     }
     fn level_spawn_item_with_motion(
         &mut self,
@@ -2664,7 +2664,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         motion: [f64; 3],
         pickup_delay: u32,
     ) -> Result<Option<EntityRef>, StackWriteError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_spawn_item_with_motion(&mut *self.0, level, x, y, z, stack, motion, pickup_delay)
+        <E as mod_api::prelude::LevelsBackendMut>::level_spawn_item_with_motion(&mut self.0, level, x, y, z, stack, motion, pickup_delay)
     }
     fn level_award_experience(
         &mut self,
@@ -2674,7 +2674,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         z: f64,
         amount: u32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_award_experience(&mut *self.0, level, x, y, z, amount)
+        <E as mod_api::prelude::LevelsBackendMut>::level_award_experience(&mut self.0, level, x, y, z, amount)
     }
     fn level_update_neighbors(
         &mut self,
@@ -2683,7 +2683,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         source: BlockState,
         update: NeighbourUpdate,
     ) -> Result<bool, LevelWriteError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_update_neighbors(&mut *self.0, level, pos, source, update)
+        <E as mod_api::prelude::LevelsBackendMut>::level_update_neighbors(&mut self.0, level, pos, source, update)
     }
     fn level_neighbor_changed(
         &mut self,
@@ -2691,19 +2691,19 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsBackendMut for HostOf<'_, E
         pos: [i32; 3],
         source: BlockState,
     ) -> Result<bool, LevelWriteError> {
-        <E as mod_api::prelude::LevelsBackendMut>::level_neighbor_changed(&mut *self.0, level, pos, source)
+        <E as mod_api::prelude::LevelsBackendMut>::level_neighbor_changed(&mut self.0, level, pos, source)
     }
     fn level_set_random(&mut self, level: LevelRef, random: LegacyRandom) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_random(&mut *self.0, level, random)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_random(&mut self.0, level, random)
     }
     fn level_bone_meal(&mut self, level: LevelRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_bone_meal(&mut *self.0, level, pos)
+        <E as mod_api::prelude::LevelsBackendMut>::level_bone_meal(&mut self.0, level, pos)
     }
     fn level_set_biome(&mut self, level: LevelRef, pos: [i32; 3], biome: &str) -> bool {
-        <E as mod_api::prelude::LevelsBackendMut>::level_set_biome(&mut *self.0, level, pos, biome)
+        <E as mod_api::prelude::LevelsBackendMut>::level_set_biome(&mut self.0, level, pos, biome)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::LevelsClientBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::LevelsClientBackendMut for HostOf<E> {
     fn level_set_client_break_progress(
         &mut self,
         level: LevelRef,
@@ -2711,199 +2711,199 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LevelsClientBackendMut for HostOf
         pos: [i32; 3],
         progress: i32,
     ) -> bool {
-        <E as mod_api::prelude::LevelsClientBackendMut>::level_set_client_break_progress(&mut *self.0, level, breaker, pos, progress)
+        <E as mod_api::prelude::LevelsClientBackendMut>::level_set_client_break_progress(&mut self.0, level, breaker, pos, progress)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::LivingHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::LivingHost for HostOf<E> {
     fn living(&self, entity: EntityRef) -> Option<LivingRef> {
-        <E as mod_api::prelude::LivingHost>::living(&*self.0, entity)
+        <E as mod_api::prelude::LivingHost>::living(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackend for HostOf<E> {
     fn living_effect(
         &self,
         living: LivingRef,
         effect: EffectKey,
     ) -> Option<ActiveEffect> {
-        <E as mod_api::prelude::LivingBackend>::living_effect(&*self.0, living, effect)
+        <E as mod_api::prelude::LivingBackend>::living_effect(&self.0, living, effect)
     }
     fn living_effects(&self, living: LivingRef) -> Option<Vec<ActiveEffect>> {
-        <E as mod_api::prelude::LivingBackend>::living_effects(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_effects(&self.0, living)
     }
     fn living_potion_affected(&self, living: LivingRef, effect: EffectKey) -> bool {
-        <E as mod_api::prelude::LivingBackend>::living_potion_affected(&*self.0, living, effect)
+        <E as mod_api::prelude::LivingBackend>::living_potion_affected(&self.0, living, effect)
     }
     fn living_gliding_ticks(&self, living: LivingRef) -> Option<i32> {
-        <E as mod_api::prelude::LivingBackend>::living_gliding_ticks(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_gliding_ticks(&self.0, living)
     }
     fn living_is_gliding(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_is_gliding(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_is_gliding(&self.0, living)
     }
     fn living_is_sleeping(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_is_sleeping(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_is_sleeping(&self.0, living)
     }
     fn living_sleeping_pos(&self, living: LivingRef) -> Option<[i32; 3]> {
-        <E as mod_api::prelude::LivingBackend>::living_sleeping_pos(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_sleeping_pos(&self.0, living)
     }
     fn living_is_jumping(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_is_jumping(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_is_jumping(&self.0, living)
     }
     fn living_is_climbing(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_is_climbing(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_is_climbing(&self.0, living)
     }
     fn living_baby(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_baby(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_baby(&self.0, living)
     }
     fn living_health(&self, living: LivingRef) -> Option<f32> {
-        <E as mod_api::prelude::LivingBackend>::living_health(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_health(&self.0, living)
     }
     fn living_absorption(&self, living: LivingRef) -> Option<f32> {
-        <E as mod_api::prelude::LivingBackend>::living_absorption(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_absorption(&self.0, living)
     }
     fn living_max_health(&self, living: LivingRef) -> Option<f32> {
-        <E as mod_api::prelude::LivingBackend>::living_max_health(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_max_health(&self.0, living)
     }
     fn living_alive(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_alive(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_alive(&self.0, living)
     }
     fn living_kill_credit(&self, living: LivingRef) -> Option<EntityRef> {
-        <E as mod_api::prelude::LivingBackend>::living_kill_credit(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_kill_credit(&self.0, living)
     }
     fn living_last_attacker(&self, living: LivingRef) -> Option<EntityRef> {
-        <E as mod_api::prelude::LivingBackend>::living_last_attacker(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_last_attacker(&self.0, living)
     }
     fn living_has_line_of_sight(
         &self,
         living: LivingRef,
         target: EntityRef,
     ) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_has_line_of_sight(&*self.0, living, target)
+        <E as mod_api::prelude::LivingBackend>::living_has_line_of_sight(&self.0, living, target)
     }
     fn living_attribute_value(&self, living: LivingRef, id: &str) -> Option<f64> {
-        <E as mod_api::prelude::LivingBackend>::living_attribute_value(&*self.0, living, id)
+        <E as mod_api::prelude::LivingBackend>::living_attribute_value(&self.0, living, id)
     }
     fn living_attribute_base(&self, living: LivingRef, id: &str) -> Option<f64> {
-        <E as mod_api::prelude::LivingBackend>::living_attribute_base(&*self.0, living, id)
+        <E as mod_api::prelude::LivingBackend>::living_attribute_base(&self.0, living, id)
     }
     fn living_attributes(&self, living: LivingRef) -> Option<Vec<Identifier>> {
-        <E as mod_api::prelude::LivingBackend>::living_attributes(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_attributes(&self.0, living)
     }
     fn living_attribute_modifiers(
         &self,
         living: LivingRef,
         id: &str,
     ) -> Option<Vec<AttributeModifier>> {
-        <E as mod_api::prelude::LivingBackend>::living_attribute_modifiers(&*self.0, living, id)
+        <E as mod_api::prelude::LivingBackend>::living_attribute_modifiers(&self.0, living, id)
     }
     fn living_equipment(
         &self,
         living: LivingRef,
         slot: EquipmentSlot,
     ) -> Option<ItemStack> {
-        <E as mod_api::prelude::LivingBackend>::living_equipment(&*self.0, living, slot)
+        <E as mod_api::prelude::LivingBackend>::living_equipment(&self.0, living, slot)
     }
     fn living_hand_item(&self, living: LivingRef, hand: Hand) -> Option<ItemStack> {
-        <E as mod_api::prelude::LivingBackend>::living_hand_item(&*self.0, living, hand)
+        <E as mod_api::prelude::LivingBackend>::living_hand_item(&self.0, living, hand)
     }
     fn living_weapon_item(&self, living: LivingRef) -> Option<ItemStack> {
-        <E as mod_api::prelude::LivingBackend>::living_weapon_item(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_weapon_item(&self.0, living)
     }
     fn living_is_tamed(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_is_tamed(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_is_tamed(&self.0, living)
     }
     fn living_owner(&self, living: LivingRef) -> Option<u128> {
-        <E as mod_api::prelude::LivingBackend>::living_owner(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_owner(&self.0, living)
     }
     fn living_item_use_remaining(&self, living: LivingRef) -> Option<i32> {
-        <E as mod_api::prelude::LivingBackend>::living_item_use_remaining(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_item_use_remaining(&self.0, living)
     }
     fn living_used_item_hand(&self, living: LivingRef) -> Option<Hand> {
-        <E as mod_api::prelude::LivingBackend>::living_used_item_hand(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_used_item_hand(&self.0, living)
     }
     fn living_is_blocking(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_is_blocking(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_is_blocking(&self.0, living)
     }
     fn living_dimensions_for_pose(
         &self,
         living: LivingRef,
         pose: Pose,
     ) -> Option<[f64; 3]> {
-        <E as mod_api::prelude::LivingBackend>::living_dimensions_for_pose(&*self.0, living, pose)
+        <E as mod_api::prelude::LivingBackend>::living_dimensions_for_pose(&self.0, living, pose)
     }
     fn living_can_use_portal(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_can_use_portal(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_can_use_portal(&self.0, living)
     }
     fn living_in_melee_range(
         &self,
         living: LivingRef,
         target: EntityRef,
     ) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_in_melee_range(&*self.0, living, target)
+        <E as mod_api::prelude::LivingBackend>::living_in_melee_range(&self.0, living, target)
     }
     fn living_can_freeze(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_can_freeze(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_can_freeze(&self.0, living)
     }
     fn living_can_breathe_underwater(&self, living: LivingRef) -> Option<bool> {
-        <E as mod_api::prelude::LivingBackend>::living_can_breathe_underwater(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_can_breathe_underwater(&self.0, living)
     }
     fn living_bed_orientation(&self, living: LivingRef) -> Option<Direction> {
-        <E as mod_api::prelude::LivingBackend>::living_bed_orientation(&*self.0, living)
+        <E as mod_api::prelude::LivingBackend>::living_bed_orientation(&self.0, living)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::LivingClientBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::LivingClientBackend for HostOf<E> {
     fn living_effect_blend_factor(
         &self,
         living: LivingRef,
         effect: EffectKey,
         partial: f32,
     ) -> Option<f32> {
-        <E as mod_api::prelude::LivingClientBackend>::living_effect_blend_factor(&*self.0, living, effect, partial)
+        <E as mod_api::prelude::LivingClientBackend>::living_effect_blend_factor(&self.0, living, effect, partial)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<E> {
     fn living_apply_consume_effect(
         &mut self,
         living: LivingRef,
         stack: &ItemStack,
         index: usize,
     ) -> Result<Option<bool>, StackWriteError> {
-        <E as mod_api::prelude::LivingBackendMut>::living_apply_consume_effect(&mut *self.0, living, stack, index)
+        <E as mod_api::prelude::LivingBackendMut>::living_apply_consume_effect(&mut self.0, living, stack, index)
     }
     fn living_add_effect(&mut self, living: LivingRef, effect: &ActiveEffect) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_add_effect(&mut *self.0, living, effect)
+        <E as mod_api::prelude::LivingBackendMut>::living_add_effect(&mut self.0, living, effect)
     }
     fn living_remove_effect(&mut self, living: LivingRef, effect: EffectKey) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_remove_effect(&mut *self.0, living, effect)
+        <E as mod_api::prelude::LivingBackendMut>::living_remove_effect(&mut self.0, living, effect)
     }
     fn living_remove_all_effects(&mut self, living: LivingRef) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_remove_all_effects(&mut *self.0, living)
+        <E as mod_api::prelude::LivingBackendMut>::living_remove_all_effects(&mut self.0, living)
     }
     fn living_stop_gliding(&mut self, living: LivingRef) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_stop_gliding(&mut *self.0, living)
+        <E as mod_api::prelude::LivingBackendMut>::living_stop_gliding(&mut self.0, living)
     }
     fn living_start_sleeping(&mut self, living: LivingRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_start_sleeping(&mut *self.0, living, pos)
+        <E as mod_api::prelude::LivingBackendMut>::living_start_sleeping(&mut self.0, living, pos)
     }
     fn living_stop_sleeping(&mut self, living: LivingRef) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_stop_sleeping(&mut *self.0, living)
+        <E as mod_api::prelude::LivingBackendMut>::living_stop_sleeping(&mut self.0, living)
     }
     fn living_set_sleeping_pos(&mut self, living: LivingRef, pos: [i32; 3]) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_sleeping_pos(&mut *self.0, living, pos)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_sleeping_pos(&mut self.0, living, pos)
     }
     fn living_clear_sleeping_pos(&mut self, living: LivingRef) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_clear_sleeping_pos(&mut *self.0, living)
+        <E as mod_api::prelude::LivingBackendMut>::living_clear_sleeping_pos(&mut self.0, living)
     }
     fn living_set_is_jumping(&mut self, living: LivingRef, jumping: bool) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_is_jumping(&mut *self.0, living, jumping)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_is_jumping(&mut self.0, living, jumping)
     }
     fn living_set_health(&mut self, living: LivingRef, health: f32) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_health(&mut *self.0, living, health)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_health(&mut self.0, living, health)
     }
     fn living_set_absorption(&mut self, living: LivingRef, amount: f32) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_absorption(&mut *self.0, living, amount)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_absorption(&mut self.0, living, amount)
     }
     fn living_heal(&mut self, living: LivingRef, amount: f32) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_heal(&mut *self.0, living, amount)
+        <E as mod_api::prelude::LivingBackendMut>::living_heal(&mut self.0, living, amount)
     }
     fn living_random_teleport(
         &mut self,
@@ -2911,7 +2911,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         at: [f64; 3],
         avoid: Option<&str>,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_random_teleport(&mut *self.0, living, at, avoid)
+        <E as mod_api::prelude::LivingBackendMut>::living_random_teleport(&mut self.0, living, at, avoid)
     }
     fn living_add_attribute_modifier(
         &mut self,
@@ -2920,7 +2920,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         modifier: AttributeModifier,
         lifetime: ModifierLifetime,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_add_attribute_modifier(&mut *self.0, living, attribute, modifier, lifetime)
+        <E as mod_api::prelude::LivingBackendMut>::living_add_attribute_modifier(&mut self.0, living, attribute, modifier, lifetime)
     }
     fn living_replace_attribute_modifier(
         &mut self,
@@ -2929,7 +2929,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         modifier: AttributeModifier,
         lifetime: ModifierLifetime,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_replace_attribute_modifier(&mut *self.0, living, attribute, modifier, lifetime)
+        <E as mod_api::prelude::LivingBackendMut>::living_replace_attribute_modifier(&mut self.0, living, attribute, modifier, lifetime)
     }
     fn living_remove_attribute_modifier(
         &mut self,
@@ -2937,7 +2937,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         attribute: &str,
         id: &Identifier,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_remove_attribute_modifier(&mut *self.0, living, attribute, id)
+        <E as mod_api::prelude::LivingBackendMut>::living_remove_attribute_modifier(&mut self.0, living, attribute, id)
     }
     fn living_set_attribute_base(
         &mut self,
@@ -2945,7 +2945,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         attribute: &str,
         base: f64,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_attribute_base(&mut *self.0, living, attribute, base)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_attribute_base(&mut self.0, living, attribute, base)
     }
     fn living_set_equipment(
         &mut self,
@@ -2953,7 +2953,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         slot: EquipmentSlot,
         stack: Option<ItemStack>,
     ) -> Result<bool, StackWriteError> {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_equipment(&mut *self.0, living, slot, stack)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_equipment(&mut self.0, living, slot, stack)
     }
     fn living_set_hand_item(
         &mut self,
@@ -2961,7 +2961,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         hand: Hand,
         stack: Option<ItemStack>,
     ) -> Result<bool, StackWriteError> {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_hand_item(&mut *self.0, living, hand, stack)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_hand_item(&mut self.0, living, hand, stack)
     }
     fn living_hurt_and_break(
         &mut self,
@@ -2969,7 +2969,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         slot: EquipmentSlot,
         amount: i32,
     ) -> Option<ItemStack> {
-        <E as mod_api::prelude::LivingBackendMut>::living_hurt_and_break(&mut *self.0, living, slot, amount)
+        <E as mod_api::prelude::LivingBackendMut>::living_hurt_and_break(&mut self.0, living, slot, amount)
     }
     fn living_drop(
         &mut self,
@@ -2978,7 +2978,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         throw_randomly: bool,
         include_thrower_name: bool,
     ) -> Result<Option<EntityRef>, StackWriteError> {
-        <E as mod_api::prelude::LivingBackendMut>::living_drop(&mut *self.0, living, stack, throw_randomly, include_thrower_name)
+        <E as mod_api::prelude::LivingBackendMut>::living_drop(&mut self.0, living, stack, throw_randomly, include_thrower_name)
     }
     fn living_swing(
         &mut self,
@@ -2986,52 +2986,52 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         hand: Hand,
         send_to_self: bool,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_swing(&mut *self.0, living, hand, send_to_self)
+        <E as mod_api::prelude::LivingBackendMut>::living_swing(&mut self.0, living, hand, send_to_self)
     }
     fn living_arrow_count(&mut self, living: LivingRef) -> Option<i32> {
-        <E as mod_api::prelude::LivingBackendMut>::living_arrow_count(&mut *self.0, living)
+        <E as mod_api::prelude::LivingBackendMut>::living_arrow_count(&mut self.0, living)
     }
     fn living_set_arrow_count(&mut self, living: LivingRef, count: i32) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_arrow_count(&mut *self.0, living, count)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_arrow_count(&mut self.0, living, count)
     }
     fn living_stinger_count(&mut self, living: LivingRef) -> Option<i32> {
-        <E as mod_api::prelude::LivingBackendMut>::living_stinger_count(&mut *self.0, living)
+        <E as mod_api::prelude::LivingBackendMut>::living_stinger_count(&mut self.0, living)
     }
     fn living_set_stinger_count(&mut self, living: LivingRef, count: i32) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_stinger_count(&mut *self.0, living, count)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_stinger_count(&mut self.0, living, count)
     }
     fn living_set_arrow_removal_ticks(&mut self, living: LivingRef, ticks: i32) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_arrow_removal_ticks(&mut *self.0, living, ticks)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_arrow_removal_ticks(&mut self.0, living, ticks)
     }
     fn living_set_stinger_removal_ticks(
         &mut self,
         living: LivingRef,
         ticks: i32,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_stinger_removal_ticks(&mut *self.0, living, ticks)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_stinger_removal_ticks(&mut self.0, living, ticks)
     }
     fn living_set_item_use_remaining(&mut self, living: LivingRef, ticks: i32) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_item_use_remaining(&mut *self.0, living, ticks)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_item_use_remaining(&mut self.0, living, ticks)
     }
     fn living_start_using_item(&mut self, living: LivingRef, hand: Hand) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_start_using_item(&mut *self.0, living, hand)
+        <E as mod_api::prelude::LivingBackendMut>::living_start_using_item(&mut self.0, living, hand)
     }
     fn living_release_using_item(&mut self, living: LivingRef) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_release_using_item(&mut *self.0, living)
+        <E as mod_api::prelude::LivingBackendMut>::living_release_using_item(&mut self.0, living)
     }
     fn living_set_waypoint_style(
         &mut self,
         living: LivingRef,
         style: &Identifier,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_waypoint_style(&mut *self.0, living, style)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_waypoint_style(&mut self.0, living, style)
     }
     fn living_set_waypoint_color(
         &mut self,
         living: LivingRef,
         rgb: Option<u32>,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_waypoint_color(&mut *self.0, living, rgb)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_waypoint_color(&mut self.0, living, rgb)
     }
     fn living_set_riptiding(
         &mut self,
@@ -3039,15 +3039,15 @@ impl<E: Legacy + Subsystems> mod_api::prelude::LivingBackendMut for HostOf<'_, E
         ticks: i32,
         damage: f32,
     ) -> bool {
-        <E as mod_api::prelude::LivingBackendMut>::living_set_riptiding(&mut *self.0, living, ticks, damage)
+        <E as mod_api::prelude::LivingBackendMut>::living_set_riptiding(&mut self.0, living, ticks, damage)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MathHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MathHost for HostOf<E> {
     fn math_profile(&self) -> MathProfile {
-        <E as mod_api::prelude::MathHost>::math_profile(&*self.0)
+        <E as mod_api::prelude::MathHost>::math_profile(&self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MenusServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MenusServerHost for HostOf<E> {
     fn open_menu(
         &mut self,
         uuid: u128,
@@ -3056,38 +3056,38 @@ impl<E: Legacy + Subsystems> mod_api::prelude::MenusServerHost for HostOf<'_, E>
         items: Vec<Option<ItemStack>>,
         replace: MenuReplace,
     ) -> Result<Option<i32>, StackWriteError> {
-        <E as mod_api::prelude::MenusServerHost>::open_menu(&mut *self.0, uuid, rows, title, items, replace)
+        <E as mod_api::prelude::MenusServerHost>::open_menu(&mut self.0, uuid, rows, title, items, replace)
     }
     fn menu(&self, uuid: u128, window: i32) -> Option<MenuRef> {
-        <E as mod_api::prelude::MenusServerHost>::menu(&*self.0, uuid, window)
+        <E as mod_api::prelude::MenusServerHost>::menu(&self.0, uuid, window)
     }
     fn close_menu(&mut self, uuid: u128) {
-        <E as mod_api::prelude::MenusServerHost>::close_menu(&mut *self.0, uuid)
+        <E as mod_api::prelude::MenusServerHost>::close_menu(&mut self.0, uuid)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MenusClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MenusClientHost for HostOf<E> {
     fn local_player(&self) -> Option<PlayerRef> {
-        <E as mod_api::prelude::MenusClientHost>::local_player(&*self.0)
+        <E as mod_api::prelude::MenusClientHost>::local_player(&self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MenusBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MenusBackend for HostOf<E> {
     fn menu_container_id(&self, menu: MenuRef) -> Option<i32> {
-        <E as mod_api::prelude::MenusBackend>::menu_container_id(&*self.0, menu)
+        <E as mod_api::prelude::MenusBackend>::menu_container_id(&self.0, menu)
     }
     fn menu_kind(&self, menu: MenuRef) -> Option<Option<String>> {
-        <E as mod_api::prelude::MenusBackend>::menu_kind(&*self.0, menu)
+        <E as mod_api::prelude::MenusBackend>::menu_kind(&self.0, menu)
     }
     fn menu_slot_count(&self, menu: MenuRef) -> Option<usize> {
-        <E as mod_api::prelude::MenusBackend>::menu_slot_count(&*self.0, menu)
+        <E as mod_api::prelude::MenusBackend>::menu_slot_count(&self.0, menu)
     }
     fn menu_slot(&self, menu: MenuRef, slot: usize) -> Option<Option<ItemStack>> {
-        <E as mod_api::prelude::MenusBackend>::menu_slot(&*self.0, menu, slot)
+        <E as mod_api::prelude::MenusBackend>::menu_slot(&self.0, menu, slot)
     }
     fn menu_carried(&self, menu: MenuRef) -> Option<Option<ItemStack>> {
-        <E as mod_api::prelude::MenusBackend>::menu_carried(&*self.0, menu)
+        <E as mod_api::prelude::MenusBackend>::menu_carried(&self.0, menu)
     }
     fn menu_slot_backing(&self, menu: MenuRef, slot: usize) -> Option<MenuSlotBacking> {
-        <E as mod_api::prelude::MenusBackend>::menu_slot_backing(&*self.0, menu, slot)
+        <E as mod_api::prelude::MenusBackend>::menu_slot_backing(&self.0, menu, slot)
     }
     fn menu_slot_holds(
         &self,
@@ -3095,311 +3095,311 @@ impl<E: Legacy + Subsystems> mod_api::prelude::MenusBackend for HostOf<'_, E> {
         slot: usize,
         stack: &ItemStack,
     ) -> Option<u32> {
-        <E as mod_api::prelude::MenusBackend>::menu_slot_holds(&*self.0, menu, slot, stack)
+        <E as mod_api::prelude::MenusBackend>::menu_slot_holds(&self.0, menu, slot, stack)
     }
     fn menu_slot_gives(&self, menu: MenuRef, slot: usize) -> Option<bool> {
-        <E as mod_api::prelude::MenusBackend>::menu_slot_gives(&*self.0, menu, slot)
+        <E as mod_api::prelude::MenusBackend>::menu_slot_gives(&self.0, menu, slot)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MenusClientBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MenusClientBackend for HostOf<E> {
     fn menu_slot_boxes(&self, menu: MenuRef) -> Option<Vec<Option<[f32; 4]>>> {
-        <E as mod_api::prelude::MenusClientBackend>::menu_slot_boxes(&*self.0, menu)
+        <E as mod_api::prelude::MenusClientBackend>::menu_slot_boxes(&self.0, menu)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MenusBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MenusBackendMut for HostOf<E> {
     fn menu_close_container(&mut self, menu: MenuRef) -> bool {
-        <E as mod_api::prelude::MenusBackendMut>::menu_close_container(&mut *self.0, menu)
+        <E as mod_api::prelude::MenusBackendMut>::menu_close_container(&mut self.0, menu)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MenusClientBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MenusClientBackendMut for HostOf<E> {
     fn menu_click(&mut self, menu: MenuRef, clicks: &[MenuClick]) -> bool {
-        <E as mod_api::prelude::MenusClientBackendMut>::menu_click(&mut *self.0, menu, clicks)
+        <E as mod_api::prelude::MenusClientBackendMut>::menu_click(&mut self.0, menu, clicks)
     }
     fn menu_close(&mut self, menu: MenuRef) -> bool {
-        <E as mod_api::prelude::MenusClientBackendMut>::menu_close(&mut *self.0, menu)
+        <E as mod_api::prelude::MenusClientBackendMut>::menu_close(&mut self.0, menu)
     }
     fn menu_click_button(&mut self, menu: MenuRef, button: i32) -> bool {
-        <E as mod_api::prelude::MenusClientBackendMut>::menu_click_button(&mut *self.0, menu, button)
+        <E as mod_api::prelude::MenusClientBackendMut>::menu_click_button(&mut self.0, menu, button)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MerchantsServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MerchantsServerHost for HostOf<E> {
     fn merchant(&self, entity: EntityRef) -> Option<MerchantRef> {
-        <E as mod_api::prelude::MerchantsServerHost>::merchant(&*self.0, entity)
+        <E as mod_api::prelude::MerchantsServerHost>::merchant(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MerchantsBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MerchantsBackend for HostOf<E> {
     fn merchant_offers(&self, merchant: MerchantRef) -> Option<Vec<MerchantOffer>> {
-        <E as mod_api::prelude::MerchantsBackend>::merchant_offers(&*self.0, merchant)
+        <E as mod_api::prelude::MerchantsBackend>::merchant_offers(&self.0, merchant)
     }
     fn merchant_trading_player(&self, merchant: MerchantRef) -> Option<PlayerRef> {
-        <E as mod_api::prelude::MerchantsBackend>::merchant_trading_player(&*self.0, merchant)
+        <E as mod_api::prelude::MerchantsBackend>::merchant_trading_player(&self.0, merchant)
     }
     fn merchant_profession(&self, merchant: MerchantRef) -> Option<String> {
-        <E as mod_api::prelude::MerchantsBackend>::merchant_profession(&*self.0, merchant)
+        <E as mod_api::prelude::MerchantsBackend>::merchant_profession(&self.0, merchant)
     }
     fn merchant_level(&self, merchant: MerchantRef) -> Option<i32> {
-        <E as mod_api::prelude::MerchantsBackend>::merchant_level(&*self.0, merchant)
+        <E as mod_api::prelude::MerchantsBackend>::merchant_level(&self.0, merchant)
     }
     fn merchant_villager_type(&self, merchant: MerchantRef) -> Option<String> {
-        <E as mod_api::prelude::MerchantsBackend>::merchant_villager_type(&*self.0, merchant)
+        <E as mod_api::prelude::MerchantsBackend>::merchant_villager_type(&self.0, merchant)
     }
     fn merchant_xp(&self, merchant: MerchantRef) -> Option<i32> {
-        <E as mod_api::prelude::MerchantsBackend>::merchant_xp(&*self.0, merchant)
+        <E as mod_api::prelude::MerchantsBackend>::merchant_xp(&self.0, merchant)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MerchantsBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MerchantsBackendMut for HostOf<E> {
     fn merchant_set_offer(
         &mut self,
         merchant: MerchantRef,
         index: u32,
         offer: MerchantOffer,
     ) -> Result<bool, StackWriteError> {
-        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_offer(&mut *self.0, merchant, index, offer)
+        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_offer(&mut self.0, merchant, index, offer)
     }
     fn merchant_add_offer(
         &mut self,
         merchant: MerchantRef,
         offer: MerchantOffer,
     ) -> Result<bool, StackWriteError> {
-        <E as mod_api::prelude::MerchantsBackendMut>::merchant_add_offer(&mut *self.0, merchant, offer)
+        <E as mod_api::prelude::MerchantsBackendMut>::merchant_add_offer(&mut self.0, merchant, offer)
     }
     fn merchant_remove_offer(&mut self, merchant: MerchantRef, index: u32) -> bool {
-        <E as mod_api::prelude::MerchantsBackendMut>::merchant_remove_offer(&mut *self.0, merchant, index)
+        <E as mod_api::prelude::MerchantsBackendMut>::merchant_remove_offer(&mut self.0, merchant, index)
     }
     fn merchant_set_profession(
         &mut self,
         merchant: MerchantRef,
         profession: &str,
     ) -> bool {
-        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_profession(&mut *self.0, merchant, profession)
+        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_profession(&mut self.0, merchant, profession)
     }
     fn merchant_set_level(&mut self, merchant: MerchantRef, level: i32) -> bool {
-        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_level(&mut *self.0, merchant, level)
+        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_level(&mut self.0, merchant, level)
     }
     fn merchant_set_villager_type(&mut self, merchant: MerchantRef, kind: &str) -> bool {
-        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_villager_type(&mut *self.0, merchant, kind)
+        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_villager_type(&mut self.0, merchant, kind)
     }
     fn merchant_set_xp(&mut self, merchant: MerchantRef, xp: i32) -> bool {
-        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_xp(&mut *self.0, merchant, xp)
+        <E as mod_api::prelude::MerchantsBackendMut>::merchant_set_xp(&mut self.0, merchant, xp)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MinecartsServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MinecartsServerHost for HostOf<E> {
     fn minecart(&self, entity: EntityRef) -> Option<MinecartRef> {
-        <E as mod_api::prelude::MinecartsServerHost>::minecart(&*self.0, entity)
+        <E as mod_api::prelude::MinecartsServerHost>::minecart(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MinecartsBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MinecartsBackend for HostOf<E> {
     fn minecart_push(&self, cart: MinecartRef) -> Option<[f64; 3]> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_push(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_push(&self.0, cart)
     }
     fn minecart_kind(&self, cart: MinecartRef) -> Option<MinecartKind> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_kind(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_kind(&self.0, cart)
     }
     fn minecart_max_speed(&self, cart: MinecartRef) -> Option<f64> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_max_speed(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_max_speed(&self.0, cart)
     }
     fn minecart_is_on_rails(&self, cart: MinecartRef) -> Option<bool> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_is_on_rails(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_is_on_rails(&self.0, cart)
     }
     fn minecart_flipped(&self, cart: MinecartRef) -> Option<bool> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_flipped(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_flipped(&self.0, cart)
     }
     fn minecart_damage(&self, cart: MinecartRef) -> Option<f32> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_damage(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_damage(&self.0, cart)
     }
     fn minecart_hurt_time(&self, cart: MinecartRef) -> Option<i32> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_hurt_time(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_hurt_time(&self.0, cart)
     }
     fn minecart_custom_display_block(
         &self,
         cart: MinecartRef,
     ) -> Option<Option<BlockState>> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_custom_display_block(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_custom_display_block(&self.0, cart)
     }
     fn minecart_display_offset(&self, cart: MinecartRef) -> Option<i32> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_display_offset(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_display_offset(&self.0, cart)
     }
     fn minecart_fuel(&self, cart: MinecartRef) -> Option<i32> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_fuel(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_fuel(&self.0, cart)
     }
     fn minecart_fuse(&self, cart: MinecartRef) -> Option<i32> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_fuse(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_fuse(&self.0, cart)
     }
     fn minecart_hopper_enabled(&self, cart: MinecartRef) -> Option<bool> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_hopper_enabled(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_hopper_enabled(&self.0, cart)
     }
     fn minecart_command(&self, cart: MinecartRef) -> Option<String> {
-        <E as mod_api::prelude::MinecartsBackend>::minecart_command(&*self.0, cart)
+        <E as mod_api::prelude::MinecartsBackend>::minecart_command(&self.0, cart)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MinecartsBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MinecartsBackendMut for HostOf<E> {
     fn minecart_set_push(&mut self, cart: MinecartRef, push: [f64; 3]) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_push(&mut *self.0, cart, push)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_push(&mut self.0, cart, push)
     }
     fn minecart_set_flipped(&mut self, cart: MinecartRef, flipped: bool) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_flipped(&mut *self.0, cart, flipped)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_flipped(&mut self.0, cart, flipped)
     }
     fn minecart_set_damage(&mut self, cart: MinecartRef, damage: f32) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_damage(&mut *self.0, cart, damage)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_damage(&mut self.0, cart, damage)
     }
     fn minecart_set_hurt_time(&mut self, cart: MinecartRef, ticks: i32) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_hurt_time(&mut *self.0, cart, ticks)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_hurt_time(&mut self.0, cart, ticks)
     }
     fn minecart_set_custom_display_block(
         &mut self,
         cart: MinecartRef,
         state: Option<BlockState>,
     ) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_custom_display_block(&mut *self.0, cart, state)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_custom_display_block(&mut self.0, cart, state)
     }
     fn minecart_set_display_offset(&mut self, cart: MinecartRef, offset: i32) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_display_offset(&mut *self.0, cart, offset)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_display_offset(&mut self.0, cart, offset)
     }
     fn minecart_set_fuel(&mut self, cart: MinecartRef, fuel: i32) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_fuel(&mut *self.0, cart, fuel)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_fuel(&mut self.0, cart, fuel)
     }
     fn minecart_prime_fuse(&mut self, cart: MinecartRef) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_prime_fuse(&mut *self.0, cart)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_prime_fuse(&mut self.0, cart)
     }
     fn minecart_set_hopper_enabled(&mut self, cart: MinecartRef, enabled: bool) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_hopper_enabled(&mut *self.0, cart, enabled)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_hopper_enabled(&mut self.0, cart, enabled)
     }
     fn minecart_set_command(&mut self, cart: MinecartRef, command: &str) -> bool {
-        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_command(&mut *self.0, cart, command)
+        <E as mod_api::prelude::MinecartsBackendMut>::minecart_set_command(&mut self.0, cart, command)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MobsHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MobsHost for HostOf<E> {
     fn mob(&self, entity: EntityRef) -> Option<MobRef> {
-        <E as mod_api::prelude::MobsHost>::mob(&*self.0, entity)
+        <E as mod_api::prelude::MobsHost>::mob(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MobsServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MobsServerHost for HostOf<E> {
     fn kill_mob(&mut self, dimension: &str, id: u32) -> bool {
-        <E as mod_api::prelude::MobsServerHost>::kill_mob(&mut *self.0, dimension, id)
+        <E as mod_api::prelude::MobsServerHost>::kill_mob(&mut self.0, dimension, id)
     }
     fn dragon(&self, entity: EntityRef) -> Option<DragonRef> {
-        <E as mod_api::prelude::MobsServerHost>::dragon(&*self.0, entity)
+        <E as mod_api::prelude::MobsServerHost>::dragon(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MobsBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MobsBackend for HostOf<E> {
     fn dragon_phase(&self, dragon: DragonRef) -> Option<DragonPhase> {
-        <E as mod_api::prelude::MobsBackend>::dragon_phase(&*self.0, dragon)
+        <E as mod_api::prelude::MobsBackend>::dragon_phase(&self.0, dragon)
     }
     fn dragon_alive_crystals(&self, dragon: DragonRef) -> Option<i32> {
-        <E as mod_api::prelude::MobsBackend>::dragon_alive_crystals(&*self.0, dragon)
+        <E as mod_api::prelude::MobsBackend>::dragon_alive_crystals(&self.0, dragon)
     }
     fn dragon_previously_killed(&self, dragon: DragonRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::dragon_previously_killed(&*self.0, dragon)
+        <E as mod_api::prelude::MobsBackend>::dragon_previously_killed(&self.0, dragon)
     }
     fn mob_goals(&self, mob: MobRef) -> Option<Vec<MobGoalEntry>> {
-        <E as mod_api::prelude::MobsBackend>::mob_goals(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_goals(&self.0, mob)
     }
     fn mob_target_goals(&self, mob: MobRef) -> Option<Vec<MobGoalEntry>> {
-        <E as mod_api::prelude::MobsBackend>::mob_target_goals(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_target_goals(&self.0, mob)
     }
     fn mob_is_done(&self, mob: MobRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_is_done(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_is_done(&self.0, mob)
     }
     fn mob_navigation_speed(&self, mob: MobRef) -> Option<f64> {
-        <E as mod_api::prelude::MobsBackend>::mob_navigation_speed(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_navigation_speed(&self.0, mob)
     }
     fn mob_pathfinding_malus(&self, mob: MobRef, kind: PathType) -> Option<f32> {
-        <E as mod_api::prelude::MobsBackend>::mob_pathfinding_malus(&*self.0, mob, kind)
+        <E as mod_api::prelude::MobsBackend>::mob_pathfinding_malus(&self.0, mob, kind)
     }
     fn mob_can_use_portal(&self, mob: MobRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_can_use_portal(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_can_use_portal(&self.0, mob)
     }
     fn mob_target(&self, mob: MobRef) -> Option<LivingRef> {
-        <E as mod_api::prelude::MobsBackend>::mob_target(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_target(&self.0, mob)
     }
     fn mob_is_aggressive(&self, mob: MobRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_is_aggressive(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_is_aggressive(&self.0, mob)
     }
     fn mob_persistence_required(&self, mob: MobRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_persistence_required(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_persistence_required(&self.0, mob)
     }
     fn mob_requires_custom_persistence(&self, mob: MobRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_requires_custom_persistence(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_requires_custom_persistence(&self.0, mob)
     }
     fn mob_no_ai(&self, mob: MobRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_no_ai(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_no_ai(&self.0, mob)
     }
     fn mob_restrict_center(&self, mob: MobRef) -> Option<[i32; 3]> {
-        <E as mod_api::prelude::MobsBackend>::mob_restrict_center(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_restrict_center(&self.0, mob)
     }
     fn mob_restrict_radius(&self, mob: MobRef) -> Option<i32> {
-        <E as mod_api::prelude::MobsBackend>::mob_restrict_radius(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_restrict_radius(&self.0, mob)
     }
     fn mob_has_restriction(&self, mob: MobRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_has_restriction(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_has_restriction(&self.0, mob)
     }
     fn mob_is_within_restriction(&self, mob: MobRef, at: [i32; 3]) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_is_within_restriction(&*self.0, mob, at)
+        <E as mod_api::prelude::MobsBackend>::mob_is_within_restriction(&self.0, mob, at)
     }
     fn mob_left_handed(&self, mob: MobRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_left_handed(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_left_handed(&self.0, mob)
     }
     fn mob_can_pick_up_loot(&self, mob: MobRef) -> Option<bool> {
-        <E as mod_api::prelude::MobsBackend>::mob_can_pick_up_loot(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_can_pick_up_loot(&self.0, mob)
     }
     fn mob_no_action_time(&self, mob: MobRef) -> Option<i32> {
-        <E as mod_api::prelude::MobsBackend>::mob_no_action_time(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_no_action_time(&self.0, mob)
     }
     fn mob_raid(&self, mob: MobRef) -> Option<RaidRef> {
-        <E as mod_api::prelude::MobsBackend>::mob_raid(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::mob_raid(&self.0, mob)
     }
     fn unspawned_mob_kind(
         &self,
         mob: UnspawnedMobRef,
     ) -> Result<Identifier, UnspawnedMobError> {
-        <E as mod_api::prelude::MobsBackend>::unspawned_mob_kind(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::unspawned_mob_kind(&self.0, mob)
     }
     fn unspawned_mob_position(
         &self,
         mob: UnspawnedMobRef,
     ) -> Result<[f64; 3], UnspawnedMobError> {
-        <E as mod_api::prelude::MobsBackend>::unspawned_mob_position(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::unspawned_mob_position(&self.0, mob)
     }
     fn unspawned_mob_equipment(
         &self,
         mob: UnspawnedMobRef,
         slot: EquipmentSlot,
     ) -> Result<Option<ItemStack>, UnspawnedMobError> {
-        <E as mod_api::prelude::MobsBackend>::unspawned_mob_equipment(&*self.0, mob, slot)
+        <E as mod_api::prelude::MobsBackend>::unspawned_mob_equipment(&self.0, mob, slot)
     }
     fn unspawned_mob_attribute_base(
         &self,
         mob: UnspawnedMobRef,
         attribute: &Identifier,
     ) -> Result<f64, UnspawnedMobError> {
-        <E as mod_api::prelude::MobsBackend>::unspawned_mob_attribute_base(&*self.0, mob, attribute)
+        <E as mod_api::prelude::MobsBackend>::unspawned_mob_attribute_base(&self.0, mob, attribute)
     }
     fn unspawned_mob_attribute_value(
         &self,
         mob: UnspawnedMobRef,
         attribute: &Identifier,
     ) -> Result<f64, UnspawnedMobError> {
-        <E as mod_api::prelude::MobsBackend>::unspawned_mob_attribute_value(&*self.0, mob, attribute)
+        <E as mod_api::prelude::MobsBackend>::unspawned_mob_attribute_value(&self.0, mob, attribute)
     }
     fn unspawned_mob_tags(
         &self,
         mob: UnspawnedMobRef,
     ) -> Result<Vec<String>, UnspawnedMobError> {
-        <E as mod_api::prelude::MobsBackend>::unspawned_mob_tags(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::unspawned_mob_tags(&self.0, mob)
     }
     fn unspawned_mob_custom_name(
         &self,
         mob: UnspawnedMobRef,
     ) -> Result<Option<Text>, UnspawnedMobError> {
-        <E as mod_api::prelude::MobsBackend>::unspawned_mob_custom_name(&*self.0, mob)
+        <E as mod_api::prelude::MobsBackend>::unspawned_mob_custom_name(&self.0, mob)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::MobsBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::MobsBackendMut for HostOf<E> {
     fn dragon_set_phase(&mut self, dragon: DragonRef, phase: DragonPhase) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::dragon_set_phase(&mut *self.0, dragon, phase)
+        <E as mod_api::prelude::MobsBackendMut>::dragon_set_phase(&mut self.0, dragon, phase)
     }
     fn mob_add_goal(&mut self, mob: MobRef, priority: i32, goal: &GoalSpec) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_add_goal(&mut *self.0, mob, priority, goal)
+        <E as mod_api::prelude::MobsBackendMut>::mob_add_goal(&mut self.0, mob, priority, goal)
     }
     fn mob_add_target_goal(
         &mut self,
@@ -3407,22 +3407,22 @@ impl<E: Legacy + Subsystems> mod_api::prelude::MobsBackendMut for HostOf<'_, E> 
         priority: i32,
         goal: &GoalSpec,
     ) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_add_target_goal(&mut *self.0, mob, priority, goal)
+        <E as mod_api::prelude::MobsBackendMut>::mob_add_target_goal(&mut self.0, mob, priority, goal)
     }
     fn mob_remove_goal(&mut self, mob: MobRef, id: &str) -> Option<usize> {
-        <E as mod_api::prelude::MobsBackendMut>::mob_remove_goal(&mut *self.0, mob, id)
+        <E as mod_api::prelude::MobsBackendMut>::mob_remove_goal(&mut self.0, mob, id)
     }
     fn mob_remove_target_goal(&mut self, mob: MobRef, id: &str) -> Option<usize> {
-        <E as mod_api::prelude::MobsBackendMut>::mob_remove_target_goal(&mut *self.0, mob, id)
+        <E as mod_api::prelude::MobsBackendMut>::mob_remove_target_goal(&mut self.0, mob, id)
     }
     fn mob_move_to(&mut self, mob: MobRef, at: [f64; 3], speed: f64) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_move_to(&mut *self.0, mob, at, speed)
+        <E as mod_api::prelude::MobsBackendMut>::mob_move_to(&mut self.0, mob, at, speed)
     }
     fn mob_stop(&mut self, mob: MobRef) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_stop(&mut *self.0, mob)
+        <E as mod_api::prelude::MobsBackendMut>::mob_stop(&mut self.0, mob)
     }
     fn mob_set_navigation_speed(&mut self, mob: MobRef, speed: f64) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_navigation_speed(&mut *self.0, mob, speed)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_navigation_speed(&mut self.0, mob, speed)
     }
     fn mob_set_pathfinding_malus(
         &mut self,
@@ -3430,290 +3430,290 @@ impl<E: Legacy + Subsystems> mod_api::prelude::MobsBackendMut for HostOf<'_, E> 
         kind: PathType,
         malus: f32,
     ) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_pathfinding_malus(&mut *self.0, mob, kind, malus)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_pathfinding_malus(&mut self.0, mob, kind, malus)
     }
     fn mob_set_target(&mut self, mob: MobRef, target: Option<LivingRef>) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_target(&mut *self.0, mob, target)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_target(&mut self.0, mob, target)
     }
     fn mob_set_aggressive(&mut self, mob: MobRef, value: bool) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_aggressive(&mut *self.0, mob, value)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_aggressive(&mut self.0, mob, value)
     }
     fn mob_set_persistence_required(&mut self, mob: MobRef) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_persistence_required(&mut *self.0, mob)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_persistence_required(&mut self.0, mob)
     }
     fn mob_set_no_ai(&mut self, mob: MobRef, no_ai: bool) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_no_ai(&mut *self.0, mob, no_ai)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_no_ai(&mut self.0, mob, no_ai)
     }
     fn mob_set_baby(&mut self, mob: MobRef, baby: bool) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_baby(&mut *self.0, mob, baby)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_baby(&mut self.0, mob, baby)
     }
     fn mob_look_at(&mut self, mob: MobRef, at: [f64; 3]) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_look_at(&mut *self.0, mob, at)
+        <E as mod_api::prelude::MobsBackendMut>::mob_look_at(&mut self.0, mob, at)
     }
     fn mob_jump(&mut self, mob: MobRef) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_jump(&mut *self.0, mob)
+        <E as mod_api::prelude::MobsBackendMut>::mob_jump(&mut self.0, mob)
     }
     fn mob_restrict_to(&mut self, mob: MobRef, at: [i32; 3], radius: i32) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_restrict_to(&mut *self.0, mob, at, radius)
+        <E as mod_api::prelude::MobsBackendMut>::mob_restrict_to(&mut self.0, mob, at, radius)
     }
     fn mob_clear_restriction(&mut self, mob: MobRef) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_clear_restriction(&mut *self.0, mob)
+        <E as mod_api::prelude::MobsBackendMut>::mob_clear_restriction(&mut self.0, mob)
     }
     fn mob_set_left_handed(&mut self, mob: MobRef, left_handed: bool) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_left_handed(&mut *self.0, mob, left_handed)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_left_handed(&mut self.0, mob, left_handed)
     }
     fn mob_set_can_pick_up_loot(&mut self, mob: MobRef, can_pick_up: bool) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_can_pick_up_loot(&mut *self.0, mob, can_pick_up)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_can_pick_up_loot(&mut self.0, mob, can_pick_up)
     }
     fn mob_set_no_action_time(&mut self, mob: MobRef, ticks: i32) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_no_action_time(&mut *self.0, mob, ticks)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_no_action_time(&mut self.0, mob, ticks)
     }
     fn mob_set_brain_target(&mut self, mob: MobRef, target: Option<LivingRef>) -> bool {
-        <E as mod_api::prelude::MobsBackendMut>::mob_set_brain_target(&mut *self.0, mob, target)
+        <E as mod_api::prelude::MobsBackendMut>::mob_set_brain_target(&mut self.0, mob, target)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ModStateHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ModStateHost for HostOf<E> {
     fn attachment_query(&self, namespace: &str, name: &str) -> AttachmentBatch {
-        <E as mod_api::prelude::ModStateHost>::attachment_query(&*self.0, namespace, name)
+        <E as mod_api::prelude::ModStateHost>::attachment_query(&self.0, namespace, name)
     }
     fn attachments(&mut self) -> &mut dyn AttachmentStore {
-        <E as mod_api::prelude::ModStateHost>::attachments(&mut *self.0)
+        <E as mod_api::prelude::ModStateHost>::attachments(&mut self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ModStateServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ModStateServerHost for HostOf<E> {
     fn attachment_validate_write(
         &self,
         token: AttachmentWriteToken,
     ) -> Result<(), AttachmentRowError> {
-        <E as mod_api::prelude::ModStateServerHost>::attachment_validate_write(&*self.0, token)
+        <E as mod_api::prelude::ModStateServerHost>::attachment_validate_write(&self.0, token)
     }
     fn transaction_open(&mut self) -> TransactionSeal {
-        <E as mod_api::prelude::ModStateServerHost>::transaction_open(&mut *self.0)
+        <E as mod_api::prelude::ModStateServerHost>::transaction_open(&mut self.0)
     }
     fn transaction_close(&mut self, seal: &TransactionSeal, commit: bool) {
-        <E as mod_api::prelude::ModStateServerHost>::transaction_close(&mut *self.0, seal, commit)
+        <E as mod_api::prelude::ModStateServerHost>::transaction_close(&mut self.0, seal, commit)
     }
     fn transaction_lifecycle(&self) -> TransactionLifecycle {
-        <E as mod_api::prelude::ModStateServerHost>::transaction_lifecycle(&*self.0)
+        <E as mod_api::prelude::ModStateServerHost>::transaction_lifecycle(&self.0)
     }
     fn transaction_current(&self) -> Option<Transaction> {
-        <E as mod_api::prelude::ModStateServerHost>::transaction_current(&*self.0)
+        <E as mod_api::prelude::ModStateServerHost>::transaction_current(&self.0)
     }
     fn transaction_depth(&self, tx: &Transaction) -> Option<u32> {
-        <E as mod_api::prelude::ModStateServerHost>::transaction_depth(&*self.0, tx)
+        <E as mod_api::prelude::ModStateServerHost>::transaction_depth(&self.0, tx)
     }
     fn schedule_task(
         &mut self,
         delay_ticks: u32,
         token: u64,
     ) -> Result<TaskId, ScheduleError> {
-        <E as mod_api::prelude::ModStateServerHost>::schedule_task(&mut *self.0, delay_ticks, token)
+        <E as mod_api::prelude::ModStateServerHost>::schedule_task(&mut self.0, delay_ticks, token)
     }
     fn cancel_task(&mut self, id: TaskId) -> bool {
-        <E as mod_api::prelude::ModStateServerHost>::cancel_task(&mut *self.0, id)
+        <E as mod_api::prelude::ModStateServerHost>::cancel_task(&mut self.0, id)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::NetworkClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::NetworkClientHost for HostOf<E> {
     fn open_chat(&mut self, text: &str) -> Result<(), String> {
-        <E as mod_api::prelude::NetworkClientHost>::open_chat(&mut *self.0, text)
+        <E as mod_api::prelude::NetworkClientHost>::open_chat(&mut self.0, text)
     }
     fn chat_line(&mut self, line: Text) -> Result<(), TextFormError> {
-        <E as mod_api::prelude::NetworkClientHost>::chat_line(&mut *self.0, line)
+        <E as mod_api::prelude::NetworkClientHost>::chat_line(&mut self.0, line)
     }
     fn send_chat(&mut self, message: &str) -> Result<(), String> {
-        <E as mod_api::prelude::NetworkClientHost>::send_chat(&mut *self.0, message)
+        <E as mod_api::prelude::NetworkClientHost>::send_chat(&mut self.0, message)
     }
     fn send_packet(
         &mut self,
         packet: ServerboundPlayPacket,
     ) -> Result<(), SendPacketError> {
-        <E as mod_api::prelude::NetworkClientHost>::send_packet(&mut *self.0, packet)
+        <E as mod_api::prelude::NetworkClientHost>::send_packet(&mut self.0, packet)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::PayloadsClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::PayloadsClientHost for HostOf<E> {
     fn send_payload_to_server(
         &mut self,
         id: &PayloadId,
         bytes: PayloadBytes,
     ) -> Result<PayloadAccepted, PayloadSendError> {
-        <E as mod_api::prelude::PayloadsClientHost>::send_payload_to_server(&mut *self.0, id, bytes)
+        <E as mod_api::prelude::PayloadsClientHost>::send_payload_to_server(&mut self.0, id, bytes)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::PayloadsBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::PayloadsBackendMut for HostOf<E> {
     fn player_send_payload(
         &mut self,
         player: PlayerRef,
         id: &PayloadId,
         bytes: PayloadBytes,
     ) -> Result<PayloadAccepted, PayloadSendError> {
-        <E as mod_api::prelude::PayloadsBackendMut>::player_send_payload(&mut *self.0, player, id, bytes)
+        <E as mod_api::prelude::PayloadsBackendMut>::player_send_payload(&mut self.0, player, id, bytes)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::PlayersHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::PlayersHost for HostOf<E> {
     fn item_cooldown_group(&self, stack: &ItemStack) -> String {
-        <E as mod_api::prelude::PlayersHost>::item_cooldown_group(&*self.0, stack)
+        <E as mod_api::prelude::PlayersHost>::item_cooldown_group(&self.0, stack)
     }
     fn player(&self, uuid: u128) -> Option<PlayerRef> {
-        <E as mod_api::prelude::PlayersHost>::player(&*self.0, uuid)
+        <E as mod_api::prelude::PlayersHost>::player(&self.0, uuid)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::PlayersServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::PlayersServerHost for HostOf<E> {
     fn fake_player(
         &mut self,
         level: LevelRef,
         uuid: u128,
         name: &str,
     ) -> Option<PlayerRef> {
-        <E as mod_api::prelude::PlayersServerHost>::fake_player(&mut *self.0, level, uuid, name)
+        <E as mod_api::prelude::PlayersServerHost>::fake_player(&mut self.0, level, uuid, name)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::PlayersClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::PlayersClientHost for HostOf<E> {
     fn push_player(&mut self, kick: [f32; 3]) {
-        <E as mod_api::prelude::PlayersClientHost>::push_player(&mut *self.0, kick)
+        <E as mod_api::prelude::PlayersClientHost>::push_player(&mut self.0, kick)
     }
     fn set_collision_exclusions(
         &mut self,
         boxes: &[[f64; 6]],
     ) -> Result<(), CollisionExclusionsError> {
-        <E as mod_api::prelude::PlayersClientHost>::set_collision_exclusions(&mut *self.0, boxes)
+        <E as mod_api::prelude::PlayersClientHost>::set_collision_exclusions(&mut self.0, boxes)
     }
     fn cross_passage(&mut self, passage: PassageId) -> Result<(), PassageCrossError> {
-        <E as mod_api::prelude::PlayersClientHost>::cross_passage(&mut *self.0, passage)
+        <E as mod_api::prelude::PlayersClientHost>::cross_passage(&mut self.0, passage)
     }
     fn last_passage_refusal(&self) -> Option<(PassageId, PassageCrossRefusal)> {
-        <E as mod_api::prelude::PlayersClientHost>::last_passage_refusal(&*self.0)
+        <E as mod_api::prelude::PlayersClientHost>::last_passage_refusal(&self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackend for HostOf<E> {
     fn original_player_uuid(&self, original_player: OriginalPlayerRef) -> Option<u128> {
-        <E as mod_api::prelude::PlayersBackend>::original_player_uuid(&*self.0, original_player)
+        <E as mod_api::prelude::PlayersBackend>::original_player_uuid(&self.0, original_player)
     }
     fn original_player_position(
         &self,
         original_player: OriginalPlayerRef,
     ) -> Option<[f64; 3]> {
-        <E as mod_api::prelude::PlayersBackend>::original_player_position(&*self.0, original_player)
+        <E as mod_api::prelude::PlayersBackend>::original_player_position(&self.0, original_player)
     }
     fn original_player_dimension(
         &self,
         original_player: OriginalPlayerRef,
     ) -> Option<Identifier> {
-        <E as mod_api::prelude::PlayersBackend>::original_player_dimension(&*self.0, original_player)
+        <E as mod_api::prelude::PlayersBackend>::original_player_dimension(&self.0, original_player)
     }
     fn original_player_level(
         &self,
         original_player: OriginalPlayerRef,
     ) -> Option<LevelRef> {
-        <E as mod_api::prelude::PlayersBackend>::original_player_level(&*self.0, original_player)
+        <E as mod_api::prelude::PlayersBackend>::original_player_level(&self.0, original_player)
     }
     fn original_player_inventory_slot(
         &self,
         original_player: OriginalPlayerRef,
         slot: i32,
     ) -> Option<ItemStack> {
-        <E as mod_api::prelude::PlayersBackend>::original_player_inventory_slot(&*self.0, original_player, slot)
+        <E as mod_api::prelude::PlayersBackend>::original_player_inventory_slot(&self.0, original_player, slot)
     }
     fn original_player_health(&self, original_player: OriginalPlayerRef) -> Option<f32> {
-        <E as mod_api::prelude::PlayersBackend>::original_player_health(&*self.0, original_player)
+        <E as mod_api::prelude::PlayersBackend>::original_player_health(&self.0, original_player)
     }
     fn original_player_experience(
         &self,
         original_player: OriginalPlayerRef,
     ) -> Option<PlayerExperience> {
-        <E as mod_api::prelude::PlayersBackend>::original_player_experience(&*self.0, original_player)
+        <E as mod_api::prelude::PlayersBackend>::original_player_experience(&self.0, original_player)
     }
     fn original_player_effects(
         &self,
         original_player: OriginalPlayerRef,
     ) -> Option<Vec<ActiveEffect>> {
-        <E as mod_api::prelude::PlayersBackend>::original_player_effects(&*self.0, original_player)
+        <E as mod_api::prelude::PlayersBackend>::original_player_effects(&self.0, original_player)
     }
     fn player_recipe_book_settings(
         &self,
         player: PlayerRef,
         book: &RecipeBookTypeKey,
     ) -> Option<RecipeBookSettings> {
-        <E as mod_api::prelude::PlayersBackend>::player_recipe_book_settings(&*self.0, player, book)
+        <E as mod_api::prelude::PlayersBackend>::player_recipe_book_settings(&self.0, player, book)
     }
     fn player_address(&self, player: PlayerRef) -> Option<String> {
-        <E as mod_api::prelude::PlayersBackend>::player_address(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_address(&self.0, player)
     }
     fn player_name(&self, player: PlayerRef) -> Option<String> {
-        <E as mod_api::prelude::PlayersBackend>::player_name(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_name(&self.0, player)
     }
     fn player_profile(&self, player: PlayerRef) -> Option<GameProfile> {
-        <E as mod_api::prelude::PlayersBackend>::player_profile(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_profile(&self.0, player)
     }
     fn player_level(&self, player: PlayerRef) -> Option<LevelRef> {
-        <E as mod_api::prelude::PlayersBackend>::player_level(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_level(&self.0, player)
     }
     fn player_dimension(&self, player: PlayerRef) -> Option<Identifier> {
-        <E as mod_api::prelude::PlayersBackend>::player_dimension(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_dimension(&self.0, player)
     }
     fn player_selected_slot(&self, player: PlayerRef) -> Option<usize> {
-        <E as mod_api::prelude::PlayersBackend>::player_selected_slot(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_selected_slot(&self.0, player)
     }
     fn player_container_menu(&self, player: PlayerRef) -> Option<MenuRef> {
-        <E as mod_api::prelude::PlayersBackend>::player_container_menu(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_container_menu(&self.0, player)
     }
     fn player_item_cooldowns(&self, player: PlayerRef) -> Option<Vec<ItemCooldown>> {
-        <E as mod_api::prelude::PlayersBackend>::player_item_cooldowns(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_item_cooldowns(&self.0, player)
     }
     fn player_has_item_cooldown(&self, player: PlayerRef, group: &str) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_has_item_cooldown(&*self.0, player, group)
+        <E as mod_api::prelude::PlayersBackend>::player_has_item_cooldown(&self.0, player, group)
     }
     fn player_item_cooldown_percent(
         &self,
         player: PlayerRef,
         group: &str,
     ) -> Option<f32> {
-        <E as mod_api::prelude::PlayersBackend>::player_item_cooldown_percent(&*self.0, player, group)
+        <E as mod_api::prelude::PlayersBackend>::player_item_cooldown_percent(&self.0, player, group)
     }
     fn player_attack_strength_scale(
         &self,
         player: PlayerRef,
         partial: f32,
     ) -> Option<f32> {
-        <E as mod_api::prelude::PlayersBackend>::player_attack_strength_scale(&*self.0, player, partial)
+        <E as mod_api::prelude::PlayersBackend>::player_attack_strength_scale(&self.0, player, partial)
     }
     fn player_exp_cooldown(&self, player: PlayerRef) -> Option<u32> {
-        <E as mod_api::prelude::PlayersBackend>::player_exp_cooldown(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_exp_cooldown(&self.0, player)
     }
     fn player_last_death_location(&self, player: PlayerRef) -> Option<GlobalPos> {
-        <E as mod_api::prelude::PlayersBackend>::player_last_death_location(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_last_death_location(&self.0, player)
     }
     fn player_needs_food(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_needs_food(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_needs_food(&self.0, player)
     }
     fn player_has_enough_food(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_has_enough_food(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_has_enough_food(&self.0, player)
     }
     fn player_can_eat(&self, player: PlayerRef, always: bool) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_can_eat(&*self.0, player, always)
+        <E as mod_api::prelude::PlayersBackend>::player_can_eat(&self.0, player, always)
     }
     fn player_experience(&self, player: PlayerRef) -> Option<PlayerExperience> {
-        <E as mod_api::prelude::PlayersBackend>::player_experience(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_experience(&self.0, player)
     }
     fn player_xp_needed_for_next_level(&self, player: PlayerRef) -> Option<i32> {
-        <E as mod_api::prelude::PlayersBackend>::player_xp_needed_for_next_level(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_xp_needed_for_next_level(&self.0, player)
     }
     fn player_permission_level(&self, player: PlayerRef) -> Option<u8> {
-        <E as mod_api::prelude::PlayersBackend>::player_permission_level(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_permission_level(&self.0, player)
     }
     fn player_has_infinite_materials(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_has_infinite_materials(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_has_infinite_materials(&self.0, player)
     }
     fn player_can_use_game_master_blocks(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_can_use_game_master_blocks(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_can_use_game_master_blocks(&self.0, player)
     }
     fn player_previous_game_mode(&self, player: PlayerRef) -> Option<Option<GameMode>> {
-        <E as mod_api::prelude::PlayersBackend>::player_previous_game_mode(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_previous_game_mode(&self.0, player)
     }
     fn player_is_secondary_use_active(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_is_secondary_use_active(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_is_secondary_use_active(&self.0, player)
     }
     fn player_is_fake(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_is_fake(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_is_fake(&self.0, player)
     }
     fn player_may_use_item_at(
         &self,
@@ -3722,49 +3722,49 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackend for HostOf<'_, E> 
         face: BlockFace,
         stack: &ItemStack,
     ) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_may_use_item_at(&*self.0, player, pos, face, stack)
+        <E as mod_api::prelude::PlayersBackend>::player_may_use_item_at(&self.0, player, pos, face, stack)
     }
     fn player_can_harm(&self, player: PlayerRef, other: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_can_harm(&*self.0, player, other)
+        <E as mod_api::prelude::PlayersBackend>::player_can_harm(&self.0, player, other)
     }
     fn player_respawn_config(
         &self,
         player: PlayerRef,
     ) -> Option<Option<PlayerRespawnConfig>> {
-        <E as mod_api::prelude::PlayersBackend>::player_respawn_config(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_respawn_config(&self.0, player)
     }
     fn player_text_filtering(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_text_filtering(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_text_filtering(&self.0, player)
     }
     fn player_sleep_ignored(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_sleep_ignored(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_sleep_ignored(&self.0, player)
     }
     fn player_counts_for_sleep(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_counts_for_sleep(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_counts_for_sleep(&self.0, player)
     }
     fn player_sleep_timer(&self, player: PlayerRef) -> Option<u32> {
-        <E as mod_api::prelude::PlayersBackend>::player_sleep_timer(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_sleep_timer(&self.0, player)
     }
     fn player_inventory(&self, player: PlayerRef) -> Option<Vec<ItemStack>> {
-        <E as mod_api::prelude::PlayersBackend>::player_inventory(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_inventory(&self.0, player)
     }
     fn player_game_mode(&self, player: PlayerRef) -> Option<GameMode> {
-        <E as mod_api::prelude::PlayersBackend>::player_game_mode(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_game_mode(&self.0, player)
     }
     fn player_is_creative(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_is_creative(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_is_creative(&self.0, player)
     }
     fn player_is_spectator(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_is_spectator(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_is_spectator(&self.0, player)
     }
     fn player_may_build(&self, player: PlayerRef) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_may_build(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_may_build(&self.0, player)
     }
     fn player_food(&self, player: PlayerRef) -> Option<PlayerFood> {
-        <E as mod_api::prelude::PlayersBackend>::player_food(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_food(&self.0, player)
     }
     fn player_abilities(&self, player: PlayerRef) -> Option<PlayerAbilities> {
-        <E as mod_api::prelude::PlayersBackend>::player_abilities(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_abilities(&self.0, player)
     }
     fn player_stat(
         &self,
@@ -3772,62 +3772,62 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackend for HostOf<'_, E> 
         stat_type: StatType,
         key: &str,
     ) -> Option<i32> {
-        <E as mod_api::prelude::PlayersBackend>::player_stat(&*self.0, player, stat_type, key)
+        <E as mod_api::prelude::PlayersBackend>::player_stat(&self.0, player, stat_type, key)
     }
     fn player_has_discovered_recipe(
         &self,
         player: PlayerRef,
         recipe: &str,
     ) -> Option<bool> {
-        <E as mod_api::prelude::PlayersBackend>::player_has_discovered_recipe(&*self.0, player, recipe)
+        <E as mod_api::prelude::PlayersBackend>::player_has_discovered_recipe(&self.0, player, recipe)
     }
     fn player_discovered_recipes(&self, player: PlayerRef) -> Option<Vec<String>> {
-        <E as mod_api::prelude::PlayersBackend>::player_discovered_recipes(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_discovered_recipes(&self.0, player)
     }
     fn player_client_brand(&self, player: PlayerRef) -> Option<String> {
-        <E as mod_api::prelude::PlayersBackend>::player_client_brand(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_client_brand(&self.0, player)
     }
     fn player_announced_channels(&self, player: PlayerRef) -> Option<Vec<String>> {
-        <E as mod_api::prelude::PlayersBackend>::player_announced_channels(&*self.0, player)
+        <E as mod_api::prelude::PlayersBackend>::player_announced_channels(&self.0, player)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::PlayersClientBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::PlayersClientBackend for HostOf<E> {
     fn player_synced_recipe_book_settings(
         &self,
         player: PlayerRef,
         book: &RecipeBookTypeKey,
     ) -> Option<RecipeBookSettings> {
-        <E as mod_api::prelude::PlayersClientBackend>::player_synced_recipe_book_settings(&*self.0, player, book)
+        <E as mod_api::prelude::PlayersClientBackend>::player_synced_recipe_book_settings(&self.0, player, book)
     }
     fn player_block_breaking(&self, player: PlayerRef) -> Option<BlockBreakingState> {
-        <E as mod_api::prelude::PlayersClientBackend>::player_block_breaking(&*self.0, player)
+        <E as mod_api::prelude::PlayersClientBackend>::player_block_breaking(&self.0, player)
     }
     fn player_ambient_mood(&self, player: PlayerRef) -> Option<f32> {
-        <E as mod_api::prelude::PlayersClientBackend>::player_ambient_mood(&*self.0, player)
+        <E as mod_api::prelude::PlayersClientBackend>::player_ambient_mood(&self.0, player)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<E> {
     fn player_set_recipe_book_settings(
         &mut self,
         player: PlayerRef,
         book: &RecipeBookTypeKey,
         settings: RecipeBookSettings,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_recipe_book_settings(&mut *self.0, player, book, settings)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_recipe_book_settings(&mut self.0, player, book, settings)
     }
     fn player_tell(
         &mut self,
         player: PlayerRef,
         line: Text,
     ) -> Result<bool, TextFormError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_tell(&mut *self.0, player, line)
+        <E as mod_api::prelude::PlayersBackendMut>::player_tell(&mut self.0, player, line)
     }
     fn player_action_bar(
         &mut self,
         player: PlayerRef,
         line: Text,
     ) -> Result<bool, TextFormError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_action_bar(&mut *self.0, player, line)
+        <E as mod_api::prelude::PlayersBackendMut>::player_action_bar(&mut self.0, player, line)
     }
     fn player_tab_list(
         &mut self,
@@ -3835,44 +3835,44 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         header: &Text,
         footer: &Text,
     ) -> Result<bool, TextFormError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_tab_list(&mut *self.0, player, header, footer)
+        <E as mod_api::prelude::PlayersBackendMut>::player_tab_list(&mut self.0, player, header, footer)
     }
     fn player_disconnect(
         &mut self,
         player: PlayerRef,
         reason: Text,
     ) -> Result<bool, TextFormError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_disconnect(&mut *self.0, player, reason)
+        <E as mod_api::prelude::PlayersBackendMut>::player_disconnect(&mut self.0, player, reason)
     }
     fn player_set_sleep_ignored(&mut self, player: PlayerRef, ignored: bool) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_sleep_ignored(&mut *self.0, player, ignored)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_sleep_ignored(&mut self.0, player, ignored)
     }
     fn player_set_respawn_config(
         &mut self,
         player: PlayerRef,
         config: Option<PlayerRespawnConfig>,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_respawn_config(&mut *self.0, player, config)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_respawn_config(&mut self.0, player, config)
     }
     fn player_set_sleep_timer(&mut self, player: PlayerRef, ticks: u32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_sleep_timer(&mut *self.0, player, ticks)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_sleep_timer(&mut self.0, player, ticks)
     }
     fn player_set_nickname(
         &mut self,
         player: PlayerRef,
         nickname: Option<&str>,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_nickname(&mut *self.0, player, nickname)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_nickname(&mut self.0, player, nickname)
     }
     fn player_hide(&mut self, player: PlayerRef, level: Option<u8>) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_hide(&mut *self.0, player, level)
+        <E as mod_api::prelude::PlayersBackendMut>::player_hide(&mut self.0, player, level)
     }
     fn player_open_menu(
         &mut self,
         player: PlayerRef,
         entity: BlockEntityRef,
     ) -> Result<bool, BlockEntityError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_open_menu(&mut *self.0, player, entity)
+        <E as mod_api::prelude::PlayersBackendMut>::player_open_menu(&mut self.0, player, entity)
     }
     fn player_open_mod_menu(
         &mut self,
@@ -3882,7 +3882,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         extra: Vec<u8>,
         pos: Option<[i32; 3]>,
     ) -> Result<Option<i32>, OpenMenuError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_open_mod_menu(&mut *self.0, player, menu, title, extra, pos)
+        <E as mod_api::prelude::PlayersBackendMut>::player_open_mod_menu(&mut self.0, player, menu, title, extra, pos)
     }
     fn player_send_map(
         &mut self,
@@ -3890,21 +3890,21 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         map_id: i32,
         colors: &[u8],
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_send_map(&mut *self.0, player, map_id, colors)
+        <E as mod_api::prelude::PlayersBackendMut>::player_send_map(&mut self.0, player, map_id, colors)
     }
     fn player_set_abilities(
         &mut self,
         player: PlayerRef,
         abilities: PlayerAbilities,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_abilities(&mut *self.0, player, abilities)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_abilities(&mut self.0, player, abilities)
     }
     fn player_perform_action(
         &mut self,
         player: PlayerRef,
         action: PlayerAction,
     ) -> Result<ActionOutcome, ActionRefused> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_perform_action(&mut *self.0, player, action)
+        <E as mod_api::prelude::PlayersBackendMut>::player_perform_action(&mut self.0, player, action)
     }
     fn player_perform_action_scoped(
         &mut self,
@@ -3912,7 +3912,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         action: PlayerAction,
         setup: PlayerActionSetup,
     ) -> Result<ScopedActionResult, ActionRefused> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_perform_action_scoped(&mut *self.0, player, action, setup)
+        <E as mod_api::prelude::PlayersBackendMut>::player_perform_action_scoped(&mut self.0, player, action, setup)
     }
     fn player_set_item_cooldown(
         &mut self,
@@ -3920,20 +3920,20 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         group: &str,
         ticks: i32,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_item_cooldown(&mut *self.0, player, group, ticks)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_item_cooldown(&mut self.0, player, group, ticks)
     }
     fn player_remove_item_cooldown(&mut self, player: PlayerRef, group: &str) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_remove_item_cooldown(&mut *self.0, player, group)
+        <E as mod_api::prelude::PlayersBackendMut>::player_remove_item_cooldown(&mut self.0, player, group)
     }
     fn player_set_exp_cooldown(&mut self, player: PlayerRef, ticks: u32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_exp_cooldown(&mut *self.0, player, ticks)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_exp_cooldown(&mut self.0, player, ticks)
     }
     fn player_set_warden_warning_cooldown(
         &mut self,
         player: PlayerRef,
         ticks: u32,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_warden_warning_cooldown(&mut *self.0, player, ticks)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_warden_warning_cooldown(&mut self.0, player, ticks)
     }
     fn player_trigger_criterion(
         &mut self,
@@ -3941,14 +3941,14 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         trigger: &Identifier,
         test: Arc<dyn CriterionTest>,
     ) -> Result<(), TriggerCriterionError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_trigger_criterion(&mut *self.0, player, trigger, test)
+        <E as mod_api::prelude::PlayersBackendMut>::player_trigger_criterion(&mut self.0, player, trigger, test)
     }
     fn player_trigger_block_use(
         &mut self,
         player: PlayerRef,
         pos: [i32; 3],
     ) -> Result<(), TriggerCriterionError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_trigger_block_use(&mut *self.0, player, pos)
+        <E as mod_api::prelude::PlayersBackendMut>::player_trigger_block_use(&mut self.0, player, pos)
     }
     fn player_trigger_item_used_on_block(
         &mut self,
@@ -3956,14 +3956,14 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         pos: [i32; 3],
         original: &ItemStack,
     ) -> Result<(), TriggerCriterionError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_trigger_item_used_on_block(&mut *self.0, player, pos, original)
+        <E as mod_api::prelude::PlayersBackendMut>::player_trigger_item_used_on_block(&mut self.0, player, pos, original)
     }
     fn player_set_last_death_location(
         &mut self,
         player: PlayerRef,
         location: Option<GlobalPos>,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_last_death_location(&mut *self.0, player, location)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_last_death_location(&mut self.0, player, location)
     }
     fn player_feed(
         &mut self,
@@ -3971,31 +3971,31 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         nutrition: i32,
         saturation_modifier: f32,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_feed(&mut *self.0, player, nutrition, saturation_modifier)
+        <E as mod_api::prelude::PlayersBackendMut>::player_feed(&mut self.0, player, nutrition, saturation_modifier)
     }
     fn player_add_exhaustion(&mut self, player: PlayerRef, amount: f32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_add_exhaustion(&mut *self.0, player, amount)
+        <E as mod_api::prelude::PlayersBackendMut>::player_add_exhaustion(&mut self.0, player, amount)
     }
     fn player_set_food_level(&mut self, player: PlayerRef, level: i32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_food_level(&mut *self.0, player, level)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_food_level(&mut self.0, player, level)
     }
     fn player_set_saturation(&mut self, player: PlayerRef, saturation: f32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_saturation(&mut *self.0, player, saturation)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_saturation(&mut self.0, player, saturation)
     }
     fn player_set_exhaustion(&mut self, player: PlayerRef, exhaustion: f32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_exhaustion(&mut *self.0, player, exhaustion)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_exhaustion(&mut self.0, player, exhaustion)
     }
     fn player_set_experience_points(&mut self, player: PlayerRef, points: i32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_experience_points(&mut *self.0, player, points)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_experience_points(&mut self.0, player, points)
     }
     fn player_set_experience_levels(&mut self, player: PlayerRef, levels: i32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_experience_levels(&mut *self.0, player, levels)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_experience_levels(&mut self.0, player, levels)
     }
     fn player_set_game_mode(&mut self, player: PlayerRef, mode: GameMode) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_game_mode(&mut *self.0, player, mode)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_game_mode(&mut self.0, player, mode)
     }
     fn player_set_selected_slot(&mut self, player: PlayerRef, slot: usize) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_selected_slot(&mut *self.0, player, slot)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_selected_slot(&mut self.0, player, slot)
     }
     fn player_drop_stack(
         &mut self,
@@ -4003,10 +4003,10 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         stack: ItemStack,
         thrown_by_player: bool,
     ) -> Result<Option<ItemStack>, StackWriteError> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_drop_stack(&mut *self.0, player, stack, thrown_by_player)
+        <E as mod_api::prelude::PlayersBackendMut>::player_drop_stack(&mut self.0, player, stack, thrown_by_player)
     }
     fn player_remove_fake(&mut self, player: PlayerRef) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_remove_fake(&mut *self.0, player)
+        <E as mod_api::prelude::PlayersBackendMut>::player_remove_fake(&mut self.0, player)
     }
     fn player_award_stat(
         &mut self,
@@ -4015,7 +4015,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         key: &str,
         amount: i32,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_award_stat(&mut *self.0, player, stat_type, key, amount)
+        <E as mod_api::prelude::PlayersBackendMut>::player_award_stat(&mut self.0, player, stat_type, key, amount)
     }
     fn player_reset_stat(
         &mut self,
@@ -4023,27 +4023,27 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         stat_type: StatType,
         key: &str,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_reset_stat(&mut *self.0, player, stat_type, key)
+        <E as mod_api::prelude::PlayersBackendMut>::player_reset_stat(&mut self.0, player, stat_type, key)
     }
     fn player_award_recipes(
         &mut self,
         player: PlayerRef,
         recipes: &[&str],
     ) -> Option<i32> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_award_recipes(&mut *self.0, player, recipes)
+        <E as mod_api::prelude::PlayersBackendMut>::player_award_recipes(&mut self.0, player, recipes)
     }
     fn player_reset_recipes(
         &mut self,
         player: PlayerRef,
         recipes: &[&str],
     ) -> Option<i32> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_reset_recipes(&mut *self.0, player, recipes)
+        <E as mod_api::prelude::PlayersBackendMut>::player_reset_recipes(&mut self.0, player, recipes)
     }
     fn player_give_experience_points(&mut self, player: PlayerRef, points: u32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_give_experience_points(&mut *self.0, player, points)
+        <E as mod_api::prelude::PlayersBackendMut>::player_give_experience_points(&mut self.0, player, points)
     }
     fn player_give_levels(&mut self, player: PlayerRef, levels: i32) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_give_levels(&mut *self.0, player, levels)
+        <E as mod_api::prelude::PlayersBackendMut>::player_give_levels(&mut self.0, player, levels)
     }
     fn player_stop_sound(
         &mut self,
@@ -4051,7 +4051,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         sound: Option<&str>,
         source: Option<SoundSource>,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_stop_sound(&mut *self.0, player, sound, source)
+        <E as mod_api::prelude::PlayersBackendMut>::player_stop_sound(&mut self.0, player, sound, source)
     }
     fn player_play_sound(
         &mut self,
@@ -4061,34 +4061,34 @@ impl<E: Legacy + Subsystems> mod_api::prelude::PlayersBackendMut for HostOf<'_, 
         volume: f32,
         pitch: f32,
     ) -> bool {
-        <E as mod_api::prelude::PlayersBackendMut>::player_play_sound(&mut *self.0, player, sound, source, volume, pitch)
+        <E as mod_api::prelude::PlayersBackendMut>::player_play_sound(&mut self.0, player, sound, source, volume, pitch)
     }
     fn player_set_chunk_areas(
         &mut self,
         player: PlayerRef,
         areas: &[ChunkArea],
     ) -> Result<(), ChunkAreaRefusal> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_set_chunk_areas(&mut *self.0, player, areas)
+        <E as mod_api::prelude::PlayersBackendMut>::player_set_chunk_areas(&mut self.0, player, areas)
     }
     fn player_simulate_move(
         &mut self,
         player: PlayerRef,
         input: PlayerInput,
     ) -> Option<SimulatedMove> {
-        <E as mod_api::prelude::PlayersBackendMut>::player_simulate_move(&mut *self.0, player, input)
+        <E as mod_api::prelude::PlayersBackendMut>::player_simulate_move(&mut self.0, player, input)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::PlayersClientBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::PlayersClientBackendMut for HostOf<E> {
     fn player_request_recipe_book_settings(
         &mut self,
         player: PlayerRef,
         book: &RecipeBookTypeKey,
         settings: RecipeBookSettings,
     ) -> bool {
-        <E as mod_api::prelude::PlayersClientBackendMut>::player_request_recipe_book_settings(&mut *self.0, player, book, settings)
+        <E as mod_api::prelude::PlayersClientBackendMut>::player_request_recipe_book_settings(&mut self.0, player, book, settings)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ProjectilesServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ProjectilesServerHost for HostOf<E> {
     fn spawn_projectile_from_rotation(
         &mut self,
         owner: LivingRef,
@@ -4098,51 +4098,51 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ProjectilesServerHost for HostOf<
         power: f32,
         inaccuracy: f32,
     ) -> Option<ProjectileRef> {
-        <E as mod_api::prelude::ProjectilesServerHost>::spawn_projectile_from_rotation(&mut *self.0, owner, entity_type, stack, offset, power, inaccuracy)
+        <E as mod_api::prelude::ProjectilesServerHost>::spawn_projectile_from_rotation(&mut self.0, owner, entity_type, stack, offset, power, inaccuracy)
     }
     fn projectile(&self, entity: EntityRef) -> Option<ProjectileRef> {
-        <E as mod_api::prelude::ProjectilesServerHost>::projectile(&*self.0, entity)
+        <E as mod_api::prelude::ProjectilesServerHost>::projectile(&self.0, entity)
     }
     fn fishing_hook(&self, entity: EntityRef) -> Option<FishingHookRef> {
-        <E as mod_api::prelude::ProjectilesServerHost>::fishing_hook(&*self.0, entity)
+        <E as mod_api::prelude::ProjectilesServerHost>::fishing_hook(&self.0, entity)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ProjectilesBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ProjectilesBackend for HostOf<E> {
     fn projectile_owner(&self, projectile: ProjectileRef) -> Option<EntityRef> {
-        <E as mod_api::prelude::ProjectilesBackend>::projectile_owner(&*self.0, projectile)
+        <E as mod_api::prelude::ProjectilesBackend>::projectile_owner(&self.0, projectile)
     }
     fn projectile_pickup(&self, projectile: ProjectileRef) -> Option<ArrowPickup> {
-        <E as mod_api::prelude::ProjectilesBackend>::projectile_pickup(&*self.0, projectile)
+        <E as mod_api::prelude::ProjectilesBackend>::projectile_pickup(&self.0, projectile)
     }
     fn projectile_pierce_level(
         &self,
         projectile: ProjectileRef,
     ) -> Result<i8, PierceLevelError> {
-        <E as mod_api::prelude::ProjectilesBackend>::projectile_pierce_level(&*self.0, projectile)
+        <E as mod_api::prelude::ProjectilesBackend>::projectile_pierce_level(&self.0, projectile)
     }
     fn projectile_base_damage(&self, projectile: ProjectileRef) -> Option<f64> {
-        <E as mod_api::prelude::ProjectilesBackend>::projectile_base_damage(&*self.0, projectile)
+        <E as mod_api::prelude::ProjectilesBackend>::projectile_base_damage(&self.0, projectile)
     }
     fn projectile_critical(&self, projectile: ProjectileRef) -> Option<bool> {
-        <E as mod_api::prelude::ProjectilesBackend>::projectile_critical(&*self.0, projectile)
+        <E as mod_api::prelude::ProjectilesBackend>::projectile_critical(&self.0, projectile)
     }
     fn fishing_hook_player_owner(&self, hook: FishingHookRef) -> Option<EntityRef> {
-        <E as mod_api::prelude::ProjectilesBackend>::fishing_hook_player_owner(&*self.0, hook)
+        <E as mod_api::prelude::ProjectilesBackend>::fishing_hook_player_owner(&self.0, hook)
     }
     fn fishing_hook_hooked_in(&self, hook: FishingHookRef) -> Option<EntityRef> {
-        <E as mod_api::prelude::ProjectilesBackend>::fishing_hook_hooked_in(&*self.0, hook)
+        <E as mod_api::prelude::ProjectilesBackend>::fishing_hook_hooked_in(&self.0, hook)
     }
     fn fishing_hook_open_water(&self, hook: FishingHookRef) -> Option<bool> {
-        <E as mod_api::prelude::ProjectilesBackend>::fishing_hook_open_water(&*self.0, hook)
+        <E as mod_api::prelude::ProjectilesBackend>::fishing_hook_open_water(&self.0, hook)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ProjectilesBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ProjectilesBackendMut for HostOf<E> {
     fn projectile_set_owner(
         &mut self,
         projectile: ProjectileRef,
         owner: Option<EntityRef>,
     ) -> bool {
-        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_owner(&mut *self.0, projectile, owner)
+        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_owner(&mut self.0, projectile, owner)
     }
     fn projectile_deflect(
         &mut self,
@@ -4153,286 +4153,286 @@ impl<E: Legacy + Subsystems> mod_api::prelude::ProjectilesBackendMut for HostOf<
         by_attack: bool,
         power: [f64; 3],
     ) -> bool {
-        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_deflect(&mut *self.0, projectile, deflection, by, new_owner, by_attack, power)
+        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_deflect(&mut self.0, projectile, deflection, by, new_owner, by_attack, power)
     }
     fn projectile_set_pickup(
         &mut self,
         projectile: ProjectileRef,
         pickup: ArrowPickup,
     ) -> bool {
-        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_pickup(&mut *self.0, projectile, pickup)
+        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_pickup(&mut self.0, projectile, pickup)
     }
     fn projectile_set_pierce_level(
         &mut self,
         projectile: ProjectileRef,
         level: i8,
     ) -> Result<(), PierceLevelError> {
-        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_pierce_level(&mut *self.0, projectile, level)
+        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_pierce_level(&mut self.0, projectile, level)
     }
     fn projectile_set_base_damage(
         &mut self,
         projectile: ProjectileRef,
         damage: f64,
     ) -> bool {
-        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_base_damage(&mut *self.0, projectile, damage)
+        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_base_damage(&mut self.0, projectile, damage)
     }
     fn projectile_set_critical(
         &mut self,
         projectile: ProjectileRef,
         critical: bool,
     ) -> bool {
-        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_critical(&mut *self.0, projectile, critical)
+        <E as mod_api::prelude::ProjectilesBackendMut>::projectile_set_critical(&mut self.0, projectile, critical)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::RaidsBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::RaidsBackend for HostOf<E> {
     fn raid_center(&self, raid: RaidRef) -> Option<[i32; 3]> {
-        <E as mod_api::prelude::RaidsBackend>::raid_center(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_center(&self.0, raid)
     }
     fn raid_omen_level(&self, raid: RaidRef) -> Option<i32> {
-        <E as mod_api::prelude::RaidsBackend>::raid_omen_level(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_omen_level(&self.0, raid)
     }
     fn raid_groups_spawned(&self, raid: RaidRef) -> Option<i32> {
-        <E as mod_api::prelude::RaidsBackend>::raid_groups_spawned(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_groups_spawned(&self.0, raid)
     }
     fn raid_num_groups(&self, raid: RaidRef) -> Option<i32> {
-        <E as mod_api::prelude::RaidsBackend>::raid_num_groups(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_num_groups(&self.0, raid)
     }
     fn raid_has_bonus_wave(&self, raid: RaidRef) -> Option<bool> {
-        <E as mod_api::prelude::RaidsBackend>::raid_has_bonus_wave(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_has_bonus_wave(&self.0, raid)
     }
     fn raid_is_started(&self, raid: RaidRef) -> bool {
-        <E as mod_api::prelude::RaidsBackend>::raid_is_started(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_is_started(&self.0, raid)
     }
     fn raid_is_active(&self, raid: RaidRef) -> bool {
-        <E as mod_api::prelude::RaidsBackend>::raid_is_active(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_is_active(&self.0, raid)
     }
     fn raid_status(&self, raid: RaidRef) -> Option<RaidStatus> {
-        <E as mod_api::prelude::RaidsBackend>::raid_status(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_status(&self.0, raid)
     }
     fn raid_total_health(&self, raid: RaidRef) -> Option<f32> {
-        <E as mod_api::prelude::RaidsBackend>::raid_total_health(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_total_health(&self.0, raid)
     }
     fn raid_living_health(&self, raid: RaidRef) -> Option<f32> {
-        <E as mod_api::prelude::RaidsBackend>::raid_living_health(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_living_health(&self.0, raid)
     }
     fn raid_bar_progress(&self, raid: RaidRef) -> Option<f32> {
-        <E as mod_api::prelude::RaidsBackend>::raid_bar_progress(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_bar_progress(&self.0, raid)
     }
     fn raid_raiders(&self, raid: RaidRef) -> Option<Vec<EntityRef>> {
-        <E as mod_api::prelude::RaidsBackend>::raid_raiders(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_raiders(&self.0, raid)
     }
     fn raid_wave_raiders(&self, raid: RaidRef, wave: i32) -> Option<Vec<EntityRef>> {
-        <E as mod_api::prelude::RaidsBackend>::raid_wave_raiders(&*self.0, raid, wave)
+        <E as mod_api::prelude::RaidsBackend>::raid_wave_raiders(&self.0, raid, wave)
     }
     fn raid_heroes(&self, raid: RaidRef) -> Option<Vec<u128>> {
-        <E as mod_api::prelude::RaidsBackend>::raid_heroes(&*self.0, raid)
+        <E as mod_api::prelude::RaidsBackend>::raid_heroes(&self.0, raid)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::RaidsBackendMut for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::RaidsBackendMut for HostOf<E> {
     fn raid_set_omen_level(&mut self, raid: RaidRef, level: i32) -> bool {
-        <E as mod_api::prelude::RaidsBackendMut>::raid_set_omen_level(&mut *self.0, raid, level)
+        <E as mod_api::prelude::RaidsBackendMut>::raid_set_omen_level(&mut self.0, raid, level)
     }
     fn raid_stop(&mut self, raid: RaidRef) -> bool {
-        <E as mod_api::prelude::RaidsBackendMut>::raid_stop(&mut *self.0, raid)
+        <E as mod_api::prelude::RaidsBackendMut>::raid_stop(&mut self.0, raid)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::RecipePropertiesHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::RecipePropertiesHost for HostOf<E> {
     fn mod_recipe_property_contains(&self, set: &str, item: ItemKey) -> bool {
-        <E as mod_api::prelude::RecipePropertiesHost>::mod_recipe_property_contains(&*self.0, set, item)
+        <E as mod_api::prelude::RecipePropertiesHost>::mod_recipe_property_contains(&self.0, set, item)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::RecipesHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::RecipesHost for HostOf<E> {
     fn recipes_of_type(&self, kind: &str) -> Arc<[Recipe]> {
-        <E as mod_api::prelude::RecipesHost>::recipes_of_type(&*self.0, kind)
+        <E as mod_api::prelude::RecipesHost>::recipes_of_type(&self.0, kind)
     }
     fn recipe_ingredient(
         &self,
         json: &str,
     ) -> Result<Option<Ingredient>, RecipeJsonError> {
-        <E as mod_api::prelude::RecipesHost>::recipe_ingredient(&*self.0, json)
+        <E as mod_api::prelude::RecipesHost>::recipe_ingredient(&self.0, json)
     }
     fn recipe_result(&self, json: &str) -> Result<Option<ItemStack>, RecipeJsonError> {
-        <E as mod_api::prelude::RecipesHost>::recipe_result(&*self.0, json)
+        <E as mod_api::prelude::RecipesHost>::recipe_result(&self.0, json)
     }
     fn known_recipes(&mut self) -> Arc<[i32]> {
-        <E as mod_api::prelude::RecipesHost>::known_recipes(&mut *self.0)
+        <E as mod_api::prelude::RecipesHost>::known_recipes(&mut self.0)
     }
     fn recipe_book_category(&mut self, kind: &str) -> Option<RecipeBookCategory> {
-        <E as mod_api::prelude::RecipesHost>::recipe_book_category(&mut *self.0, kind)
+        <E as mod_api::prelude::RecipesHost>::recipe_book_category(&mut self.0, kind)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::RecipesClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::RecipesClientHost for HostOf<E> {
     fn panel_items(&mut self, mod_id: &str, items: Vec<Stack>) {
-        <E as mod_api::prelude::RecipesClientHost>::panel_items(&mut *self.0, mod_id, items)
+        <E as mod_api::prelude::RecipesClientHost>::panel_items(&mut self.0, mod_id, items)
     }
     fn panel_style(&mut self, mod_id: &str, style: PanelStyle) {
-        <E as mod_api::prelude::RecipesClientHost>::panel_style(&mut *self.0, mod_id, style)
+        <E as mod_api::prelude::RecipesClientHost>::panel_style(&mut self.0, mod_id, style)
     }
     fn place_recipe(&mut self, book_id: i32, all: bool) -> Result<(), String> {
-        <E as mod_api::prelude::RecipesClientHost>::place_recipe(&mut *self.0, book_id, all)
+        <E as mod_api::prelude::RecipesClientHost>::place_recipe(&mut self.0, book_id, all)
     }
     fn transfer_recipe(&mut self, book_id: i32) {
-        <E as mod_api::prelude::RecipesClientHost>::transfer_recipe(&mut *self.0, book_id)
+        <E as mod_api::prelude::RecipesClientHost>::transfer_recipe(&mut self.0, book_id)
     }
     fn transfer_recipe_check(&mut self, book_id: i32) -> Option<RecipeTransferCheck> {
-        <E as mod_api::prelude::RecipesClientHost>::transfer_recipe_check(&mut *self.0, book_id)
+        <E as mod_api::prelude::RecipesClientHost>::transfer_recipe_check(&mut self.0, book_id)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::RecipesBackend for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::RecipesBackend for HostOf<E> {
     fn recipe_ingredient_item_keys(
         &self,
         ingredient: &Ingredient,
     ) -> Result<Arc<[ItemKey]>, IngredientKeysError> {
-        <E as mod_api::prelude::RecipesBackend>::recipe_ingredient_item_keys(&*self.0, ingredient)
+        <E as mod_api::prelude::RecipesBackend>::recipe_ingredient_item_keys(&self.0, ingredient)
     }
     fn recipe_ingredient_test(
         &self,
         ingredient: &Ingredient,
         stack: &ItemStack,
     ) -> bool {
-        <E as mod_api::prelude::RecipesBackend>::recipe_ingredient_test(&*self.0, ingredient, stack)
+        <E as mod_api::prelude::RecipesBackend>::recipe_ingredient_test(&self.0, ingredient, stack)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ResourcesHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ResourcesHost for HostOf<E> {
     fn resource(&self, pack_type: PackType, identifier: &Identifier) -> Option<Vec<u8>> {
-        <E as mod_api::prelude::ResourcesHost>::resource(&*self.0, pack_type, identifier)
+        <E as mod_api::prelude::ResourcesHost>::resource(&self.0, pack_type, identifier)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ScreensClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ScreensClientHost for HostOf<E> {
     fn preset_editor(&self) -> Option<PresetEditor> {
-        <E as mod_api::prelude::ScreensClientHost>::preset_editor(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::preset_editor(&self.0)
     }
     fn preset_editor_dimensions(&self) -> Option<Compound> {
-        <E as mod_api::prelude::ScreensClientHost>::preset_editor_dimensions(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::preset_editor_dimensions(&self.0)
     }
     fn set_preset_editor_dimensions(&self, dimensions: Compound) -> bool {
-        <E as mod_api::prelude::ScreensClientHost>::set_preset_editor_dimensions(&*self.0, dimensions)
+        <E as mod_api::prelude::ScreensClientHost>::set_preset_editor_dimensions(&self.0, dimensions)
     }
     fn screen_pos(&self) -> Option<[i32; 3]> {
-        <E as mod_api::prelude::ScreensClientHost>::screen_pos(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::screen_pos(&self.0)
     }
     fn screen_extra_data(&self) -> Option<Vec<u8>> {
-        <E as mod_api::prelude::ScreensClientHost>::screen_extra_data(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::screen_extra_data(&self.0)
     }
     fn screen_exclusion(&self) -> Vec<[f32; 4]> {
-        <E as mod_api::prelude::ScreensClientHost>::screen_exclusion(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::screen_exclusion(&self.0)
     }
     fn screen_hovered_item(&self) -> Option<ItemKey> {
-        <E as mod_api::prelude::ScreensClientHost>::screen_hovered_item(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::screen_hovered_item(&self.0)
     }
     fn apply_screen_blur(&self) -> bool {
-        <E as mod_api::prelude::ScreensClientHost>::apply_screen_blur(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::apply_screen_blur(&self.0)
     }
     fn menu_blur_radius(&self) -> f32 {
-        <E as mod_api::prelude::ScreensClientHost>::menu_blur_radius(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::menu_blur_radius(&self.0)
     }
     fn mod_screen_open(&mut self, mod_id: &str) -> bool {
-        <E as mod_api::prelude::ScreensClientHost>::mod_screen_open(&mut *self.0, mod_id)
+        <E as mod_api::prelude::ScreensClientHost>::mod_screen_open(&mut self.0, mod_id)
     }
     fn mod_screen_close(&mut self, mod_id: &str) {
-        <E as mod_api::prelude::ScreensClientHost>::mod_screen_close(&mut *self.0, mod_id)
+        <E as mod_api::prelude::ScreensClientHost>::mod_screen_close(&mut self.0, mod_id)
     }
     fn mod_screen(&self) -> Option<&str> {
-        <E as mod_api::prelude::ScreensClientHost>::mod_screen(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::mod_screen(&self.0)
     }
     fn screen_title(&self) -> Option<String> {
-        <E as mod_api::prelude::ScreensClientHost>::screen_title(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::screen_title(&self.0)
     }
     fn window_focused(&self) -> bool {
-        <E as mod_api::prelude::ScreensClientHost>::window_focused(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::window_focused(&self.0)
     }
     fn observed_screen_id(&self) -> Option<ScreenId> {
-        <E as mod_api::prelude::ScreensClientHost>::observed_screen_id(&*self.0)
+        <E as mod_api::prelude::ScreensClientHost>::observed_screen_id(&self.0)
     }
     fn is_key_down(&self, key: &str) -> bool {
-        <E as mod_api::prelude::ScreensClientHost>::is_key_down(&*self.0, key)
+        <E as mod_api::prelude::ScreensClientHost>::is_key_down(&self.0, key)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ServicesServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ServicesServerHost for HostOf<E> {
     fn commands(&mut self) -> &mut dyn Commands {
-        <E as mod_api::prelude::ServicesServerHost>::commands(&mut *self.0)
+        <E as mod_api::prelude::ServicesServerHost>::commands(&mut self.0)
     }
     fn levels(&self) -> &dyn Levels {
-        <E as mod_api::prelude::ServicesServerHost>::levels(&*self.0)
+        <E as mod_api::prelude::ServicesServerHost>::levels(&self.0)
     }
     fn messages(&self) -> &dyn Messages {
-        <E as mod_api::prelude::ServicesServerHost>::messages(&*self.0)
+        <E as mod_api::prelude::ServicesServerHost>::messages(&self.0)
     }
     fn players(&self) -> &dyn Players {
-        <E as mod_api::prelude::ServicesServerHost>::players(&*self.0)
+        <E as mod_api::prelude::ServicesServerHost>::players(&self.0)
     }
     fn runtime_levels(&mut self) -> &mut dyn RuntimeLevels {
-        <E as mod_api::prelude::ServicesServerHost>::runtime_levels(&mut *self.0)
+        <E as mod_api::prelude::ServicesServerHost>::runtime_levels(&mut self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::ServicesClientHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::ServicesClientHost for HostOf<E> {
     fn instance_groups(&self) -> &dyn InstanceGroups {
-        <E as mod_api::prelude::ServicesClientHost>::instance_groups(&*self.0)
+        <E as mod_api::prelude::ServicesClientHost>::instance_groups(&self.0)
     }
     fn client_session(&self) -> &dyn ClientSession {
-        <E as mod_api::prelude::ServicesClientHost>::client_session(&*self.0)
+        <E as mod_api::prelude::ServicesClientHost>::client_session(&self.0)
     }
     fn render_assets(&self) -> &dyn RenderAssets {
-        <E as mod_api::prelude::ServicesClientHost>::render_assets(&*self.0)
+        <E as mod_api::prelude::ServicesClientHost>::render_assets(&self.0)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::TagsHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::TagsHost for HostOf<E> {
     fn tags(&self) -> &dyn Tags {
-        <E as mod_api::prelude::TagsHost>::tags(&*self.0)
+        <E as mod_api::prelude::TagsHost>::tags(&self.0)
     }
     fn unresolved_fluid_id(&self, fluid: UnresolvedFluid) -> String {
-        <E as mod_api::prelude::TagsHost>::unresolved_fluid_id(&*self.0, fluid)
+        <E as mod_api::prelude::TagsHost>::unresolved_fluid_id(&self.0, fluid)
     }
     fn block_in_tag(&self, block: BlockKey, tag: &str) -> Option<bool> {
-        <E as mod_api::prelude::TagsHost>::block_in_tag(&*self.0, block, tag)
+        <E as mod_api::prelude::TagsHost>::block_in_tag(&self.0, block, tag)
     }
     fn state_outline(&self, state: BlockState) -> Option<Vec<[f64; 6]>> {
-        <E as mod_api::prelude::TagsHost>::state_outline(&*self.0, state)
+        <E as mod_api::prelude::TagsHost>::state_outline(&self.0, state)
     }
     fn state_fluid_state(&self, state: BlockState) -> Option<FluidState> {
-        <E as mod_api::prelude::TagsHost>::state_fluid_state(&*self.0, state)
+        <E as mod_api::prelude::TagsHost>::state_fluid_state(&self.0, state)
     }
     fn fluid_in_tag(&self, fluid: &str, tag: &str) -> Option<bool> {
-        <E as mod_api::prelude::TagsHost>::fluid_in_tag(&*self.0, fluid, tag)
+        <E as mod_api::prelude::TagsHost>::fluid_in_tag(&self.0, fluid, tag)
     }
     fn fluid_is_same(&self, fluid: &str, other: &str) -> bool {
-        <E as mod_api::prelude::TagsHost>::fluid_is_same(&*self.0, fluid, other)
+        <E as mod_api::prelude::TagsHost>::fluid_is_same(&self.0, fluid, other)
     }
     fn fluid_bucket(&self, fluid: &str) -> Option<ItemKey> {
-        <E as mod_api::prelude::TagsHost>::fluid_bucket(&*self.0, fluid)
+        <E as mod_api::prelude::TagsHost>::fluid_bucket(&self.0, fluid)
     }
     fn fluid_pickup_sound(&self, fluid: &str) -> Option<&'static str> {
-        <E as mod_api::prelude::TagsHost>::fluid_pickup_sound(&*self.0, fluid)
+        <E as mod_api::prelude::TagsHost>::fluid_pickup_sound(&self.0, fluid)
     }
     fn fluid_empty_sound(&self, fluid: &str) -> Option<&'static str> {
-        <E as mod_api::prelude::TagsHost>::fluid_empty_sound(&*self.0, fluid)
+        <E as mod_api::prelude::TagsHost>::fluid_empty_sound(&self.0, fluid)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::TextHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::TextHost for HostOf<E> {
     fn text_from_json(&self, json: &str) -> Result<Option<Text>, TextFormError> {
-        <E as mod_api::prelude::TextHost>::text_from_json(&*self.0, json)
+        <E as mod_api::prelude::TextHost>::text_from_json(&self.0, json)
     }
     fn text_from_legacy(&self, legacy: &str) -> Result<Text, TextFormError> {
-        <E as mod_api::prelude::TextHost>::text_from_legacy(&*self.0, legacy)
+        <E as mod_api::prelude::TextHost>::text_from_legacy(&self.0, legacy)
     }
 }
-impl<E: Legacy + Subsystems> mod_api::prelude::WorldEditServerHost for HostOf<'_, E> {
+impl<E: Legacy + Subsystems> mod_api::prelude::WorldEditServerHost for HostOf<E> {
     fn edit_blocks(&mut self, dimension: &str, edit: &BlockEdit) -> Result<u64, String> {
-        <E as mod_api::prelude::WorldEditServerHost>::edit_blocks(&mut *self.0, dimension, edit)
+        <E as mod_api::prelude::WorldEditServerHost>::edit_blocks(&mut self.0, dimension, edit)
     }
     fn upgrade_block_entity_nbt(
         &self,
         data_version: i32,
         nbt: Compound,
     ) -> Result<Compound, NbtUpgradeError> {
-        <E as mod_api::prelude::WorldEditServerHost>::upgrade_block_entity_nbt(&*self.0, data_version, nbt)
+        <E as mod_api::prelude::WorldEditServerHost>::upgrade_block_entity_nbt(&self.0, data_version, nbt)
     }
     fn upgrade_entity_nbt(
         &self,
         data_version: i32,
         nbt: Compound,
     ) -> Result<Compound, NbtUpgradeError> {
-        <E as mod_api::prelude::WorldEditServerHost>::upgrade_entity_nbt(&*self.0, data_version, nbt)
+        <E as mod_api::prelude::WorldEditServerHost>::upgrade_entity_nbt(&self.0, data_version, nbt)
     }
     fn surface_heights(
         &self,
@@ -4440,7 +4440,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::WorldEditServerHost for HostOf<'_
         columns: &[(i32, i32)],
         heightmap: Heightmap,
     ) -> Result<Vec<Option<i32>>, String> {
-        <E as mod_api::prelude::WorldEditServerHost>::surface_heights(&*self.0, dimension, columns, heightmap)
+        <E as mod_api::prelude::WorldEditServerHost>::surface_heights(&self.0, dimension, columns, heightmap)
     }
     fn read_columns(
         &self,
@@ -4449,7 +4449,7 @@ impl<E: Legacy + Subsystems> mod_api::prelude::WorldEditServerHost for HostOf<'_
         heightmap: Heightmap,
         range: (u32, u32),
     ) -> Result<ColumnBlocks, String> {
-        <E as mod_api::prelude::WorldEditServerHost>::read_columns(&*self.0, dimension, columns, heightmap, range)
+        <E as mod_api::prelude::WorldEditServerHost>::read_columns(&self.0, dimension, columns, heightmap, range)
     }
     fn structure_template(
         &mut self,
@@ -4458,6 +4458,6 @@ impl<E: Legacy + Subsystems> mod_api::prelude::WorldEditServerHost for HostOf<'_
         rotation: StructureRotation,
         mirror: StructureMirror,
     ) -> Option<StructureTemplateSnapshot> {
-        <E as mod_api::prelude::WorldEditServerHost>::structure_template(&mut *self.0, id, at, rotation, mirror)
+        <E as mod_api::prelude::WorldEditServerHost>::structure_template(&mut self.0, id, at, rotation, mirror)
     }
 }

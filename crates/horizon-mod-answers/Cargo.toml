@@ -11,6 +11,7 @@ description = "The code that answers a mod's host calls, written against the eng
 name = "mod_answers"
 
 [dependencies]
+bytemuck = { version = "1.24", features = ["derive"] }
 horizon-engine-access = { path = "../horizon-engine-access" }
 horizon-client-lib = { path = "../horizon-client-lib" }
 horizon-core = { path = "../horizon-core" }

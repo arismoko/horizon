@@ -61,7 +61,7 @@ while i < len(src):
                 p += 1
             params = split_top(head[open_p + 1:p])
             mutable = params[0].replace(' ', '') == '&mutself'
-            recv = '&mut *self.0' if mutable else '&*self.0'
+            recv = '&mut self.0' if mutable else '&self.0'
             names = [q.split(':')[0].strip() for q in params[1:]]
             if name in MOVED:
                 text = '\n'.join(body)

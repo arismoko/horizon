@@ -7,7 +7,7 @@
 //!   subsystems by the code above the game.
 //!
 //! This crate is below `horizon-client`'s users and beside nothing: it does not depend on it.
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 // The generated impls forward argument lists as they are.
 #![allow(clippy::useless_conversion, clippy::unit_arg, clippy::needless_borrow)]
 
@@ -41,7 +41,7 @@ macro_rules! define_upward {
             canceled: &mut bool,
         ) {
             $crate::__private::dispatch_entity_tick_pre(
-                &mut $crate::HostOf::new(game),
+                $crate::HostOf::new(game),
                 dimension,
                 entity,
                 kind,

@@ -37,7 +37,7 @@ struct Fake {
     leashed: Vec<(u32, [i32; 3])>,
 }
 
-struct View<'a>(&'a Kind, EntityRef);
+struct View<'a>(&'a Kind);
 
 impl EntityView for View<'_> {
     fn position(&self) -> Option<[f64; 3]> {
@@ -68,7 +68,7 @@ impl EntityRead for Fake {
         (entity.epoch() == WorldEpoch::new(EPOCH))
             .then(|| self.entities.get(&entity.id()))
             .flatten()
-            .map(|kind| View(kind, entity))
+            .map(|kind| View(kind))
     }
 }
 
