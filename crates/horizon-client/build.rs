@@ -20,6 +20,14 @@ fn main() {
         .expect("discovering game modules"),
     )
     .expect("writing game modules");
+    let tests =
+        root.join("crates/horizon-client/src/crafting/ingredient/builtin_kinds_tests/families");
+    println!("cargo:rerun-if-changed={}", tests.display());
+    std::fs::write(
+        out_dir.join("builtin_ingredient_test_modules.rs"),
+        horizon_game_discovery::folder_modules(&tests).expect("discovering ingredient tests"),
+    )
+    .expect("writing ingredient test modules");
     horizon_mod_api_gen::generate(&root, &out_dir, horizon_mod_api_gen::Target::Client)
         .expect("generating native mod API");
     // The SDK builds this library, not the platform executable. Carry the same executable

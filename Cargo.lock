@@ -1933,6 +1933,7 @@ dependencies = [
  "horizon-core",
  "horizon-dualsense",
  "horizon-engine-slots",
+ "horizon-game-discovery",
  "horizon-guest-stack",
  "horizon-hdr",
  "horizon-hooks",
