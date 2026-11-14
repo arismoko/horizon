@@ -220,19 +220,14 @@ pub fn angry(m: &Mob) -> bool {
 }
 /// `TamableAnimal.applyTamingSideEffects` for wolves: 40 health when tame.
 pub fn set_tame(m: &mut Mob, tame: bool) {
-    use super::finalize::{Attr, set_base};
+    use super::finalize::{Attr, has_base, set_base};
     m.extra.tame = tame;
     if tame {
         m.health = 40.0;
     }
     // `setBaseValue`: the base is stored, so `/attribute` and the next refresh read it. An
     // untamed wolf with no stored base already reads the type's 8.
-    let stored = m
-        .extra
-        .attributes
-        .as_ref()
-        .is_some_and(|s| s.bases.iter().any(|(a, _)| *a == Attr::MaxHealth));
-    if m.species() == Species::Wolf && (tame || stored) {
+    if m.species() == Species::Wolf && (tame || has_base(m, Attr::MaxHealth)) {
         set_base(m, Attr::MaxHealth, wolf_health_base(tame));
     } else {
         m.attrs.max_health = if tame { 40.0 } else { 8.0 };
