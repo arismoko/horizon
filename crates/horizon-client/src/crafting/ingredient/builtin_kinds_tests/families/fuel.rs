@@ -851,3 +851,135 @@ fn brewing_fuel_codec_compiles_recipes_and_borrows_live_values() {
     }
 }
 
+#[test]
+fn cooking_fuel_recipe_compiles_and_matches_decoded_live_and_prototype_values() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:coal".into(),
+        [(
+            "minecraft:cooking_fuel",
+            Tag::compound([
+                ("burn_time", Tag::Long(4_294_967_306)),
+                ("speed_multiplier", Tag::Short(2)),
+                ("ignored", Tag::Int(100)),
+            ]),
+        )]
+        .into_iter()
+        .map(|(id, value)| (id.into(), value))
+        .collect(),
+    )]));
+    let recipe = |payload: serde_json::Value| {
+        serde_json::json!({
+            "type":"minecraft:crafting_shapeless",
+            "ingredients":[{
+                "type":"neoforge:components",
+                "items":"minecraft:coal",
+                "components":{"minecraft:cooking_fuel":payload}
+            }],
+            "result":{"id":"minecraft:diamond"}
+        })
+    };
+    let mut sources = vec![
+        (
+            "fixture:fuel_constant".into(),
+            recipe(serde_json::json!({"burn_time":10.9,"speed_multiplier":2,"ignored":false})),
+        ),
+        (
+            "fixture:fuel_reference".into(),
+            recipe(serde_json::json!({"burn_time":"fuel/test","speed_multiplier":":speed"})),
+        ),
+    ];
+    for (index, payload) in [
+        serde_json::json!(10),
+        serde_json::json!({"burn_time":10}),
+        serde_json::json!({"speed_multiplier":2}),
+        serde_json::json!({"burn_time":{},"speed_multiplier":2}),
+        serde_json::json!({"burn_time":"Bad:key","speed_multiplier":2}),
+        serde_json::json!({"burn_time":10,"speed_multiplier":[]}),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        sources.push((format!("fixture:bad_fuel_{index}"), recipe(payload)));
+    }
+    let root = tempfile::tempdir().unwrap();
+    let load = load();
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        sources,
+        &load,
+    )
+    .unwrap();
+    let expected = recipes.placement("fixture:fuel_constant").unwrap();
+    assert_eq!(
+        expected.ingredients[0].shown.as_ref().unwrap()[0]
+            .data()
+            .and_then(|data| data.other("minecraft:cooking_fuel")),
+        Some(&Tag::compound([
+            ("burn_time", Tag::Int(10)),
+            ("speed_multiplier", Tag::Float(0x4000_0000)),
+        ]))
+    );
+    assert_eq!(recipes.crafting.len(), 2);
+    let ctx = load.loop_context(LoopSide::Server, []);
+    let mut coal = ItemStack::new("minecraft:coal", 3);
+    let matches = |stack: &ItemStack, id| {
+        recipes.recipe_matches(&ctx, id, &[Some(stack.clone()), None, None, None], 2)
+    };
+    assert!(matches(&coal, "fixture:fuel_constant"));
+    assert!(!matches(&coal, "fixture:fuel_reference"));
+    coal.data_mut().set_other(
+        "minecraft:cooking_fuel",
+        Some(Tag::compound([
+            ("burn_time", Tag::Double(10.1_f64.to_bits())),
+            ("speed_multiplier", Tag::Double(2.0_f64.to_bits())),
+        ])),
+    );
+    assert!(matches(&coal, "fixture:fuel_constant"));
+    coal.data_mut().set_other(
+        "minecraft:cooking_fuel",
+        Some(Tag::compound([
+            ("burn_time", Tag::String("minecraft:fuel/test".into())),
+            ("speed_multiplier", Tag::String("speed".into())),
+            ("ignored", Tag::List(vec![])),
+        ])),
+    );
+    assert!(!matches(&coal, "fixture:fuel_constant"));
+    assert!(matches(&coal, "fixture:fuel_reference"));
+    let placement = recipes.placement("fixture:fuel_reference").unwrap();
+    let ingredient = &placement.ingredients[0];
+    // Warm the NBT lookup's thread-local key buffer before counting allocations.
+    assert!(ingredient.test_in(&ctx, &coal));
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(ingredient.test_in(&ctx, std::hint::black_box(&coal)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    coal.data_mut().set_other("minecraft:cooking_fuel", None);
+    coal.data_mut().set_other(
+        "!minecraft:cooking_fuel",
+        Some(Tag::compound([] as [(&str, Tag); 0])),
+    );
+    assert!(!matches(&coal, "fixture:fuel_constant"));
+    assert!(!matches(&coal, "fixture:fuel_reference"));
+    let malformed = IngredientRule::Components {
+        patch: [(
+            "minecraft:cooking_fuel".into(),
+            Tag::compound([("burn_time", Tag::Int(10))]),
+        )]
+        .into_iter()
+        .collect(),
+        removed: vec![],
+        strict: false,
+    };
+    let error = super::components::validate(&malformed, &items).unwrap_err();
+    assert!(
+        error.contains("component minecraft:cooking_fuel:"),
+        "{error}"
+    );
+    assert!(error.contains("speed_multiplier"), "{error}");
+}

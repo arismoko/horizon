@@ -87,7 +87,7 @@ normalize to `minecraft`. Matching borrows candidate strings without allocation.
 `base_color` uses the same strict dye palette as `dye`, retains its dedicated
 shield value, and remains absent on banners without that component.
 `villager_food` requires a compound with positive integer `nutrition`; unknown fields are ignored.
-The other 84 registered built-ins use stored-value matching while their shared
+The other 83 registered built-ins use stored-value matching while their shared
 decoders are added incrementally in **#3875**. Their absence is not a load refusal.
 
 Component ingredient displays contain the patch, including removals. Difference
@@ -127,3 +127,5 @@ and between +0.0 and the largest finite float, excluding negative zero.
 `brewing_fuel` requires both `uses` and `speed_multiplier`, without bounds or defaults.
 
 `tropical_fish/base_color` uses the shared dye palette.
+
+`cooking_fuel` requires `burn_time` and `speed_multiplier`, without bounds or defaults. Unknown fields are ignored.

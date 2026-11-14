@@ -1,3 +1,5 @@
+#[path = "item_data/cooking_fuel.rs"]
+pub mod cooking_fuel;
 //! Item stack components beyond count and damage: enchantments, stored
 //! (book) enchantments, `repair_cost`, `custom_name`, `potion_contents` and
 //! `trim`, with their NBT form in vanilla's `components` compound.

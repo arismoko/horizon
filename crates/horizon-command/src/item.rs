@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:cooking_fuel",
     "minecraft:tropical_fish/base_color",
     "minecraft:brewing_fuel",
     "minecraft:cushion/color",
@@ -102,6 +103,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
     if id == "minecraft:brewing_fuel" {
         return horizon_items::item_data::brewing_fuel::decode(value);
     }
+    if id == "minecraft:cooking_fuel" { return horizon_items::item_data::cooking_fuel::decode(value); }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
         let Tag::Compound(_) = value else {
@@ -175,6 +177,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
+        "minecraft:cooking_fuel" => horizon_items::item_data::cooking_fuel::decode(t).map(|_| ()),
         "minecraft:brewing_fuel" => horizon_items::item_data::brewing_fuel::decode(t).map(|_| ()),
         "minecraft:compostable" => {
             horizon_items::item_data::ingredient_components::validate_compostable(t)
