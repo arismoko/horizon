@@ -162,9 +162,7 @@ fn strip_last_read(v: &mut Tag) {
         Tag::Compound(c) => {
             c.remove(&dynamic::key(LAST_READ));
             c.remove(&dynamic::key(schema::flat::UNTYPED));
-            for value in c.values_mut() {
-                strip_last_read(value);
-            }
+            c.for_each_mut(|_, value| { strip_last_read(value); });
         }
         Tag::List(items) => items.iter_mut().for_each(strip_last_read),
         _ => {}

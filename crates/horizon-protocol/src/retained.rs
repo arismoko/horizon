@@ -91,6 +91,14 @@ impl OwnedHeap for horizon_core::nbt::Tag {
         }
     }
 }
+impl OwnedHeap for horizon_core::nbt::Compound {
+    fn owned_heap_bytes(&self) -> usize {
+        self.iter().fold(self.storage_bytes(), |sum, (key, value)| {
+            sum.saturating_add(key.owned_heap_bytes())
+                .saturating_add(value.owned_heap_bytes())
+        })
+    }
+}
 impl<K: OwnedHeap, V: OwnedHeap> OwnedHeap for BTreeMap<K, V> {
     fn owned_heap_bytes(&self) -> usize {
         // Audited Rust 1.99.1 alloc/collections/btree/node.rs: B=6, capacity=11,

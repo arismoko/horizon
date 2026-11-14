@@ -321,17 +321,15 @@ fn poi_records(cx: &mut Cx, keep: impl Fn(&Tag) -> bool) {
         let Some(Tag::Compound(sections)) = poi.get_mut("Sections") else {
             return;
         };
-        for section in sections.values_mut() {
-            if let Some(records) = section.get("Records")
-                && is_list(Some(records))
-            {
-                let kept: Vec<Tag> = stream(Some(records))
-                    .into_iter()
-                    .filter(|r| keep(r))
-                    .collect();
-                set(section, "Records", Tag::List(kept));
-            }
-        }
+        sections.for_each_mut(|_, section| { if let Some(records) = section.get("Records")
+            && is_list(Some(records))
+        {
+            let kept: Vec<Tag> = stream(Some(records))
+                .into_iter()
+                .filter(|r| keep(r))
+                .collect();
+            set(section, "Records", Tag::List(kept));
+        } });
     });
 }
 
@@ -650,25 +648,23 @@ fn multi_noise_preset(cx: &mut Cx) {
         let Some(Tag::Compound(dims)) = v.get_mut("dimensions") else {
             return;
         };
-        for dim in dims.values_mut() {
-            let Some(g) = dim.get_mut("generator") else {
-                continue;
-            };
-            if as_str(g.get("type")).as_deref() != Some("minecraft:noise") {
-                continue;
-            }
-            let Some(source) = g.get_mut("biome_source") else {
-                continue;
-            };
-            if as_str(source.get("type")).as_deref() != Some("minecraft:multi_noise") {
-                continue;
-            }
-            if let Some(preset) = as_str(source.get("preset"))
-                && namespaced(&preset) == "minecraft:overworld_update_1_20"
-            {
-                set(source, "preset", string("minecraft:overworld"));
-            }
+        dims.for_each_mut(|_, dim| { let Some(g) = dim.get_mut("generator") else {
+            return;
+        };
+        if as_str(g.get("type")).as_deref() != Some("minecraft:noise") {
+            return;
         }
+        let Some(source) = g.get_mut("biome_source") else {
+            return;
+        };
+        if as_str(source.get("type")).as_deref() != Some("minecraft:multi_noise") {
+            return;
+        }
+        if let Some(preset) = as_str(source.get("preset"))
+            && namespaced(&preset) == "minecraft:overworld_update_1_20"
+        {
+            set(source, "preset", string("minecraft:overworld"));
+        } });
     });
 }
 

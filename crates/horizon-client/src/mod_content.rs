@@ -2231,63 +2231,61 @@ impl<'a> Plan<'a> {
         let Tag::Compound(c) = tag else {
             return;
         };
-        for (key, value) in c.iter_mut() {
-            match (key.to_string_lossy().as_str(), value) {
-                ("states", Tag::List(list)) if list.len() == self.states => {
-                    for b in &self.blocks {
-                        // One row per template state per combination, the same
-                        // order `states` numbers them in (`Rename::id`): a
-                        // template state's combinations are one run, and the
-                        // first of the run is where the template state maps.
-                        for (id, combo) in b.state_combinations() {
-                            let mut state = list[id as usize].clone();
-                            if let Some(slot) = state.get_mut("id") {
-                                *slot = Tag::String(b.decl.id.as_str().into());
-                            }
-                            set_nbt_properties(&mut state, combo);
-                            list.push(state);
+        c.for_each_mut(|key, value| { match (key.to_string_lossy().as_str(), value) {
+            ("states", Tag::List(list)) if list.len() == self.states => {
+                for b in &self.blocks {
+                    // One row per template state per combination, the same
+                    // order `states` numbers them in (`Rename::id`): a
+                    // template state's combinations are one run, and the
+                    // first of the run is where the template state maps.
+                    for (id, combo) in b.state_combinations() {
+                        let mut state = list[id as usize].clone();
+                        if let Some(slot) = state.get_mut("id") {
+                            *slot = Tag::String(b.decl.id.as_str().into());
                         }
+                        set_nbt_properties(&mut state, combo);
+                        list.push(state);
                     }
                 }
-                ("cached_shapes", Tag::IntArray(a)) if a.len() == self.states => {
-                    for b in &self.blocks {
-                        // Parallel to `states`: every combination of a template
-                        // state keeps that state's shape.
-                        let mut copy = vec![0; b.order.len()];
-                        for (at, id) in b.rename.states.clone().enumerate() {
-                            for combination in 0..b.rename.fanout {
-                                copy[b.rename.row(at as u32, combination) as usize] =
-                                    a[id as usize];
-                            }
-                        }
-                        a.extend(copy);
-                    }
-                }
-                ("blocks", Tag::Compound(map)) => {
-                    for b in &self.blocks {
-                        let Some(mut v) = map
-                            .get(&JavaString::from(b.decl.template.as_str()))
-                            .cloned()
-                        else {
-                            continue;
-                        };
-                        if b.decl.properties.occludes == Some(false)
-                            && let Tag::Byte(flags) = &mut v
-                        {
-                            *flags &= !16;
-                        }
-                        if let (Some(f), Some(slot)) =
-                            (b.decl.properties.friction, v.get_mut("friction"))
-                        {
-                            *slot = Tag::Float(f.to_bits());
-                        }
-                        map.insert(b.decl.id.as_str().into(), v);
-                    }
-                }
-                (_, inner @ Tag::Compound(_)) => self.nbt(inner),
-                _ => {}
             }
-        }
+            ("cached_shapes", Tag::IntArray(a)) if a.len() == self.states => {
+                for b in &self.blocks {
+                    // Parallel to `states`: every combination of a template
+                    // state keeps that state's shape.
+                    let mut copy = vec![0; b.order.len()];
+                    for (at, id) in b.rename.states.clone().enumerate() {
+                        for combination in 0..b.rename.fanout {
+                            copy[b.rename.row(at as u32, combination) as usize] =
+                                a[id as usize];
+                        }
+                    }
+                    a.extend(copy);
+                }
+            }
+            ("blocks", Tag::Compound(map)) => {
+                for b in &self.blocks {
+                    let Some(mut v) = map
+                        .get(&JavaString::from(b.decl.template.as_str()))
+                        .cloned()
+                    else {
+                        continue;
+                    };
+                    if b.decl.properties.occludes == Some(false)
+                        && let Tag::Byte(flags) = &mut v
+                    {
+                        *flags &= !16;
+                    }
+                    if let (Some(f), Some(slot)) =
+                        (b.decl.properties.friction, v.get_mut("friction"))
+                    {
+                        *slot = Tag::Float(f.to_bits());
+                    }
+                    map.insert(b.decl.id.as_str().into(), v);
+                }
+            }
+            (_, inner @ Tag::Compound(_)) => self.nbt(inner),
+            _ => {}
+        } });
     }
 }
 

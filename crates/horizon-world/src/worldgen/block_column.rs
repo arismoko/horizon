@@ -212,7 +212,7 @@ mod ceiling_tests {
         for bottom in ["false", "true"] {
             for code in 0..81 {
                 let mut n = code;
-                let mut props = BTreeMap::from([("bottom".into(), Tag::String(bottom.into()))]);
+                let mut props = horizon_core::nbt::Compound::from([("bottom".into(), Tag::String(bottom.into()))]);
                 for side in ["north", "east", "south", "west"] {
                     props.insert(
                         side.into(),

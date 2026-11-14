@@ -302,11 +302,9 @@ fn from_tag(saved: &Tag, known: Option<(i32, i32)>) -> Result<Stack> {
             49 => {
                 let mut value = value.clone();
                 if let Tag::Compound(entries) = &mut value {
-                    for entry in entries.values_mut() {
-                        if let Some(name) = text(entry.get("type")) {
-                            d::set(entry, "type", d::string(&d::namespaced(&name)));
-                        }
-                    }
+                    entries.for_each_mut(|_, entry| { if let Some(name) = text(entry.get("type")) {
+                        d::set(entry, "type", d::string(&d::namespaced(&name)));
+                    } });
                 }
                 raw_nbt(&value)
             }

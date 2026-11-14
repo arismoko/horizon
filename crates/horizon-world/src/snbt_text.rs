@@ -122,9 +122,11 @@ fn visit(tag: &Tag, out: &mut String) {
         }
         Tag::Compound(c) => {
             out.push('{');
-            // JavaString keys already follow StringTagVisitor's UTF-16 order.
-            // Sorting converted Rust strings would put supplementary keys last.
-            for (i, (k, v)) in c.iter().enumerate() {
+            // StringTagVisitor sorts explicitly, independently of HashMap history.
+            // Compare UTF-16 units, not converted Rust strings.
+            let mut entries: Vec<_> = c.iter().collect();
+            entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+            for (i, (k, v)) in entries.into_iter().enumerate() {
                 let k = string_of(k);
                 if i > 0 {
                     out.push(',');

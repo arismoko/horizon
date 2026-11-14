@@ -209,6 +209,8 @@ pub struct BlockState {
     pub properties: BlockProperties,
 }
 impl BlockState {
+    /// `StateDefinition.createCodec`: nested map-pair property encoders write
+    /// the last appended (greatest-name) property first.
     pub fn to_nbt(&self) -> Tag {
         let mut map = Compound::new();
         map.insert(key("id"), Tag::String(key(&self.name)));
@@ -218,6 +220,7 @@ impl BlockState {
                 Tag::Compound(
                     self.properties
                         .iter()
+                        .rev()
                         .map(|(k, v)| (key(k), Tag::String(key(v))))
                         .collect(),
                 ),

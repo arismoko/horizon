@@ -56,15 +56,20 @@ fn assert_covers_charge<T>(
 
 #[test]
 fn opaque_map_charges_cover_independently_observed_live_layouts() {
+    assert_covers_live_layout("fresh empty NBT compound", horizon_core::nbt::Compound::new);
+    assert_covers_live_layout("unused entry keeps the empty compound allocation-free", || {
+        let mut map = horizon_core::nbt::Compound::new();
+        drop(map.entry(JavaString::from("unused")));
+        map
+    });
     assert_covers_live_layout("populated NBT compound", || {
         (0..4096)
-            .map(|i| (JavaString::from(i.to_string().as_str()), Tag::Int(i)))
-            .collect::<BTreeMap<_, _>>()
+            .map(|i| (JavaString::from(i.to_string().as_str()), Tag::Int(i))).collect::<horizon_core::nbt::Compound>()
     });
     assert_covers_live_layout("nested maps and spare child capacities", || {
-        let mut outer = BTreeMap::new();
+        let mut outer = horizon_core::nbt::Compound::new();
         for i in 0..64 {
-            let mut inner = BTreeMap::new();
+            let mut inner = horizon_core::nbt::Compound::new();
             for j in 0..31 {
                 let mut units = Vec::with_capacity(100);
                 units.push(j);
@@ -86,7 +91,7 @@ fn opaque_map_charges_cover_independently_observed_live_layouts() {
         Tag::Compound(outer)
     });
     assert_covers_live_layout("insert/remove churn", || {
-        let mut map = BTreeMap::new();
+        let mut map = horizon_core::nbt::Compound::new();
         for i in (0..4096).rev() {
             map.insert(JavaString::from(i.to_string().as_str()), Tag::Int(i));
         }
@@ -137,7 +142,7 @@ fn opaque_map_charges_cover_independently_observed_live_layouts() {
             for round in 0..2 {
                 for i in 0..40 {
                     let mut entries = Vec::with_capacity(100);
-                    let mut nbt = BTreeMap::new();
+                    let mut nbt = horizon_core::nbt::Compound::new();
                     nbt.insert(
                         JavaString::from("nested"),
                         Tag::ByteArray(Vec::with_capacity(3000)),

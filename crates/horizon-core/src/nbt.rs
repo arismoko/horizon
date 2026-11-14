@@ -1,5 +1,6 @@
 //! Java Edition NBT with lossless UTF-16 strings and 26.3 mixed-list wrappers.
-use std::collections::BTreeMap;
+use crate::java_hash_map::{IntoIter, Iter, JavaHashMap, JavaKey};
+use std::hash::{Hash, Hasher};
 
 /// Java strings can contain unpaired surrogates, which Rust UTF-8 strings cannot.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -32,7 +33,218 @@ impl JavaString {
     }
 }
 
-pub type Compound = BTreeMap<JavaString, Tag>;
+impl JavaKey for JavaString {
+    fn java_hash(&self) -> i32 {
+        self.0.iter().fold(0i32, |hash, unit| {
+            hash.wrapping_mul(31).wrapping_add(i32::from(*unit))
+        })
+    }
+    fn comparable_compare(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+    fn tie_break(&self, other: &Self) -> std::cmp::Ordering {
+        // String is Comparable: distinct equal-hash strings never need identity ordering.
+        self.cmp(other).then(std::cmp::Ordering::Less)
+    }
+}
+
+/// `CompoundTag`'s Java HashMap, including collision, resize and tree-bin history.
+/// Equality and hashing ignore iteration order. Rust ownership cloning preserves
+/// this map's history; [`copy_tag`] explicitly performs Java's semantic copy.
+/// The header is allocated only on first insertion, keeping scalar/list Tags compact.
+/// An emptied map retains its header and bucket capacity to preserve its history.
+#[derive(Default)]
+pub struct Compound(Option<Box<JavaHashMap<JavaString, Tag>>>);
+
+/// Allocation-free borrowed compound traversal, including the never-populated map.
+pub struct CompoundIter<'a> {
+    inner: Option<Iter<'a, JavaString, Tag>>,
+}
+impl<'a> Iterator for CompoundIter<'a> {
+    type Item = (&'a JavaString, &'a Tag);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.as_mut()?.next()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.as_ref().map_or((0, Some(0)), Iterator::size_hint)
+    }
+}
+impl ExactSizeIterator for CompoundIter<'_> {}
+impl std::iter::FusedIterator for CompoundIter<'_> {}
+
+/// Owned traversal moves the existing slab's entries, without cloning keys.
+pub struct CompoundIntoIter {
+    inner: Option<IntoIter<JavaString, Tag>>,
+}
+impl Iterator for CompoundIntoIter {
+    type Item = (JavaString, Tag);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.as_mut()?.next()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.as_ref().map_or((0, Some(0)), Iterator::size_hint)
+    }
+}
+impl ExactSizeIterator for CompoundIntoIter {}
+impl std::iter::FusedIterator for CompoundIntoIter {}
+
+/// An entry defers allocating a never-populated map until a value is inserted.
+pub struct CompoundEntry<'a> {
+    map: &'a mut Compound,
+    key: JavaString,
+}
+impl<'a> CompoundEntry<'a> {
+    pub fn or_insert(self, value: Tag) -> &'a mut Tag {
+        self.or_insert_with(|| value)
+    }
+    pub fn or_insert_with(self, make: impl FnOnce() -> Tag) -> &'a mut Tag {
+        if self.map.0.is_none() {
+            let value = make();
+            return self.map.0.insert(Box::new(JavaHashMap::default()))
+                .entry(self.key).or_insert(value);
+        }
+        self.map.0.as_deref_mut().expect("allocated map")
+            .entry(self.key).or_insert_with(make)
+    }
+}
+
+impl Compound {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn len(&self) -> usize {
+        self.0.as_deref().map_or(0, JavaHashMap::len)
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.as_deref().is_none_or(JavaHashMap::is_empty)
+    }
+    pub fn get(&self, key: &JavaString) -> Option<&Tag> {
+        self.0.as_deref()?.get(key)
+    }
+    pub fn get_mut(&mut self, key: &JavaString) -> Option<&mut Tag> {
+        self.0.as_deref_mut()?.get_mut(key)
+    }
+    pub fn contains_key(&self, key: &JavaString) -> bool {
+        self.get(key).is_some()
+    }
+    pub fn insert(&mut self, key: JavaString, value: Tag) -> Option<Tag> {
+        self.0.get_or_insert_with(|| Box::new(JavaHashMap::default())).put(key, value)
+    }
+    pub fn remove(&mut self, key: &JavaString) -> Option<Tag> {
+        self.0.as_deref_mut()?.remove(key)
+    }
+    pub fn clear(&mut self) {
+        if let Some(map) = self.0.as_deref_mut() {
+            map.clear();
+        }
+    }
+    pub fn entry(&mut self, key: JavaString) -> CompoundEntry<'_> {
+        CompoundEntry { map: self, key }
+    }
+    pub fn iter(&self) -> CompoundIter<'_> {
+        CompoundIter { inner: self.0.as_deref().map(JavaHashMap::entries) }
+    }
+    pub fn keys(&self) -> impl ExactSizeIterator<Item = &JavaString> {
+        self.iter().map(|(key, _)| key)
+    }
+    pub fn values(&self) -> impl ExactSizeIterator<Item = &Tag> {
+        self.iter().map(|(_, value)| value)
+    }
+    /// Mutate values in exact Java traversal order without allocating or cloning keys.
+    pub fn for_each_mut(&mut self, visit: impl FnMut(&JavaString, &mut Tag)) {
+        if let Some(map) = self.0.as_deref_mut() {
+            map.for_each_mut(visit);
+        }
+    }
+    pub fn into_values(self) -> impl ExactSizeIterator<Item = Tag> {
+        self.into_iter().map(|(_, value)| value)
+    }
+    pub fn retain(&mut self, keep: impl FnMut(&JavaString, &mut Tag) -> bool) {
+        if let Some(map) = self.0.as_deref_mut() {
+            map.retain(keep);
+        }
+    }
+    /// Boxed header and map arrays only; key/value descendants are excluded.
+    pub fn storage_bytes(&self) -> usize {
+        self.0.as_deref().map_or(0, |map| {
+            size_of::<JavaHashMap<JavaString, Tag>>().saturating_add(map.storage_bytes())
+        })
+    }
+    fn clone_with(&self, mut clone_value: impl FnMut(&Tag) -> Tag) -> Self {
+        Self(self.0.as_deref().map(|map| Box::new(map.clone_with(&mut clone_value))))
+    }
+    fn values_in_storage_order(&self) -> impl Iterator<Item = &Tag> {
+        self.0.as_deref().into_iter().flat_map(JavaHashMap::values_in_storage_order)
+    }
+}
+impl Clone for Compound {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+impl std::fmt::Debug for Compound {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+impl PartialEq for Compound {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len()
+            && self.iter().all(|(key, value)| other.get(key) == Some(value))
+    }
+}
+impl Eq for Compound {}
+impl Hash for Compound {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let sum = self.iter().fold(0u64, |sum, (key, value)| {
+            let mut entry = std::collections::hash_map::DefaultHasher::new();
+            key.hash(&mut entry);
+            value.hash(&mut entry);
+            sum.wrapping_add(entry.finish())
+        });
+        self.len().hash(state);
+        sum.hash(state);
+    }
+}
+impl Extend<(JavaString, Tag)> for Compound {
+    fn extend<T: IntoIterator<Item = (JavaString, Tag)>>(&mut self, entries: T) {
+        for (key, value) in entries {
+            self.insert(key, value);
+        }
+    }
+}
+impl FromIterator<(JavaString, Tag)> for Compound {
+    fn from_iter<T: IntoIterator<Item = (JavaString, Tag)>>(entries: T) -> Self {
+        let mut map = Self::new();
+        map.extend(entries);
+        map
+    }
+}
+impl<const N: usize> From<[(JavaString, Tag); N]> for Compound {
+    fn from(entries: [(JavaString, Tag); N]) -> Self {
+        entries.into_iter().collect()
+    }
+}
+impl IntoIterator for Compound {
+    type Item = (JavaString, Tag);
+    type IntoIter = CompoundIntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        CompoundIntoIter { inner: self.0.map(|map| (*map).into_iter()) }
+    }
+}
+impl<'a> IntoIterator for &'a Compound {
+    type Item = (&'a JavaString, &'a Tag);
+    type IntoIter = CompoundIter<'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+impl std::ops::Index<&JavaString> for Compound {
+    type Output = Tag;
+    fn index(&self, key: &JavaString) -> &Tag {
+        self.get(key).expect("compound key exists")
+    }
+}
 
 /// Float and double variants hold their IEEE bit patterns. Java's disk output
 /// canonicalizes NaNs (`DataOutputStream.writeFloat`); its network output
@@ -90,19 +302,30 @@ impl Tag {
     }
 }
 
-/// Clone opaque NBT with an explicit work list, without recursive cloning.
-/// The returned tree retains ordinary Tag ownership and drop behavior.
+/// Stack-safe Rust ownership clone, preserving compound bucket and tree history.
 pub fn clone_tag(root: &Tag) -> Tag {
+    clone_tree(root, false)
+}
+
+/// `CompoundTag.copy` and `ListTag.copy`: recursively copy values, inserting
+/// each compound's Java traversal into a fresh default-capacity HashMap.
+pub fn copy_tag(root: &Tag) -> Tag {
+    clone_tree(root, true)
+}
+
+fn clone_tree(root: &Tag, java_copy: bool) -> Tag {
     match root {
         Tag::List(values) if values.is_empty() => return root.clone(),
-        Tag::Compound(values) if values.is_empty() => return root.clone(),
+        Tag::Compound(values) if values.is_empty() => {
+            return if java_copy { Tag::Compound(Compound::new()) } else { root.clone() };
+        }
         Tag::List(_) | Tag::Compound(_) => {}
         _ => return root.clone(),
     }
     enum Work<'a> {
         Enter(&'a Tag),
         List(usize),
-        Compound(Vec<JavaString>),
+        Compound(&'a Compound),
     }
     let mut work = vec![Work::Enter(root)];
     let mut done = Vec::new();
@@ -113,8 +336,12 @@ pub fn clone_tag(root: &Tag) -> Tag {
                 work.extend(values.iter().rev().map(Work::Enter));
             }
             Work::Enter(Tag::Compound(values)) => {
-                work.push(Work::Compound(values.keys().cloned().collect()));
-                work.extend(values.values().rev().map(Work::Enter));
+                work.push(Work::Compound(values));
+                if java_copy {
+                    work.extend(values.values().map(Work::Enter));
+                } else {
+                    work.extend(values.values_in_storage_order().map(Work::Enter));
+                }
             }
             Work::Enter(
                 value @ (Tag::End
@@ -133,9 +360,16 @@ pub fn clone_tag(root: &Tag) -> Tag {
                 let values = done.split_off(done.len() - len);
                 done.push(Tag::List(values));
             }
-            Work::Compound(keys) => {
-                let values = done.split_off(done.len() - keys.len());
-                done.push(Tag::Compound(keys.into_iter().zip(values).collect()));
+            Work::Compound(source) => {
+                let start = done.len() - source.len();
+                let mut children = done.drain(start..).rev();
+                let copy = if java_copy {
+                    source.keys().cloned().zip(children.by_ref()).collect()
+                } else {
+                    source.clone_with(|_| children.next().expect("cloned child"))
+                };
+                drop(children);
+                done.push(Tag::Compound(copy));
             }
         }
     }
@@ -1260,6 +1494,81 @@ impl<'a> Cursor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn compound_collision_history_survives_snbt_binary_and_copies() {
+        // Java String.hashCode("Aa") == String.hashCode("BB") == 2112.
+        // Replacement stays in place; removing and reinserting moves the key.
+        let Tag::Compound(mut parsed) = parse_snbt("{BB:1,Aa:2,BB:3}").unwrap().0 else {
+            panic!("compound");
+        };
+        let order = |map: &Compound| map.keys().map(|key| key.0.clone()).collect::<Vec<_>>();
+        assert_eq!(order(&parsed), [vec![66, 66], vec![65, 97]]);
+        assert_eq!(parsed.get(&"BB".into()), Some(&Tag::Int(3)));
+        let Tag::Compound(copied) = clone_tag(&Tag::Compound(parsed.clone())) else {
+            panic!("compound");
+        };
+        assert_eq!(order(&copied), [vec![66, 66], vec![65, 97]]);
+        let wire = [
+            10, 3, 0, 2, 66, 66, 0, 0, 0, 3, 3, 0, 2, 65, 97, 0, 0, 0, 2, 0,
+        ];
+        assert_eq!(write_network(&Tag::Compound(parsed.clone()), Limits::default()).unwrap(), wire);
+        let (Tag::Compound(decoded), used) = read_network(&wire, Limits::default()).unwrap() else {
+            panic!("compound");
+        };
+        assert_eq!(used, wire.len());
+        assert_eq!(order(&decoded), [vec![66, 66], vec![65, 97]]);
+        assert_eq!(parsed.remove(&"BB".into()), Some(Tag::Int(3)));
+        parsed.insert("BB".into(), Tag::Int(3));
+        assert_eq!(order(&parsed), [vec![65, 97], vec![66, 66]]);
+        assert_eq!(parsed, decoded);
+        let mut set = std::collections::HashSet::new();
+        set.insert(Tag::Compound(parsed));
+        set.insert(Tag::Compound(decoded));
+        assert_eq!(set.len(), 1);
+    }
+
+    #[test]
+    fn compound_resize_uses_the_java_runtime_bucket_split_golden() {
+        // Java 25's distinct-hash resize fixture, using one-unit Strings
+        // (whose hashes equal those UTF-16 units).
+        let hashes = [1, 17, 33, 49, 0, 16, 2, 18, 34, 3, 35, 4, 20];
+        let mut map = Compound::new();
+        for id in [5, 1, 4, 0, 7, 3, 6, 2, 12, 8, 10, 9] {
+            map.insert(JavaString(vec![hashes[id]]), Tag::Int(id as i32));
+        }
+        assert_eq!(
+            map.values().cloned().collect::<Vec<_>>(),
+            [5, 4, 1, 0, 3, 2, 7, 6, 8, 10, 9, 12].map(Tag::Int),
+        );
+        map.insert(JavaString(vec![4]), Tag::Int(11));
+        assert_eq!(
+            map.into_values().collect::<Vec<_>>(),
+            [4, 0, 2, 6, 8, 10, 9, 11, 5, 1, 3, 7, 12].map(Tag::Int),
+        );
+    }
+
+    #[test]
+    fn compound_keeps_unpaired_utf16_keys_distinct_and_lossless() {
+        let high = JavaString(vec![0xd800]);
+        let low = JavaString(vec![0xdc00]);
+        let replacement = JavaString(vec![0xfffd]);
+        let map = Compound::from([
+            (high.clone(), Tag::Int(1)),
+            (low.clone(), Tag::Int(2)),
+            (replacement.clone(), Tag::Int(3)),
+        ]);
+        assert_eq!(map.get(&high), Some(&Tag::Int(1)));
+        assert_eq!(map.get(&low), Some(&Tag::Int(2)));
+        assert_eq!(map.get(&replacement), Some(&Tag::Int(3)));
+        let bytes = write_network(&Tag::Compound(map), Limits::default()).unwrap();
+        let (Tag::Compound(decoded), _) = read_network(&bytes, Limits::default()).unwrap() else {
+            panic!("compound");
+        };
+        assert_eq!(decoded.get(&high), Some(&Tag::Int(1)));
+        assert_eq!(decoded.get(&low), Some(&Tag::Int(2)));
+        assert_eq!(decoded.get(&replacement), Some(&Tag::Int(3)));
+    }
+
     /// SnbtGrammar: a compound, list or typed array may end with one comma; a
     /// comma alone or two in a row are errors.
     #[test]
@@ -1699,6 +2008,96 @@ mod tests {
             (named, rejected),
             (plain, 0),
             "only the root's `p` is bounded"
+        );
+    }
+
+    #[test]
+    fn string_tree_bins_and_ordered_mutation_match_java25_runtime() {
+        // Independent Temurin 25.0.5+8 HashMap<String, Integer> oracle.
+        let keys = [
+            "AaAaAaAa", "AaAaAaBB", "AaAaBBAa", "AaAaBBBB",
+            "AaBBAaAa", "AaBBAaBB", "AaBBBBAa", "AaBBBBBB",
+            "BBAaAaAa", "BBAaAaBB", "BBAaBBAa", "BBAaBBBB",
+            "BBBBAaAa", "BBBBAaBB", "BBBBBBAa", "BBBBBBBB",
+        ];
+        let mut map = Compound::new();
+        let order = |map: &Compound| {
+            map.keys().map(|key| key.to_string().unwrap()).collect::<Vec<_>>().join(",")
+        };
+        for (i, key) in keys.into_iter().enumerate() {
+            map.insert(key.into(), Tag::Int(i as i32));
+            match i + 1 {
+                11 => assert_eq!(order(&map), "AaAaBBBB,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa"),
+                12 => assert_eq!(order(&map), "AaAaBBBB,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBAaBBBB"),
+                _ => {}
+            }
+        }
+        assert_eq!(order(&map), "AaAaBBBB,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
+        assert_eq!(map.remove(&"AaAaBBBB".into()), Some(Tag::Int(3)));
+        let expected = "AaBBAaAa,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB";
+        assert_eq!(order(&map), expected);
+        let root = Tag::Compound(map);
+        let Tag::Compound(mut copy) = clone_tag(&root) else { panic!("compound") };
+        assert_eq!(order(&copy), expected);
+        assert_eq!(copy.remove(&"AaAaAaAa".into()), Some(Tag::Int(0)));
+        copy.insert("AaAaAaAa".into(), Tag::Int(0));
+        assert_eq!(order(&copy), "BBAaAaAa,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
+        let Tag::Compound(mut map) = root else { panic!("compound") };
+        let mut visited = Vec::new();
+        map.for_each_mut(|key, value| {
+            visited.push(key.to_string().unwrap());
+            *value = Tag::Byte(1);
+        });
+        assert_eq!(visited.join(","), expected);
+        assert!(map.values().all(|value| *value == Tag::Byte(1)));
+    }
+
+    #[test]
+    fn complete_nested_patch_pairs_retain_both_entries_in_java_order() {
+        for source in [
+            r#"{"minecraft:custom_data":{BB:"first",Aa:"second"},"!minecraft:custom_data":{}}"#,
+            r#"{"!minecraft:custom_data":{},"minecraft:custom_data":{BB:"first",Aa:"second"}}"#,
+        ] {
+            let Tag::Compound(mut map) = parse_snbt(source).unwrap().0 else { panic!("compound") };
+            let order = |map: &Compound| map.keys().map(|key| key.to_string().unwrap()).collect::<Vec<_>>();
+            assert_eq!(order(&map), ["!minecraft:custom_data", "minecraft:custom_data"]);
+            let Some(Tag::Compound(nested)) = map.get(&"minecraft:custom_data".into()) else {
+                panic!("nested data");
+            };
+            assert_eq!(order(nested), ["BB", "Aa"]);
+            assert_eq!(map.get(&"!minecraft:custom_data".into()), Some(&Tag::Compound(Compound::new())));
+            for i in 0..31 {
+                map.insert(format!("k{i}").as_str().into(), Tag::Int(i));
+            }
+            let expected = "k30,k11,k10,k13,k12,k15,k14,k17,k16,k19,k18,k0,k1,!minecraft:custom_data,k2,k3,k20,k4,k5,k22,k6,k21,k7,k24,k8,k23,k9,k26,k25,k28,k27,k29,minecraft:custom_data";
+            assert_eq!(order(&map).join(","), expected);
+            assert_eq!(order(&map.clone()).join(","), expected);
+        }
+    }
+
+    #[test]
+    fn entry_after_removal_and_retain_keep_java_collision_history() {
+        let mut map = Compound::from([
+            ("BB".into(), Tag::Int(1)),
+            ("Aa".into(), Tag::Int(2)),
+        ]);
+        map.remove(&"BB".into());
+        *map.entry("BB".into()).or_insert_with(|| Tag::Int(3)) = Tag::Int(4);
+        *map.entry("Aa".into()).or_insert_with(|| panic!("occupied value")) = Tag::Int(5);
+        assert_eq!(
+            map.iter().map(|(key, value)| (key.to_string().unwrap(), value.clone())).collect::<Vec<_>>(),
+            [("Aa".to_owned(), Tag::Int(5)), ("BB".to_owned(), Tag::Int(4))],
+        );
+        let mut visited = Vec::new();
+        map.retain(|key, value| {
+            visited.push(key.to_string().unwrap());
+            *value = Tag::Int(15);
+            key.0 != [66, 66]
+        });
+        assert_eq!(visited, ["Aa", "BB"]);
+        assert_eq!(
+            map.into_iter().collect::<Vec<_>>(),
+            [(JavaString::from("Aa"), Tag::Int(15))],
         );
     }
 }

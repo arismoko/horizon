@@ -1214,26 +1214,24 @@ fn keep_claims(saved: &mut NamedTag, old: &NamedTag) {
     let Some(Tag::Compound(sections)) = root.get_mut(&"Sections".into()) else {
         return;
     };
-    for section in sections.values_mut() {
-        let Tag::Compound(section) = section else {
+    sections.for_each_mut(|_, section| { let Tag::Compound(section) = section else {
+        return;
+    };
+    let Some(Tag::List(records)) = section.get_mut(&"Records".into()) else {
+        return;
+    };
+    for r in records {
+        let Some(&tickets) = key(r).and_then(|k| claims.get(&k)) else {
             continue;
         };
-        let Some(Tag::List(records)) = section.get_mut(&"Records".into()) else {
-            continue;
-        };
-        for r in records {
-            let Some(&tickets) = key(r).and_then(|k| claims.get(&k)) else {
-                continue;
-            };
-            if let Tag::Compound(r) = r {
-                if tickets == 0 {
-                    r.remove(&"free_tickets".into());
-                } else {
-                    r.insert("free_tickets".into(), Tag::Int(tickets));
-                }
+        if let Tag::Compound(r) = r {
+            if tickets == 0 {
+                r.remove(&"free_tickets".into());
+            } else {
+                r.insert("free_tickets".into(), Tag::Int(tickets));
             }
         }
-    }
+    } });
 }
 fn poi_root(sections: Compound) -> NamedTag {
     NamedTag {
@@ -7115,7 +7113,7 @@ mod tests {
         // The command path keeps an empty inventory and the pending table/seed
         // for data get and saving. No loot resources are needed to keep that state.
         let pending = PendingContainerLoot::from_tag(&saved).unwrap();
-        let mut stored = block_entity_data((1, 2, 3), &chest, "minecraft:chest", None);
+        let mut stored = block_entity_encode::data((1, 2, 3), &chest, "minecraft:chest", None, None, None, None);
         let Tag::Compound(fields) = &mut stored else {
             panic!("compound");
         };
@@ -7158,7 +7156,7 @@ mod tests {
                 "{id}: loadAdditional ignores Items when a loot table loads"
             );
             let pending = PendingContainerLoot::from_tag(&saved).unwrap();
-            let mut stored = block_entity_data((1, 2, 3), &container, id, None);
+            let mut stored = block_entity_encode::data((1, 2, 3), &container, id, None, None, None, None);
             let Tag::Compound(fields) = &mut stored else {
                 panic!("compound");
             };
@@ -7224,7 +7222,7 @@ mod tests {
         let plain = encode_block_entity(pos, &chest, "minecraft:chest");
         assert!(plain.get("lock").is_none());
         // ...so `data get` puts back the one it was loaded with.
-        let data = block_entity_data(pos, &chest, "minecraft:chest", saved.get("lock"));
+        let data = block_entity_encode::data(pos, &chest, "minecraft:chest", saved.get("lock"), None, None, None);
         let lock = horizon_core::nbt::parse_snbt(r#"{items:"minecraft:gold_ingot"}"#)
             .unwrap()
             .0;
@@ -10039,7 +10037,7 @@ mod jukebox_song_clock_tests {
             assert_eq!(j.playing, clock.is_some());
             assert_eq!(j.loaded_clock, clock.is_some());
             let saved = encode_block_entity(pos, &model, "minecraft:jukebox");
-            let command = block_entity_data(pos, &model, "minecraft:jukebox", None);
+            let command = block_entity_encode::data(pos, &model, "minecraft:jukebox", None, None, None, None);
             check(label, &saved, clock);
             check(label, &command, clock);
             if with_record {

@@ -133,7 +133,7 @@ fn sections_down(data: &[u8], biomes_only: bool) -> Result<Vec<u8>> {
 /// is dropped.
 fn heightmaps_down(r: &mut Reader, w: &mut Writer) -> Result<()> {
     let n = r.count(16)?;
-    let mut map = std::collections::BTreeMap::new();
+    let mut map = horizon_core::nbt::Compound::new();
     for _ in 0..n {
         let kind = r.varint()?;
         let longs = r.long_array()?;
@@ -444,7 +444,7 @@ mod tests {
         let mut w = Writer::new();
         w.i32(0);
         w.i32(0);
-        let mut map = std::collections::BTreeMap::new();
+        let mut map = horizon_core::nbt::Compound::new();
         map.insert(
             horizon_core::nbt::JavaString::from("WORLD_SURFACE"),
             horizon_core::nbt::Tag::LongArray(vec![5]),

@@ -32,7 +32,7 @@ pub(in crate::datafix) fn strip_untyped(v: &mut Tag) {
     match v {
         Tag::Compound(c) => {
             c.remove(&crate::datafix::dynamic::key(UNTYPED));
-            c.values_mut().for_each(strip_untyped);
+            c.for_each_mut(|_, value| strip_untyped(value));
         }
         Tag::List(items) => items.iter_mut().for_each(strip_untyped),
         _ => {}

@@ -7,7 +7,7 @@ const CONTAINERS: usize = 512;
 
 enum WriteFrame<'a> {
     List(std::slice::Iter<'a, Tag>),
-    Map(std::collections::btree_map::Iter<'a, JavaString, Tag>),
+    Map(horizon_core::nbt::CompoundIter<'a>),
 }
 
 pub(super) fn put(tag: &Tag, out: &mut Writer) {

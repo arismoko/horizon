@@ -321,9 +321,7 @@ pub fn migrate_player_uuid(tag: &mut Tag, old: [i32; 4], new: [i32; 4]) {
             }
         }
         Tag::Compound(map) => {
-            for tag in map.values_mut() {
-                migrate_player_uuid(tag, old, new);
-            }
+            map.for_each_mut(|_, tag| { migrate_player_uuid(tag, old, new); });
         }
         _ => {}
     }
@@ -4139,7 +4137,7 @@ mod tnt_power_tests {
     #[test]
     fn explosion_power_is_read_clamped_and_defaulted() {
         let with = |power: Option<f32>| {
-            let mut map = std::collections::BTreeMap::new();
+            let mut map = horizon_core::nbt::Compound::new();
             if let Some(p) = power {
                 map.insert("explosion_power".into(), Tag::Float(p.to_bits()));
             }
@@ -4151,7 +4149,7 @@ mod tnt_power_tests {
         assert_eq!(tnt_power(&with(Some(-3.0))), 0.0);
         // Any numeric tag type counts, as with `getFloatOr`.
         let numeric = |tag: Tag| {
-            let mut map = std::collections::BTreeMap::new();
+            let mut map = horizon_core::nbt::Compound::new();
             map.insert("explosion_power".into(), tag);
             Tag::Compound(map)
         };

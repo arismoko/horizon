@@ -4,6 +4,9 @@
 //! applies before cloning payloads; scalar and typed-array tags do not add
 //! nesting. Conversion is intentionally lossy: JSON has no numeric tag widths,
 //! typed arrays become lists, and byte booleans become JSON numbers.
+//! JSON objects retain source member order (`serde_json/preserve_order`) before
+//! conversion. NbtOps then inserts that stream into the compound's Java map;
+//! sorting an already parsed object cannot recover collision history.
 
 use crate::nbt::{Compound, JavaString, Tag};
 use serde_json::{Map, Number, Value};
@@ -208,7 +211,9 @@ fn validate_tag(root: &Tag) -> Result<(), JsonNbtError> {
                 for key in values.keys() {
                     valid_string(key)?;
                 }
-                pending.extend(values.values().rev().map(|v| (v, depth + 1)));
+                let start = pending.len();
+                pending.extend(values.values().map(|v| (v, depth + 1)));
+                pending[start..].reverse();
             }
             _ => {}
         }
@@ -294,7 +299,7 @@ impl<'a> JsonTag<'a> {
                                     .map(|k| k.to_string().expect("validated UTF-16"))
                                     .collect(),
                             ));
-                            work.extend(values.values().rev().map(Work::Enter));
+                            work.extend(values.values().map(Work::Enter));
                             continue;
                         }
                     };
@@ -306,7 +311,7 @@ impl<'a> JsonTag<'a> {
                 }
                 Work::Object(keys) => {
                     let values = done.split_off(done.len() - keys.len());
-                    done.push(Value::Object(keys.into_iter().zip(values).collect()));
+                    done.push(Value::Object(keys.into_iter().zip(values.into_iter().rev()).collect()));
                 }
             }
         }
@@ -386,6 +391,30 @@ mod tests {
     use serde_json::json;
     fn tag(value: &Value) -> Tag {
         json_to_tag(value).unwrap()
+    }
+
+    #[test]
+    fn json_source_member_history_reaches_nested_nbt_hash_maps() {
+        // Gson member order reaches NbtOps.createMap unchanged.
+        // These two String keys have the same Java hash.
+        for source in [
+            r#"{"BB":{"BB":1,"Aa":2},"Aa":3}"#,
+            r#"{"BB":0,"Aa":3,"BB":{"BB":1,"Aa":2}}"#,
+        ] {
+            let value: Value = serde_json::from_str(source).unwrap();
+            let Tag::Compound(root) = json_to_tag(&value).unwrap() else { panic!("compound") };
+            assert_eq!(
+                root.keys().map(|key| key.0.clone()).collect::<Vec<_>>(),
+                [vec![66, 66], vec![65, 97]],
+            );
+            let Some(Tag::Compound(nested)) = root.get(&"BB".into()) else { panic!("compound") };
+            assert_eq!(
+                nested.keys().map(|key| key.0.clone()).collect::<Vec<_>>(),
+                [vec![66, 66], vec![65, 97]],
+            );
+            assert_eq!(nested.get(&"BB".into()), Some(&Tag::Byte(1)));
+            assert_eq!(nested.get(&"Aa".into()), Some(&Tag::Byte(2)));
+        }
     }
 
     #[test]

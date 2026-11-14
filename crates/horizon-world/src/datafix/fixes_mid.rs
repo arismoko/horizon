@@ -282,18 +282,16 @@ fn poi_type_rename(cx: &mut Cx, table: &[(&str, &'static str)]) {
         let Some(Tag::Compound(sections)) = poi.get_mut("Sections") else {
             return;
         };
-        for section in sections.values_mut() {
-            let Some(Tag::List(records)) = section.get_mut("Records") else {
-                continue;
-            };
-            for record in records {
-                if let Some(t) = as_str(record.get("type"))
-                    && let Some(new) = r(&t)
-                {
-                    set(record, "type", string(new));
-                }
+        sections.for_each_mut(|_, section| { let Some(Tag::List(records)) = section.get_mut("Records") else {
+            return;
+        };
+        for record in records {
+            if let Some(t) = as_str(record.get("type"))
+                && let Some(new) = r(&t)
+            {
+                set(record, "type", string(new));
             }
-        }
+        } });
     });
 }
 
@@ -340,9 +338,7 @@ fn structure_reference_count(cx: &mut Cx) {
 fn force_poi_rebuild(cx: &mut Cx) {
     cx.each(Ty::PoiChunk, |poi| {
         if let Some(Tag::Compound(sections)) = poi.get_mut("Sections") {
-            for section in sections.values_mut() {
-                remove(section, "Valid");
-            }
+            sections.for_each_mut(|_, section| { remove(section, "Valid"); });
         }
     });
 }
@@ -427,10 +423,8 @@ fn memory_expiry(cx: &mut Cx, entity: &str) {
             return;
         };
         if let Some(Tag::Compound(memories)) = brain.get_mut("memories") {
-            for value in memories.values_mut() {
-                let inner = std::mem::replace(value, Tag::End);
-                *value = Tag::compound([("value", inner)]);
-            }
+            memories.for_each_mut(|_, value| { let inner = std::mem::replace(value, Tag::End);
+            *value = Tag::compound([("value", inner)]); });
         }
     });
 }
@@ -776,19 +770,15 @@ fn player_uuids(cx: &mut Cx) {
 fn level_uuids(cx: &mut Cx) {
     cx.each(Ty::Level, |level| {
         if let Some(Tag::Compound(dimensions)) = level.get_mut("DimensionData") {
-            for dimension in dimensions.values_mut() {
-                if let Some(fight) = dimension.get_mut("DragonFight") {
-                    replace_least_most(fight, "DragonUUID", "Dragon");
-                }
-            }
+            dimensions.for_each_mut(|_, dimension| { if let Some(fight) = dimension.get_mut("DragonFight") {
+                replace_least_most(fight, "DragonUUID", "Dragon");
+            } });
         }
         replace_uuid_string(level, "WanderingTraderId", "WanderingTraderId");
         if let Some(Tag::Compound(events)) = level.get_mut("CustomBossEvents") {
-            for event in events.values_mut() {
-                map_elements(event, "Players", |player| {
-                    uuid_from_longs(&player, "M", "L").unwrap_or(player)
-                });
-            }
+            events.for_each_mut(|_, event| { map_elements(event, "Players", |player| {
+                uuid_from_longs(&player, "M", "L").unwrap_or(player)
+            }); });
         }
     });
 }
@@ -1000,10 +990,8 @@ fn bit_storage_align(cx: &mut Cx) {
             }
         }
         if let Some(Tag::Compound(heightmaps)) = level.get_mut("Heightmaps") {
-            for heightmap in heightmaps.values_mut() {
-                let input = as_long_stream(Some(heightmap)).unwrap_or_default();
-                *heightmap = Tag::LongArray(add_padding(256, 9, &input));
-            }
+            heightmaps.for_each_mut(|_, heightmap| { let input = as_long_stream(Some(heightmap)).unwrap_or_default();
+            *heightmap = Tag::LongArray(add_padding(256, 9, &input)); });
         }
     });
 }

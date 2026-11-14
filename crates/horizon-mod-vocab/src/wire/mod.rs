@@ -1054,6 +1054,40 @@ macro_rules! maps {
 }
 maps!(BTreeMap[Ord], HashMap[Eq + Hash]);
 
+impl Wire for horizon_core::nbt::Compound {
+    const LAYOUT_SEED: u64 = layout_name("map");
+    const MIN: usize = 4;
+    fn layout(visiting: &mut Vec<&'static str>) -> u64 {
+        layout_mix(
+            layout_mix(Self::LAYOUT_SEED, horizon_core::nbt::JavaString::layout(visiting)),
+            crate::Tag::layout(visiting),
+        )
+    }
+    fn put(&self, out: &mut Writer) {
+        out.put_len(self.len());
+        for (key, value) in self {
+            out.put(key);
+            out.put(value);
+        }
+    }
+    fn put_owned(self, out: &mut Writer) {
+        out.put_len(self.len());
+        for (key, value) in self {
+            out.put_owned(key);
+            out.put_owned(value);
+        }
+    }
+    fn take(input: &mut Reader<'_>) -> Result<Self, WireError> {
+        let len = input.take_len(horizon_core::nbt::JavaString::MIN + crate::Tag::MIN)?;
+        let mut map = Self::new();
+        for _ in 0..len {
+            let key = input.take()?;
+            map.insert(key, input.take()?);
+        }
+        Ok(map)
+    }
+}
+
 macro_rules! tuples {
     ($(($($name:ident),+)),*) => {$(
         #[allow(non_snake_case)]

@@ -121,7 +121,7 @@ impl Game<'_> {
         };
         let mut compound = match self.persist.raw.get(&id) {
             Some(Tag::Compound(map)) => map.clone(),
-            _ => std::collections::BTreeMap::new(),
+            _ => horizon_core::nbt::Compound::new(),
         };
         compound.insert("Invulnerable".into(), Tag::Byte(i8::from(invulnerable)));
         self.persist.raw.insert(id, Tag::Compound(compound));
@@ -232,7 +232,7 @@ impl Game<'_> {
         };
         let mut compound = match self.persist.raw.get(&id) {
             Some(Tag::Compound(map)) => map.clone(),
-            _ => std::collections::BTreeMap::new(),
+            _ => horizon_core::nbt::Compound::new(),
         };
         compound.insert("invulnerable_time".into(), Tag::Int(ticks.max(0)));
         self.persist.raw.insert(id, Tag::Compound(compound));
@@ -251,7 +251,7 @@ impl Game<'_> {
         let ticks = ticks - 1;
         let mut compound = match self.persist.raw.get(&id) {
             Some(Tag::Compound(map)) => map.clone(),
-            _ => std::collections::BTreeMap::new(),
+            _ => horizon_core::nbt::Compound::new(),
         };
         compound.insert("invulnerable_time".into(), Tag::Int(ticks));
         self.persist.raw.insert(id, Tag::Compound(compound));
