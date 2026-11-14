@@ -105,7 +105,29 @@ pub const CORE_PACK: (&str, &str, &str) = ("minecraft", "core", horizon_protocol
 /// Synchronized registries a world's data packs add entries to (or replace
 /// them in). The others stay the game's own: Horizon's gameplay reads them
 /// from the prepared resources only.
-const PACK_REGISTRIES: &[&str] = &["minecraft:dialog", "minecraft:dimension_type"];
+/// Enchantments are among them: the items' enchantment catalog reads a
+/// world's pack definitions too, so their ids must reach clients.
+const PACK_REGISTRIES: &[&str] = &[
+    "minecraft:dialog",
+    "minecraft:dimension_type",
+    "minecraft:enchantment",
+];
+
+/// Synchronized registries whose entries content mods add in their own
+/// namespaces (`data/<ns>/<registry>/`, copied into the resource root beside
+/// vanilla's). No client knows those entries, so their data is always sent.
+const MOD_REGISTRIES: &[&str] = &["minecraft:enchantment"];
+
+/// A registry's entries from the resource root's namespaces other than
+/// `minecraft` (`data/<ns>/<dir>/`): content mods' own, marked as no client's.
+fn mod_entries(resources: &Path, dir: &str, entries: &mut Vec<((String, String), Value, bool)>) {
+    let namespaces = horizon_world::json_folder::namespaces(&resources.join("data"));
+    for ns in namespaces.into_iter().filter(|ns| ns != "minecraft") {
+        let mut found = BTreeMap::new();
+        walk(&resources.join("data").join(&ns).join(dir), &mut found);
+        entries.extend(found.into_iter().map(|(p, v)| ((ns.clone(), p), v, true)));
+    }
+}
 
 /// A data-driven registry: entry names in network order and their NBT.
 #[derive(Clone)]
@@ -456,6 +478,9 @@ impl SyncData {
                 .into_iter()
                 .map(|(p, v)| (("minecraft".to_owned(), p), v, false))
                 .collect();
+            if MOD_REGISTRIES.contains(key) {
+                mod_entries(resources, path, &mut entries);
+            }
             let mut damage_entries = None;
             if *key == "minecraft:damage_type" {
                 // Validate the actual resource bytes before publishing any
@@ -1142,6 +1167,67 @@ mod tests {
         )
         .unwrap();
         assert!(fresh.id("minecraft:damage_type", "demo:heat").is_none());
+    }
+
+    /// A content mod's enchantments (`data/<ns>/enchantment/`, in the resource
+    /// root beside vanilla's) join the synchronized registry with their data,
+    /// which no client knows; a world's pack still replaces one.
+    #[test]
+    fn mod_and_pack_enchantments_join_the_synchronized_registry() {
+        use horizon_world::loot::PackOverlay;
+        let root = std::env::temp_dir().join(format!(
+            "horizon-lan-mod-enchantments-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for (path, body) in [
+            (
+                "data/harvestmod/enchantment/scythe.json",
+                r#"{"max_level":3}"#,
+            ),
+            (
+                "data/harvestmod/enchantment/tools/sweep.json",
+                r#"{"max_level":1}"#,
+            ),
+            ("data/harvestmod/recipe/x.json", r#"{}"#),
+        ] {
+            let path = root.join(path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, body).unwrap();
+        }
+        let mut found = vec![(
+            ("minecraft".to_owned(), "mending".to_owned()),
+            serde_json::json!({ "max_level": 1 }),
+            false,
+        )];
+        assert!(MOD_REGISTRIES.contains(&"minecraft:enchantment"));
+        assert!(PACK_REGISTRIES.contains(&"minecraft:enchantment"));
+        mod_entries(&root, "enchantment", &mut found);
+        let files = vec![(
+            "enchantment/harvestmod:scythe".to_owned(),
+            vec![br#"{"max_level":5}"#.to_vec()],
+        )];
+        pack_entries("enchantment", &PackOverlay::new(&files), &mut found);
+        file_order(&mut found);
+        let names: Vec<String> = found
+            .iter()
+            .map(|((ns, p), _, _)| format!("{ns}:{p}"))
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "minecraft:mending",
+                "harvestmod:scythe",
+                "harvestmod:tools/sweep"
+            ]
+        );
+        assert!(!found[0].2, "vanilla's entry stays the known pack's");
+        assert!(found[1].2 && found[2].2, "a mod's entries carry their data");
+        assert_eq!(found[1].1["max_level"], 5, "a pack overrides a mod's entry");
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
