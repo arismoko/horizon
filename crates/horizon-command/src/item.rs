@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:food",
     "minecraft:villager_food",
     "minecraft:note_block_sound",
     "minecraft:tooltip_style",
@@ -75,6 +76,14 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
         "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound"
     ) {
         return identifier_payload(value);
+    }
+    if id == "minecraft:food" {
+        let food = horizon_items::item_data::food_properties(value).map_err(str::to_owned)?;
+        return Ok(Tag::compound([
+            ("nutrition", Tag::Int(food.nutrition)),
+            ("saturation", Tag::Float(food.saturation.to_bits())),
+            ("can_always_eat", Tag::Byte(i8::from(food.can_always_eat))),
+        ]));
     }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
@@ -254,6 +263,9 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         "minecraft:enchantment_glint_override" => horizon_items::item_data::component_bool(t)
             .map(|_| ())
             .ok_or_else(|| "Not a number".into()),
+        "minecraft:food" => horizon_items::item_data::food_properties(t)
+            .map(|_| ())
+            .map_err(str::to_owned),
         "minecraft:custom_name" | "minecraft:item_name" => super::component::decode(t),
         "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound" => {
             identifier_payload(t).map(|_| ())

@@ -68,6 +68,13 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
             a.data().and_then(|d| d.other(id)).and_then(component_bool)
                 == b.data().and_then(|d| d.other(id)).and_then(component_bool)
         }
+        "minecraft:food" => match (
+            a.data().and_then(|d| d.other(id)).map(food_properties),
+            b.data().and_then(|d| d.other(id)).map(food_properties),
+        ) {
+            (Some(Ok(a)), Some(Ok(b))) => a == b,
+            _ => false,
+        },
         "minecraft:custom_name" => {
             a.data().and_then(|d| d.custom_name.as_ref())
                 == b.data().and_then(|d| d.custom_name.as_ref())

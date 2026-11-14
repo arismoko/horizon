@@ -54,7 +54,7 @@ Native registrations retain their persistent NBT validation contract.
 
 The shared decoder currently covers `damage`, `repair_cost`, `max_damage`,
 `max_stack_size`, `rarity`, `base_color`, `enchantments`, `stored_enchantments`, `custom_name`,
-`enchantment_glint_override`, `item_name`, `item_model`, `dyed_color`, `unbreakable`, `glider`, `intangible_projectile`, `tooltip_style`, `note_block_sound`, `dye`, `sheep/color`, `shulker/color`, `cat/collar`, `wolf/collar`, `waxed`, `block_entity_data`, `enchantable`, `map_id`, `villager_food`,
+`enchantment_glint_override`, `item_name`, `item_model`, `dyed_color`, `unbreakable`, `glider`, `intangible_projectile`, `tooltip_style`, `note_block_sound`, `dye`, `sheep/color`, `shulker/color`, `cat/collar`, `wolf/collar`, `waxed`, `block_entity_data`, `enchantable`, `map_id`, `villager_food`, `food`,
 `ominous_bottle_amplifier`, `potion_duration_scale`, and `minimum_attack_charge` in the `minecraft` namespace.
 `enchantable` requires a positive integer `value`; extra record fields are ignored
 and equivalent numeric NBT widths match, including item defaults. Map ids accept
@@ -87,7 +87,7 @@ normalize to `minecraft`. Matching borrows candidate strings without allocation.
 `base_color` uses the same strict dye palette as `dye`, retains its dedicated
 shield value, and remains absent on banners without that component.
 `villager_food` requires a compound with positive integer `nutrition`; unknown fields are ignored.
-The other 91 registered built-ins use stored-value matching while their shared
+The other 90 registered built-ins use stored-value matching while their shared
 decoders are added incrementally in **#3875**. Their absence is not a load refusal.
 
 Component ingredient displays contain the patch, including removals. Difference
@@ -108,3 +108,8 @@ Explicit prototype values participate in matching and removal checks.
 `cat/collar` uses the same strict dye palette and explicit prototype matching.
 
 `wolf/collar` shares the strict dye palette and explicit prototype matching.
+
+`food` requires non-negative `nutrition` after Java integer conversion and numeric
+`saturation` (32-bit float, including negative and nonfinite values).
+`can_always_eat` defaults to false and uses numeric boolean rules. Unknown fields
+are ignored. Float equality treats all NaNs as equal but distinguishes signed zeros.
