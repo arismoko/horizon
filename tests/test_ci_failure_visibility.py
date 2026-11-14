@@ -162,7 +162,7 @@ class Visibility(unittest.TestCase):
         self.assertNotIn("clippy", fmt["run"])
         self.assertIn("clippy", native["run"])
         self.assertNotIn("continue-on-error", native)
-        for name in ("Lint native targets", "Lint the server build without sound or controllers", "The machine sample builds against this API", "The mod API builds for wasm32"):
+        for name in ("Lint native targets", "Lint the server build without sound or controllers", "The mod API builds for wasm32"):
             step = next(s for s in steps if s.get("name") == name)
             self.assertLess(steps.index(fmt), steps.index(step))
             self.assertLess(steps.index(step), steps.index(final))

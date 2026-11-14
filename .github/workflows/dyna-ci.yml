@@ -1,5 +1,7 @@
 name: dyna-checks
-run-name: ${{ github.event.pull_request.title || github.event.head_commit.message || github.workflow }}
+# What the run tests, readable in the run list: a dispatch with `pr` runs on ref main but tests that pull request's head,
+# so it is named for it and never read as main's CI; the prepared-output dispatch likewise.
+run-name: "${{ inputs.pr && format('PR #{0} gate', inputs.pr) || inputs.prepare-output-check && 'prepared output check' || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}"
 # A contributor's pull request (its head in a fork) gets the cheap checks (verify-static, format); the heavy ones
 # (everything that compiles) run on main's pushes, dispatches, and same-repository rollup or sync pull requests
 # (tools/ci/pr_gate.py, docs/ci-runners.md).
@@ -72,8 +74,6 @@ jobs:
       rust_required: ${{ steps.selection.outputs.rust_required || 'true' }}
       launcher_required: ${{ steps.selection.outputs.launcher_required || 'true' }}
       tooling_required: ${{ steps.selection.outputs.tooling_required || 'true' }}
-      # The sample was PR-selected before centralization; keep main/dispatch behavior unchanged.
-      sample_required: ${{ steps.selection.outputs.sample_required || 'false' }}
       self_hosted: ${{ !inputs.github-fallback && steps.hosted.outputs.forced_github != 'true' && steps.runner.outputs.self_hosted || 'false' }}
       # Where lint and verify run when they don't go to Dyna's pool: boat-large for listed outside contributors
       # while vars.BOAT_CI is on (boat refuses a public repository's run unless both its author and the user who
@@ -382,9 +382,6 @@ jobs:
         if: needs.changes.outputs.rust_required != 'false'
         id: server-lint
         run: cargo clippy $JOBS --keep-going -p horizon-client -p horizon-game -p horizon-mod-host --all-targets --no-default-features -- -D warnings
-      - name: The machine sample builds against this API
-        if: needs.changes.outputs.sample_required == 'true'
-        run: python3 tools/ci/check_machine_sample.py
       - name: The mod API builds for wasm32
         if: needs.changes.outputs.rust_required != 'false'
         run: cargo check $JOBS -p horizon-mod-api --target wasm32-unknown-unknown --locked
