@@ -1338,16 +1338,14 @@ impl Game<'_> {
                 if let Some(by) = catchers.iter().find(near)
                     && self.trident_taken(&t, by)
                 {
-                    // Its move this tick is filed before it goes.
-                    let (from, to) = (t.previous, t.position);
-                    self.entity_section_step(t.id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
                     continue;
                 }
             }
+            let (id, from, to) = (t.id, t.previous, t.position);
             self.tridents.insert(i, t);
+            self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
             i += 1;
         }
-        self.entity_sections_stepped(super::entity_sections::Family::Tridents);
     }
     /// ThrownTridentRenderer.
     pub(super) fn trident_geometry(&self, camera: glam::DVec3, alpha: f64, out: &mut Vec<Vertex>) {

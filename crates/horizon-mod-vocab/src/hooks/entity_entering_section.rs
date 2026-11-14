@@ -8,9 +8,9 @@ pub trait Hooks {
     /// section differs, so the entity is in another chunk column. `host` is the side that saw
     /// the move. Nothing can be cancelled: the entity is already in its new section.
     ///
-    /// Told on each side once for every section change, from the
-    /// section the entity was in before that move: two moves told apart are two events, and a
-    /// move out and one back are two. The moves: an entity's own move in its tick (on the
+    /// Told on each side after the position write and section filing, once for
+    /// every section change, from the section the entity was in before that move: two moves told
+    /// apart are two events, and a move out and one back are two. The moves: an entity's own move in its tick (on the
     /// server every kind in the level's lists, the fishing hooks and the dragon; on a client
     /// each entity it shows, where its interpolation puts it), each move a server player sent,
     /// a teleport (`/tp`, a mod's `teleport_to`), a piston or shulker push, and on a client
@@ -19,20 +19,23 @@ pub trait Hooks {
     /// move of its own, before the walk that follows it, each one when it teleports twice; one
     /// collision-resolved walk is one move. An entity joining a level, changing level, or a
     /// player respawning starts in its section untold, as vanilla adds it to its section
-    /// without this event; one that moves before its first tick is told. What a listener moves
-    /// is told at the next move, not from inside its own call.
+    /// without this event; one that moves before its first tick is told. A listener must defer
+    /// moving or removing the entity until delivery completes; outside the borrowed-AI case
+    /// below, the position write is still in progress while this hook runs.
     ///
-    /// Timing differs from vanilla for an entity's moves in its own tick (mobs, items and the
-    /// other kinds that tick as a family): they are told at the end of its family's tick, the
-    /// same crossings in the same order, later than the write, so a listener reads such an
-    /// entity where the round left it, not at the destination of the crossing it is told.
-    /// Teleports outside an entity's own tick, pushes, a player's moves and a client's packets are
-    /// told at once.
+    /// During a mob's borrowed AI tick, section-crossing notifications are delivered in recorded
+    /// write order after that individual mob tick returns and its owning list is restored, not
+    /// inside the position setter; position reads temporarily show each recorded destination,
+    /// while other state already reflects later work in that tick, so listeners must defer moving
+    /// or removing entities and must not rely on write-time ordering against other tick side effects.
+    /// The engine does not automatically defer listener mutations. Lent item and projectile
+    /// callbacks provide position visibility, not general access to a resident entity row.
     #[notes = r#"## Entering a section
 
 `Hooks::entity_entering_section` (NeoForge's `EntityEvent.EnteringSection`) tells a mod each time an entity's
-position puts it in another 16x16x16 section, on the side that saw it move. It is the moment vanilla moves the
-entity between its section lists (`Entity.setPosRaw`, then the level callback's `onMove`). Use it to keep a mod's own
+position puts it in another 16x16x16 section, on the side that saw it move. Vanilla moves the
+entity between its section lists at `Entity.setPosRaw`, then the level callback's `onMove`; the borrowed-AI limitation
+below means this hook does not always run at that moment. Use it to keep a mod's own
 per-section or per-chunk index of entities without scanning every entity each tick:
 
 ```rust,ignore
@@ -57,13 +60,14 @@ An entity joining a level, changing level or a player respawning starts in its s
 that moves before its first tick is told. With no listener the game files nothing, so the hook costs a
 subscription check per position update.
 
-When it is told: at once for a teleport (`/tp`, `teleport_to`, `random_teleport` from outside the tick, an enderman's
-or a shulker's teleport when hurt), a piston or shulker push, a server player's sent move and, on a client, a packet
-that places an entity. A listener's own moves are told at the next update, never from inside its call.
+Outside borrowed AI ticks, delivery runs at the position write for a teleport (`/tp`, `teleport_to`,
+`random_teleport` from outside the tick), a piston or shulker push, a server player's sent move and,
+on a client, a packet that places an entity.
 
-Timing differs from vanilla for an entity's moves in its own tick (mobs, items and the other kinds that tick as a
-family): they are told at the end of its family's tick, the same crossings in the same order, later than the write, so
-a listener reads such an entity where the round left it, not at the destination of the crossing it is told."#]
+During a mob's borrowed AI tick, section-crossing notifications are delivered in recorded write order after that individual mob tick returns and its owning list is restored, not inside the position setter; position reads temporarily show each recorded destination, while other state already reflects later work in that tick, so listeners must defer moving or removing entities and must not rely on write-time ordering against other tick side effects.
+
+The engine does not automatically defer listener mutations. Lent item and projectile callbacks provide
+position visibility, not general access to a resident entity row."#]
     #[hook(
         side = "both",
         contract = "listen",

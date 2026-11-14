@@ -9,6 +9,8 @@
 mod lifetime_tests;
 #[path = "minecarts/save_lending.rs"]
 mod save_lending;
+#[path = "minecarts/section_steps.rs"]
+mod section_steps;
 
 use super::{Game, Hit, InteractTarget, Keys, entity::Entity};
 use horizon_client::actions::Action;
@@ -2016,30 +2018,13 @@ impl Game<'_> {
             let Some(i) = self.cart_in_world(id, i, &round, kind) else {
                 continue;
             };
-            // The tick copy owns pending metadata. Block-contact passes publish
-            // that whole copy, so a detector rail's comparator can unpack it.
-            // The returned inventory and metadata then follow the ticked cart.
-            let due = self.with_entity_held_out(id, |game| {
-                let loot = game.carts.update(i, |c| c.loot.take());
-                let mut c = game.carts[i].clone();
-                c.loot = loot;
-                let alive = game.tick_cart(&mut c, [0.0; 2], i, &mut index);
-                if c.kind == CartKind::Hopper && c.enabled {
-                    game.hopper_cart_suck(&mut c);
-                }
-                let Some(i) = cart_at(&game.carts, id, i) else {
-                    return false;
-                };
-                if alive {
-                    let due = std::mem::take(&mut c.command_due);
-                    index.moved(i, c.bounds());
-                    game.store_cart_back(i, c);
-                    due
-                } else {
-                    // explode_cart owns destruction and its passenger callbacks.
-                    false
-                }
-            });
+            // The ticked copy takes the loot roll instead of copying it: only
+            // opening the cart, a command or a save reads it, never a tick, and
+            // a mineshaft's chest cart carries its whole roll as NBT. The
+            // stored cart keeps its slots for whatever reads them meanwhile.
+            let (due, section_step) =
+                self.with_entity_held_out(id, |game| section_steps::tick(game, id, i, &mut index));
+            section_steps::tell(self, id, section_step);
             if due {
                 self.perform_cart_command(id);
                 index.forget_carts();
@@ -2160,35 +2145,13 @@ impl Game<'_> {
         let (s, co) = (f64::from(r.sin()), f64::from(r.cos()));
         let intent = [left * co - forward * s, forward * co + left * s];
         let id = self.carts[i].id;
-        let result = self.with_entity_held_out(id, |game| {
-            let mut c = game.carts[i].clone();
-            let alive = game.tick_cart(&mut c, intent, i, &mut CartIndex::default());
-            if alive
-                && game.riding == Some(c.id)
-                && let Some(p) = game.player.as_mut()
-            {
-                game.previous_position = p.position;
-                p.position = Vec3::new(c.position.x, c.position.y + SEAT, c.position.z);
-                p.velocity = Vec3::ZERO;
-                p.fall_distance = 0.0;
-            }
-            let Some(i) = game.carts.iter().position(|x| x.id == c.id) else {
-                if alive
-                    && game.riding == Some(id)
-                    && !game.persist.removed_vehicles.contains_key(&id)
-                {
-                    game.riding = None;
-                }
-                return None;
-            };
-            if alive {
-                game.store_cart_back(i, c);
-            }
-            Some((i, alive))
-        });
-        let Some((i, alive)) = result else {
+        let result =
+            self.with_entity_held_out(id, |game| section_steps::tick_riding(game, id, i, intent));
+        let Some((i, alive, cart_step, player_step)) = result else {
             return true;
         };
+        section_steps::tell(self, id, cart_step);
+        section_steps::tell_player(self, player_step);
         // AbstractMinecart.activateMinecart: a powered activator rail ejects
         // the rider, and getDismountLocationForPassenger places it beside the
         // cart instead of leaving it at the seat.
@@ -2208,10 +2171,12 @@ impl Game<'_> {
             return;
         }
         let target = self.cart_player_dismount_target(i);
+        let from = self.player.as_ref().map(|player| player.position);
         if let Some(p) = self.player.as_mut() {
             p.position = target;
             p.velocity = Vec3::ZERO;
         }
+        section_steps::tell_player(self, from.map(|from| (from, target)));
     }
     /// Where the cart at `i` lets a player off.
     pub(super) fn cart_player_dismount_target(&self, i: usize) -> Vec3 {

@@ -1062,11 +1062,16 @@ impl Game<'_> {
                 self.boats.update(i, |b| b.wear_off_hurt());
                 // Entity.baseTick burns it before it moves; the fire may break it.
                 if !self.boat_fire_tick(i) && !self.boat_below_world(i) {
-                    self.with_entity_held_out(id, |game| {
+                    let section_step = self.with_entity_held_out(id, |game| {
                         let b = game.boats[i].clone();
+                        let from = b.position;
                         let b = game.tick_boat(b, false);
-                        game.store_boat_back(i, b);
+                        let to = b.position;
+                        game.store_boat_back(i, b).then_some((from, to))
                     });
+                    if let Some((from, to)) = section_step {
+                        self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+                    }
                     self.boat_server_passes(id, &driven, &ticking, &round);
                 }
                 self.native_tick_post_one(&round, id, &kind);

@@ -257,7 +257,7 @@ impl Game<'_> {
             let w = self.mob_world_base(&[]);
             again.tick(&super::creatures::ProjWorld {
                 w: &w,
-                targets,
+                targets: &targets,
                 border,
             })
         };
