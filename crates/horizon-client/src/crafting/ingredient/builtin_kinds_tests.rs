@@ -2,6 +2,141 @@ use super::*;
 use horizon_core::nbt::Tag;
 use horizon_world::native_load_context::{DataLoadOrigin, LoadContext, LoadInputs, LoopSide};
 
+#[test]
+fn weapon_component_recipes_decode_defaults_and_match_live_borrowed_values() {
+    use serde_json::json;
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:diamond_sword".into(),
+        crate::json_nbt::json_to_compound(
+            json!({"minecraft:weapon":{"item_damage_per_attack":1,"extra":"ignored"}})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let ingredient = |weapon| {
+        json!({
+            "type":"neoforge:components",
+            "items":"minecraft:diamond_sword",
+            "components":{"minecraft:weapon":weapon},
+            "strict":true
+        })
+    };
+    let recipe = |ingredient| {
+        json!({
+            "type":"minecraft:crafting_shapeless",
+            "ingredients":[ingredient],
+            "result":{"id":"minecraft:diamond"}
+        })
+    };
+    let load = load();
+    let recipes = crate::crafting::Recipes::from_sources(
+        &std::env::temp_dir(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        vec![
+            (
+                "fixture:weapon_default".into(),
+                recipe(ingredient(json!({}))),
+            ),
+            (
+                "fixture:weapon_custom".into(),
+                recipe(ingredient(json!({
+                    "item_damage_per_attack":2.9,
+                    "disable_blocking_for_seconds":1.25,
+                    "unknown":[1,2]
+                }))),
+            ),
+            (
+                "fixture:weapon_json_zero".into(),
+                // JsonOps converts this integer-valued spelling to an NBT zero.
+                recipe(ingredient(json!({"disable_blocking_for_seconds":-0.0}))),
+            ),
+            (
+                "fixture:weapon_removed".into(),
+                recipe(json!({
+                    "type":"neoforge:components",
+                    "items":"minecraft:diamond_sword",
+                    "components":{"!minecraft:weapon":{}}
+                })),
+            ),
+            (
+                "fixture:weapon_invalid".into(),
+                recipe(ingredient(json!({
+                    "disable_blocking_for_seconds":-1.0
+                }))),
+            ),
+            (
+                "fixture:weapon_wrong_type".into(),
+                recipe(ingredient(json!({
+                    "item_damage_per_attack":"1"
+                }))),
+            ),
+        ],
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 4);
+    let context = load.loop_context(LoopSide::Server, []);
+    let matches =
+        |id, stack: &ItemStack| recipes.recipe_matches(&context, id, &[Some(stack.clone())], 1);
+    let mut sword = ItemStack::new("minecraft:diamond_sword", 1);
+    assert!(matches("fixture:weapon_default", &sword));
+    assert!(matches("fixture:weapon_json_zero", &sword));
+    assert!(!matches("fixture:weapon_custom", &sword));
+    sword.data_mut().set_loot_component(
+        "minecraft:weapon",
+        &Some(Tag::compound([
+            ("item_damage_per_attack", Tag::Long(4_294_967_298)),
+            (
+                "disable_blocking_for_seconds",
+                Tag::Double(1.25f64.to_bits()),
+            ),
+            ("extra", Tag::Byte(9)),
+        ])),
+    );
+    assert!(matches("fixture:weapon_custom", &sword));
+    assert!(!matches("fixture:weapon_default", &sword));
+    sword.data_mut().set_loot_component(
+        "minecraft:weapon",
+        &Some(Tag::compound([
+            ("item_damage_per_attack", Tag::Byte(2)),
+            ("disable_blocking_for_seconds", Tag::Float(1.5f32.to_bits())),
+        ])),
+    );
+    assert!(!matches("fixture:weapon_custom", &sword));
+    sword
+        .data_mut()
+        .set_loot_component("minecraft:weapon", &Some(Tag::Compound(Default::default())));
+    assert!(matches("fixture:weapon_default", &sword));
+    sword
+        .data_mut()
+        .set_loot_component("minecraft:custom_data", &Some(Tag::Int(7)));
+    assert!(!matches("fixture:weapon_default", &sword));
+    let patch = Tag::compound([("!minecraft:weapon", Tag::Compound(Default::default()))]);
+    (_, sword.extra) = crate::item_data::decode_components(Some(&patch));
+    assert!(!matches("fixture:weapon_default", &sword));
+    assert!(matches("fixture:weapon_removed", &sword));
+    assert!(!matches("fixture:weapon_invalid", &sword));
+    assert!(!matches("fixture:weapon_wrong_type", &sword));
+    let invalid = IngredientRule::Components {
+        patch: [(
+            "minecraft:weapon".into(),
+            Tag::compound([(
+                "disable_blocking_for_seconds",
+                Tag::Float((-0.0f32).to_bits()),
+            )]),
+        )]
+        .into_iter()
+        .collect(),
+        removed: Vec::new(),
+        strict: false,
+    };
+    let error = super::components::validate(&invalid, &items).unwrap_err();
+    assert!(error.starts_with("component minecraft:weapon: "));
+}
+
 fn load() -> LoadContext {
     LoadContext::new(
         DataLoadOrigin::ServerDataLoad,

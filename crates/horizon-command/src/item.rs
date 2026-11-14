@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:weapon",
     "minecraft:food",
     "minecraft:villager_food",
     "minecraft:note_block_sound",
@@ -84,6 +85,10 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
             ("saturation", Tag::Float(food.saturation.to_bits())),
             ("can_always_eat", Tag::Byte(i8::from(food.can_always_eat))),
         ]));
+    }
+    if id == "minecraft:weapon" {
+        return horizon_items::properties::Weapon::from_tag(value)
+            .map(|weapon| weapon.to_tag()).map_err(str::to_owned);
     }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
@@ -158,6 +163,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
+        "minecraft:weapon" => horizon_items::properties::Weapon::from_tag(t).map(|_| ()).map_err(str::to_owned),
         // MapId.CODEC is Codec.INT, without a non-negative constraint.
         "minecraft:map_id" => int_of(t).map(|_| ()).ok_or_else(|| "Not a number".into()),
         "minecraft:dyed_color" => horizon_core::color::rgb_color_from_tag(t)
@@ -921,6 +927,74 @@ pub fn suggest_predicate(builder: &mut SuggestionsBuilder, reg: &Registries) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn weapon_codec_defaults_numeric_conversions_and_ranges() {
+        use super::{Registries, Tag, decoded_component_value};
+        let registry = Registries::default();
+        let decode = |tag: &Tag| decoded_component_value("minecraft:weapon", tag, &registry);
+        let canonical = |damage, seconds: f32| {
+            Tag::compound([
+                ("item_damage_per_attack", Tag::Int(damage)),
+                (
+                    "disable_blocking_for_seconds",
+                    Tag::Float(seconds.to_bits()),
+                ),
+            ])
+        };
+        assert_eq!(
+            decode(&Tag::Compound(Default::default())).unwrap(),
+            canonical(1, 0.0)
+        );
+        for (number, expected) in [
+            (Tag::Byte(2), 2),
+            (Tag::Short(2), 2),
+            (Tag::Long(4_294_967_298), 2),
+            (Tag::Double(2.75f64.to_bits()), 2),
+            (Tag::Float(f32::NAN.to_bits()), 0),
+            (Tag::Double(f64::INFINITY.to_bits()), i32::MAX),
+        ] {
+            assert_eq!(
+                decode(&Tag::compound([
+                    ("item_damage_per_attack", number),
+                    (
+                        "disable_blocking_for_seconds",
+                        Tag::Double(1.25f64.to_bits())
+                    ),
+                    ("ignored", Tag::String("anything".into())),
+                ]))
+                .unwrap(),
+                canonical(expected, 1.25)
+            );
+        }
+        for number in [
+            Tag::Byte(-1),
+            Tag::Long(2_147_483_648),
+            Tag::String("1".into()),
+        ] {
+            assert!(decode(&Tag::compound([("item_damage_per_attack", number)])).is_err());
+        }
+        for number in [
+            Tag::Float((-0.0f32).to_bits()),
+            Tag::Float((-1.0f32).to_bits()),
+            Tag::Float(f32::NAN.to_bits()),
+            Tag::Float(f32::INFINITY.to_bits()),
+            Tag::Float(f32::NEG_INFINITY.to_bits()),
+            Tag::Double(f64::MAX.to_bits()),
+            Tag::String("0".into()),
+        ] {
+            assert!(decode(&Tag::compound([("disable_blocking_for_seconds", number)])).is_err());
+        }
+        assert_eq!(
+            decode(&Tag::compound([(
+                "disable_blocking_for_seconds",
+                Tag::Float(f32::MAX.to_bits()),
+            )]))
+            .unwrap(),
+            canonical(1, f32::MAX)
+        );
+        assert!(decode(&Tag::List(Vec::new())).is_err());
+    }
+
     #[test]
     fn note_block_sound_identifier_codec_normalizes_and_validates() {
         use super::{Registries, Tag, decoded_component_value};
