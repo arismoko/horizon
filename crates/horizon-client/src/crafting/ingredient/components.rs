@@ -187,6 +187,20 @@ impl ComponentPredicate {
 // Keep conversion failures alongside codec errors at the recipe publication boundary.
 pub(super) fn validate_recipe_components(value: &Value, items: &Items) -> Result<(), String> {
     let object = value.as_object().ok_or("malformed components ingredient")?;
+    // Generic JsonOps-to-NBT conversion canonicalizes integral zero, so reject
+    // weapon's forbidden negative zero before its sign can be discarded.
+    if let Some(patch) = object.get("components").and_then(Value::as_object) {
+        for id in ["minecraft:weapon", "weapon"] {
+            if patch
+                .get(id)
+                .and_then(|weapon| weapon.get("disable_blocking_for_seconds"))
+                .and_then(Value::as_f64)
+                .is_some_and(|seconds| seconds == 0.0 && seconds.is_sign_negative())
+            {
+                return Err("component minecraft:weapon: disable_blocking_for_seconds must not be negative zero".into());
+            }
+        }
+    }
     let keys = object
         .get("components")
         .and_then(Value::as_object)

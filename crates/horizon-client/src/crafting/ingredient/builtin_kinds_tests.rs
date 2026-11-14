@@ -50,7 +50,7 @@ fn weapon_component_recipes_decode_defaults_and_match_live_borrowed_values() {
             ),
             (
                 "fixture:weapon_json_zero".into(),
-                // JsonOps converts this integer-valued spelling to an NBT zero.
+                // Weapon refuses negative zero before generic NBT conversion loses its sign.
                 recipe(ingredient(json!({"disable_blocking_for_seconds":-0.0}))),
             ),
             (
@@ -77,13 +77,13 @@ fn weapon_component_recipes_decode_defaults_and_match_live_borrowed_values() {
         &load,
     )
     .unwrap();
-    assert_eq!(recipes.crafting.len(), 4);
+    assert_eq!(recipes.crafting.len(), 3);
     let context = load.loop_context(LoopSide::Server, []);
     let matches =
         |id, stack: &ItemStack| recipes.recipe_matches(&context, id, &[Some(stack.clone())], 1);
     let mut sword = ItemStack::new("minecraft:diamond_sword", 1);
     assert!(matches("fixture:weapon_default", &sword));
-    assert!(matches("fixture:weapon_json_zero", &sword));
+    assert!(!matches("fixture:weapon_json_zero", &sword));
     assert!(!matches("fixture:weapon_custom", &sword));
     sword.data_mut().set_loot_component(
         "minecraft:weapon",

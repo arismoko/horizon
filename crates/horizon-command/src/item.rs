@@ -88,7 +88,8 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
     }
     if id == "minecraft:weapon" {
         return horizon_items::properties::Weapon::from_tag(value)
-            .map(|weapon| weapon.to_tag()).map_err(str::to_owned);
+            .map(|weapon| weapon.to_tag())
+            .map_err(str::to_owned);
     }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
@@ -163,7 +164,9 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
-        "minecraft:weapon" => horizon_items::properties::Weapon::from_tag(t).map(|_| ()).map_err(str::to_owned),
+        "minecraft:weapon" => horizon_items::properties::Weapon::from_tag(t)
+            .map(|_| ())
+            .map_err(str::to_owned),
         // MapId.CODEC is Codec.INT, without a non-negative constraint.
         "minecraft:map_id" => int_of(t).map(|_| ()).ok_or_else(|| "Not a number".into()),
         "minecraft:dyed_color" => horizon_core::color::rgb_color_from_tag(t)
