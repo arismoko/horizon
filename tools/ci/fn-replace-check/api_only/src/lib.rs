@@ -1,6 +1,6 @@
-//! An API-only mod: hooks and one `[[inject]]` listener. Alone it takes the API route (the
-//! prebuilt API executable and the launcher's `horizon_native_mods` library); beside a mod with a
-//! `[native]` table row the whole set takes the engine route. It runs the same on both.
+//! An API-only mod: hooks and one `[[inject]]` listener. Alone it takes the API route (compiled
+//! against the API metadata into its own library); beside a mod with a `[native]` table row the
+//! whole set takes the engine route. It runs the same on both.
 use mod_api::{Hooks, ServerHost};
 
 struct Mod;

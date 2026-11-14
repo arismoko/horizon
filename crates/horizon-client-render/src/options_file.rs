@@ -391,7 +391,7 @@ impl Spec {
 
     /// `codec.encodeStart(JsonOps.INSTANCE, value)` rendered by Gson.
     fn encode(self, v: &V) -> Option<String> {
-        let double = |x: f64| java_text::double_to_string(x);
+        let double = |x: f64| horizon_core::java_number::double_to_string(x);
         Some(match (self, v) {
             (Spec::Bool, V::Bool(b)) => b.to_string(),
             (Spec::Int(lo, hi), V::Int(x)) => {

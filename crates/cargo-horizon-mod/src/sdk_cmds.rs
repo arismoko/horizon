@@ -219,7 +219,7 @@ fn package_subject(path: &Path) -> Result<Subject, String> {
     let manifest = String::from_utf8(manifest).map_err(|e| format!("{MANIFEST}: {e}"))?;
     let name = display_name(&manifest)?;
     let table: toml::Table = toml::from_str(&manifest).map_err(|e| format!("{MANIFEST}: {e}"))?;
-    if let Some(why) = horizon_mod_api_gen::mod_uses::exact(&table) {
+    if let Some(why) = mod_source::mod_uses::exact(&table) {
         return Ok(Subject::NotApplicable(exact_text(&name, &why)));
     }
     if package.manifest.native.is_none() && package.manifest.wasm.is_none() {
@@ -244,7 +244,7 @@ fn folder_subject(entry: ChildEntry, root: &Path) -> Result<Subject, String> {
         return Ok(Subject::NotApplicable(content_text(&name)));
     }
     let table: toml::Table = toml::from_str(&manifest).map_err(|e| format!("{MANIFEST}: {e}"))?;
-    if let Some(why) = horizon_mod_api_gen::mod_uses::exact(&table) {
+    if let Some(why) = mod_source::mod_uses::exact(&table) {
         return Ok(Subject::NotApplicable(exact_text(&name, &why)));
     }
     let sdk = ensure_sdk(root)?;
@@ -388,7 +388,7 @@ pub(crate) fn update_report(
     };
     // Known from the manifest: such a mod has no table to compare, so nothing is fetched for it.
     let table: toml::Table = toml::from_str(&manifest).map_err(|e| format!("{MANIFEST}: {e}"))?;
-    if horizon_mod_api_gen::mod_uses::exact(&table).is_some() {
+    if mod_source::mod_uses::exact(&table).is_some() {
         exact_line();
         return Ok(());
     }

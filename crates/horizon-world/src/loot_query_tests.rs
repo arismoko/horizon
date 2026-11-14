@@ -3,13 +3,13 @@ use serde_json::json;
 use std::rc::Rc;
 fn data(tables: Vec<(&str, Value)>) -> LootData {
     LootData {
+        holder_sets: Default::default(),
         tables: Arc::new(tables.into_iter().map(|(k, v)| (k.into(), v)).collect()),
         modifiers: HashMap::new(),
         predicates: HashMap::new(),
         items: HashMap::new(),
         enchantments: vec![],
         tags: HashMap::new(),
-        resolved_item_tags: HashMap::new(),
         smelting: vec![],
     }
 }

@@ -61,7 +61,7 @@ ContainerObjectSelectionList.Entry.setFocused	missing		minor: unsure: focus insi
 ContainerObjectSelectionList.Entry.focusPathAtIndex	missing		minor: unsure: no per-row focus path; see focus_step
 ContainerObjectSelectionList.Entry.nextFocusPath	port	crates/horizon-client-input/src/gamepad.rs::focus_step	gap: minor: moves by nearest target rectangle, not by child index within the row
 ContainerObjectSelectionList.Entry.updateNarration	port	crates/horizon-client/src/screen_narrator.rs::narrate_row	the row widget findNarratableWidget picks (inactive ones too), with narrator.position.object_list when the row has more than one
-CycleButton.extractContents	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::draw	option button sprite and its label
+CycleButton.extractContents	port	crates/horizon-client-render/src/options_ui/draw.rs::OptionsUi::draw_standard_contents	option button sprite and its label
 CycleButton.onPress	port	crates/horizon-client-render/src/options_ui.rs::Opt::cycle	click cycles forward; the back flag comes from the caller
 CycleButton.getCycledValue	skip:other		only feeds the narration of the next value
 CycleButton.mouseScrolled	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::wheel	the wheel over a cycle button outside a list takes its step (up goes back); a list keeps the wheel (AbstractScrollArea.mouseScrolled) unless the Horizon extra is on
@@ -132,7 +132,7 @@ ItemDisplayWidget.updateWidgetNarration	inline	crates/horizon-client/src/game/in
 LoadingDotsWidget.extractWidgetRenderState	port	crates/horizon-client/src/multiplayer.rs::Screen::draw	the scanning label and the animated dots under it on the LAN row
 LockIconButton.createNarrationMessage	inline	crates/horizon-client/src/game/network/lan_screen.rs::WorldOptions::narration	gui.narrate.button(narrator.button.difficulty_lock) joined for narration with narrator.button.difficulty_lock.locked or .unlocked (Button::Lock)
 LockIconButton.extractContents	port	crates/horizon-client/src/game/network/lan_screen.rs::Game::draw_options_view	lock or unlock sprite by state
-LogoRenderer.extractRenderState	port	crates/horizon-client/src/title/draw.rs::Title::draw	logo top 44 rows and edition banner; gap: minor: no easter-egg logo variant
+LogoRenderer.extractRenderState	port	crates/horizon-client/src/title.rs::draw_logo	logo top 44 rows and edition banner; gap: minor: no easter-egg logo variant
 MultiLineEditBox.updateWidgetNarration	inline	crates/horizon-client/src/screen_narrator.rs::narrate	narrate's edit-box arm: gui.narrate.editBox(message, value), the two things MultiLineEditBox adds; books and dialogs record their multi-line boxes as Narratable::edit_box
 MultiLineEditBox.onClick	port	crates/horizon-client-render/src/screen_draw.rs::TextField::click	a click places the caret, a double click selects the word (EditBox.onClick's getWordPosition bounds)
 MultiLineEditBox.onDrag	port	crates/horizon-client-render/src/multiline_edit.rs::MultiLineEdit::drag	the selection follows the pointer, or the held scroll bar does

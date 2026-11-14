@@ -48,10 +48,13 @@ mod joined;
 mod move_collision;
 mod moves;
 pub mod passage_cross;
+mod pending_move;
 mod raw_inbox;
+mod selector_sync;
 mod spawn_info;
 use advancements::AdvancementOwners;
 use chat::yellow_names;
+pub use pending_move::{Accepted, Hearing, PendingMove};
 use raw_inbox::{PacketDrain, yield_raw};
 pub mod game_event {
     pub const NO_RESPAWN_BLOCK_AVAILABLE: u8 = 0;
@@ -170,6 +173,8 @@ pub enum HostEvent {
         Box<horizon_protocol::packets::configuration::ClientInformation>,
         Box<horizon_protocol::packets::configuration::ClientInformation>,
     ),
+    /// A changed movement report is held for the game to rule on ([`Hub::resolve_move`]).
+    PlayerMove(u32),
     /// An accepted position started a jump, before later gameplay packets.
     Jump {
         conn: u32,
@@ -331,6 +336,8 @@ pub struct Hub {
     pub chunk_watches: ChunkWatchLog,
     /// Kicks waiting for the game thread to notify native mods.
     pending_kicks: Vec<HostEvent>,
+    /// A native mod listens to `player_move`: a changed report waits for the game ([`pending_move`]).
+    pub moves_listened: bool,
     /// `[transfer]` on (a dedicated server's `--transfers`): the players a proxy
     /// said would arrive (`player-expect`). None while it is off.
     pub transfers: Option<super::arrivals::Transfers>,
@@ -458,6 +465,7 @@ pub struct Hub {
     /// Server mods' commands, a root in the commands report's format, sent
     /// after vanilla's; the key the game last set them for.
     mod_commands: (serde_json::Value, Option<u64>),
+    selector_tokens: Vec<horizon_client_core::registries::SelectorToken>,
     /// Players' areas in other levels and what their clients view of them (#3716).
     pub viewed: super::viewed_levels::ViewedLevels,
 }
@@ -821,10 +829,12 @@ impl Hub {
             entity_out: Vec::new(),
             entity_gone: Vec::new(),
             mod_commands: (serde_json::Value::Null, None),
+            selector_tokens: Vec::new(),
             native_menu_events: Vec::new(),
             chunk_watches: ChunkWatchLog::default(),
             packet_drain: None,
             pending_kicks: Vec::new(),
+            moves_listened: false,
             transfers: None,
             native_tracking: Vec::new(),
             attachment_snapshots: Vec::new(),
@@ -1616,6 +1626,8 @@ impl Hub {
             }));
             g.center_sent = Some((cx, cz));
             g.placed_at = self.ticks;
+            g.level_entered = self.ticks;
+            g.last_reported = (g.position, [g.yaw, g.pitch]);
         });
         self.send_active_effects(i);
         // ServerPlayer.sendPostEffects and initInventoryMenu.
@@ -1738,6 +1750,8 @@ impl Hub {
             g.imported = false;
             g.placed = true;
             g.placed_at = self.ticks;
+            g.level_entered = self.ticks;
+            g.last_reported = (g.position, [g.yaw, g.pitch]);
         });
         // The player list entry of the newcomer, to everyone placed or held (itself included).
         let newcomer = C::PlayerInfoUpdate(play::PlayerInfoUpdate {
@@ -2003,27 +2017,6 @@ impl Hub {
         changed
     }
 
-    /// Commands.sendCommands: the command tree for this player.
-    fn send_commands(&self, i: usize) {
-        let g = &self.guests[i];
-        let mut packet = self.commands_packet(g.permission);
-        // What the mods took out is not in the tree the client gets.
-        if !g.hidden_commands.is_empty() {
-            let hidden: Vec<i32> = packet
-                .nodes
-                .iter()
-                .enumerate()
-                .filter(|(_, n)| n.kind == 1 && g.hidden_commands.contains(&n.name))
-                .map(|(i, _)| i as i32)
-                .collect();
-            let root = packet.root as usize;
-            if let Some(root) = packet.nodes.get_mut(root) {
-                root.children.retain(|c| !hidden.contains(c));
-            }
-        }
-        g.send(&C::Commands(packet));
-    }
-
     /// The command tree a player of this permission level gets.
     fn commands_packet(&self, permission: u8) -> play::Commands {
         match &self.sync.commands {
@@ -2129,10 +2122,12 @@ impl Hub {
         let ticks = self.ticks;
         self.guests.update(i, |g| {
             g.teleport_tick = ticks;
+            g.pending_move = None;
             if let Some(p) = position {
                 g.position = p;
                 g.previous_position = p;
             }
+            g.last_reported = (g.position, [g.yaw, g.pitch]);
             g.teleport_counter = (g.teleport_counter + 1) & 0x7FFF_FFFF;
             let id = g.teleport_counter;
             g.awaiting_teleport = Some((id, g.position));
@@ -3441,7 +3436,7 @@ impl Hub {
     /// ServerPlayer.stopSleepInBed: the wake-up animation goes to the player
     /// and those around, the pose is standing again and the sleep counter
     /// starts the wake-up fade (100).
-    pub fn wake(&mut self, i: usize) {
+    pub fn wake(&mut self, i: usize, wake_immediately: bool) {
         let Some((id, at)) = self.guests.update(i, |g| {
             let head = g.bed.take();
             if head.is_none() && !g.sleeping {
@@ -3451,7 +3446,7 @@ impl Hub {
                 g.woke_from = Some(head);
             }
             g.sleeping = false;
-            g.sleep_timer = 100;
+            g.sleep_timer = if wake_immediately { 0 } else { 100 };
             if g.sent_bed.take().is_some() {
                 g.sent_pose = crate::pose::Pose::Standing;
                 g.send(&C::SetEntityData(play::SetEntityData {
@@ -3951,23 +3946,6 @@ impl Hub {
         d > f64::from(1.0E-5_f32)
     }
 
-    /// A move still queued for guest `i`, which a packet the game handles
-    /// after this pass must not overtake.
-    fn move_queued(&self, i: usize) -> bool {
-        self.guests[i].inbox.iter().any(|entry| {
-            let InboxItem::Packet(p, _) = entry else {
-                return false;
-            };
-            matches!(
-                p,
-                S::MovePlayerPos(_)
-                    | S::MovePlayerPosRot(_)
-                    | S::MovePlayerRot(_)
-                    | S::MovePlayerStatus(_)
-            )
-        })
-    }
-
     /// handlePlayerCommand's START_SPRINTING and STOP_SPRINTING: `setSprinting`, whose movement
     /// speed modifier the attributes then sync to the client (which takes the modifiers as sent:
     /// one without it would slow a sprinting client to a walk).
@@ -4005,7 +3983,10 @@ impl Hub {
         // the action is still handled with it, as vanilla handles both in this tick
         // (the swing starts the attack strength again, #7817).
         loop {
-            if self.discard_closed_input(i) {
+            if self.discard_closed_input(i) || self.holds_for_move(i) {
+                if self.pause_for_move(i, &mut credits, events) {
+                    return true;
+                }
                 break;
             }
             if *held
@@ -4103,7 +4084,7 @@ impl Hub {
                             }
                         });
                         let rot = (p.yaw, p.pitch);
-                        self.position_change(i, [p.x, p.y, p.z], rot, 0, ctx, events);
+                        self.position_change(i, at, rot, 0, Hearing::Confirmation, ctx, events);
                     }
                 }
                 // handlePlayerAbilities: the client flies only if it may.
@@ -4318,8 +4299,13 @@ impl Hub {
                             events.push(HostEvent::Packet(conn, Box::new(S::PlayerCommand(p))));
                         }
                     }
-                    // STOP_SLEEPING.
-                    0 => self.wake(i),
+                    // STOP_SLEEPING: the game wakes the guest after the mods hear it
+                    // (`stopSleepInBed`), and the rest of this turn waits for that wake:
+                    // a move sent after it must not run while the guest still sleeps.
+                    0 => {
+                        events.push(HostEvent::Packet(conn, Box::new(S::PlayerCommand(p))));
+                        *held = true;
+                    }
                     _ => {}
                 },
                 S::Chat(c) => self.handle_chat(i, c, events),
@@ -4436,7 +4422,7 @@ impl Hub {
         }
         let to = pos.unwrap_or(g.position);
         let rot = rot.unwrap_or((g.yaw, g.pitch));
-        self.position_change(i, to, rot, flags, ctx, events);
+        self.position_change(i, to, rot, flags, Hearing::Heard, ctx, events);
     }
 
     /// ServerGamePacketListenerImpl.handlePlayerPositionChange.
@@ -4446,6 +4432,7 @@ impl Hub {
         to: [f64; 3],
         (yaw, pitch): (f32, f32),
         flags: u8,
+        hearing: Hearing,
         ctx: &TickCtx,
         events: &mut Vec<HostEvent>,
     ) {
@@ -4494,9 +4481,9 @@ impl Hub {
                         events.push(HostEvent::Warn(format!(
                             "{} moved too quickly! {},{},{}",
                             g.name,
-                            crate::java_text::double_to_string(d[0]),
-                            crate::java_text::double_to_string(d[1]),
-                            crate::java_text::double_to_string(d[2])
+                            horizon_core::java_number::double_to_string(d[0]),
+                            horizon_core::java_number::double_to_string(d[1]),
+                            horizon_core::java_number::double_to_string(d[2])
                         )));
                         return std::ops::ControlFlow::Break(true);
                     }
@@ -4562,34 +4549,15 @@ impl Hub {
         if flags & 1 != 0 && !self.guests[i].rests_on_ground {
             self.force_send_player_support_blocks(i, ctx);
         }
-        self.guests.update(i, |g| {
-            g.client_is_floating = floating;
-            // Entity.move's verticalCollisionBelow, which the check above reads of the last move.
-            g.rests_on_ground = stands;
-            g.previous_position = g.position;
-            g.position = to;
-            // ServerChunkCache.move: its pairs are checked again.
-            g.moved = true;
-            let moved = [0, 1, 2].map(|k| g.position[k] - g.previous_position[k]);
-            if g.moves.is_empty() {
-                g.moves_from_ground = g.on_ground;
-            }
-            let on_ground = flags & 1 != 0;
-            if g.on_ground && !on_ground && moved[1] > 0.0 && !g.spectator() {
-                events.push(HostEvent::Jump {
-                    conn: g.conn,
-                    from: g.previous_position,
-                    yaw: g.yaw,
-                });
-            }
-            g.moves.push((moved, on_ground));
-            g.known_movement = moved;
-            g.yaw = yaw;
-            g.pitch = pitch.clamp(-90.0, 90.0);
-            g.head_yaw = g.yaw;
-            g.on_ground = flags & 1 != 0;
-            g.ticks = g.ticks.max(1);
-        });
+        let accepted = Accepted {
+            to,
+            yaw,
+            pitch,
+            flags,
+            stands,
+            floating,
+        };
+        self.accept_move(i, accepted, hearing, events);
     }
 
     /// `ServerGamePacketListenerImpl.noBlocksAround`: every block of the
@@ -4978,6 +4946,7 @@ impl Hub {
             // Out of the old level with its chunks (ChunkMap.removeEntity).
             super::chunk_watch::unwatch_all(&mut self.chunk_watches, g);
             g.dimension = self.config.dimension.clone();
+            g.level_entered = self.ticks;
             // A mod's collision exclusions were the old level's (#3717).
             g.collision_exclusions.clear();
             // The load timer is not restarted: vanilla resets the client's loaded state on death and
@@ -5224,6 +5193,9 @@ mod tests {
     #[path = "../far_tests.rs"]
     mod far_tests;
     mod ordered_inbox_tests;
+    mod pending_move_bound_tests;
+    mod pending_move_scope_tests;
+    mod pending_move_tests;
     mod sound_tests;
     use super::*;
     use crate::fast_hash::FxHashSet;
@@ -5400,7 +5372,7 @@ mod tests {
             ]]
         );
         assert_eq!(hub.guests[0].sent_pose, Pose::Sleeping);
-        hub.wake(0);
+        hub.wake(0, false);
         assert_eq!(
             drain(&rx).0,
             [vec![
@@ -5751,6 +5723,7 @@ mod tests {
     fn hub_with_sync(sync: SyncData) -> (Hub, std::sync::mpsc::Receiver<crate::lan::Out>) {
         let config = crate::lan::NetConfig {
             announce: false,
+            listen: false,
             ..crate::lan::NetConfig::loopback(0, "EffectSyncTest".into(), 2)
         };
         let sync = std::sync::Arc::new(sync);
@@ -7101,19 +7074,28 @@ mod tests {
     /// its client sent after it in the same client tick: the packets handed to
     /// the game, and the guest's position and known movement before.
     fn drain_action_then_move(action: i32) -> (Hub, Vec<S>, ([f64; 3], [f64; 3])) {
+        let action = S::PlayerAction(play::PlayerAction {
+            action,
+            pos: [0; 3],
+            direction: 0,
+            sequence: 0,
+        });
+        drain_then_move(action, |_| {})
+    }
+
+    /// [`drain_action_then_move`] for any packet, with `setup` applied to
+    /// the guest first.
+    fn drain_then_move(
+        first: S,
+        setup: impl FnOnce(&mut Guest),
+    ) -> (Hub, Vec<S>, ([f64; 3], [f64; 3])) {
         let (mut hub, _rx) = hub_with_a_guest();
         let before = (hub.guests[0].position, hub.guests[0].known_movement);
         hub.guests.update(0, |guest| {
             guest.load_timeout = 0;
+            setup(guest);
             let inbox = &mut guest.inbox;
-            inbox.push_back(horizon_client::lan::guest::InboxItem::uncredited(
-                S::PlayerAction(play::PlayerAction {
-                    action,
-                    pos: [0; 3],
-                    direction: 0,
-                    sequence: 0,
-                }),
-            ));
+            inbox.push_back(horizon_client::lan::guest::InboxItem::uncredited(first));
             inbox.push_back(horizon_client::lan::guest::InboxItem::uncredited(
                 S::MovePlayerPos(play::MovePlayerPos {
                     x: before.0[0] + 0.3,
@@ -7191,6 +7173,47 @@ mod tests {
         let g = &hub.guests[0];
         assert!(g.inbox.is_empty(), "the move waited for the next tick");
         assert_eq!(g.position[0], before.0[0] + 0.3, "the move was not handled");
+    }
+
+    /// STOP_SLEEPING goes to the game, which wakes the guest after the mods
+    /// hear it (`player_bed_leave`); the move the client sent after it waits
+    /// for the next tick, so it never runs while the guest still sleeps.
+    #[test]
+    fn a_move_after_leave_bed_waits_for_the_wake() {
+        let leave = S::PlayerCommand(play::PlayerCommand {
+            id: 0,
+            action: 0,
+            data: 0,
+        });
+        let (hub, handled, before) = drain_then_move(leave, |guest| {
+            guest.bed = Some([5, 64, 5]);
+            guest.sleeping = true;
+        });
+        assert!(
+            matches!(
+                handled[..],
+                [S::PlayerCommand(play::PlayerCommand { action: 0, .. })]
+            ),
+            "the game was handed {handled:?}"
+        );
+        let g = &hub.guests[0];
+        assert!(
+            matches!(
+                g.inbox.iter().collect::<Vec<_>>()[..],
+                [InboxItem::Packet(S::MovePlayerPos(_), _)]
+            ),
+            "the move did not wait for the wake"
+        );
+        assert_eq!(
+            (g.bed, g.sleeping),
+            (Some([5, 64, 5]), true),
+            "the hub woke the guest"
+        );
+        assert_eq!(
+            (g.position, g.known_movement),
+            before,
+            "the move ran in bed"
+        );
     }
 
     /// The owner's own shoulder parrots are sent when a slot changes.

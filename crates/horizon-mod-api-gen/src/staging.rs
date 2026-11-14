@@ -191,7 +191,7 @@ mod tests {
             .unwrap();
             std::fs::write(
                 root.join("crates/horizon-client/Cargo.toml"),
-                "[package]\nname = 'horizon-client'\n",
+                "[package]\nname = 'horizon-client'\n[dependencies]\nhorizon-engine-slots = { path = '../horizon-engine-slots' }\n",
             )
             .unwrap();
             std::fs::write(
@@ -202,11 +202,11 @@ mod tests {
             let lists = root.join("crates/horizon-mod-api-gen");
             std::fs::create_dir_all(&lists).unwrap();
             std::fs::write(lists.join("internals.txt"), "").unwrap();
-            let package = root.join("crates/horizon-mod-points");
+            let package = root.join("crates/horizon-engine-slots");
             std::fs::create_dir_all(&package).unwrap();
             std::fs::write(
                 package.join("Cargo.toml"),
-                "[package]\nname = 'horizon-mod-points'\n",
+                "[package]\nname = 'horizon-engine-slots'\n",
             )
             .unwrap();
             let output = root.join("points.json");

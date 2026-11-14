@@ -1,6 +1,12 @@
 //! Stack property calculations shared by gameplay, display and mod queries.
 use horizon_core::{color::hsv_to_argb, nbt::Tag};
 
+pub mod attack_range;
+pub mod pet_variants;
+pub mod resolvable;
+pub mod swing_animation;
+pub mod tooltip_display;
+
 /// The effective rarity of an item stack, after its enchantment upgrade.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -121,4 +127,64 @@ pub fn component_float(value: &Tag) -> Option<f32> {
         Tag::Double(n) => f64::from_bits(*n) as f32,
         _ => return None,
     })
+}
+
+/// `Weapon.CODEC`: optional nonnegative attack damage and finite blocking duration.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Weapon {
+    pub item_damage_per_attack: i32,
+    pub disable_blocking_for_seconds: f32,
+}
+
+impl Weapon {
+    /// Decode borrowed NBT with Java numeric conversions, ignoring unknown fields.
+    pub fn from_tag(tag: &Tag) -> Result<Self, &'static str> {
+        let Tag::Compound(fields) = tag else {
+            return Err("Weapon must be a map");
+        };
+        // Compare UTF-16 keys directly: even a first candidate needs no lookup-key allocation.
+        let field = |name: &str| {
+            fields
+                .iter()
+                .find(|(key, _)| key.0.iter().copied().eq(name.encode_utf16()))
+                .map(|(_, value)| value)
+        };
+        let item_damage_per_attack = match field("item_damage_per_attack") {
+            None => 1,
+            Some(value) => component_int(value).ok_or("item_damage_per_attack: Not a number")?,
+        };
+        if item_damage_per_attack < 0 {
+            return Err("item_damage_per_attack: Value must be non-negative");
+        }
+        let disable_blocking_for_seconds = match field("disable_blocking_for_seconds") {
+            None => 0.0,
+            Some(value) => {
+                component_float(value).ok_or("disable_blocking_for_seconds: Not a number")?
+            }
+        };
+        // Float.compare distinguishes -0.0 from +0.0 and rejects NaN above MAX_VALUE.
+        if !disable_blocking_for_seconds.is_finite()
+            || disable_blocking_for_seconds.is_sign_negative()
+        {
+            return Err("disable_blocking_for_seconds: Value must be non-negative and finite");
+        }
+        Ok(Self {
+            item_damage_per_attack,
+            disable_blocking_for_seconds,
+        })
+    }
+
+    /// Canonical decoded payload; defaults are explicit and unknown fields are absent.
+    pub fn to_tag(self) -> Tag {
+        Tag::compound([
+            (
+                "item_damage_per_attack",
+                Tag::Int(self.item_damage_per_attack),
+            ),
+            (
+                "disable_blocking_for_seconds",
+                Tag::Float(self.disable_blocking_for_seconds.to_bits()),
+            ),
+        ])
+    }
 }

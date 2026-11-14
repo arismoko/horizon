@@ -167,6 +167,20 @@ impl Game<'_> {
                 cells.remove(i, item.position);
                 continue;
             }
+            let from = item.previous;
+            let to = item.position;
+            if round.sections() {
+                let live = self.entity_section_step_visible(
+                    item.id,
+                    [from.x, from.y, from.z],
+                    [to.x, to.y, to.z],
+                );
+                if !live {
+                    removed[i] = true;
+                    cells.remove(i, to);
+                    continue;
+                }
+            }
             let item_id = item.id;
             let saved = native_components::ITEM_ENVIRONMENT_DAMAGE
                 .map(|damage| self.saved_refuses_damage(item_id, damage, false));

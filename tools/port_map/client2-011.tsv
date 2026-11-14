@@ -29,7 +29,7 @@ OptionsList.applyUnsavedChanges	inline	crates/horizon-client-render/src/options_
 OptionsList.resetOption	inline	crates/horizon-client-render/src/options_ui.rs::OptionsUi::slider_shown	gap: minor: only sliders show the stored value at once; other options redraw from Settings each frame
 OptionsList.Entry.big	port	crates/horizon-client-render/src/options_ui.rs::option_widget	310 wide; the row's place is OptionsUi::layout (Row::Big)
 OptionsList.Entry.small	port	crates/horizon-client-render/src/options_ui.rs::option_widget	pair placement at width/2 - 155 and + 5 in OptionsUi::layout (Row::Pair)
-OptionsList.Entry.extractContent	inline	crates/horizon-client-render/src/options_ui.rs::OptionsUi::layout	positions the row's widgets; OptionsUi::draw paints them
+OptionsList.Entry.extractContent	inline	crates/horizon-client-render/src/options_ui.rs::OptionsUi::layout	positions the row's widgets; OptionsUi::draw_standard_contents paints them
 OptionsList.Entry.findOption	skip:ui		widget lookup only; rows are rebuilt from Settings each frame
 OptionsList.HeaderEntry.extractContent	inline	crates/horizon-client-render/src/options_ui.rs::OptionsUi::layout	header centred on the row (Row::Header)
 PlainTextButton.extractContents	inline	crates/horizon-client/src/title/draw.rs::Title::draw_with_items	the bottom notice is the plain text button, underlined while hovered; Title::click opens the credits
@@ -67,7 +67,7 @@ SelectableEntry.mouseOverTopLeftQuarter	port	crates/horizon-client/src/multiplay
 SelectableEntry.mouseOverBottomLeftQuarter	port	crates/horizon-client/src/multiplayer.rs::over_bottom_left	move-down arrow of a server row
 SplashRenderer.extractRenderState	inline	crates/horizon-client/src/title/draw.rs::Title::draw_with_items	the rolled splash is drawn and rotated beside the logo (choose_splash)
 SpriteIconButton.setLoading	skip:service		the loading state is used only by the friends buttons (AddFriendWidget, FriendEntry)
-SpriteIconButton.extractSprite	port	crates/horizon-client/src/title/draw.rs::Title::draw	draws the title's icon buttons (language, accessibility); the loading state is service-only
+SpriteIconButton.extractSprite	port	crates/horizon-client/src/title/draw.rs::Title::draw_with_items	draws the title's icon buttons (language, accessibility); the loading state is service-only
 SpriteIconButton.extractLoadingStateIfLoading	skip:service		loading spinner only for the friends buttons
 SpriteIconButton.Builder.sprite	skip:java		builder setter; Horizon draws its icon buttons with fixed sprites
 SpriteIconButton.Builder.build	skip:java		builder; no object is needed

@@ -755,7 +755,7 @@ pub(super) fn load_resources(
             .name("world-rest-loader".into())
             .spawn(move || {
                 let _step = startup::step("rest");
-                let rest = load_world_rest(
+                let rest = world_rest::load_world_rest(
                     &resource_root,
                     &resources,
                     &assets,
@@ -786,7 +786,7 @@ pub(super) fn load_resources(
             handle,
         })
     } else {
-        let rest = load_world_rest(
+        let rest = world_rest::load_world_rest(
             &resolved,
             &resources,
             &assets,

@@ -634,7 +634,16 @@ impl Game<'_> {
             }
             Slot::Ender(i) => match self.ender_items.get_mut(*i) {
                 Some(slot) => {
-                    *slot = stack;
+                    *slot = stack.clone();
+                    // An open ender chest menu shows a copy, which closing copies back
+                    // over `ender_items`: the write goes into the copy as well.
+                    if let Some(key) = self.ender_open
+                        && let Some(BlockEntity::Chest(items)) =
+                            self.world.block_entities.get_mut(&key)
+                        && let Some(open) = items.get_mut(*i)
+                    {
+                        *open = stack;
+                    }
                     true
                 }
                 None => false,
@@ -1945,9 +1954,7 @@ mod mob_equipment_command_tests {
             let stack = game.reload_datapacks(false, &features).unwrap();
             assert!(game.fns.store.functions.contains_key("wpenchant:ready"));
             let root = game.options.resources.clone();
-            let prepared = game
-                .prepare_world_reload(&stack, &root, game.mods.data_switched)
-                .unwrap();
+            let prepared = game.prepare_world_reload(&stack, &root).unwrap();
             game.install_world_tables(prepared);
             game.run_native_advancement_grants();
             let raw_present = game

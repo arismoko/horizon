@@ -880,6 +880,11 @@ mod hub_tests {
             horizon_protocol::registry::Ids::from_names(vec!["minecraft:player".to_string()]),
         );
         let sync = std::sync::Arc::new(sync);
+        // No listener: these tests drive the hub directly and never connect.
+        let config = NetConfig {
+            listen: false,
+            ..config
+        };
         let lan = Lan::start_with(sync.clone(), config).unwrap();
         let encoder = ChunkEncoder::new(
             [] as [(std::sync::Arc<str>, bool); 0],

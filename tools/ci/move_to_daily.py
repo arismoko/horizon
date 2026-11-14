@@ -3,6 +3,7 @@
 
     move_to_daily.py select MEASUREMENT.tsv > LIST.tsv   # which tests move, by the rule below
     move_to_daily.py apply LIST.tsv                      # mark them and write their rows
+    move_to_daily.py restore LIST.tsv                    # undo apply: unmark them and drop their rows
 
 LIST.tsv has one test per line, tab-separated: `PACKAGE TARGET TEST SOURCE REASON`. TARGET is the cargo target the
 test is in (`lib`, `bin:NAME` or `test:NAME`, as the daily run selects it), TEST its libtest path, SOURCE the
@@ -195,6 +196,37 @@ def apply(rows, root=ROOT, folder=POLICY):
     return moved, already, skipped
 
 
+def restore(rows, root=ROOT, folder=POLICY):
+    """Undo `apply` for every row: drop the mark above its `fn` and its row; returns (restored, skipped)."""
+    restored, skipped = [], []
+    by_file = {}
+    for row in rows:
+        by_file.setdefault(row[3].rpartition(":")[0], []).append(row)
+    for path, file_rows in sorted(by_file.items()):
+        source = root / path
+        text = source.read_text()
+        lines = text.splitlines()
+        for row in file_rows:
+            package, target, test, location, reason = row
+            index, why = place(lines, path, int(location.rpartition(":")[2]), test.rsplit("::", 1)[-1])
+            k = index - 1 if index is not None else -1
+            while k >= 0 and lines[k].strip() != MARK and lines[k].strip().startswith(("#[", "//")):
+                k -= 1
+            if why or k < 0 or lines[k].strip() != MARK:
+                skipped.append((row, why or "no daily mark above the fn"))
+                continue
+            del lines[k]
+            policy = folder / f"daily-{package}.txt"
+            kept = [line for line in policy.read_text().splitlines()
+                    if line != f"{package} {test} {target} daily {reason}"]
+            policy.write_text("\n".join(kept) + "\n")
+            restored.append(row)
+        new = "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+        if new != text:
+            source.write_text(new)
+    return restored, skipped
+
+
 def main(argv):
     if len(argv) == 2 and argv[0] == "select":
         rows, skipped = select(argv[1])
@@ -210,6 +242,12 @@ def main(argv):
         for row, why in skipped:
             print(f"skipped {row[0]} {row[2]}: {why}")
         print(f"{len(moved)} tests moved to the daily run, {len(already)} already there, {len(skipped)} skipped")
+        return 0
+    if len(argv) == 2 and argv[0] == "restore":
+        restored, skipped = restore(read_list(argv[1]))
+        for row, why in skipped:
+            print(f"skipped {row[0]} {row[2]}: {why}")
+        print(f"{len(restored)} tests back in verify, {len(skipped)} skipped")
         return 0
     sys.exit(__doc__)
 

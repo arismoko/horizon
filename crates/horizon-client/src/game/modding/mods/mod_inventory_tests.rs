@@ -260,7 +260,7 @@ fn code_only_reload_publishes_one_new_inventory_after_prepare_and_preserves_old_
                 let old_songs = game.items().songs.clone();
                 let read_tags = |game: &Game<'_>| game.items().item_tags.clone();
                 let read = |game: &Game<'_>| {
-                    crate::game::lan::server_sources(
+                    crate::game::lan::sync::server_sources(
                         &game.options.resources,
                         &game.res.core.item_data,
                         &game.pack_files(),

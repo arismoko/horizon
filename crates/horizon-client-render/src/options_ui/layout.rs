@@ -24,6 +24,7 @@ impl OptionsUi {
     /// Something the page layout reads changed: make it again at the next
     /// read, once.
     pub(super) fn relayout(&mut self) {
+        self.discard_draw();
         self.rev = self.rev.wrapping_add(1);
     }
     /// The game changed state the page layout reads (the mod browser's

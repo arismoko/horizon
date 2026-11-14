@@ -1104,6 +1104,7 @@ pub(super) fn test_loopback() -> bool {
 #[cfg(test)]
 mod tests {
     #[test]
+    #[ignore = "daily"]
     fn a_local_server_accepts_only_the_requested_loopback_address() {
         let lan = super::Lan::start_with(
             std::sync::Arc::new(super::data::SyncData::empty()),
@@ -1126,6 +1127,7 @@ mod tests {
     use std::{io::Read, time::Instant};
 
     #[test]
+    #[ignore = "daily"]
     fn actor_ids_never_wrap() {
         let config = NetConfig {
             announce: false,
@@ -1142,6 +1144,7 @@ mod tests {
     /// the player limit and [`SPARE_CONNECTIONS`], a new one is closed at once instead of taking one
     /// more thread, and the room comes back as they go.
     #[test]
+    #[ignore = "daily"]
     fn a_flood_of_silent_sockets_is_turned_away() {
         let config = NetConfig {
             announce: false,
@@ -1279,6 +1282,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_full_server_closes_the_connection_that_waited_longest() {
         use std::io::Read;
         // With a log writer, as on a dedicated server: making room logs, and must not deadlock.

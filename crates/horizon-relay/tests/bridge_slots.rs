@@ -89,6 +89,7 @@ fn settles_to_zero(relay: &Relay) {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_waiting_join_holds_its_slot_and_a_timeout_gives_it_back() {
     let (relay, address) = relay(1);
     let (mut control, _keep, nameplate, _) = host(address);
@@ -128,6 +129,7 @@ fn a_waiting_join_holds_its_slot_and_a_timeout_gives_it_back() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_bridge_gives_its_slot_back_when_either_end_closes() {
     let (relay, address) = relay(1);
     let (mut control, _keep, nameplate, token) = host(address);
@@ -161,6 +163,7 @@ fn a_bridge_gives_its_slot_back_when_either_end_closes() {
 
 /// A guest that goes quiet and stops reading, with its socket open and the host still sending.
 #[test]
+#[ignore = "daily"]
 fn a_bridge_gives_its_slot_back_when_a_peer_stops_reading() {
     let (relay, address, _) = Relay::spawn_local(Config {
         max_bridges: 1,
@@ -198,6 +201,7 @@ fn a_bridge_gives_its_slot_back_when_a_peer_stops_reading() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_wrong_attach_or_a_refusal_holds_no_slot() {
     let (relay, address) = relay(1);
     let (mut control, _keep, nameplate, _) = host(address);

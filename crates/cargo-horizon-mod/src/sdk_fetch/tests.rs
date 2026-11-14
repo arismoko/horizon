@@ -10,12 +10,14 @@ fn release(nightly: Option<&str>) -> (tempfile::TempDir, PublicKey) {
     let folder = base.path().join(format!("sdk-{BUILD}"));
     fs::create_dir_all(&folder).unwrap();
     fs::write(folder.join(SURFACE), r#"{"hash":"ab"}"#).unwrap();
-    // Any archive the unpack reads stands in for the API source.
-    fs::write(
-        folder.join(API_SOURCE),
-        include_bytes!("../../../horizon-mod-package/src/sdk/fixture.tar.xz"),
-    )
-    .unwrap();
+    // Any archive the unpack reads stands in for the API source and the build data.
+    for archive in [API_SOURCE, build_data::ARCHIVE] {
+        fs::write(
+            folder.join(archive),
+            include_bytes!("../../../horizon-mod-package/src/sdk/fixture.tar.xz"),
+        )
+        .unwrap();
+    }
     let build = sdk::Build {
         commit: BUILD.into(),
         game: sdk::GAME.into(),
@@ -97,6 +99,43 @@ fn a_release_not_signed_by_a_trusted_key_or_not_matching_its_sums_is_refused() {
     let other = "89abcdef0123456789abcdef0123456789abcdef";
     fs::rename(&folder, base_folder(&base).join(format!("sdk-{other}"))).unwrap();
     assert!(fetch(&base, &[key], other, &dir, false).is_err());
+}
+
+#[test]
+fn build_data_comes_from_the_signed_sdk_once_and_only_from_it() {
+    let (base, key) = release(None);
+    let folder = base.path().join(format!("sdk-{BUILD}"));
+    let base = Base::Folder(base.path().to_owned());
+    let project = tempfile::tempdir().unwrap();
+    // A build with no SDK release is refused by name.
+    let other = "89abcdef0123456789abcdef0123456789abcdef";
+    let error = build_data_from(&base, &[key], project.path(), other).unwrap_err();
+    assert!(
+        error.starts_with(&format!(
+            "game build {other} has no signed SDK (release sdk-{other}): "
+        )),
+        "{error}"
+    );
+    // An archive that is not the one sdk.json lists leaves no build data.
+    let archive = fs::read(folder.join(build_data::ARCHIVE)).unwrap();
+    fs::write(folder.join(build_data::ARCHIVE), b"not the archive").unwrap();
+    let error = build_data_from(&base, &[key], project.path(), BUILD).unwrap_err();
+    assert!(error.starts_with(&format!("sdk-{BUILD}: ")), "{error}");
+    let into = project.path().join(CACHE).join(BUILD).join(BUILD_DATA);
+    assert!(!into.exists());
+    fs::write(folder.join(build_data::ARCHIVE), archive).unwrap();
+    assert_eq!(
+        build_data_from(&base, &[key], project.path(), BUILD).unwrap(),
+        into
+    );
+    assert!(into.join("deps/a.rmeta").is_file());
+    assert!(!into.with_file_name(build_data::ARCHIVE).exists());
+    // Unpacked once: later reads need no release.
+    let gone = Base::Folder(project.path().join("nowhere"));
+    assert_eq!(
+        build_data_from(&gone, &[key], project.path(), BUILD).unwrap(),
+        into
+    );
 }
 
 fn base_folder(base: &Base) -> &Path {

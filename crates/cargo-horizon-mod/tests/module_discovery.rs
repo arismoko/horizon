@@ -39,9 +39,12 @@ impl Fixture {
         let catalog = root.join(if modules {
             "module-catalog".to_owned()
         } else {
-            format!("target/horizon-mod/prebuilt/{}", "a".repeat(40))
+            format!(".horizon/cache/{}/build-data", "a".repeat(40))
         });
         fs::create_dir_all(&catalog).unwrap();
+        if !modules {
+            fs::write(catalog.parent().unwrap().join("build"), "a".repeat(40)).unwrap();
+        }
         let build = serde_json::json!({"commit": "a".repeat(40)});
         fs::write(catalog.join("internals.json"), serde_json::json!({"schema": 1, "build": build, "internals": [{
             "path": METHOD, "kind": "method", "signature": "impl PortedGame { fn tick(&mut self) -> u32 }", "hash": HASH,
@@ -62,6 +65,7 @@ impl Fixture {
             .args(args)
             .current_dir(&self.root)
             .env("HORIZON_LAUNCHER", &self.launcher)
+            .env("HORIZON_SDK_BASE", self.root.join("no-sdk"))
             .output()
             .unwrap();
         assert!(

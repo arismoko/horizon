@@ -128,7 +128,7 @@ mod tests {
                     let stack = game.reload_datapacks(false, &[]).unwrap();
                     let resources = game.options.resources.clone();
                     game.world_tables = game
-                        .build_world_tables(&stack, false, &resources, game.mods.data_switched)
+                        .stage_world_tables(&stack, false, &resources)
                         .unwrap()
                         .0;
                     assert!(

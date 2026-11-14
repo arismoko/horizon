@@ -200,6 +200,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_server_answers_its_player_count() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -243,6 +244,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn nobody_listening_fails_within_the_timeout() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();

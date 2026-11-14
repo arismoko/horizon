@@ -4,9 +4,9 @@
 //! its ticking entities to a `TickRound` before the loop and hears the Posts after it; the
 //! minecarts and boats, whose loops can call the hooks, ask for each one in turn.
 //!
-//! The end of each entity's tick is also where its own move is filed for
-//! `entity_entering_section` (`entity_sections.rs`): a round keeps its entities while either
-//! hook is listened to.
+//! Each entity's position writes are filed for `entity_entering_section`
+//! (`entity_sections.rs`) while its tick is still running: a round keeps its entities while
+//! either hook is listened to.
 use super::Game;
 use horizon_client::mobs::MobType;
 use std::sync::Arc;
@@ -31,8 +31,8 @@ impl TickKind {
 pub(in crate::game) struct TickRound {
     /// Whether this game is a server the tick hooks hear: otherwise no Pre or Post is told.
     listening: bool,
-    /// Whether `entity_entering_section` is listened to on this server: each entity's move is
-    /// filed after its tick.
+    /// Whether `entity_entering_section` is listened to on this server: each entity's position
+    /// write is filed and told while its tick is still running.
     sections: bool,
     /// The entities the Pre let through, in order, for the Post.
     ticking: Vec<(u32, TickKind)>,
@@ -121,23 +121,18 @@ impl Game<'_> {
         !canceled
     }
 
-    /// `native_entity_tick_post` for each entity the round let through, each one's move filed,
-    /// and the round is over.
+    /// `native_entity_tick_post` for each entity the round let through after its position writes
+    /// have already filed and told their crossings.
     pub(super) fn native_tick_post_batch(&mut self, mut round: TickRound) {
         if !round.listening() {
             return;
         }
         let dimension = self.dim.id();
         for (id, kind) in &round.ticking {
-            // Its tick's move is filed before its Post: a Post listener's move starts from it.
-            if round.sections {
-                self.entity_section_moved_id(*id);
-            }
             if round.listening {
                 self.native_entity_tick_post(dimension, *id, kind.id());
             }
         }
-        self.tell_entity_sections();
         round.ticking.clear();
         self.creatures.tick_buffer = round.ticking;
     }
@@ -160,16 +155,10 @@ impl Game<'_> {
         !canceled
     }
 
-    /// `native_entity_tick_post` for one entity that ticked, and its move filed and told.
+    /// `native_entity_tick_post` for one entity that ticked, after its move was filed and told.
     pub(super) fn native_tick_post_one(&mut self, round: &TickRound, id: u32, kind: &str) {
-        if round.sections {
-            self.entity_section_moved_id(id);
-        }
         if round.listening {
             self.native_entity_tick_post(self.dim.id(), id, kind);
-        }
-        if round.sections {
-            self.tell_entity_sections();
         }
     }
 }

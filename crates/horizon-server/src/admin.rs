@@ -710,6 +710,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn mods_use_runtime_inventory_and_report_unavailability() {
         use std::{
             io::{BufRead, BufReader, Write},

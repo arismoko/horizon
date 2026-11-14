@@ -100,6 +100,34 @@ fn percent(progress: Option<native_mods::Progress>) -> u32 {
 }
 
 impl Launcher {
+    /// The worlds stop of the instance on screen, if one is pending: its choice row is the only
+    /// way on, so the panel's Build and the menu's Build now wait for it.
+    fn worlds_stop(&self, mine: bool) -> Option<&native_mods::AtStake> {
+        self.native_worlds.as_ref().filter(|_| mine)
+    }
+
+    /// Whether the worlds stop on screen is about mod `mod_id`: its switch and its menu's Turn
+    /// off wait for the choice, which backs up the worlds that hold its content.
+    pub(super) fn stop_names(&self, mod_id: &str) -> bool {
+        let here = self
+            .selected_instance()
+            .map(|instance| instance.id.as_str());
+        self.native_for.as_deref() == here
+            && self
+                .worlds_stop(true)
+                .is_some_and(|stake| stake.mods.iter().any(|id| id == mod_id))
+    }
+
+    /// A build stopped for worlds at stake: the choice is shown, and the mods that failed to
+    /// compile stay marked past it.
+    pub(super) fn keep_stop(&mut self, stake: &native_mods::AtStake) {
+        self.native_worlds = Some(stake.clone());
+        self.mods.unbuilt = self
+            .native_for
+            .clone()
+            .map(|instance| (instance, stake.unbuilt.clone()));
+    }
+
     /// The selected instance's build card: the build mode, and the build under way or its end.
     pub(super) fn native_build(&self, cx: &mut Context<Self>) -> Option<Div> {
         let t = self.theme;
@@ -209,7 +237,7 @@ impl Launcher {
         let take = button(
             "native-update-take",
             if back_up {
-                native_mods::fit::back_up_and_update()
+                native_mods::fit::back_up_and_update(check.worlds.len())
             } else {
                 native_mods::fit::update()
             },
@@ -303,6 +331,8 @@ impl Launcher {
         };
         let can_build = self.pending_consent.is_none()
             && !(self.native_step.is_some() && mine)
+            // While worlds are at stake the choice row below is the only decision.
+            && self.worlds_stop(mine).is_none()
             && (error.is_some() || needs.is_some());
         let mut right = div().flex().items_center().gap(px(8.));
         if self.native_step.is_none() {
@@ -356,7 +386,7 @@ impl Launcher {
                     .items_start()
                     .justify_between()
                     .gap(px(12.))
-                    .child(text_in(13., pal.danger).flex_1().child(e.clone()))
+                    .child(text_in(13., pal.danger).flex_1().min_w_0().child(e.clone()))
                     .child(
                         button("native-show-log", "Show log", Kind::Ghost, &t).on_click(
                             cx.listener(|this, _: &ClickEvent, _, cx| {
@@ -367,11 +397,7 @@ impl Launcher {
                     ),
             );
         }
-        if let Some(stake) = self
-            .native_worlds
-            .as_ref()
-            .filter(|_| mine && error.is_some())
-        {
+        if let Some(stake) = self.worlds_stop(mine).filter(|_| error.is_some()) {
             card = card.child(self.worlds_choice(stake, pal, cx));
         }
         if let Some(done) = self.native_done.as_ref().filter(|_| mine) {
@@ -398,11 +424,7 @@ impl Launcher {
         let t = self.theme;
         // The same build again: on the base it stopped on, the worlds backed up first.
         let base = stake.base.clone();
-        let stay = if stake.stay.is_empty() {
-            tr("Stay on this game build").to_string()
-        } else {
-            native_mods::fit::stay(&stake.stay)
-        };
+        let stay = native_mods::fit::dont_build().to_string();
         div()
             .flex()
             .flex_col()
@@ -428,7 +450,11 @@ impl Launcher {
                     .child(
                         button(
                             "native-worlds-back-up",
-                            native_mods::fit::back_up_and_update(),
+                            native_mods::fit::back_up_and_build(
+                                stake.worlds.len(),
+                                stake.mods.len(),
+                                stake.unbuilt.len(),
+                            ),
                             Kind::Secondary,
                             &t,
                         )
@@ -591,6 +617,8 @@ impl Launcher {
         let busy = self.native_step.is_some();
         let building = busy && self.native_for.as_deref() == Some(instance.id.as_str());
         let routes = self.native_routes(cx);
+        let mine = self.native_for.as_deref() == Some(instance.id.as_str());
+        let stop = self.worlds_stop(mine);
         let route = routes
             .mods
             .iter()
@@ -610,6 +638,23 @@ impl Launcher {
                 tr("Another build is running").into(),
                 tr("This instance's build waits until it finishes.").to_string(),
             )
+        } else if self
+            .mods
+            .unbuilt
+            .as_ref()
+            .is_some_and(|(of, ids)| of == &instance.id && ids.iter().any(|id| id == mod_id))
+        {
+            // Its fit was only a prediction: the compile said otherwise, until the next build.
+            (
+                "information-circle",
+                pal.warn,
+                native_mods::fit::didnt_build_headline(mod_id).into(),
+                if stop.is_some() {
+                    native_mods::fit::did_not_build_pending(mod_id)
+                } else {
+                    native_mods::fit::did_not_build_last(mod_id)
+                },
+            )
         } else if state == State::UpToDate {
             (
                 "tick-02",
@@ -619,12 +664,12 @@ impl Launcher {
             )
         } else {
             match route {
-                Route::Invalid { reason } => ("alert-circle", pal.warn, tr("Needs attention").into(), reason.clone()),
+                Route::Invalid { reason } => ("information-circle", pal.warn, tr("Needs attention").into(), reason.clone()),
                 Route::Prebuilt => (
                     "flash",
                     pal.accent,
-                    tr("Can use the prebuilt game").into(),
-                    tr("Can use the prebuilt game if one exists for your Horizon and it serves every enabled mod.").to_string(),
+                    tr("Needs no build by itself").into(),
+                    tr("This mod uses the game as it ships, so Horizon can start without building when every enabled mod is like this.").to_string(),
                 ),
                 // Made for another build: it fits this one, and the build compiles it as usual.
                 Route::Fits { line } => ("tick-02", pal.success, tr("Fits this game").into(), line.clone()),
@@ -634,10 +679,13 @@ impl Launcher {
                     line,
                     actions,
                 } => (
-                    "alert-circle",
+                    "information-circle",
                     pal.warn,
                     headline.clone().into(),
-                    format!("{line}\n{actions}"),
+                    match stop.filter(|stake| stake.mods.iter().any(|id| id == mod_id)) {
+                        Some(_) => format!("{line}\n{}", native_mods::fit::actions_pending(mod_id)),
+                        None => format!("{line}\n{actions}"),
+                    },
                 ),
             }
         };
@@ -670,17 +718,24 @@ impl Launcher {
         let mut wrap = div().relative().flex_none().child(chip);
         if open {
             let home = self.mods.home();
+            // A mod the stop names is decided on the panel: turning it off here would skip the
+            // backup that keeps its worlds' content.
+            let named = self.stop_names(mod_id);
             let off = {
                 let id = id.clone();
                 ui::menu_item(
                     "route-off",
                     trf("Turn off {mod}", &[("mod", mod_id)]).into(),
-                    tr("Keeps the file, leaves it out of the game").to_string(),
-                    busy,
+                    if named {
+                        tr("Choose what to do about your worlds first").to_string()
+                    } else {
+                        tr("Keeps the file, leaves it out of the game").to_string()
+                    },
+                    busy || named,
                     &t,
                 )
                 .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
-                    if this.native_step.is_some() {
+                    if this.native_step.is_some() || named {
                         return;
                     }
                     this.mods.message =
@@ -692,15 +747,20 @@ impl Launcher {
                     cx.notify();
                 }))
             };
+            let worlds_pending = stop.is_some();
             let build_now = ui::menu_item(
                 "route-build",
                 tr("Build now").into(),
-                tr("Builds the game with your mods").to_string(),
-                busy || state == State::NoMods,
+                if worlds_pending {
+                    tr("Choose what to do about your worlds first").to_string()
+                } else {
+                    tr("Builds the game with your mods").to_string()
+                },
+                busy || state == State::NoMods || worlds_pending,
                 &t,
             )
-            .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
-                if this.native_step.is_some() {
+            .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                if this.native_step.is_some() || worlds_pending {
                     return;
                 }
                 this.mods.route_open = None;
@@ -748,7 +808,11 @@ impl Launcher {
                                 .font_weight(FontWeight::MEDIUM)
                                 .child(headline),
                         )
-                        .child(text_in(12., pal.muted).child(reason)),
+                        .children(reason.split('\n').map(|paragraph| {
+                            text_in(12., pal.muted)
+                                .pb(px(4.))
+                                .child(paragraph.to_owned())
+                        })),
                 )
                 .child(off)
                 .child(build_now)

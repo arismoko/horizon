@@ -38,6 +38,7 @@ fn hub_with(uuids: &[u128], max_levels: u8) -> (Hub, Vec<Receiver<Out>>) {
 fn hub_answered(uuids: &[u128], answer: Answer) -> (Hub, Vec<Receiver<Out>>) {
     let config = crate::lan::NetConfig {
         announce: false,
+        listen: false,
         ..crate::lan::NetConfig::loopback(0, "ViewedLevelsTest".into(), 4)
     };
     // Players are an entity type its clients know, so the levels' players are tracked.

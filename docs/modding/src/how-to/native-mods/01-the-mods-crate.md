@@ -75,3 +75,9 @@ A mod's own build script is refused with `E_NATIVE_BUILD_SCRIPT`: ship generated
 `E_NATIVE_FEATURES` refuses mod feature declarations and custom SDK feature requests; use the
 pinned SDK's feature set. These restrictions do not prohibit the separately approved build scripts
 of registry dependencies.
+
+The launcher adds a small generated module to the crate's root, the library entry that the game
+loads, and that module exports two `#[unsafe(no_mangle)]` functions. A crate root may say
+`#![deny(unsafe_code)]`, which the module overrides for itself alone, but not
+`#![forbid(unsafe_code)]`, which nothing can override: such a mod is refused by name before it
+compiles.

@@ -501,6 +501,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_session_logs_in_and_runs_commands() {
         let (address, warned) = server(limits());
         let mut rcon = connect(address);
@@ -554,6 +555,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_long_output_comes_in_packets_of_4096_characters() {
         let (address, _) = server(limits());
         let mut rcon = connect(address);
@@ -572,6 +574,7 @@ mod tests {
     /// `sendCmdResponse` cuts the output with `String.substring` at 4096 UTF-16 units, so a pair that
     /// straddles the cut is split, and `String.getBytes(UTF_8)` writes each lone half as `?`.
     #[test]
+    #[ignore = "daily"]
     fn an_output_is_cut_at_4096_utf16_units_and_a_split_pair_becomes_question_marks() {
         let (address, _) = server(limits());
         let mut rcon = connect(address);
@@ -585,6 +588,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_packet_split_by_tcp_is_one_request() {
         let (address, _) = server(limits());
         let mut rcon = connect(address);
@@ -604,6 +608,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn what_vanilla_closes_on_closes() {
         let (address, _) = server(limits());
         // A length under 10, over what vanilla's buffer takes, or negative.
@@ -628,6 +633,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_connection_that_does_not_log_in_is_closed() {
         let (address, _) = server(Limits {
             clients: 1,
@@ -761,6 +767,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_command_goes_to_the_game_as_an_rcon_request_that_says_what_the_console_says() {
         let dir = scratch("game");
         game(&dir);
@@ -790,6 +797,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn server_toml_starts_it() {
         let dir = scratch("start");
         game(&dir);

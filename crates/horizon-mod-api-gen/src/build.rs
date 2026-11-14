@@ -334,6 +334,35 @@ pub fn generate_points(root: &Path, out_dir: &Path) -> Result<(), String> {
     })
 }
 
+/// Generate the engine-owned point vocabulary and typed dispatch.
+pub fn generate_engine_points(root: &Path, out_dir: &Path) -> Result<(), String> {
+    crate::interface_cache::with_cache(out_dir, || {
+        crate::source::with_walk_cache(|| {
+            for path in super::points::tracked(root)? {
+                crate::rerun_if_changed(&path.display());
+            }
+            crate::rerun_if_staged(root);
+            let points = super::points::game_points(root)?;
+            println!("cargo:rerun-if-env-changed=HORIZON_POINT_NAMES");
+            let selected = std::env::var("HORIZON_POINT_NAMES")
+                .ok()
+                .map(|json| {
+                    serde_json::from_str::<std::collections::BTreeSet<String>>(&json)
+                        .map_err(|error| format!("HORIZON_POINT_NAMES: {error}"))
+                })
+                .transpose()?;
+            let code = super::points::engine_records(&points, selected.as_ref());
+            let generated = syn::parse_file(&code).map_err(|e| format!("engine points: {e}"))?;
+            let mut code = String::new();
+            for item in generated.items {
+                code.push_str(&item.to_token_stream().to_string());
+                code.push('\n');
+            }
+            write_if_changed(out_dir.join("engine_points.rs"), code).map_err(|e| e.to_string())
+        })
+    })
+}
+
 pub(super) fn generate_points_inner(root: &Path, out_dir: &Path) -> Result<(), String> {
     // Phase durations for CI's build report (points-timing.txt beside the output); never read back.
     let started = std::time::Instant::now();

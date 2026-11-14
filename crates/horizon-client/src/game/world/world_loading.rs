@@ -498,8 +498,8 @@ pub(super) fn preload_world_data(
             if left.elapsed() >= PRELOAD_KEPT && thread.is_finished() {
                 horizon_client::vanillagen::forget_shared_data();
                 horizon_client::structure_blocks::forget_loot_data();
-                super::lan::forget_sync_data();
-                super::lan::forget_server_sources();
+                super::lan::sync::forget_sync_data();
+                super::lan::sync::forget_server_sources();
                 horizon_threads::release_free_memory();
                 *preload = Preload::Idle;
                 log::info!("Horizon: preloaded world data dropped, no world opened");
@@ -1003,6 +1003,18 @@ fn mod_terrain(
     .map(|terrain| terrain.map(ModLevel::Terrain))
 }
 
+/// The file beside the world that keeps the structure references of the level `id`. An id with a
+/// `/` puts it in a folder of `data/`.
+pub(super) fn structure_references_file(
+    world_root: &std::path::Path,
+    id: &str,
+) -> std::path::PathBuf {
+    world_root.join("data").join(format!(
+        "horizon_structure_references_{}.json",
+        id.replace(':', "_")
+    ))
+}
+
 /// Where `inner` keeps the structure references an explorer map skips, and how it reads a
 /// saved chunk's.
 fn keep_structure_references(
@@ -1011,10 +1023,7 @@ fn keep_structure_references(
     dim: Dim,
     save: &Arc<SaveDir>,
 ) {
-    inner.set_reference_file(world_root.join("data").join(format!(
-        "horizon_structure_references_{}.json",
-        dim.id().replace(':', "_")
-    )));
+    inner.set_reference_file(structure_references_file(world_root, dim.id()));
     let save = save.clone();
     inner.set_saved_references(Arc::new(move |name, x, z| {
         save.start_references(x, z, name)

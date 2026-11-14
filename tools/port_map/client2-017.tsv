@@ -69,7 +69,7 @@ LanguageSelectScreen.addFooter	port	crates/horizon-client-render/src/options_ui.
 LanguageSelectScreen.repositionElements	skip:ui		layout only: rows are laid out from the window size each frame
 LanguageSelectScreen.onDone	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::back	Done applies the chosen language (language_choice)
 LanguageSelectScreen.LanguageSelectionList.filterEntries	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::layout	filter by the search text against name and region (Page::Language)
-LanguageSelectScreen.LanguageSelectionList.Entry.extractContent	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::draw	the language row's label, centred
+LanguageSelectScreen.LanguageSelectionList.Entry.extractContent	port	crates/horizon-client-render/src/options_ui/draw.rs::OptionsUi::draw_standard_contents	the language row's label, centred
 LanguageSelectScreen.LanguageSelectionList.Entry.keyPressed	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::key	Enter, Space or keypad Enter on a focused language row (FocusId::Lang) applies the row's language and finishes the page at once, as Entry.keyPressed's isSelection arm then onDone does; other keys fall to the box and the list
 LanguageSelectScreen.LanguageSelectionList.Entry.mouseClicked	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::click	gap: minor: a second click on the chosen language finishes the page, which stands in for double-click; click selects
 MouseSettingsScreen.options	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::list_rows	MOUSE_OPTIONS in vanilla order
@@ -100,9 +100,9 @@ VideoSettingsScreen.repositionElements	port	crates/horizon-client-input/src/wind
 VideoSettingsScreen.updateTransparencyButton	skip:ui		rows are rebuilt from Settings on each layout, so the transparency row reads its value each frame
 ControlsScreen.options	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::list_rows	toggle crouch, sprint, attack, use, auto jump, sprint window, quit shortcuts, operator items; Control-click only on macOS
 ControlsScreen.addOptions	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::list_rows	Mouse Settings and Key Binds buttons, then the toggles; Horizon adds Controller Settings
-KeyBindsList.CategoryEntry.extractContent	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::draw	category header text
+KeyBindsList.CategoryEntry.extractContent	port	crates/horizon-client-render/src/options_ui/draw.rs::OptionsUi::draw_standard_contents	category header text
 KeyBindsList.KeyEntry.<init>	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::layout	change and reset buttons per key row
-KeyBindsList.KeyEntry.extractContent	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::draw	row name and conflict highlight
+KeyBindsList.KeyEntry.extractContent	port	crates/horizon-client-render/src/options_ui/draw.rs::OptionsUi::draw_standard_contents	row name and conflict highlight
 KeyBindsList.KeyEntry.refreshEntry	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::layout	conflicts from keys.conflicts; reset enabled when the key is not default
 KeyBindsList.KeyEntry.updateChangeButtonMessage	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::layout	key label, with the > < marker while waiting for a key (selected_key)
 KeyBindsScreen.addContents	port	crates/horizon-client-render/src/options_ui.rs::OptionsUi::layout	the key bind rows

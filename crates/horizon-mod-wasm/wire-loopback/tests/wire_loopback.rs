@@ -257,6 +257,13 @@ fn __horizon_mod_hooks() -> Box<dyn Hooks> {
         ) {
             entity_layers::register(event.layers);
         }
+        fn register_special_model_renderer(
+            &self,
+            _: &mod_api::RegistrationContext,
+            event: &mut mod_api::RegisterSpecialModelRendererEvent<'_>,
+        ) {
+            special_model_renderers::register(event.renderers);
+        }
         fn register(
             &self,
             registrar: &mut dyn mod_api::Registrar,

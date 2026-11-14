@@ -263,11 +263,10 @@ impl Game<'_> {
         let context = self
             .prepare_loop_context(&resources)
             .map_err(|error| ReloadStageError::DataSource(error.to_string()))?;
-        let switched = self.mods.data_switched || next_root.is_some();
         let prepared = self.apply_server_reload_callbacks(prepared);
         let world = if run_load && self.remote.is_none() {
             Some(
-                self.prepare_world_reload(&stack, &resources, switched)
+                self.prepare_world_reload(&stack, &resources)
                     .map_err(|error| ReloadStageError::DataSource(error.to_string()))?,
             )
         } else {
@@ -1341,7 +1340,7 @@ impl Game<'_> {
             }
         };
         let prepared = self.apply_server_reload_callbacks(prepared);
-        let world = match self.prepare_world_reload(&stack, &root, self.mods.data_switched) {
+        let world = match self.prepare_world_reload(&stack, &root) {
             Ok(world) => world,
             Err(error) => {
                 self.fns.enabled = previous_enabled;
@@ -2263,13 +2262,8 @@ mod tests {
                     .tags
                     .contains(&"test:feature_marker".to_owned())
             );
-            (game.world_tables, game.health_resources) = game
-                .build_world_tables(
-                    &stack,
-                    false,
-                    &game.options.resources.clone(),
-                    game.mods.data_switched,
-                )
+            (game.world_tables, game.health_resources, _) = game
+                .stage_world_tables(&stack, false, &game.options.resources.clone())
                 .unwrap();
             assert!(game.items().item_tags["test:sample"].contains("minecraft:diamond"));
         });
@@ -2581,7 +2575,7 @@ mod tests {
 
     /// What a native mod contributes (`native_data_pack_files`) joins the load
     /// the tables are built from, a world's first open and `/reload` alike
-    /// (`Game::build_world_tables` is both), and sits below the world's own
+    /// (`Game::stage_world_tables` is both), and sits below the world's own
     /// packs. Each load asks again, so it is the current contribution that
     /// counts.
     #[test]

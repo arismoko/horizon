@@ -138,9 +138,16 @@ impl ConfirmExperimentsScreen {
         }
         ui::hovered((x, y), bx, by, BUTTON, 20.0).then_some(Click::Back)
     }
-    pub fn draw(&self, batch: &mut HudBatch, atlas: &HudAtlas, cursor: (f32, f32)) {
+    pub fn draw(
+        &self,
+        batch: &mut HudBatch,
+        atlas: &HudAtlas,
+        cursor: (f32, f32),
+        phases: &mut dyn FnMut(crate::screen_draw::RenderPhase, &mut HudBatch),
+    ) {
         let (w, h) = (batch.width, batch.height);
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, self.in_world);
+        phases(crate::screen_draw::RenderPhase::Background, batch);
         let font = &atlas.font;
         if self.details {
             // `DetailsScreen`: the header's title, the packs, Back in the
@@ -182,6 +189,7 @@ impl ConfirmExperimentsScreen {
                 true,
                 ui::hovered(cursor, bx, by, BUTTON, 20.0),
             );
+            phases(crate::screen_draw::RenderPhase::Foreground, batch);
             return;
         }
         let message = Self::message_lines(font);
@@ -230,6 +238,7 @@ impl ConfirmExperimentsScreen {
                 ui::hovered(cursor, fx, fy, BUTTON, 20.0),
             );
         }
+        phases(crate::screen_draw::RenderPhase::Foreground, batch);
     }
 }
 

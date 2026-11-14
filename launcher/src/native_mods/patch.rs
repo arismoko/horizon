@@ -150,6 +150,22 @@ pub(super) fn build(
     let mut compiled = Vec::new();
     for name in &prepared.names {
         let rlib = out.join(format!("lib{name}.rlib"));
+        let mut hash = sha2::Sha256::new();
+        use sha2::Digest;
+        hash.update(sdk.commit());
+        for bundle in &prepared.bundles {
+            hash.update(
+                super::source_digest(bundle)
+                    .ok_or(crate::i18n::tr("Could not hash patch inputs"))?,
+            );
+            hash.update(fs::read(&rlibs[bundle.manifest.id.as_str()]).map_err(|e| e.to_string())?);
+        }
+        let fingerprint = format!("{:x}", hash.finalize());
+        let saved = rlib.with_extension("fingerprint");
+        if rlib.is_file() && fs::read_to_string(&saved).ok().as_deref() == Some(&fingerprint) {
+            compiled.push((name.clone(), rlib));
+            continue;
+        }
         let mut cmd = rustc("2024");
         cmd.args([
             "--crate-type",
@@ -182,6 +198,7 @@ pub(super) fn build(
         arg.push(&argfile);
         cmd.arg(arg);
         super::run(cmd, "Compiling the patched functions", |_| {})?;
+        fs::write(saved, fingerprint).map_err(|e| e.to_string())?;
         compiled.push((name.clone(), rlib));
     }
     prepared.log()?;
@@ -627,11 +644,12 @@ mod refusal_tests {
             super::install_expression("game::tick", &["first", "second"], "patch::install()"),
             r#"("game::tick", &["first", "second"], patch::install())"#
         );
-        let template = include_str!("../../../crates/horizon-client/src/native_main.rs.template");
-        assert!(
-            template.find("entry::installed").unwrap()
-                < template.find("mod_api::ModEntry> =").unwrap()
-        );
+        // The patch library's entry module hands its installs to the loader, which passes them
+        // to the startup gate before any mod's entries are registered.
+        let template =
+            include_str!("../../../crates/horizon-client/src/native_mod_entry.rs.template");
+        let installs = template.find("fn installs()").unwrap();
+        assert!(template[installs..].find("/* MOD_REDIRECTS */").is_some());
     }
 
     #[test]

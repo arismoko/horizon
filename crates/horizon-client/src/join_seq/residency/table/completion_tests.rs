@@ -1,23 +1,6 @@
 use super::*;
 use crate::join_seq::{ResidentList, ResidentSlot, residency::Kind};
-use std::cell::RefCell;
-use std::sync::Once;
-
-thread_local! {
-    static DIAGNOSTICS: RefCell<Vec<(log::Level, String)>> = const { RefCell::new(Vec::new()) };
-}
-struct Capture;
-impl log::Log for Capture {
-    fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-        true
-    }
-    fn log(&self, record: &log::Record<'_>) {
-        DIAGNOSTICS.with_borrow_mut(|out| out.push((record.level(), record.args().to_string())));
-    }
-    fn flush(&self) {}
-}
-static CAPTURE: Capture = Capture;
-static INSTALL: Once = Once::new();
+use crate::test_log::RECORDS as DIAGNOSTICS;
 
 #[derive(Clone)]
 struct Stored {
@@ -28,10 +11,7 @@ crate::impl_joined!(Stored);
 
 #[test]
 fn abandoned_resident_wrapper_passes_are_expired_and_logged_even_in_release() {
-    INSTALL.call_once(|| {
-        log::set_logger(&CAPTURE).unwrap();
-        log::set_max_level(log::LevelFilter::Error);
-    });
+    crate::test_log::install();
     eprintln!(
         "PASS_DIAGNOSTIC_ASSERTIONS_DISABLED:{}",
         !cfg!(debug_assertions)

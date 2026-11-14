@@ -22,6 +22,15 @@ class ProblemsTests(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertIn("docs/layers.md#file-size", found[0])
 
+    def test_daily_marks_do_not_grow_a_big_file_but_code_still_does(self):
+        before = 'fn helper() {}\n' * 3001 + '#[test]\nfn daily_test() {}\n'
+        marked = before.replace('#[test]\n', '#[test]\n    #[ignore = "daily"]\n')
+        count = check_file_size.code_lines
+        self.assertEqual(check_file_size.problems([entry("tests.rs", count(before), count(marked))]), [])
+        self.assertEqual(count(before), count(marked))
+        self.assertEqual(len(check_file_size.problems([
+            entry("tests.rs", count(marked), count(marked + 'fn added() {}\n'))])), 1)
+
     def test_a_big_file_may_shrink_or_stay(self):
         self.assertEqual(check_file_size.problems([entry("a.rs", 21000, 20000), entry("b.rs", 5000, 5000)]), [])
 

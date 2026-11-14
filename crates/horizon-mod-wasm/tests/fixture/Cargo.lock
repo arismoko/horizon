@@ -131,6 +131,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-engine-slots"
+version = "0.1.0"
+dependencies = [
+ "horizon-mod-api-gen",
+ "horizon-mod-vocab",
+]
+
+[[package]]
 name = "horizon-game-discovery"
 version = "0.1.0"
 dependencies = [
@@ -160,6 +168,7 @@ dependencies = [
  "heck",
  "horizon-game-discovery",
  "horizon-mod-point-shape",
+ "horizon-mod-source",
  "horizon-mod-surface",
  "prettyplease",
  "proc-macro2",
@@ -197,6 +206,7 @@ dependencies = [
 name = "horizon-mod-points"
 version = "0.1.0"
 dependencies = [
+ "horizon-engine-slots",
  "horizon-mod-api",
  "horizon-mod-api-gen",
  "horizon-mod-point-shape",
@@ -209,6 +219,17 @@ name = "horizon-mod-runtime"
 version = "0.1.0"
 dependencies = [
  "horizon-core",
+]
+
+[[package]]
+name = "horizon-mod-source"
+version = "0.1.0"
+dependencies = [
+ "horizon-mod-surface",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+ "toml",
 ]
 
 [[package]]

@@ -12,7 +12,7 @@ SocialInteractionsPlayerList.addPlayer	skip:service		social list (hidden and blo
 SocialInteractionsPlayerList.removePlayer	skip:service		social list (hidden and blocked players); Horizon has no Social Interactions screen
 SocialInteractionsPlayerList.refreshHasDraftReport	skip:service		social list (hidden and blocked players); Horizon has no Social Interactions screen
 SocialInteractionsScreen.getNarrationMessage	skip:ui		narration text only
-SocialInteractionsScreen.init	port	crates/horizon-client/src/social_screen.rs::draw	tabs, search box, server label, Done; the state is game/social.rs::Social
+SocialInteractionsScreen.init	port	crates/horizon-client/src/social_screen.rs::draw_contents	tabs, search box, server label, Done; the state is game/network/social.rs::Social
 SocialInteractionsScreen.repositionElements	skip:ui		layout only
 SocialInteractionsScreen.showPage	skip:service		social: All, Hidden and Blocked tabs
 SocialInteractionsScreen.extractBackground	skip:service		social screen background
@@ -35,12 +35,12 @@ AbstractGameRulesScreen.createAndConfigureSearchBox	port	crates/horizon-client/s
 AbstractGameRulesScreen.init	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::build	title, search box and rule list; Done and Cancel are handled by RulesScreen::click
 AbstractGameRulesScreen.repositionElements	skip:ui		layout only
 AbstractGameRulesScreen.filterGameRules	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::rows	gap: minor: the scroll reset to the top is in RulesScreen::edited, not here
-AbstractGameRulesScreen.BooleanRuleEntry.extractContent	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::draw	draws the on/off button of a boolean rule
-AbstractGameRulesScreen.CategoryRuleEntry.extractContent	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::draw	draws the category header row
-AbstractGameRulesScreen.GameRuleEntry.extractLabel	port	crates/horizon-client/src/game_rules_screen.rs::lines	wraps the rule label to 170 px (one or two lines); drawn by RulesScreen::draw
-AbstractGameRulesScreen.IntegerRuleEntry.extractContent	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::draw	draws the 44 px number box; invalid text turns red in RulesScreen::edited
+AbstractGameRulesScreen.BooleanRuleEntry.extractContent	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::draw_contents	draws the on/off button of a boolean rule
+AbstractGameRulesScreen.CategoryRuleEntry.extractContent	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::draw_contents	draws the category header row
+AbstractGameRulesScreen.GameRuleEntry.extractLabel	port	crates/horizon-client/src/game_rules_screen.rs::lines	wraps the rule label to 170 px (one or two lines); drawn by RulesScreen::draw_contents
+AbstractGameRulesScreen.IntegerRuleEntry.extractContent	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::draw_contents	draws the 44 px number box; invalid text turns red in RulesScreen::edited
 AbstractGameRulesScreen.RuleList.matchesFilter	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::rows	matches id, name, category and description, as rows() does
-AbstractGameRulesScreen.RuleList.extractWidgetRenderState	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::draw	hovered rule's tooltip: id, description, default
+AbstractGameRulesScreen.RuleList.extractWidgetRenderState	port	crates/horizon-client/src/game_rules_screen.rs::RulesScreen::draw_contents	rule rows and the hovered tooltip's id, description and default; the returned tooltip is painted by the screen caller after Foreground
 ConfirmExperimentalFeaturesScreen.getNarrationMessage	skip:ui		narration text only
 ConfirmExperimentalFeaturesScreen.init	port	crates/horizon-client/src/title/confirm_experiments.rs::ConfirmExperimentsScreen::new	the picked selection's feature packs, each with the flags it asks for
 ConfirmExperimentalFeaturesScreen.repositionElements	skip:ui		layout only
@@ -81,7 +81,7 @@ EditWorldScreen.<init>	port	crates/horizon-client/src/title.rs::Title::buttons	E
 EditWorldScreen.keyPressed	port	crates/horizon-client/src/game/interface/startup_menu.rs::StartupMenu::title_key	Enter confirms a focused name box through confirm_edit; Escape goes back through Title::escape
 EditWorldScreen.onRename	port	crates/horizon-client/src/title/world_management.rs::rename	saves the trimmed name to level.dat; Save (arm 35) and Enter reach it, then return to the list
 EditWorldScreen.makeBackupAndShowToast	port	crates/horizon-client/src/title.rs::Title::start_backup	gap: minor: the success or failure toast and the return to the list are in Title::poll_backup
-EditWorldScreen.extractRenderState	port	crates/horizon-client/src/title/draw.rs::Title::draw	draws the centred Edit World title
+EditWorldScreen.extractRenderState	port	crates/horizon-client/src/title/edit_world.rs::Title::draw_edit	draws the centred Edit World title
 ExperimentsScreen.init	port	crates/horizon-client/src/title/experiments.rs::ExperimentsScreen::new	one switch per flag of the selected packs, with vanilla's warning over them
 ExperimentsScreen.getHumanReadableTitle	port	crates/horizon-client/src/title/experiments.rs::ExperimentsScreen::new	each pack's own title, translated when the language has it
 ExperimentsScreen.repositionElements	skip:ui		layout only

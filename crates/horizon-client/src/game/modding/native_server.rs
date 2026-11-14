@@ -2002,6 +2002,8 @@ impl Game<'_> {
             tree: execution_tree,
             arguments,
         });
+        host.hub
+            .set_selector_tokens(super::native_entity_selectors::selector_tokens());
         if refresh {
             host.hub.store_mod_commands(0, tree);
         } else {
@@ -2100,7 +2102,7 @@ impl Game<'_> {
     }
 
     /// Resolve the source once at the command boundary, retaining its output origin.
-    fn native_command_origin(
+    pub(super) fn native_command_origin(
         &mut self,
         permission: u8,
     ) -> super::commands::R<mod_api::CommandSource> {
@@ -2166,7 +2168,7 @@ impl Game<'_> {
         }
     }
 
-    fn native_command_entity_target(
+    pub(super) fn native_command_entity_target(
         &mut self,
         target: super::commands::Target,
     ) -> Option<mod_api::EntityRef> {

@@ -2,38 +2,167 @@
 //! attaches to the entries of a registry, under the types a mod registered
 //! (`native_data_map_types`). Vanilla has no data maps; the contract is
 //! NeoForge's `DataMapType`: files at
-//! `data/<map namespace>/data_maps/<registry path>/<map path>.json` hold
-//! `replace`, `values` (entry ids and `#tags` to values) and `remove`, and a
-//! newer value overrides an older one for the same entry. The files are the
-//! world's data packs' and what mods contribute through
-//! `native_data_pack_files` (key `data_maps/<ns>:<registry path>/<map path>`),
-//! merged each time the server's tables are built: a world's first open and
-//! every `/reload`.
+//! `data/<map namespace>/data_maps/<registry folder>/<map path>.json` hold
+//! `replace`, `values` (entry ids and `#tags` to values, each value optionally
+//! guarded by its own `neoforge:conditions`) and `remove`, and a newer value
+//! overrides an older one for the same entry. A registry's folder is its path
+//! for a `minecraft` registry and `<namespace>/<path>` otherwise. Any registry
+//! the game names takes maps: built in, the packs' and content mods', and the
+//! datapack registries mods declare. The files are the world's data packs' and
+//! what mods contribute through `native_data_pack_files` (key
+//! `data_maps/<ns>:<registry folder>/<map path>`), merged each time the
+//! server's tables are built: a world's first open and every `/reload`.
 use super::Game;
 use super::data_map_json::to_tag;
 use horizon_core::nbt::Tag;
 pub use mod_api::game::DataMapType;
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-/// The registries data maps can be attached to so far, with their folder
-/// (the registry's path: `minecraft` registries have no namespace folder).
-const REGISTRIES: [(&str, &str); 2] = [("minecraft:item", "item"), ("minecraft:block", "block")];
+/// The folder a registry's data maps are under (`DataMapLoader`): its path for
+/// a `minecraft` registry, `<namespace>/<path>` for another.
+fn folder(registry: &str) -> String {
+    match registry.split_once(':') {
+        Some(("minecraft", path)) => path.to_owned(),
+        Some((namespace, path)) => format!("{namespace}/{path}"),
+        None => registry.to_owned(),
+    }
+}
 
-/// The registries `types` are for that have data maps, in `REGISTRIES` order.
-pub(crate) fn registries_of(types: &[DataMapType]) -> Vec<&'static str> {
-    REGISTRIES
-        .iter()
-        .map(|(registry, _)| *registry)
-        .filter(|registry| types.iter().any(|ty| ty.registry == *registry))
-        .collect()
+/// The registries mods read through a typed key (`DataMapEntry`): always
+/// known, even where the command registries list no ids.
+const TYPED: [&str; 8] = [
+    "minecraft:item",
+    "minecraft:block",
+    "minecraft:fluid",
+    "minecraft:mob_effect",
+    "minecraft:entity_type",
+    "minecraft:enchantment",
+    "minecraft:block_entity_type",
+    "minecraft:villager_profession",
+];
+
+/// The registries a data load resolves maps against.
+pub(crate) trait MapRegistries {
+    /// Whether the game names `registry`: built in, a pack's or a datapack
+    /// registry a mod declared.
+    fn known(&self, registry: &str) -> bool;
+    /// Whether `entry` is in `registry`; true where the registry's ids aren't listed.
+    fn contains(&self, registry: &str, entry: &str) -> bool;
+    /// The members of `tag` (`minecraft:logs`) in `registry`; none for an unknown tag.
+    fn tag(&self, registry: &str, tag: &str) -> Vec<String>;
+}
+
+/// A world's registries while its server tables build: every registry's ids
+/// as the command registries hold them (built in, the packs' and content
+/// mods'), the world's loaded datapack registries (the authority for a
+/// mod-declared one the command ids do not list), the loaded item and block
+/// tags, and another registry's tags read from the same packs on first use.
+pub(crate) struct WorldRegistries<'a> {
+    ids: BTreeMap<&'a str, &'a [String]>,
+    datapack: Option<&'a mod_api::DatapackRegistrySet>,
+    item_tags: &'a HashMap<String, HashSet<String>>,
+    block_tags: &'a HashMap<String, HashSet<String>>,
+    root: &'a std::path::Path,
+    overlay: &'a horizon_world::loot::PackOverlay<'a>,
+    id_sets: RefCell<HashMap<String, HashSet<String>>>,
+    datapack_ids: RefCell<HashMap<String, HashSet<String>>>,
+    tags: RefCell<HashMap<String, HashMap<String, HashSet<String>>>>,
+}
+impl<'a> WorldRegistries<'a> {
+    pub(crate) fn new(
+        ids: impl IntoIterator<Item = (&'a str, &'a [String])>,
+        datapack: Option<&'a mod_api::DatapackRegistrySet>,
+        items: &'a horizon_client::items::Items,
+        root: &'a std::path::Path,
+        overlay: &'a horizon_world::loot::PackOverlay<'a>,
+    ) -> Self {
+        Self {
+            ids: ids.into_iter().collect(),
+            datapack,
+            item_tags: &items.item_tags,
+            block_tags: &items.block_tags,
+            root,
+            overlay,
+            id_sets: RefCell::default(),
+            datapack_ids: RefCell::default(),
+            tags: RefCell::default(),
+        }
+    }
+    /// Whether a mod's declaration names `registry`.
+    fn declared(&self, registry: &str) -> bool {
+        mod_api::__private::datapack_registry_declarations()
+            .iter()
+            .any(|declaration| declaration.key == registry)
+    }
+    /// The loaded entries of a mod-declared datapack registry, read once.
+    fn datapack_entries(&self, registry: &str) -> Option<HashSet<String>> {
+        let mut sets = self.datapack_ids.borrow_mut();
+        Some(
+            sets.entry(registry.to_owned())
+                .or_insert_with(|| {
+                    self.datapack
+                        .and_then(|set| set.entries(registry).ok())
+                        .map(|entries| entries.into_iter().map(String::from).collect())
+                        .unwrap_or_default()
+                })
+                .clone(),
+        )
+    }
+}
+impl MapRegistries for WorldRegistries<'_> {
+    fn known(&self, registry: &str) -> bool {
+        self.ids.contains_key(registry) || TYPED.contains(&registry) || self.declared(registry)
+    }
+    fn contains(&self, registry: &str, entry: &str) -> bool {
+        if let Some(ids) = self.ids.get(registry).filter(|ids| !ids.is_empty()) {
+            let mut sets = self.id_sets.borrow_mut();
+            let set = sets
+                .entry(registry.to_owned())
+                .or_insert_with(|| ids.iter().cloned().collect());
+            return set.contains(entry);
+        }
+        // A mod-declared datapack registry the command ids do not list: the
+        // world's loaded entries are the authority, and an id not held is
+        // refused (#3357's unknown-id rejection).
+        if self.declared(registry) {
+            return self
+                .datapack_entries(registry)
+                .is_some_and(|set| set.contains(entry));
+        }
+        // A typed registry the sync did not list: no source says its entries.
+        true
+    }
+    fn tag(&self, registry: &str, tag: &str) -> Vec<String> {
+        let members = |tags: &HashMap<String, HashSet<String>>| -> Vec<String> {
+            tags.get(tag)
+                .map(|set| set.iter().cloned().collect())
+                .unwrap_or_default()
+        };
+        match registry {
+            "minecraft:item" => members(self.item_tags),
+            "minecraft:block" => members(self.block_tags),
+            _ => {
+                let mut loaded = self.tags.borrow_mut();
+                let tags = loaded.entry(registry.to_owned()).or_insert_with(|| {
+                    horizon_client::items::load_tags(self.root, &folder(registry), self.overlay)
+                        .unwrap_or_else(|e| {
+                            log::warn!("Horizon: the {registry} tags data maps read: {e}");
+                            HashMap::new()
+                        })
+                });
+                members(tags)
+            }
+        }
+    }
 }
 
 /// The merged values of every registered type: registry, then type id, to the
 /// value of each entry that has one.
 #[derive(Default)]
 pub(crate) struct DataMaps {
-    maps: HashMap<&'static str, HashMap<String, BTreeMap<String, Value>>>,
+    maps: BTreeMap<String, HashMap<String, BTreeMap<String, Value>>>,
 }
 
 /// `minecraft:` for an id written without a namespace.
@@ -46,16 +175,22 @@ fn full_id(id: &str) -> String {
 }
 
 /// A file's value for an entry: the data itself, or the wrapper
-/// `{"value": ..., "replace": false}` (`DataMapEntry`'s codec). `replace` only
-/// matters to mergers, which types don't have yet: a newer value overrides.
-fn entry_value(raw: &Value) -> Option<Value> {
+/// `{"value": ..., "replace": false}` (`DataMapEntry`'s codec), which may also
+/// carry `neoforge:conditions` (`WithConditions`): a value whose conditions
+/// fail is no value. `replace` only matters to mergers, which types don't have
+/// yet: a newer value overrides.
+fn entry_value(
+    raw: &Value,
+    conditions: &horizon_world::conditions::LoadConditions,
+    path: &str,
+) -> Option<Value> {
     if let Value::Object(map) = raw
         && let Some(value) = map.get("value")
-        && map
-            .iter()
-            .all(|(k, v)| k == "value" || (k == "replace" && v.is_boolean()))
+        && map.iter().all(|(k, v)| {
+            k == "value" || k == "neoforge:conditions" || (k == "replace" && v.is_boolean())
+        })
     {
-        return Some(value.clone());
+        return conditions.allows_file(raw, path).then(|| value.clone());
     }
     (!raw.is_null()).then(|| raw.clone())
 }
@@ -66,7 +201,10 @@ fn entry_value(raw: &Value) -> Option<Value> {
 fn apply_file(
     map: &mut BTreeMap<String, Value>,
     file: &Value,
-    tags: &HashMap<String, HashSet<String>>,
+    registry: &str,
+    registries: &dyn MapRegistries,
+    conditions: &horizon_world::conditions::LoadConditions,
+    path: &str,
 ) -> bool {
     let (Some(root), Some(values)) = (file.as_object(), file.get("values")) else {
         return false;
@@ -77,18 +215,33 @@ fn apply_file(
     if root.get("replace").and_then(Value::as_bool) == Some(true) {
         map.clear();
     }
-    // The members of a tag or the entry itself.
-    let members = |key: &str| -> Vec<String> {
+    let mut unknown = BTreeSet::new();
+    // The members of a tag or the entry itself, if the registry holds it.
+    let mut members = |key: &str| -> Vec<String> {
         match key.strip_prefix('#') {
-            Some(tag) => tags
-                .get(&full_id(tag))
-                .map(|set| set.iter().cloned().collect())
-                .unwrap_or_default(),
-            None => vec![full_id(key)],
+            // A tag's members go through the same membership check the entry
+            // does: a tag naming an id the registry doesn't hold publishes
+            // nothing for it.
+            Some(tag) => registries
+                .tag(registry, &full_id(tag))
+                .into_iter()
+                .filter(|member| {
+                    let held = registries.contains(registry, member);
+                    if !held {
+                        unknown.insert(member.clone());
+                    }
+                    held
+                })
+                .collect(),
+            None if registries.contains(registry, &full_id(key)) => vec![full_id(key)],
+            None => {
+                unknown.insert(full_id(key));
+                Vec::new()
+            }
         }
     };
     for (key, raw) in values {
-        let Some(value) = entry_value(raw) else {
+        let Some(value) = entry_value(raw, conditions, path) else {
             continue;
         };
         for entry in members(key) {
@@ -103,36 +256,40 @@ fn apply_file(
     {
         // An entry or `{"key": entry}`, as `DataMapEntry.Removal` reads it.
         let key = removal.as_str().or_else(|| removal["key"].as_str());
-        for entry in key.map(members).unwrap_or_default() {
+        for entry in key.map(&mut members).unwrap_or_default() {
             map.remove(&entry);
         }
+    }
+    if !unknown.is_empty() {
+        log::warn!(
+            "Horizon: {path}: {registry} has no {}: skipped",
+            unknown.into_iter().collect::<Vec<_>>().join(", ")
+        );
     }
     true
 }
 
 impl DataMaps {
     /// The types' values from `files` (the server's tables' pack files, in
-    /// pack order, mods' below the packs'), tags resolved against the
-    /// loaded `item_tags` and `block_tags`. A type with an unsupported
-    /// registry or a bad id is left out with a warning; a file that isn't a
-    /// data map is skipped alone.
+    /// pack order, mods' below the packs'), ids and tags resolved against
+    /// `registries`. A type for a registry the game doesn't name, or with a
+    /// bad id, is left out with a warning; a file that isn't a data map is
+    /// skipped alone.
     pub(crate) fn load(
         types: &[DataMapType],
         overlay: &horizon_world::loot::PackOverlay<'_>,
-        item_tags: &HashMap<String, HashSet<String>>,
-        block_tags: &HashMap<String, HashSet<String>>,
+        registries: &dyn MapRegistries,
     ) -> Self {
-        let mut maps: HashMap<&'static str, HashMap<String, BTreeMap<String, Value>>> =
-            HashMap::new();
+        let mut maps: BTreeMap<String, HashMap<String, BTreeMap<String, Value>>> = BTreeMap::new();
         for ty in types {
-            let Some((registry, dir)) = REGISTRIES.iter().find(|(r, _)| *r == ty.registry) else {
+            if !registries.known(&ty.registry) {
                 log::warn!(
-                    "Horizon: data map {} is for {}, which has no data maps yet: left out",
+                    "Horizon: data map {} is for {}, a registry the game doesn't name: left out",
                     ty.id,
                     ty.registry
                 );
                 continue;
-            };
+            }
             let valid = |s: &str| {
                 !s.is_empty()
                     && s.chars()
@@ -149,7 +306,7 @@ impl DataMaps {
                 );
                 continue;
             }
-            let registered = maps.entry(registry).or_default();
+            let registered = maps.entry(ty.registry.clone()).or_default();
             if registered.contains_key(&ty.id) {
                 log::warn!(
                     "Horizon: data map {} registered twice: the first is kept",
@@ -157,13 +314,8 @@ impl DataMaps {
                 );
                 continue;
             }
-            let tags = if *dir == "item" {
-                item_tags
-            } else {
-                block_tags
-            };
             let (ns, path) = ty.id.split_once(':').unwrap_or_default();
-            let wanted = format!("data_maps/{ns}:{dir}/{path}");
+            let wanted = format!("data_maps/{ns}:{}/{path}", folder(&ty.registry));
             let mut map = BTreeMap::new();
             if let Some((_, versions)) = overlay.files.iter().find(|(k, _)| *k == wanted) {
                 for bytes in versions {
@@ -174,7 +326,16 @@ impl DataMaps {
                     {
                         continue;
                     }
-                    let applied = file.is_some_and(|file| apply_file(&mut map, &file, tags));
+                    let applied = file.is_some_and(|file| {
+                        apply_file(
+                            &mut map,
+                            &file,
+                            &ty.registry,
+                            registries,
+                            overlay.conditions,
+                            &wanted,
+                        )
+                    });
                     if !applied {
                         log::warn!(
                             "Horizon: a data map file of {} is not a data map, skipped",
@@ -203,6 +364,23 @@ impl DataMaps {
             .map(|(entry, value)| (entry.as_str(), value))
     }
 
+    /// The registries with a loaded type, in id order: what `data_maps_updated` names.
+    pub(crate) fn registries(&self) -> Vec<String> {
+        self.maps.keys().cloned().collect()
+    }
+
+    /// Map `type_id` of `registry`, refused where no mod registered it there.
+    fn map(
+        &self,
+        registry: &str,
+        type_id: &str,
+    ) -> Result<&BTreeMap<String, Value>, mod_api::DataMapError> {
+        self.maps
+            .get(registry)
+            .and_then(|maps| maps.get(type_id))
+            .ok_or(mod_api::DataMapError::UnknownType)
+    }
+
     /// `entry`'s value in map `type_id` of `registry`, as NBT: none where the
     /// map gives it none, refused where no mod registered the map there.
     fn value(
@@ -211,12 +389,22 @@ impl DataMaps {
         type_id: &str,
         entry: &str,
     ) -> Result<Option<Tag>, mod_api::DataMapError> {
-        let map = self
-            .maps
-            .get(registry)
-            .and_then(|maps| maps.get(type_id))
-            .ok_or(mod_api::DataMapError::UnknownType)?;
-        map.get(entry).map(to_tag).transpose()
+        self.map(registry, type_id)?
+            .get(entry)
+            .map(to_tag)
+            .transpose()
+    }
+
+    /// Every entry map `type_id` of `registry` gives a value, in id order.
+    fn entries(
+        &self,
+        registry: &str,
+        type_id: &str,
+    ) -> Result<Vec<(String, Tag)>, mod_api::DataMapError> {
+        self.map(registry, type_id)?
+            .iter()
+            .map(|(entry, value)| Ok((entry.clone(), to_tag(value)?)))
+            .collect()
     }
 }
 
@@ -228,7 +416,7 @@ impl Game<'_> {
         cause: mod_api::DataMapsUpdateCause,
     ) {
         for registry in self.data_map_registries.clone() {
-            self.native_data_maps_updated(registry, cause);
+            self.native_data_maps_updated(&registry, cause);
         }
     }
 }
@@ -245,27 +433,25 @@ impl Game<'_> {
             .map(|tables| &tables.data_maps)
             .ok_or(mod_api::DataMapError::Unavailable)
     }
-    /// Item `item`'s value in data map `map`, before the map decodes it: the merged JSON the
-    /// server's data packs and mods' files gave it, as NBT. `Ok(None)` where it has none.
-    pub(in crate::game) fn item_data_map_value(
+    /// Entry `entry` of `registry`: its value in data map `map`, before the map decodes it:
+    /// the merged JSON the server's data packs and mods' files gave it, as NBT. `Ok(None)`
+    /// where it has none.
+    pub(in crate::game) fn data_map_value(
         &self,
-        item: mod_api::ItemKey,
+        registry: &str,
+        entry: &str,
         map: &str,
     ) -> Result<Option<Tag>, mod_api::DataMapError> {
-        let maps = self.loaded_data_maps()?;
-        let id = mod_api::__private::item_key_id(item).ok_or(mod_api::DataMapError::Unavailable)?;
-        maps.value("minecraft:item", map, id)
+        self.loaded_data_maps()?
+            .value(registry, map, &full_id(entry))
     }
-    /// Block `block`'s value in data map `map`, as `item_data_map_value` answers for an item.
-    pub(in crate::game) fn block_data_map_value(
+    /// Every entry data map `map` of `registry` gives a value, with that value, in id order.
+    pub(in crate::game) fn data_map_entries(
         &self,
-        block: mod_api::BlockKey,
+        registry: &str,
         map: &str,
-    ) -> Result<Option<Tag>, mod_api::DataMapError> {
-        let maps = self.loaded_data_maps()?;
-        let id =
-            mod_api::__private::block_key_id(block).ok_or(mod_api::DataMapError::Unavailable)?;
-        maps.value("minecraft:block", map, id)
+    ) -> Result<Vec<(String, Tag)>, mod_api::DataMapError> {
+        self.loaded_data_maps()?.entries(registry, map)
     }
 }
 
@@ -282,8 +468,8 @@ mod tests {
             json!(u64::MAX),
         ] {
             let maps = DataMaps {
-                maps: HashMap::from([(
-                    "minecraft:item",
+                maps: BTreeMap::from([(
+                    "minecraft:item".to_owned(),
                     HashMap::from([(
                         "test:map".to_owned(),
                         BTreeMap::from([("minecraft:stone".to_owned(), value)]),
@@ -301,15 +487,43 @@ mod tests {
         }
     }
 
-    fn tags(list: &[(&str, &[&str])]) -> HashMap<String, HashSet<String>> {
-        list.iter()
-            .map(|(tag, members)| {
-                (
-                    (*tag).to_owned(),
-                    members.iter().map(|m| (*m).to_owned()).collect(),
-                )
-            })
-            .collect()
+    /// Registries for tests: items, blocks and entity types; entity type ids
+    /// listed, item and block ids not, and the tags given by registry.
+    #[derive(Default)]
+    struct Fixture {
+        tags: HashMap<(&'static str, &'static str), Vec<&'static str>>,
+    }
+    impl Fixture {
+        fn with(tags: &[(&'static str, &'static str, &[&'static str])]) -> Self {
+            Self {
+                tags: tags
+                    .iter()
+                    .map(|(registry, tag, members)| ((*registry, *tag), members.to_vec()))
+                    .collect(),
+            }
+        }
+    }
+    impl MapRegistries for Fixture {
+        fn known(&self, registry: &str) -> bool {
+            ["minecraft:item", "minecraft:block", "minecraft:entity_type"].contains(&registry)
+        }
+        fn contains(&self, registry: &str, entry: &str) -> bool {
+            registry != "minecraft:entity_type"
+                || [
+                    "minecraft:pig",
+                    "minecraft:stray",
+                    "minecraft:skeleton",
+                    "minecraft:cow",
+                ]
+                .contains(&entry)
+        }
+        fn tag(&self, registry: &str, tag: &str) -> Vec<String> {
+            self.tags
+                .iter()
+                .filter(|((r, t), _)| *r == registry && *t == tag)
+                .flat_map(|(_, members)| members.iter().map(|m| (*m).to_owned()))
+                .collect()
+        }
     }
 
     fn ty(id: &str, registry: &str) -> DataMapType {
@@ -334,7 +548,8 @@ mod tests {
     }
 
     fn load(files: &[(String, Vec<Vec<u8>>)]) -> DataMaps {
-        let items = tags(&[(
+        let registries = Fixture::with(&[(
+            "minecraft:item",
             "minecraft:logs",
             &["minecraft:oak_log", "minecraft:birch_log"],
         )]);
@@ -344,8 +559,7 @@ mod tests {
                 files,
                 ..horizon_world::loot::PackOverlay::NONE
             },
-            &items,
-            &HashMap::new(),
+            &registries,
         )
     }
 
@@ -392,16 +606,119 @@ mod tests {
     }
 
     #[test]
-    fn registries_with_a_type_are_listed_once_in_registry_order() {
-        let types = [
-            ty("mymod:b", "minecraft:block"),
-            ty("mymod:a", "minecraft:item"),
-            ty("mymod:c", "minecraft:block"),
-            ty("mymod:d", "minecraft:biome"),
-        ];
-        assert_eq!(registries_of(&types), ["minecraft:item", "minecraft:block"]);
-        assert!(registries_of(&[ty("mymod:d", "minecraft:biome")]).is_empty());
-        assert!(registries_of(&[]).is_empty());
+    fn registries_with_a_type_are_listed_once_in_id_order() {
+        let maps = DataMaps::load(
+            &[
+                ty("mymod:b", "minecraft:block"),
+                ty("mymod:a", "minecraft:item"),
+                ty("mymod:c", "minecraft:block"),
+                ty("mymod:d", "test:nowhere"),
+            ],
+            &horizon_world::loot::PackOverlay::NONE,
+            &Fixture::default(),
+        );
+        assert_eq!(maps.registries(), ["minecraft:block", "minecraft:item"]);
+    }
+
+    #[test]
+    fn a_map_on_any_registry_resolves_ids_tags_and_lists_whole() {
+        // `minecraft:ghost` is not in the fixture's entity types: a tag naming
+        // an id the registry doesn't hold publishes nothing for it.
+        let registries = Fixture::with(&[(
+            "minecraft:entity_type",
+            "minecraft:skeletons",
+            &["minecraft:skeleton", "minecraft:stray", "minecraft:ghost"],
+        )]);
+        let f = files(&[(
+            "data_maps/test:entity_type/weight",
+            &[json!({"values": {
+                "minecraft:pig": 3,
+                "#minecraft:skeletons": 5,
+                "minecraft:missing": 9
+            }})],
+        )]);
+        let maps = DataMaps::load(
+            &[ty("test:weight", "minecraft:entity_type")],
+            &horizon_world::loot::PackOverlay {
+                files: &f,
+                ..horizon_world::loot::PackOverlay::NONE
+            },
+            &registries,
+        );
+        let value = |entry| maps.value("minecraft:entity_type", "test:weight", entry);
+        assert_eq!(value("minecraft:pig"), Ok(Some(Tag::Int(3))));
+        assert_eq!(value("minecraft:stray"), Ok(Some(Tag::Int(5))));
+        assert_eq!(value("minecraft:cow"), Ok(None));
+        // An id the registry doesn't hold is skipped.
+        assert_eq!(value("minecraft:missing"), Ok(None));
+        // A tag member the registry doesn't hold is skipped with the plain ids.
+        assert_eq!(value("minecraft:ghost"), Ok(None));
+        assert_eq!(
+            maps.entries("minecraft:entity_type", "test:weight"),
+            Ok(vec![
+                ("minecraft:pig".to_owned(), Tag::Int(3)),
+                ("minecraft:skeleton".to_owned(), Tag::Int(5)),
+                ("minecraft:stray".to_owned(), Tag::Int(5)),
+            ])
+        );
+        assert_eq!(maps.registries(), ["minecraft:entity_type"]);
+    }
+
+    /// A mod-declared datapack registry the command ids do not list is checked
+    /// against the world's loaded entries; a registry with no source of ids
+    /// still accepts an entry, as before.
+    #[test]
+    fn a_declared_datapack_registry_rejects_unknown_ids() {
+        // The declaration the process reads, as a registering mod's would be.
+        mod_api::__private::install_process_datapack_registry_declarations(vec![
+            mod_api::DatapackRegistryDeclaration {
+                mod_id: "example".into(),
+                key: "example:spell".into(),
+                fields: vec![mod_api::DatapackField::required(
+                    "power",
+                    mod_api::DatapackFieldKind::Int { min: 0, max: 100 },
+                )],
+                sync: mod_api::DatapackRegistrySync::Required,
+            },
+        ]);
+        let set = mod_api::DatapackRegistrySet::with_entries_for_testing(
+            "example:spell",
+            &["example:fire"],
+        );
+        let items = horizon_client::items::Items::empty();
+        let registries = WorldRegistries::new(
+            [],
+            Some(&set),
+            &items,
+            std::path::Path::new("unused"),
+            &horizon_world::loot::PackOverlay::NONE,
+        );
+        assert!(
+            !registries.contains("example:spell", "example:ice"),
+            "an id the world never loaded is refused"
+        );
+        assert!(registries.contains("example:spell", "example:fire"));
+        // No source of ids, no refusal: a typed registry the sync did not
+        // list (the ids branch above covers the listed ones).
+        assert!(registries.contains("minecraft:some_typed", "whatever"));
+    }
+
+    #[test]
+    fn a_value_counts_only_when_its_own_conditions_hold() {
+        let f = files(&[(
+            "data_maps/mymod:item/fuel",
+            &[json!({"values": {
+                "minecraft:coal": 1,
+                "minecraft:stick": {"neoforge:conditions": [
+                    {"type": "neoforge:mod_loaded", "modid": "absent"}], "value": 2},
+                "minecraft:planks": {"neoforge:conditions": [
+                    {"type": "neoforge:true"}], "value": 3}
+            }})],
+        )]);
+        let maps = load(&f);
+        assert_eq!(get(&maps, "minecraft:coal"), Some(&json!(1)));
+        assert_eq!(get(&maps, "minecraft:stick"), None);
+        assert_eq!(get(&maps, "minecraft:planks"), Some(&json!(3)));
     }
 
     #[test]
@@ -497,14 +814,13 @@ mod tests {
         let maps = DataMaps::load(
             &[
                 ty("minecraft:fuel", "minecraft:item"),
-                ty("mymod:x", "minecraft:biome"),
+                ty("mymod:x", "test:nowhere"),
                 ty("nonamespace", "minecraft:item"),
                 ty("mymod:a", "minecraft:block"),
                 ty("mymod:a", "minecraft:block"),
             ],
             &horizon_world::loot::PackOverlay::NONE,
-            &HashMap::new(),
-            &HashMap::new(),
+            &Fixture::default(),
         );
         // Only the one good type, registered once, empty.
         assert_eq!(maps.maps.len(), 1);
@@ -533,8 +849,7 @@ mod tests {
                 files: &f,
                 conditions: &enabled,
             },
-            &HashMap::new(),
-            &HashMap::new(),
+            &Fixture::default(),
         );
         assert!(get(&on, "minecraft:coal").is_none());
         assert_eq!(get(&on, "minecraft:stick"), Some(&json!(2)));
@@ -542,7 +857,8 @@ mod tests {
 
     #[test]
     fn block_maps_read_the_block_tags() {
-        let blocks = tags(&[("minecraft:logs", &["minecraft:oak_log"])]);
+        let registries =
+            Fixture::with(&[("minecraft:block", "minecraft:logs", &["minecraft:oak_log"])]);
         let f = files(&[(
             "data_maps/mymod:block/hardness",
             &[json!({"values": {"#minecraft:logs": 2}})],
@@ -553,8 +869,7 @@ mod tests {
                 files: &f,
                 ..horizon_world::loot::PackOverlay::NONE
             },
-            &HashMap::new(),
-            &blocks,
+            &registries,
         );
         let map = &maps.maps["minecraft:block"]["mymod:hardness"];
         assert_eq!(map.get("minecraft:oak_log"), Some(&json!(2)));

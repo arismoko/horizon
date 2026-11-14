@@ -36,6 +36,11 @@ impl Fixture {
             ("crates/horizon-client/src/game.rs", ""),
             ("crates/horizon-mod-api-gen/internals.txt", ""),
             (
+                "crates/horizon-engine-slots/Cargo.toml",
+                "[package]\nname='horizon-engine-slots'\n",
+            ),
+            ("crates/horizon-engine-slots/src/lib.rs", ""),
+            (
                 "crates/horizon-mod-points/Cargo.toml",
                 "[package]\nname='horizon-mod-points'\n",
             ),

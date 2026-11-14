@@ -52,10 +52,9 @@ All preparation happens at load; candidate comparisons borrow values without
 allocating or converting them to JSON. Removal keys require registration only.
 Native registrations retain their persistent NBT validation contract.
 
-The shared decoder currently covers `damage`, `repair_cost`, `max_damage`,
-`max_stack_size`, `rarity`, `enchantments`, `stored_enchantments`, `custom_name`,
-`enchantment_glint_override`, `item_name`, `item_model`, `dyed_color`, `block_entity_data`, `enchantable`, `map_id`,
-`ominous_bottle_amplifier`, `potion_duration_scale`, and `minimum_attack_charge` in the `minecraft` namespace.
+The shared decoder currently covers 54 registered built-ins:
+`cat/sound_variant`, `cat/variant`, `wolf/sound_variant`, `wolf/variant`, `container_loot`, `tooltip_display`, `tropical_fish/pattern_color`, `tropical_fish/base_color`, `cushion/color`, `recipes`, `mob_visibility`, `custom_model_data`, `wolf/collar`, `cat/collar`, `shulker/color`, `sheep/color`, `dye`, `block_state`, `use_cooldown`, `cooking_fuel`, `brewing_fuel`, `compostable`, `fox/variant`, `weapon`, `food`, `damage`, `repair_cost`, `max_damage`, `max_stack_size`, `map_id`, `rarity`, `enchantments`, `stored_enchantments`, `enchantment_glint_override`, `custom_name`, `item_name`, `item_model`, `lodestone_tracker`, `block_entity_data`, `enchantable`, `ominous_bottle_amplifier`, `potion_duration_scale`, `minimum_attack_charge`, `dyed_color`, `attack_animation`, `damage_resistant`, `use_effects`, `attack_range`, `rabbit/variant`, `horse/variant`, `llama/variant`, `mooshroom/variant`, `axolotl/variant`, `salmon/size`,
+in the `minecraft` namespace.
 `enchantable` requires a positive integer `value`; extra record fields are ignored
 and equivalent numeric NBT widths match, including item defaults. Map ids accept
 signed numbers, including negative ids, using Java's integer conversion.
@@ -77,8 +76,21 @@ zero (including negative zero) is false; nonzero values, fractions and NaN are
 true. Displays retain canonical byte 0 or 1.
 `dyed_color` accepts packed integer colors or three numeric RGB channels,
 matching the decoded values without copying candidate payloads.
-The other 104 registered built-ins use stored-value matching while their shared
+The other 65 persistent registered built-ins use stored-value matching while their shared
 decoders are added incrementally in **#3875**. Their absence is not a load refusal.
+The transient types `creative_slot_lock`, `additional_trade_cost` and
+`map_post_processing` are refused as stored component values, not matched as opaque NBT.
+They may still be named by `tooltip_display.hidden_components`.
+
+`dye` accepts exactly the 16 lowercase vanilla color names (including `light_blue`
+and `light_gray`). Unknown names, differently cased names and non-string values
+reject the recipe. Numeric dye ordinals belong to compressed dynamic operations,
+not ordinary persistent NBT; compressing an NBT file does not change this rule.
+
+`mooshroom/variant` accepts exactly `red` and `brown`; `axolotl/variant` accepts
+`lucy`, `wild`, `gold`, `cyan`, and `blue`; `salmon/size` accepts `small`,
+`medium`, and `large`. Numeric network ids, case variants and namespaced values
+are refused. Mob defaults are not item-component defaults.
 
 Component ingredient displays contain the patch, including removals. Difference
 lists retain the base list and remove only items whose default stack passes the
@@ -89,3 +101,46 @@ A non-simple ingredient may have an empty default-stack display list and still
 load. It retains its full candidate set for concrete matching and cooking.
 For example, a diamond sword minus swords with damage 0 has no default display,
 but a damage-5 sword satisfies it. Empty display lists do not erase candidates.
+
+The decoded records also include `food`, `weapon`, `fox/variant`, `compostable`,
+`brewing_fuel`, `cooking_fuel`, `use_cooldown` and `block_state`. Fuel records
+require both fields without defaults or bounds. Cooldown requires positive finite
+seconds; its optional group is a valid identifier. Compostable requires layers.
+Block state is a string-to-string property map. Optional JSON record fields treat
+null as absent; required fields still refuse null. Weapon seconds refuse negative
+zero before JSON-to-NBT conversion.
+
+Additional decoded values include sheep and shulker colors, cat and wolf collar
+colors (the same strict dye palette), ordered custom model data lists, mob
+visibility holder sets against active entity data, and ordered recipe keys.
+Custom model data lists default to empty, including JSON null optional fields.
+Recipe keys need no registry lookup; order and duplicates are retained.
+
+The pinned 26.3 registry has 122 component types: 119 persistent and 3 transient.
+mod-registered cat/wolf variants are not matched yet.
+
+`attack_animation` accepts a record with optional `type` (`none`, `whack`,
+`stab`; default `whack`) and nonnegative integer `duration` (default 6).
+Optional JSON null fields use their defaults; the whole payload must be a map.
+JSON booleans become numeric byte flags before decoding, including durations.
+Very large JSON doubles saturate to an integer where vanilla JSON operations
+wrap; this existing conversion difference is not tightened here.
+`damage_resistant` requires `types`: a damage type id, ordered list of ids
+(including duplicates and the empty list), or a named `#tag` from the active
+frozen damage registry. Missing or null `types` is refused. Named sets compare
+by tag identity, never equal to direct sets with the same contents.
+`use_effects` has optional `can_sprint` (false), `interact_vibrations` (true),
+and `speed_multiplier` (0.2, range 0 to 1). `attack_range` has optional
+`min_reach` (0), `max_reach` (3), `min_creative_reach` (0),
+`max_creative_reach` (5), `hitbox_margin` (0.3), and `mob_factor` (1).
+The four reach fields range from 0 to 64, margin from 0 to 1, and mob factor
+from 0 to 2, inclusive. No minimum/maximum ordering check is imposed.
+These are codec defaults, not effective reach when the component is absent:
+that uses entity attributes. Optional null fields use defaults. Decoded negative
+zero, NaN and infinities are refused for bounded floats. JSON numbers are also
+accepted for boolean fields by the common NBT boundary.
+The scalar enum decoders accept exact persistent names only: rabbit uses
+`brown`, `white`, `black`, `white_splotched`, `gold`, `salt`, `evil`;
+horse uses `white`, `creamy`, `chestnut`, `brown`, `black`, `gray`, `dark_brown`;
+llama uses `creamy`, `white`, `brown`, `gray`.
+Numeric ordinals, namespaced names, case variants and null are refused.

@@ -209,7 +209,7 @@ fn jar_data_layers_merge_tags_and_replace_recipes_below_world_datapacks() {
     assert_eq!(
         store.function_tags["minecraft:ordered"]
             .iter()
-            .map(|(id, _)| id.as_str())
+            .map(|(id, _, _)| id.as_str())
             .collect::<Vec<_>>(),
         [
             "minecraft:layers/base",

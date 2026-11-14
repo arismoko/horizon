@@ -47,6 +47,21 @@ print(json.dumps(pages.expand(book, root / context["config"]["book"]["src"])))
 '"""
 before = ["links"]
 
+# The mod SDK reference's tables, from the published asset list, the input list and this checkout's surface export.
+# After concept-pages, which makes the SDK pages chapters.
+[preprocessor.sdk-tables]
+command = """python3 -c '
+import json, pathlib, sys
+if sys.argv[1:2] == ["supports"]:
+    sys.exit(0)
+context, book = json.load(sys.stdin)
+sys.path.insert(0, str(pathlib.Path(context["root"]).resolve().parents[1] / "tools"))
+import modding_sdk_tables as tables
+print(json.dumps(tables.preprocess(context, book)))
+'"""
+after = ["concept-pages"]
+before = ["links"]
+
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "coal"

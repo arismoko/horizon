@@ -2919,41 +2919,8 @@ fn conditional_tag_layers_replace_only_when_server_inventory_accepts_them() {
     fs::remove_dir_all(scratch).unwrap();
 }
 
-/// Mods merge into a tag in load order, as data packs do: each adds its
-/// values, and one that replaces drops what came before it, with a warning
-/// naming what it dropped.
-#[test]
-fn tags_merge_in_load_order_and_replace_warns() {
-    let v = |ids: &[&str]| -> Vec<J> { ids.iter().map(|i| J::Str((*i).into())).collect() };
-    let file = "data/minecraft/tags/worldgen/biome/has_structure/village_plains.json";
-    let mut merge = TagMerge::default();
-    assert_eq!(merge.add("a", file, false, true, &v(&["a:x"])), None);
-    let warning = merge.add("b", file, true, true, &v(&["minecraft:plains"]));
-    assert_eq!(
-        warning.as_deref(),
-        Some(
-            "mod b replaces data/minecraft/tags/worldgen/biome/has_structure/village_plains.json: \
-             vanilla's entries and those of a are left out, as a data pack's replace does; \
-             the mods after it in load order still add to it"
-        )
-    );
-    assert_eq!(merge.add("c", file, false, true, &v(&["c:y"])), None);
-    assert!(merge.replaced);
-    assert_eq!(merge.values, v(&["minecraft:plains", "c:y"]));
-    // A second replace drops only the mods' entries.
-    let warning = merge.add("d", file, true, true, &v(&["d:z"])).unwrap();
-    assert!(
-        warning.contains(": those of b, c are left out"),
-        "{warning}"
-    );
-    assert_eq!(merge.values, v(&["d:z"]));
-    // A mod replacing a tag of its own that nobody added to drops nothing.
-    let own = "data/a/tags/item/gems.json";
-    assert_eq!(
-        TagMerge::default().add("a", own, true, false, &v(&["a:x"])),
-        None
-    );
-}
+#[path = "mod_content_tests_tests.rs"]
+mod more;
 
 /// A replacing mod's tag leaves vanilla's entries out of the tag file and of
 /// the worldgen loader's biome tags, and the root keeps the warning for the

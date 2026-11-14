@@ -509,12 +509,11 @@ name = "cargo-horizon-mod"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "cap-std",
  "dunce",
  "horizon-addresses",
- "horizon-mod-api-gen",
  "horizon-mod-package",
  "horizon-mod-point-emit",
+ "horizon-mod-source",
  "horizon-mod-surface",
  "horizon-mod-wasm",
  "horizon-port-pack",
@@ -1902,6 +1901,7 @@ version = "0.1.0"
 dependencies = [
  "arboard",
  "horizon-client-core",
+ "horizon-engine-slots",
  "horizon-mod-api-macros",
  "horizon-theme",
  "png",
@@ -1931,6 +1931,8 @@ dependencies = [
  "horizon-command",
  "horizon-core",
  "horizon-dualsense",
+ "horizon-engine-slots",
+ "horizon-game-discovery",
  "horizon-guest-stack",
  "horizon-hdr",
  "horizon-hooks",
@@ -1997,6 +1999,7 @@ dependencies = [
  "horizon-client-input",
  "horizon-command",
  "horizon-core",
+ "horizon-engine-slots",
  "horizon-guest-stack",
  "horizon-hdr",
  "horizon-hooks",
@@ -2096,6 +2099,7 @@ dependencies = [
 name = "horizon-engine-slots"
 version = "0.1.0"
 dependencies = [
+ "horizon-mod-api-gen",
  "horizon-mod-vocab",
 ]
 
@@ -2232,6 +2236,7 @@ dependencies = [
  "heck",
  "horizon-game-discovery",
  "horizon-mod-point-shape",
+ "horizon-mod-source",
  "horizon-mod-surface",
  "prettyplease",
  "proc-macro2",
@@ -2309,8 +2314,11 @@ dependencies = [
  "horizon-mod-points",
  "horizon-mod-render",
  "horizon-mod-wasm",
+ "libloading",
  "log",
+ "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -2319,7 +2327,6 @@ version = "0.1.0"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
- "flate2",
  "getrandom 0.4.3",
  "horizon-core",
  "horizon-mod-api",
@@ -2390,6 +2397,7 @@ dependencies = [
  "bytemuck",
  "glam",
  "horizon-client-render",
+ "horizon-engine-slots",
  "horizon-mod-api",
  "horizon-mod-api-gen",
  "horizon-mod-api-macros",
@@ -2401,6 +2409,18 @@ name = "horizon-mod-runtime"
 version = "0.1.0"
 dependencies = [
  "horizon-core",
+]
+
+[[package]]
+name = "horizon-mod-source"
+version = "0.1.0"
+dependencies = [
+ "horizon-mod-surface",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+ "tempfile",
+ "toml",
 ]
 
 [[package]]
@@ -2438,6 +2458,7 @@ version = "0.1.0"
 dependencies = [
  "horizon-client-core",
  "horizon-core",
+ "horizon-engine-slots",
  "horizon-guest-stack",
  "horizon-java-properties",
  "horizon-mod-api",

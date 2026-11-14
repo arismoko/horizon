@@ -213,4 +213,44 @@ mod tests {
         assert!(sources(&root).unwrap_err().contains("only uses"));
         fs::remove_dir_all(root).unwrap();
     }
+
+    /// Every `parts/<family>.rs` that declares a public name beyond its area traits is exported by
+    /// `exports/parts_<family>.rs`, or says `// exports: none` on its first line.
+    #[test]
+    fn every_parts_family_with_public_names_has_an_export_file() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let vocab = root.join("crates/horizon-mod-vocab/src");
+        let mut missing = Vec::new();
+        for family in Catalog::modules(&vocab.join("parts")).unwrap() {
+            let path = vocab.join(format!("parts/{family}.rs"));
+            let source = fs::read_to_string(&path).unwrap();
+            let file = syn::parse_file(&source).unwrap();
+            let public = |vis: &syn::Visibility| matches!(vis, syn::Visibility::Public(_));
+            let declares = file.items.iter().any(|item| match item {
+                Item::Trait(i) => {
+                    public(&i.vis)
+                        && !["Registrar", "CapabilityProviders"]
+                            .iter()
+                            .any(|suffix| i.ident.to_string().ends_with(suffix))
+                }
+                Item::Fn(i) => public(&i.vis),
+                Item::Struct(i) => public(&i.vis),
+                Item::Enum(i) => public(&i.vis),
+                Item::Const(i) => public(&i.vis),
+                Item::Static(i) => public(&i.vis),
+                Item::Type(i) => public(&i.vis),
+                _ => false,
+            });
+            let exported = vocab.join(format!("exports/parts_{family}.rs")).is_file();
+            let waived = source.starts_with("// exports: none");
+            if declares && !exported && !waived {
+                missing.push(family);
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "parts families declare public names but have no exports/parts_<family>.rs \
+             (add one, or start the family file with `// exports: none`): {missing:?}"
+        );
+    }
 }

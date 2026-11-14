@@ -27,6 +27,10 @@ on:
         default: false
 permissions:
   contents: read
+# `shell: bash` runs each step with `-eo pipefail`: a failing command on a pipe's left side fails the step.
+defaults:
+  run:
+    shell: bash
 env:
   TAG: sdk-${{ inputs.commit }}
   COMMIT: ${{ inputs.commit }}

@@ -1,3 +1,4 @@
+// exports: none (reached inside the crate only)
 //! Crash report lines a mod adds (NeoForge's `CrashReportCallables`), computed when a report is
 //! written rather than when they are registered.
 use super::*;

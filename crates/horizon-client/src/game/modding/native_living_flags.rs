@@ -211,7 +211,7 @@ impl Game<'_> {
                 self.native_player_sleep_write(target, |game| {
                     let slept = game.sleeping.is_some();
                     if slept {
-                        game.wake_up();
+                        game.wake_up(true, true);
                     }
                     slept
                 })

@@ -1012,6 +1012,7 @@ impl Game<'_> {
         menu.set_registry_id(Some("minecraft:crafting"));
         *host.menus.entry(conn).or_default().crafting.table = Some((window, 0, menu, pos));
         self.lan_send_table_content(conn);
+        self.player_menu_opening(conn);
     }
 
     /// A click on the guest's crafting table window; false for other windows.
@@ -1466,7 +1467,18 @@ impl Game<'_> {
     }
 
     pub(super) fn lan_crafting_closed(&mut self, conn: u32, window: Option<i32>) -> bool {
-        self.lan_crafting_removed(conn, window, MenuRemoval::Live)
+        let closed = self.lan_crafting_removed(conn, window, MenuRemoval::Live);
+        if closed && window != Some(0) {
+            if let Some(gi) = self
+                .lan
+                .as_ref()
+                .and_then(|host| host.hub.guests.iter().position(|g| g.conn == conn))
+            {
+                self.guest_carried_back(gi);
+            }
+            self.player_menu_closing(conn);
+        }
+        closed
     }
 
     /// Remove only input slots; disconnected players drop their inputs.
@@ -2171,7 +2183,7 @@ mod empty_ingredient_placement_tests {
                 &[],
             );
             game.world_tables = game
-                .build_world_tables(&stack, false, &resources, false)
+                .stage_world_tables(&stack, false, &resources)
                 .unwrap()
                 .0;
             game.build_registries();

@@ -686,6 +686,7 @@ impl Game<'_> {
             r.v1 = r.v0 + 166.0 * dv;
             batch.rect_uv(ox + SHIFT, oy, 276.0, 166.0, r, u32::MAX);
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         let tr = |k: &str, f: &str| horizon_client::lang::get_or(k, f);
         let name = custom.unwrap_or_else(|| {
             if progress {
@@ -902,6 +903,8 @@ impl Game<'_> {
             && local.0 < 186.0 + SHIFT + 22.0 + 1.0
             && local.1 >= 35.0 - 1.0
             && local.1 < 35.0 + 21.0 + 1.0;
+        let browser_tip = self.draw_mod_browser(batch);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
         if self.carried.is_some() {
             self.draw_carried(batch);
             if let Some(stack) = tooltip.filter(|s| self.tooltip_with_carried(s)) {
@@ -917,6 +920,9 @@ impl Game<'_> {
             self.draw_tooltip_lines(batch, &lines, self.cursor.0, self.cursor.1);
         } else if let Some(stack) = tooltip {
             self.draw_stack_tooltip(batch, &stack, self.cursor.0, self.cursor.1);
+        }
+        if let Some(tooltip) = browser_tip {
+            self.draw_mod_browser_tooltip(batch, tooltip);
         }
         true
     }

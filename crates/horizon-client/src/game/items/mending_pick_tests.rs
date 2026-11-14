@@ -44,7 +44,7 @@ fn repair(id: &str, chest: bool, table: &Enchantments) -> (u32, u32) {
             let packs = game.reload_datapacks(false, &[]).unwrap();
             let resources = game.options.resources.clone();
             game.world_tables = game
-                .build_world_tables(&packs, false, &resources, game.mods.data_switched)
+                .stage_world_tables(&packs, false, &resources)
                 .unwrap()
                 .0;
             game.world_tables.as_mut().unwrap().stations.enchantments =

@@ -557,6 +557,7 @@ impl Game<'_> {
             r.v1 = r.v0 + HEIGHT * dv;
             batch.rect_uv(bx, by, 230.0, HEIGHT, r, u32::MAX);
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         let label = 0xFFE0_E0E0;
         for (key, fallback, cx) in [
             ("block.minecraft.beacon.primary", "Primary Power", 62.0),
@@ -657,6 +658,8 @@ impl Game<'_> {
         if let Some(slot) = self.slot_at(batch, self.cursor.0, self.cursor.1) {
             stack_tip = self.slot_mut(slot).clone();
         }
+        let browser_tip = self.draw_mod_browser(batch);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
         if self.carried.is_some() {
             self.draw_carried(batch);
             if let Some(stack) = stack_tip.filter(|s| self.tooltip_with_carried(s)) {
@@ -666,6 +669,9 @@ impl Game<'_> {
             self.draw_stack_tooltip(batch, &stack, self.cursor.0, self.cursor.1);
         } else if let Some(text) = tooltip {
             self.draw_tooltip_lines(batch, &[(text, u32::MAX)], self.cursor.0, self.cursor.1);
+        }
+        if let Some(tooltip) = browser_tip {
+            self.draw_mod_browser_tooltip(batch, tooltip);
         }
     }
     /// `BeaconRenderer`: each section's rotating solid beam and its glow.

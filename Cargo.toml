@@ -61,6 +61,7 @@ members = [
     "crates/horizon-hot-paths-game",
     "crates/horizon-mod-api-macros",
     "crates/horizon-mod-point-shape",
+    "crates/horizon-mod-source",
     "crates/horizon-mod-surface",
     "crates/horizon-mod-point-emit",
     "crates/horizon-mod-api-gen/dispatch-tests",

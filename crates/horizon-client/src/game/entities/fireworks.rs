@@ -760,16 +760,18 @@ impl Game<'_> {
             r.life += 1;
             self.rocket_spark(&r);
             if r.life > r.lifetime {
-                // Its move this tick is filed before it goes.
-                let (from, to) = (r.previous, r.position);
-                self.entity_section_step(r.id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
                 self.explode_rocket(&r);
                 continue;
             }
+            let (id, from, to) = (r.id, r.previous, r.position);
             self.rockets.insert(i, r);
-            i += 1;
+            self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+            i = self
+                .rockets
+                .iter()
+                .position(|rocket| rocket.id == id)
+                .map_or(i, |index| index + 1);
         }
-        self.entity_sections_stepped(super::entity_sections::Family::Rockets);
     }
     /// `FireworkRocketEntity.explode` and `dealExplosionDamage`.
     fn explode_rocket(&mut self, r: &Rocket) {
@@ -967,7 +969,7 @@ impl Game<'_> {
         let w = self.mob_world_base(&[]);
         let block = (super::creatures::ProjWorld {
             w: &w,
-            targets: Vec::new(),
+            targets: &[],
             border: Some(self.border.bounds()),
         })
         .clip(from, to);

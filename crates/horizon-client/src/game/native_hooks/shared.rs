@@ -100,6 +100,9 @@ impl Game<'_> {
         if self.screen == screen && owner.is_none() {
             return;
         }
+        if self.screen == Screen::Options {
+            self.ui.options.discard_draw();
+        }
         self.apply_screen_with_mod_book(screen, owner);
     }
     /// Whether a change of screen asks the screen hooks: a mod listens to
@@ -833,26 +836,14 @@ impl Game<'_> {
         .into_iter()
         .any(mod_api::__private::listened)
     }
-    /// `Render.Pre`, then `Render.Background` unless it cancelled: whether the
-    /// screen draws.
+    /// `Render.Pre`: whether the screen draws. The screen owns its later phases.
     pub(super) fn screen_render_begin(&self, draw: &mut HudBatch, screen: &ScreenView<'_>) -> bool {
         let mut canceled = false;
         self.native_screen_render_pre(draw, screen, &mut canceled);
-        if !canceled {
-            self.native_screen_render_background(draw, screen);
-        }
         !canceled
     }
-    /// `Render.Foreground` when the screen `drawn`, then `Render.Post`.
-    pub(super) fn screen_render_end(
-        &self,
-        draw: &mut HudBatch,
-        screen: &ScreenView<'_>,
-        drawn: bool,
-    ) {
-        if drawn {
-            self.native_screen_render_foreground(draw, screen);
-        }
+    /// `Render.Post`, including when Pre cancelled the screen's drawing.
+    pub(super) fn screen_render_end(&self, draw: &mut HudBatch, screen: &ScreenView<'_>) {
         self.native_screen_render_post(draw, screen);
     }
     /// The open screen as a native mod sees it (`ScreenView`): its id,
@@ -3075,6 +3066,7 @@ impl Game<'_> {
             }
         }
         self.native_screen_draw(&s.block, &s.data, batch, [ox, oy]);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         if s.screen.own_labels {
             return true;
         }

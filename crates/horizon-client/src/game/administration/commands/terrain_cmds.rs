@@ -81,7 +81,7 @@ fn ticks_to_seconds(ticks: i64) -> String {
 /// double `5.9999968E7` (the value `setSize` compares against too), and a `%s`
 /// substitution prints a double with `Double.toString`.
 fn size_limit_text() -> String {
-    horizon_client::java_text::double_to_string(MAX_SIZE)
+    horizon_core::java_number::double_to_string(MAX_SIZE)
 }
 
 impl Game<'_> {
@@ -1609,12 +1609,7 @@ mod loot_mine_location_tests {
             .unwrap();
             let stack = game.reload_datapacks(false, &[]).unwrap();
             game.world_tables = game
-                .build_world_tables(
-                    &stack,
-                    false,
-                    &game.options.resources.clone(),
-                    game.mods.data_switched,
-                )
+                .stage_world_tables(&stack, false, &game.options.resources.clone())
                 .unwrap()
                 .0;
             assert!(game.world_tables.is_some());

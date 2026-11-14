@@ -233,16 +233,11 @@ impl WinScreen {
         self.scroll = scroll;
         self.scroll_speed = 0.0;
     }
-    /// `extractRenderState` after a frame of `delta_ticks` game ticks:
-    /// `extractBackground`, the vignette, then the logo and the lines
-    /// scrolled up. The poem's End portal background samples `end_portal`;
-    /// the credits draw the scrolling menu background (over the blurred
-    /// panorama on the title screen).
-    pub fn draw(
-        &mut self,
+    /// The poem's End portal or scrolling credits background and vignette.
+    pub fn draw_background(
+        &self,
         batch: &mut HudBatch,
         atlas: &HudAtlas,
-        delta_ticks: f32,
         end_portal: EndPortalFill,
     ) {
         let (w, h) = (batch.width, batch.height);
@@ -260,6 +255,11 @@ impl WinScreen {
             batch.rect_uv(0.0, 0.0, w, h, r, u32::MAX);
             batch.blend_since(start, Blend::Vignette);
         }
+    }
+
+    /// Advance by `delta_ticks`, then draw the rolling logo and text.
+    pub fn draw_contents(&mut self, batch: &mut HudBatch, atlas: &HudAtlas, delta_ticks: f32) {
+        let (w, h) = (batch.width, batch.height);
         self.scroll = (self.scroll + delta_ticks * self.scroll_speed).max(0.0);
         let logo_x = (w / 2.0).floor() - 128.0;
         let logo_y = h + 50.0;
@@ -484,14 +484,17 @@ mod tests {
         let mut batch = HudBatch::scratch([640, 480]);
         let h = batch.height;
         let end = (s.total_scroll_length as f32 + 2.0 * h + 24.0) / 0.75;
-        s.draw(&mut batch, &atlas, end - 1.0, EndPortalFill::default());
+        s.draw_background(&mut batch, &atlas, EndPortalFill::default());
+        s.draw_contents(&mut batch, &atlas, end - 1.0);
         assert!(!s.finished(h));
         // Scrolling back never goes above the start.
         s.key(Key::Up, true);
-        s.draw(&mut batch, &atlas, end * 2.0, EndPortalFill::default());
+        s.draw_background(&mut batch, &atlas, EndPortalFill::default());
+        s.draw_contents(&mut batch, &atlas, end * 2.0);
         assert_eq!(s.scroll(), 0.0);
         s.key(Key::Up, false);
-        s.draw(&mut batch, &atlas, end + 1.0, EndPortalFill::default());
+        s.draw_background(&mut batch, &atlas, EndPortalFill::default());
+        s.draw_contents(&mut batch, &atlas, end + 1.0);
         assert!(s.finished(h));
     }
 }

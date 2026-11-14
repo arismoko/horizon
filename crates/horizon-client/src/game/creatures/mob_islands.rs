@@ -357,6 +357,7 @@ impl Islands<'_> {
         let (first, first_ticking) = parts.next().expect("a plan has groups");
         #[cfg(test)]
         let failure = FAIL_THREADS.with(|f| f.borrow().clone());
+        let sampling = super::super::tick_profile::sampling();
         std::thread::scope(|s| {
             // Guards for every not-yet-started lane live inside the scope's callback. If the
             // OS refuses a spawn, they drop before scope joins any started, waiting threads.
@@ -403,7 +404,9 @@ impl Islands<'_> {
                             }
                         }
                         horizon_client::mobs::sulfur_cube::set_tnt_explodes(tnt);
+                        super::super::tick_profile::begin_helper(sampling);
                         horizon_client::block_contact::in_level(level, || run(g, ticking));
+                        super::super::tick_profile::end_helper()
                     })
                     .expect("a mob island's thread starts");
                 handles.push(handle);
@@ -412,10 +415,13 @@ impl Islands<'_> {
             drop(first_done);
             let mut panic = None;
             for handle in handles {
-                if let Err(payload) = handle.join()
-                    && panic.is_none()
-                {
-                    panic = Some(payload);
+                match handle.join() {
+                    Ok(costs) => super::super::tick_profile::merge(costs),
+                    Err(payload) => {
+                        if panic.is_none() {
+                            panic = Some(payload);
+                        }
+                    }
                 }
             }
             if let Some(payload) = panic {
@@ -1825,6 +1831,31 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// With the villagers on their own random (`parallel::villagers_own_random`), villagers in one
+    /// herd tick in groups beside the other herds and leave the mobs and the level random as the
+    /// serial loop does, since the serial loop draws the same way while the switch is on.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn villagers_on_their_own_random_tick_in_groups_as_serial() {
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                horizon_client::parallel::OWN_RANDOM_TEST
+                    .store(false, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+        let _reset = Reset;
+        horizon_client::parallel::OWN_RANDOM_TEST.store(true, std::sync::atomic::Ordering::Relaxed);
+        let mut game = separated_herds_game();
+        for k in 0..12 {
+            let x = 4.0 + f64::from(k % 6) * 2.0;
+            let z = 14.0 + f64::from(k / 6) * 2.0;
+            assert!(game.run_command(&format!("summon villager {x:.1} 66 {z:.1}")));
+        }
+        let groups = grouped_as_serial(&mut game, 30, "villagers", |_| {});
+        assert_eq!(groups, groups_for(3));
     }
 
     /// `plan` stays serial while a mob holds, in either hand, an item whose consumable teleports

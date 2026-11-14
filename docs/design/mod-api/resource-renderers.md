@@ -2,9 +2,46 @@
 
 Provisional answer to [#876](https://github.com/arismoko/horizon/issues/876):
 what resource-backed baked geometry and typed stack-derived state may a special
-renderer submit? Root must review this design before code. This page implements
-no API. Geometry belongs in resources; callbacks select and pose baked parts only
-where ordinary item-model properties cannot express the behavior.
+renderer submit? Geometry belongs in resources; callbacks select and pose baked
+parts only where ordinary item-model properties cannot express the behavior.
+
+## Settled on the build
+
+The owner's answer to the [build plan](https://github.com/arismoko/horizon/issues/876#issuecomment-6864610602)
+settles these points against the reference. Where a later section of this page
+says otherwise, this section wins; "ours" marks what Horizon adds.
+
+- **Registration.** `register_special_model_renderer` (singular, after the
+  reference's event) is asked once per process at start, before the first
+  resource load, never on a reload; every resource load resolves it into the
+  table. Stage 1 ([how-to](../../modding/src/how-to/client/special-item-renderers.md))
+  implements it.
+- **Duplicates.** A later registration of an id replaces the earlier one,
+  vanilla ids included, as the reference does. Ours: one log line names both
+  registrants. Nothing is refused for being a duplicate or a vanilla id.
+- **An unknown type id.** Only that item's model fails: an error log naming the
+  id and the item, the item draws the missing model, the rest of the reload goes
+  on, and the item's previous model is not kept. "A failed reload keeps the
+  previous holder" applies only to a whole-reload failure of ours.
+- **Data.** The renderer reads what it needs from the whole stack; nothing
+  declares inputs, and no cap applies to the stack beyond the reference's.
+  Extraction is cached by the stack's equality, so an unchanged stack is
+  extracted once across frames and nothing is copied per frame for it.
+- **`base`** supplies only render properties (lighting, particle, display
+  transforms), which the engine applies; the renderer never sees them.
+- **Extents.** None: the reference doesn't check declared extents or cull by
+  them, so the API has none and the engine takes none from the mod. It takes the
+  drawn parts' own quads.
+- **Threads.** The node's `config` decodes, and models bake, on the reload's
+  worker threads; extraction and drawing run on the client's main thread.
+- **Failures.** The reference doesn't catch a throw. Ours is stricter in the safe
+  direction: a renderer that errors, panics or traps is refused with one log line
+  naming the id, and the item draws the missing model; a decode or bake failure
+  loses only that item. The callback gets a `ClientHost` (every hook gets a host).
+- **Out of scope.** The block side is a separate reference registration that runs
+  on every reload, not part of #876.
+- **Matrix rows 5 and 7** each need their own test; a test that the callback never
+  runs inside a lifted pass shows row 6 only.
 
 ## Reference and boundary
 
@@ -33,9 +70,8 @@ adjacent proposal only; this design neither copies it nor requires its contents.
 
 One `register_special_model_renderer` client registration moment takes a
 `ClientHost` and a typed registrar. Dependency-ordered listeners register a
-namespaced type, bounded resource schema, declared stack-component inputs and
-one preparation callback. Duplicate type ownership refuses registration with
-both owners named; vanilla built-in identifiers cannot be replaced. Resolve
+namespaced type and one preparation callback, which reads the whole stack. A later registration of a type replaces the earlier one
+and the log names both owners; vanilla built-in identifiers can be replaced. Resolve
 identifiers and callback slots at load/bake, not on every draw. No second event
 bus or compatibility alias is introduced.
 
@@ -48,12 +84,11 @@ pointers and borrowed live stacks never cross the boundary. Wire is an API
 boundary, not a network synchronization format.
 
 Resources declare named geometry parts, texture/material references, local
-transforms and conservative extents. Reuse existing model loading/baking and
+transforms. Reuse existing model loading/baking and
 prepared geometry ownership. Bake once per resource reload; callbacks cannot
 create geometry, compile shaders, read arbitrary files or recursively render
 items. `UnsupportedSpecialRendererCapability` refuses registration requesting
-raw pipelines, live world access, arbitrary codecs, recursive item draws or
-undeclared stack inputs. Unknown special types produce
+raw pipelines, live world access, arbitrary codecs or recursive item draws. Unknown special types produce
 `UnknownSpecialRendererType` with resource path and type, replacing the foreign
 base-model workaround. This refusal applies only to special-model type decoding;
 unrelated unknown identifiers keep their existing behavior. Built-in specials
@@ -70,7 +105,7 @@ poses and vanilla-space tint. It exposes no device, frame format or live entity.
 The output is an immutable draw list stored in the ordinary item render state;
 GUI and world consumers execute it without calling the mod again. Engine display
 transforms, clipping, lighting, glint, sorting and bounds remain authoritative.
-Selected parts' transformed bounds must fit declared conservative extents.
+Bounds come from the drawn parts' own quads; the mod declares none.
 
 Apply rechecks the captured stack revision, resource holder and mod lifetime;
 changed preconditions refuse the prepared result, never recompute within apply.
@@ -126,15 +161,13 @@ claiming exhaustive integration.
 ## Untrusted inputs and cost
 
 Proposed extension budgets: 256 parts per recipe, 65536 vertices per part,
-16 MiB decoded geometry per recipe, 64 KiB resource parameters and 16 KiB copied
-stack inputs, 256 instances and 64 KiB encoded draw output per preparation.
+16 MiB decoded geometry per recipe, 64 KiB resource parameters, 256 instances and 64 KiB encoded draw output per preparation.
 Use checked arithmetic before allocation; bound encoded and decoded sizes,
 resource nesting to 32 and identifiers to 256 UTF-8 bytes. Reject invalid tags,
-indices, foreign/stale part slots and dependency cycles. Transforms and extents
-must be finite, local translation magnitude at most 1024 and scale magnitude at
-most 64; zero scale is valid. These extension budgets do not cap vanilla's own
-models, stack components or draw capacity. Oversized declared stack input refuses
-this extension preparation without truncating the actual stack.
+indices, foreign/stale part slots and dependency cycles. Transforms must be
+finite; their size is not capped. These extension budgets do not cap vanilla's own
+models, stack components or draw capacity, and the stack itself has no cap beyond
+the reference's.
 
 Catch unwind-capable native callback panics; wasm traps and fuel exhaustion have
 the same policy: discard the entire draw list and callback transaction, diagnose
@@ -189,3 +222,5 @@ Future implementation tests use original assets, not third-party model files.
   Recommendation: use the existing lifecycle holder with the budgets above,
   test representative original scenes, and enlarge only extension limits with
   measured evidence; preserve vanilla capacity throughout.
+
+Renderer answers depend only on stack and configuration. Host-state changes do not invalidate a continuously drawn unchanged stack. Answers drop after all views stop drawing the stack or resources reload.

@@ -628,6 +628,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn offline_guests_join_only_local_servers() {
         for local in [
             "127.0.0.1:25565",

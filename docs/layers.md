@@ -580,7 +580,7 @@ grow to 3000 lines, and a big file may shrink or stay as it is. The fork records
 explicitly fetched from `https://github.com/horizon-rust/horizon.git` into `refs/sync/upstream-main`.
 It must not be an ancestor of the base and must be a parent of a merge in `base..HEAD`. Without this
 proof, adding or raising an entry fails against `--base`. Missing network access, failed fetches and
-shallow history fail closed. The addresses and layers checks reuse the same provenance helper to
+shallow history fail closed (`tools/pr_ready.py` skips the step on a shallow clone, saying so; CI's verify job checks a full history). The addresses and layers checks reuse the same provenance helper to
 permit only exact rows or assignments from the verified upstream inventories. A PR can still merge
 a real upstream commit and add unrelated caps: review the sync and growth list
 (see `tools/sync/README.md`). In a sync PR a listed file must stay within its cap, and a cap above
@@ -719,12 +719,14 @@ The mod API work on arismoko/horizon lands upstream as part of the platform. The
 `horizon-mod-runtime` gets no game dependency, and its CI property check stays as a stricter check inside the
 platform.
 
-The portable engine crate `horizon-engine-slots` owns the final registration seal socket.
-The host installs its provider unconditionally before engine startup and registers native
-API listeners after dependency ordering and installation. Listener records, replacement
-authority, activity flags and dispatch remain in the platform point registry. The socket
-refuses repeat or re-entrant sealing and late provider installation; it contains no game
-point identifiers or call-site routing.
+The portable engine crate `horizon-engine-slots` owns the final registration seal socket
+and the generated point records, their copy-in constructors, typed dispatchers and activity table.
+The host installs its seal provider before engine startup and registers native API listeners
+after dependency ordering and installation. At sealing, `horizon-mod-points` installs the
+set-once dispatch provider before publishing activity flags. Ordering, owner guards,
+replacement authority and listener dispatch remain in the platform registry. Staged point
+sites name only engine-owned paths; staging does not inject point dependencies into engine manifests.
+The seal refuses repeat or re-entrant sealing and late provider installation.
 
 Engine crates import `horizon-mod-vocab` as `mod_api`. Their test-only
 `mod_platform` dependency reaches `horizon-mod-api`; dev-dependencies are exempt

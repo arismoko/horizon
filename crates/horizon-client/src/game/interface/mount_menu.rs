@@ -485,27 +485,28 @@ impl Game<'_> {
         }
         if open.show_saddle {
             batch.sprite(atlas, "gui/sprites/container/slot", ox + 7.0, oy + 17.0);
-            if open.saddle.is_none() {
-                batch.sprite(
-                    atlas,
-                    "gui/sprites/container/slot/saddle",
-                    ox + 8.0,
-                    oy + 18.0,
-                );
-            }
         }
         if open.show_armor {
             batch.sprite(atlas, "gui/sprites/container/slot", ox + 7.0, oy + 35.0);
-            if open.armor.is_none() {
-                let sprite = if llama::is_llama(open.species) {
-                    "gui/sprites/container/slot/llama_armor"
-                } else if nautilus::is_nautilus(open.species) {
-                    "gui/sprites/container/slot/nautilus_armor_inventory"
-                } else {
-                    "gui/sprites/container/slot/horse_armor"
-                };
-                batch.sprite(atlas, sprite, ox + 8.0, oy + 36.0);
-            }
+        }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+        if open.show_saddle && open.saddle.is_none() {
+            batch.sprite(
+                atlas,
+                "gui/sprites/container/slot/saddle",
+                ox + 8.0,
+                oy + 18.0,
+            );
+        }
+        if open.show_armor && open.armor.is_none() {
+            let sprite = if llama::is_llama(open.species) {
+                "gui/sprites/container/slot/llama_armor"
+            } else if nautilus::is_nautilus(open.species) {
+                "gui/sprites/container/slot/nautilus_armor_inventory"
+            } else {
+                "gui/sprites/container/slot/horse_armor"
+            };
+            batch.sprite(atlas, sprite, ox + 8.0, oy + 36.0);
         }
         let grey = rgba(64, 64, 64, 255);
         let title = match self.mobs.iter().find(|m| m.id == open.mob) {

@@ -1,6 +1,14 @@
 //! Item stack components beyond count and damage: enchantments, stored
 //! (book) enchantments, `repair_cost`, `custom_name`, `potion_contents` and
 //! `trim`, with their NBT form in vanilla's `components` compound.
+#[path = "item_data/brewing_fuel.rs"]
+pub mod brewing_fuel;
+#[path = "item_data/component_values.rs"]
+pub mod component_values;
+#[path = "item_data/cooking_fuel.rs"]
+pub mod cooking_fuel;
+#[path = "item_data/custom_model_data.rs"]
+pub mod custom_model_data;
 #[path = "item_data/ingredient_components.rs"]
 pub mod ingredient_components;
 use crate::items::{ItemInfo, ItemStack};
@@ -471,6 +479,38 @@ pub fn component_bool(value: &Tag) -> Option<bool> {
     })
 }
 
+/// `FoodProperties.DIRECT_CODEC`: required numeric nutrition/saturation and an
+/// optional NbtOps boolean. Unknown fields are ignored; floats are unrestricted.
+/// Reads borrowed NBT into the existing copyable value without allocating.
+pub fn food_properties(
+    value: &Tag,
+) -> Result<horizon_world::food_properties::FoodProperties, &'static str> {
+    if !matches!(value, Tag::Compound(_)) {
+        return Err("food must be a map");
+    }
+    let nutrition = value
+        .get("nutrition")
+        .and_then(crate::properties::component_int)
+        .ok_or("nutrition must be a number")?;
+    if nutrition < 0 {
+        return Err("nutrition must be non-negative");
+    }
+    let saturation = value
+        .get("saturation")
+        .and_then(crate::properties::component_float)
+        .ok_or("saturation must be a number")?;
+    let can_always_eat = value
+        .get("can_always_eat")
+        .map(component_bool)
+        .unwrap_or(Some(false))
+        .ok_or("can_always_eat must be a number")?;
+    Ok(horizon_world::food_properties::FoodProperties {
+        nutrition,
+        saturation,
+        can_always_eat,
+    })
+}
+
 impl ItemStack {
     pub fn new(item: &str, count: u32) -> Self {
         Self {
@@ -479,6 +519,12 @@ impl ItemStack {
             damage: 0,
             extra: None,
         }
+    }
+    /// The stack `ItemStack.CODEC` reads from `tag` (`id`, `count`,
+    /// `components`), as `item_nbt::item_from_nbt` does; None for air or an
+    /// id that is no valid identifier. The id is not looked up in a registry.
+    pub fn from_nbt(tag: &horizon_core::nbt::Compound) -> Option<Self> {
+        crate::item_nbt::item_from_nbt(&Tag::Compound(tag.clone()))
     }
     pub fn data(&self) -> Option<&StackData> {
         self.extra.as_deref()

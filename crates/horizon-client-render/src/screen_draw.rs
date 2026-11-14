@@ -11,6 +11,16 @@ use crate::{
     text::{Style, Text},
 };
 
+/// The screen-owned boundaries between its background, contents and overlays.
+///
+/// Renderers report these while drawing, so the game can dispatch render hooks
+/// with its real client host without lower client systems depending on gameplay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RenderPhase {
+    Background,
+    Foreground,
+}
+
 /// One GUI call.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Draw {
@@ -1022,17 +1032,16 @@ fn intersect(a: [i32; 4], b: [i32; 4]) -> [i32; 4] {
     }
 }
 
-/// Draws the calls with the HUD batch: sprites nine-sliced, textures from
-/// the atlas (`textures/gui/x.png` is `gui/x`; tiled textures from their
-/// corner), scissor clipping, and the tooltip at the mouse.
-pub fn paint(batch: &mut HudBatch, atlas: &HudAtlas, draws: &[Draw]) {
+/// Paint the screen's contents and return its deferred tooltip's draw index.
+/// The screen owner paints that tooltip after its foreground render boundary.
+pub fn paint(batch: &mut HudBatch, atlas: &HudAtlas, draws: &[Draw]) -> Option<usize> {
     // `GuiGraphicsExtractor.ScissorStack`: a scissor clips what is drawn since
     // it opened, cut to the screen while none is open and to the one around it
     // otherwise; closing it puts the enclosing one back.
     let screen = [0, 0, batch.width as i32, batch.height as i32];
     let mut clips: Vec<(usize, [i32; 4])> = Vec::new();
     let mut tooltip = None;
-    for d in draws {
+    for (index, d) in draws.iter().enumerate() {
         match d {
             Draw::Sprite {
                 sprite,
@@ -1142,13 +1151,23 @@ pub fn paint(batch: &mut HudBatch, atlas: &HudAtlas, draws: &[Draw]) {
                     batch.clip_since(start, x0 as f32, y0 as f32, x1 as f32, y1 as f32);
                 }
             }
-            Draw::Tooltip { lines, x, y } => {
-                tooltip = Some((lines.clone(), (*x as f32, *y as f32)))
-            }
+            Draw::Tooltip { .. } => tooltip = Some(index),
         }
     }
-    if let Some((lines, at)) = tooltip {
-        crate::ui::tooltip(batch, atlas, &lines, at);
+    tooltip
+}
+
+/// Paint the tooltip deferred by [`paint`], borrowing the same draw list.
+pub fn paint_tooltip(
+    batch: &mut HudBatch,
+    atlas: &HudAtlas,
+    draws: &[Draw],
+    tooltip: Option<usize>,
+) {
+    if let Some(index) = tooltip
+        && let Draw::Tooltip { lines, x, y } = &draws[index]
+    {
+        crate::ui::tooltip(batch, atlas, lines, (*x as f32, *y as f32));
     }
 }
 
@@ -1277,7 +1296,13 @@ mod button_label_tests {
             assert_eq!(draws.len(), 4);
             // Painted, no vertex of the label leaves the box.
             let mut batch = HudBatch::scratch([320, 240]);
-            paint(&mut batch, &atlas, &draws[1..]);
+            {
+                let batch = &mut batch;
+                let atlas = &atlas;
+                let draws = &draws[1..];
+                let tooltip = paint(batch, atlas, draws);
+                paint_tooltip(batch, atlas, draws, tooltip);
+            };
             assert!(!batch.vertices.is_empty());
             for v in &batch.vertices {
                 assert!(
@@ -1335,7 +1360,13 @@ mod button_label_tests {
                 for ms in [0, 1, 1499, 1500, 123_456_789] {
                     let draws = draw(&m, &text, w, ms);
                     let mut batch = HudBatch::scratch([320, 240]);
-                    paint(&mut batch, &atlas, &draws);
+                    {
+                        let batch = &mut batch;
+                        let atlas = &atlas;
+                        let draws = &draws;
+                        let tooltip = paint(batch, atlas, draws);
+                        paint_tooltip(batch, atlas, draws, tooltip);
+                    };
                     if let Some([x0, _, x1, _]) = scissor_of(&draws) {
                         // Whatever scrolled is clipped to the (maybe empty) box.
                         for v in batch.vertices.iter().skip(sprite_vertices(&atlas, w)) {
@@ -1360,7 +1391,12 @@ mod button_label_tests {
         let mut batch = HudBatch::scratch([320, 240]);
         let mut out = Vec::new();
         sprite(&mut out, "widget/button", 10, 20, w, 20);
-        paint(&mut batch, atlas, &out);
+        {
+            let batch = &mut batch;
+            let draws = &out;
+            let tooltip = paint(batch, atlas, draws);
+            paint_tooltip(batch, atlas, draws, tooltip);
+        };
         batch.vertices.len()
     }
 }
@@ -1418,10 +1454,10 @@ mod scissor_tests {
     fn a_nested_scissor_is_intersected_with_the_one_around_it() {
         let atlas = atlas();
         let mut batch = HudBatch::scratch([320, 240]);
-        paint(
-            &mut batch,
-            &atlas,
-            &[
+        {
+            let batch = &mut batch;
+            let atlas = &atlas;
+            let draws = &[
                 scissor(10, 10, 100, 100),
                 fill(0, 0, 200, 200),
                 scissor(50, 50, 300, 300),
@@ -1429,8 +1465,10 @@ mod scissor_tests {
                 Draw::NoScissor,
                 fill(0, 0, 200, 200),
                 Draw::NoScissor,
-            ],
-        );
+            ];
+            let tooltip = paint(batch, atlas, draws);
+            paint_tooltip(batch, atlas, draws, tooltip);
+        };
         assert_eq!(
             quads(&batch),
             [
@@ -1447,15 +1485,17 @@ mod scissor_tests {
     fn a_scissor_wider_than_the_screen_is_cut_to_it() {
         let atlas = atlas();
         let mut batch = HudBatch::scratch([320, 240]);
-        paint(
-            &mut batch,
-            &atlas,
-            &[
+        {
+            let batch = &mut batch;
+            let atlas = &atlas;
+            let draws = &[
                 scissor(-50, -50, 500, 500),
                 fill(-100, -100, 600, 600),
                 Draw::NoScissor,
-            ],
-        );
+            ];
+            let tooltip = paint(batch, atlas, draws);
+            paint_tooltip(batch, atlas, draws, tooltip);
+        };
         assert_eq!(quads(&batch), [[0.0, 0.0, 320.0, 240.0]]);
     }
 
@@ -1466,10 +1506,10 @@ mod scissor_tests {
     fn a_scissor_outside_the_one_around_it_draws_nothing() {
         let atlas = atlas();
         let mut batch = HudBatch::scratch([320, 240]);
-        paint(
-            &mut batch,
-            &atlas,
-            &[
+        {
+            let batch = &mut batch;
+            let atlas = &atlas;
+            let draws = &[
                 scissor(10, 10, 50, 50),
                 fill(0, 0, 200, 200),
                 scissor(60, 60, 90, 90),
@@ -1478,8 +1518,10 @@ mod scissor_tests {
                 fill(0, 0, 200, 200),
                 Draw::NoScissor,
                 fill(0, 0, 200, 200),
-            ],
-        );
+            ];
+            let tooltip = paint(batch, atlas, draws);
+            paint_tooltip(batch, atlas, draws, tooltip);
+        };
         assert_eq!(
             quads(&batch),
             [

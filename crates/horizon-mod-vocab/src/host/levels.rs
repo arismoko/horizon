@@ -948,6 +948,25 @@ pub trait LevelsBackendMut {
         pitch: f32,
     ) -> bool;
     /// Side: server.
+    /// Sets the time of the level's own clock (its dimension type's `default_clock`, the one
+    /// `level_clock_time` reads) to `time` ticks, as `/time set <time>` run in that level does:
+    /// `time_skip` (cause `mod`) fires first and a mod can keep the old time, and the clock's
+    /// fraction of a tick restarts. Players see the new time with the next time sync. A time
+    /// the clock already shows is true and changes nothing. False for a negative time, a level
+    /// without a default clock, a stale handle, a client, and when a mod kept the old time.
+    #[access(WorldOnly)]
+    fn level_set_clock_time(&mut self, level: LevelRef, time: i64) -> bool;
+    /// Side: server.
+    /// Sets game rule `rule` (`minecraft:keep_inventory` or `keep_inventory`) to `value`, as
+    /// `/gamerule <rule> <value>` does (`GameRules.set` and `MinecraftServer.onGameRuleChanged`):
+    /// the world follows it (`advance_time` freezes the clocks), `game_rule_changed` fires with
+    /// no actor, and the players' clients get the rules they show. The rules are the world's,
+    /// so any open level's handle sets them. True also when the rule already had the value.
+    /// False for an unknown rule, a value of the other kind or outside the rule's range, a
+    /// stale handle and a client.
+    #[access(WorldOnly)]
+    fn level_set_game_rule(&mut self, level: LevelRef, rule: &str, value: GameRuleValue) -> bool;
+    /// Side: server.
     /// Repaint map `id` with `colors` (128 by 128 colour ids, row by row), pixel by pixel as
     /// `MapItemSavedData.setColor` does: each changed pixel marks the map to save, to redraw and
     /// to send to the players carrying or framing it. True when a pixel changed. False for
@@ -1226,16 +1245,23 @@ pub trait LevelsBackendMut {
         b: i32,
     ) -> bool;
     /// Side: server.
-    /// Explodes at `center` with no source entity, as `Level.explode(null,
-    /// x, y, z, radius, fire, interaction)` does (`native_explode`): `fire`
-    /// lights some of the air around, `interaction` says what happens to
-    /// blocks: `None`, `Block` or `Tnt` (vanilla's `Mob` and `Trigger` aren't
-    /// offered yet). False for a chunk that isn't loaded or a radius outside
-    /// `0 < radius <= 32`.
+    /// Explodes at `center` as `Level.explode(source, x, y, z, radius, fire,
+    /// interaction)` does (`native_explode`), `source` being the exploding
+    /// entity, or none. The causing entity comes from it, never from the
+    /// caller: a primed TNT's owner, a living entity itself, a projectile's
+    /// owner when that is living, else none. With both the damage is
+    /// `minecraft:player_explosion`, else `minecraft:explosion`, and a kill
+    /// credits the causing entity. `interaction` says what happens to blocks
+    /// (`Mob` asks the source's `entity_mob_griefing`, `Trigger` only works
+    /// buttons, levers, doors and the like); `fire` lights some of the air
+    /// around whatever it is. False, with nothing exploded, for a stale
+    /// `source` or one in another level, a chunk that isn't loaded or a
+    /// radius outside `0 < radius <= 32`.
     #[access(WorldOnly)]
     fn level_explode(
         &mut self,
         level: LevelRef,
+        source: Option<EntityRef>,
         center: [f64; 3],
         radius: f32,
         fire: bool,

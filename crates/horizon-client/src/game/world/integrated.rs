@@ -11,7 +11,10 @@
 use super::{
     Dim, Game, Options, PackResources, Resources, UiResources, WorldIcon,
     execution_role::ExecutionRole,
-    lan::{LanSettings, Owner, SyncPreload, preload_sync_data},
+    lan::{
+        LanSettings, Owner,
+        sync::{SyncPreload, preload_sync_data},
+    },
     world_loading::{WorldLoader, WorldRequest},
 };
 use horizon_client::level_loading::{STATUS_RADIUS, Stage};

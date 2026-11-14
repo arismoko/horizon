@@ -677,6 +677,7 @@ impl Title {
         seed: &str,
         focus: u8,
         o: &WorldOptions,
+        phases: &mut dyn FnMut(crate::screen_draw::RenderPhase, &mut HudBatch),
     ) {
         let (w, h) = (batch.width.ceil(), batch.height.ceil());
         // extractMenuBackground: the tab header strip, the menu background under it.
@@ -692,6 +693,7 @@ impl Title {
             u32::MAX,
         );
         ui::menu_background(batch, atlas, 0.0, TAB_BAR, w, h - TAB_BAR, false);
+        phases(crate::screen_draw::RenderPhase::Background, batch);
         // MenuTabBar: header separators either side of the tabs.
         let (x0, tw) = tabs(w);
         let right = x0 + tw * TABS.len() as f32;

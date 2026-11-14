@@ -164,14 +164,18 @@ pub fn start_sleeping(m: &mut Mob, p: [i32; 3], w: &MobWorld, events: &mut Vec<M
         occupied: true,
     });
     m.velocity = horizon_core::geometry::Vec3::ZERO;
-    super::living::teleports::set_pos(m, crate::bed_geometry::pos_to_bed(p, 0.5625));
+    super::living::teleports::set_pos_with(
+        m,
+        crate::bed_geometry::pos_to_bed(p, 0.5625),
+        w.section_writer.clone(),
+    );
     true
 }
 /// `LivingEntity.baseTick`: first-tick `setPosToBed` for a loaded sleeper.
 /// Reuse normal sleep positioning without its motion, memory or bed events.
 pub(super) fn refresh_sleeping_position(m: &mut Mob, w: &MobWorld) {
     if let Some(position) = sleeping_pos(m).and_then(|p| w.sleeping_position(p)) {
-        super::living::teleports::set_pos(m, position);
+        super::living::teleports::set_pos_with(m, position, w.section_writer.clone());
     }
 }
 /// `LivingEntity.stopSleeping`: the bed is no longer `occupied`, and the
@@ -204,10 +208,15 @@ pub fn stop_sleeping(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) {
     let stand = level
         .bed_stand_up(crate::stand_up::StandUpType::VILLAGER, p, forward, m.yaw)
         .unwrap_or_else(|| crate::stand_up::stand_up_fallback(p));
-    set_wake_pose(m, p, stand);
+    set_wake_pose(m, p, stand, w.section_writer.clone());
 }
 /// Rotation part of `LivingEntity.stopSleeping`, after choosing where to stand.
-fn set_wake_pose(m: &mut Mob, bed: [i32; 3], stand: horizon_core::geometry::Vec3) {
+fn set_wake_pose(
+    m: &mut Mob,
+    bed: [i32; 3],
+    stand: horizon_core::geometry::Vec3,
+    observer: Option<super::living::section_writes::Observer>,
+) {
     use horizon_core::geometry::{Vec3, trig};
     let d = Vec3::new(
         f64::from(bed[0]) + 0.5,
@@ -223,7 +232,7 @@ fn set_wake_pose(m: &mut Mob, bed: [i32; 3], stand: horizon_core::geometry::Vec3
     if yaw < -180.0 {
         yaw += 360.0;
     }
-    super::living::teleports::set_pos(m, stand);
+    super::living::teleports::set_pos_with(m, stand, observer);
     m.yaw = yaw as f32;
     m.head_pitch = 0.0;
 }
@@ -370,7 +379,11 @@ pub struct Ext {
     pub brain: Option<Box<super::villager_brain::Brain>>,
     /// Saved memories awaiting the first brain initialization.
     pub saved_memories: Option<Box<super::villager_brain::Memories>>,
+    /// `[entities] villager_lobotomize`: whether the last check found the villager stuck
+    /// (`villager_lobotomy`). Not saved; `None` until the first check.
+    pub lobotomized: Option<bool>,
 }
+pub mod lobotomy;
 pub fn ext(m: &Mob) -> Option<&Ext> {
     m.extra.villager.as_deref()
 }
@@ -1159,6 +1172,54 @@ pub fn read_nbt(m: &mut Mob, tag: &horizon_core::nbt::Tag) {
     }
 }
 
+/// The villager's brain tick. While the parallel mob tick is on it draws from a random of its own, so
+/// that no other mob's turn is waited for (`parallel::villagers_own_random`); the level's random otherwise.
+/// The seed comes from the mob's id and the game time, not from a draw, so the villager's entity random
+/// (movement, looks, sounds) keeps vanilla's sequence.
+pub fn tick_brain(
+    m: &mut Mob,
+    w: &MobWorld,
+    level_random: &mut crate::health::DamageLevel<'_>,
+    events: &mut Vec<MobEvent>,
+) {
+    tick_brain_with(
+        crate::parallel::villagers_own_random(),
+        m,
+        w,
+        level_random,
+        events,
+    );
+}
+
+fn tick_brain_with(
+    own_random: bool,
+    m: &mut Mob,
+    w: &MobWorld,
+    level_random: &mut crate::health::DamageLevel<'_>,
+    events: &mut Vec<MobEvent>,
+) {
+    if own_random {
+        let mut own = horizon_core::random::LegacyRandom::new(brain_seed(m.id, w.game_time));
+        super::villager_brain::tick(
+            m,
+            w,
+            &mut level_random.reborrow_with_random(&mut own),
+            events,
+        );
+    } else {
+        super::villager_brain::tick(m, w, level_random, events);
+    }
+}
+
+/// A seed for one villager's brain tick: a splitmix64 mix of the mob's id and the game time.
+fn brain_seed(id: u32, game_time: i64) -> i64 {
+    let mut z = (u64::from(id) << 32) ^ (game_time as u64);
+    z = z.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    (z ^ (z >> 31)) as i64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1410,6 +1471,45 @@ mod tests {
         assert!(!mm.golem_detected_recently.present());
     }
 
+    /// On its own random, a villager's brain tick leaves the level random alone and takes no draw
+    /// from the villager's entity random that the level random's tick would not take.
+    #[test]
+    fn own_random_brain_tick_keeps_the_entity_random_sequence() {
+        use horizon_core::geometry::Vec3;
+        use horizon_core::random::LegacyRandom;
+        use std::sync::Arc;
+        let ran = crate::mobs::world::with_test_world(&[], |w, types| {
+            let make = || {
+                Mob::new(
+                    1,
+                    Arc::new(types.types["minecraft:villager"].clone()),
+                    Vec3::new(0.5, 64.0, 0.5),
+                    0.0,
+                )
+            };
+            let (mut shared, mut own) = (make(), make());
+            let (mut level_shared, mut level_own) = (
+                crate::health::TestLevel::new(9),
+                crate::health::TestLevel::new(9),
+            );
+            tick_brain_with(
+                false,
+                &mut shared,
+                w,
+                &mut level_shared.level(),
+                &mut Vec::new(),
+            );
+            tick_brain_with(true, &mut own, w, &mut level_own.level(), &mut Vec::new());
+            assert_eq!(
+                level_own.random().next_long(),
+                LegacyRandom::new(9).next_long(),
+                "the level random is not drawn from"
+            );
+            assert_eq!(own.random.next_long(), shared.random.next_long());
+        });
+        let _ = ran;
+    }
+
     fn villager() -> Mob {
         use crate::mobs::{Anim, Brain, Flags, MobType, Part, Species};
         use std::sync::Arc;
@@ -1466,7 +1566,7 @@ mod tests {
         m.yaw = -25.0;
         m.head_pitch = 23.0;
         let stand = horizon_core::geometry::Vec3::new(3.5, 200.0, 6.5);
-        set_wake_pose(&mut m, [2, 200, 6], stand);
+        set_wake_pose(&mut m, [2, 200, 6], stand, None);
         // Fresh official 26.3 occupied-bed interaction.
         assert_eq!(m.yaw, 89.99999);
         assert_eq!(m.head_pitch, 0.0);

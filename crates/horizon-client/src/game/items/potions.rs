@@ -1869,13 +1869,22 @@ impl Game<'_> {
         #[cfg(test)]
         super::entity::taken_pass_tests::after_take(self);
         let ticking = self.entity_ticking_area();
+        let mut expired: Vec<u32> = Vec::new();
         clouds.retain_mut(|c| {
-            c.potion.is_none()
+            let keep = c.potion.is_none()
                 || !ticking(c.at[0].floor() as i32, c.at[2].floor() as i32)
-                || self.tick_potion_cloud(c, &players)
+                || self.tick_potion_cloud(c, &players);
+            if !keep {
+                expired.push(c.id);
+            }
+            keep
         });
         self.breath_clouds
             .restore(clouds, horizon_client::join_seq::RestoreOrder::SpawnsFirst);
+        // A cloud that expired on its own takes its `noPhysics` write with it.
+        for id in expired {
+            self.forget_entity(id);
+        }
     }
     /// `AreaEffectCloud.serverTick`: configured lifetime/radius changes and
     /// five-tick doses, with each victim's configured reapplication delay.

@@ -968,13 +968,15 @@ impl Game<'_> {
             return;
         };
         let (id, join) = (hook.id, hook.join);
+        let from = hook.position;
         match self.tick_fishing_extracted(hook) {
             Some(hook) => {
+                let to = hook.position;
                 self.hook.put_back(hook);
+                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
             }
             None => self.hook.retire_extracted(id, join),
         }
-        self.entity_sections_stepped(super::entity_sections::Family::FishingHooks);
     }
     fn tick_fishing_extracted(&mut self, mut h: Hook) -> Option<Hook> {
         h.needs_sync = false;
@@ -1918,7 +1920,7 @@ impl Game<'_> {
     }
 
     /// The fishing medium a mod says the hook at `position` floats in
-    /// (`native_fishing_medium`), when it is in it. API @API:fishing_medium@.
+    /// (`native_fishing_medium`), when it is in it. API 578.
     fn hook_medium(
         &mut self,
         id: u32,

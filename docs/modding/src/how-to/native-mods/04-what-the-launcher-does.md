@@ -82,4 +82,6 @@ SDK releases are read from this repository's releases. `HORIZON_SDK_BASE` replac
 a mirror URL or a folder holding `sdk-<build id>/` folders (and the game releases' folders, for
 their build ids), for example a copy for building offline. Every base is checked the same way,
 against the release signature. Offline, a build whose SDK files are already kept works; one whose
-files are missing says so, with the size to download.
+files are missing says so, with the size to download. What a release holds and how it is checked:
+[The mod SDK](../../reference/sdk/01-release.md); the fit rule in full:
+[Fitting another build](../../reference/sdk/04-fit.md).

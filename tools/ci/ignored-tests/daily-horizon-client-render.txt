@@ -25,6 +25,7 @@ horizon-client-render gfx::tests::shaders_translate_to_hlsl_for_directx_12_and_g
 horizon-client-render graphics_ui::tests::hdr_sliders_step_through_every_value_they_can_be_set_to lib daily slow
 horizon-client-render hud::pictures::tests::realms_pictures_do_not_enlarge_the_startup_atlas lib daily slow
 horizon-client-render light::tests::a_tall_column_relights_as_its_full_light_and_keys_its_sections lib daily slow
+horizon-client-render pack_screen::click_sound_tests::the_browsers_search_button_submits_what_was_typed lib daily network
 horizon-client-render packs::tests::a_pack_that_unpacks_past_its_budget_fails_and_leaves_nothing lib daily slow
 horizon-client-render perf_capture::tests::a_converted_profile_written_to_a_file_reads_back_through_the_queries lib daily slow
 horizon-client-render perf_capture::tests::a_stack_becomes_a_root_to_leaf_chain_with_its_context lib daily slow
@@ -35,6 +36,9 @@ horizon-client-render perf_capture::tests::three_units_of_a_and_one_of_b_split_t
 horizon-client-render perf_capture::tests::time_blocks_and_ticks_per_block_follow_when_they_were_added lib daily slow
 horizon-client-render perf_capture::tests::wall_samples_carry_their_state_and_a_second_kind lib daily slow
 horizon-client-render radial_overlay::tests::every_action_has_an_icon_and_every_string_a_horizon_key lib daily slow
+horizon-client-render skins::tests::a_failed_download_is_retried_after_the_wait lib daily network
+horizon-client-render skins::tests::http_get_reads_2xx_bodies lib daily network
+horizon-client-render skins::tests::profiles_resolve_through_the_services lib daily network
 horizon-client-render split_ui::tests::locale_switch_and_pack_overrides_keep_the_same_draft lib daily child-process
 horizon-client-render streaming::cover_tests::the_buckets_answer_as_the_scan lib daily slow
 horizon-client-render streaming::cover_tests::the_grid_answers_as_the_scan lib daily slow

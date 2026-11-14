@@ -630,6 +630,9 @@ impl Game<'_> {
             // `/summon ender_dragon` outside the End: no fight, but the dragon flies.
             self.tick_fight();
         }
+        if let Some((id, from, to)) = self.dragon.as_ref().map(|d| (d.id, d.previous, d.position)) {
+            self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+        }
         // The spikes' crystals (placed above) join before they light a fire:
         // a mod that cancels one keeps its fire out too.
         self.native_joins_flush(false, 0);
@@ -639,7 +642,6 @@ impl Game<'_> {
         if self.dimension_type().has_ender_dragon_fight {
             self.ensure_exit_portal()?;
         }
-        self.entity_sections_stepped(super::entity_sections::Family::Dragon);
         Ok(())
     }
 

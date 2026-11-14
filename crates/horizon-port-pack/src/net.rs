@@ -544,6 +544,7 @@ mod tests {
     /// `.invalid` never resolves here (RFC 2606), so the answer can only have come through the
     /// proxy, which is handed the name to resolve.
     #[test]
+    #[ignore = "daily"]
     fn a_request_goes_through_a_socks_proxy() {
         for scheme in ["socks5", "socks5h"] {
             let (port, server) = socks5_proxy();

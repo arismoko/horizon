@@ -13,6 +13,7 @@ const IDENTITY: &str = "horizon-prebuilt.json";
 /// Names the folder of a prebuilt game built from a developer install's checkout
 /// (`tools/prebuilt_game.py build`). Read for developer installs only: their commit has no release.
 pub(super) const DEVELOPER_SDK: &str = "HORIZON_LAUNCHER_DEVELOPER_SDK";
+#[cfg(test)]
 pub(super) const TEMPLATE: &str = "native_main.rs.template";
 /// The optimization level of the `release` profile the prebuilt game is built with: the mods' code
 /// matches the game's.
@@ -147,19 +148,9 @@ pub(super) struct Identity {
     /// source is compiled under the same `cfg`s.
     #[serde(default)]
     game_features: Vec<String>,
-    /// The API route's mods library: its crate name and the metadata both builds of it use.
-    #[serde(default)]
-    pub(super) native_mods: Option<NativeMods>,
     /// Which package files the `runtime` and `api` slices hold; every other file is the `engine`'s.
     #[serde(default)]
     pub(super) slices: Option<Slices>,
-}
-
-#[derive(serde::Deserialize)]
-pub(super) struct NativeMods {
-    #[serde(rename = "crate")]
-    pub(super) krate: String,
-    pub(super) metadata: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -228,10 +219,7 @@ fn link_tree(slice: &Path, dir: &Path, into: &Path) -> Result<(), String> {
 /// `engine`'s), moving or linking each file; a listed file that isn't there is refused by name.
 fn lay_out(whole: &Path, build: &Path, link: bool) -> Result<Package, String> {
     let sdk = identity(whole)?;
-    let slices = sdk.slices.as_ref().ok_or_else(|| {
-        tr("This prebuilt game has no slices. Update Horizon and rebuild the mods against this game.")
-            .to_string()
-    })?;
+    let slices = sdk.slices()?;
     let package = Package::at(build);
     let mut placed = std::collections::HashMap::new();
     for (folder, names) in [
@@ -317,6 +305,14 @@ impl Identity {
     pub(super) fn game_features(&self) -> &[String] {
         &self.game_features
     }
+
+    /// Which package files the `runtime` and `api` slices hold.
+    pub(super) fn slices(&self) -> Result<&Slices, String> {
+        self.slices.as_ref().ok_or_else(|| {
+            tr("This prebuilt game has no slices. Update Horizon and rebuild the mods against this game.")
+                .to_string()
+        })
+    }
 }
 
 pub(super) fn identity(dir: &Path) -> Result<Identity, String> {
@@ -396,7 +392,8 @@ pub(super) fn library(deps: &Path, krate: &str) -> Result<PathBuf, String> {
         .map(|entry| entry.path())
         .filter(|path| {
             let name = path.file_name().unwrap_or_default().to_string_lossy();
-            name.starts_with(&prefix) && name.ends_with(".rmeta")
+            (name.starts_with(&prefix) && name.ends_with(".rmeta"))
+                || name == format!("lib{krate}.rmeta")
         })
         .collect();
     match candidates.as_slice() {
@@ -418,6 +415,7 @@ pub(super) fn wrapper_externs(
     for name in [
         "horizon_client",
         "mod_api",
+        "mod_vocab",
         "mod_points",
         "horizon_mod_package",
     ] {
@@ -468,12 +466,21 @@ fn standard_library(rust: &Toolchain) -> Result<PathBuf, String> {
 /// rustc with the prebuilt game's settings, its libraries and `out`'s on the search path, and the
 /// native libraries the game's build scripts link (`native/`: the `windows` crates' import
 /// libraries).
-fn rustc(rust: &Toolchain, game: &Path, out: &Path, edition: &str) -> Command {
+fn rustc(
+    rust: &Toolchain,
+    game: &Path,
+    out: &Path,
+    edition: &str,
+    link_args: &[String],
+) -> Command {
     let mut cmd = rustc_with(
         rust,
         &[&game.join("deps"), &game.join("host"), out],
         edition,
     );
+    for arg in link_args {
+        cmd.arg("-C").arg(format!("link-arg={arg}"));
+    }
     cmd.arg("-L")
         .arg(format!("native={}", game.join("native").display()));
     cmd
@@ -491,6 +498,13 @@ pub(super) fn rustc_with(rust: &Toolchain, search: &[&Path], edition: &str) -> C
         "-C",
         OPT_LEVEL,
     ]);
+    if let Some(origin) = match std::env::consts::OS {
+        "linux" => Some("-Wl,-rpath,$ORIGIN"),
+        "macos" => Some("-Wl,-rpath,@loader_path"),
+        _ => None,
+    } {
+        cmd.arg("-C").arg(format!("link-arg={origin}"));
+    }
     for folder in search {
         cmd.arg("-L")
             .arg(format!("dependency={}", folder.display()));
@@ -502,14 +516,13 @@ pub(super) fn rustc_with(rust: &Toolchain, search: &[&Path], edition: &str) -> C
 /// set of mods, and never changed after a failure (SDK design §1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Route {
-    /// Every mod is API-only: the mods become the `horizon_native_mods` library, built from the
-    /// package's `api` files alone and installed beside its prebuilt API executable
-    /// ([`super::api_route`]). The `engine` archive is never read.
+    /// Every mod is API-only: build its own dylib from the package's API metadata.
+    /// The engine archive is never read.
     Api,
     /// A mod has a `[native]` table row (mixin, module, bridge, state, loop) or game internals:
-    /// the executable is generated and linked against the whole package.
+    /// build its dylib against the whole package's metadata.
     Engine,
-    /// A mod depends on a crate outside the game's: the executable is built with Cargo against
+    /// A mod depends on a crate outside the game's: its dylib is built with Cargo against
     /// the whole package ([`super::registry_compile`]).
     Registry,
 }
@@ -598,9 +611,10 @@ fn registry_dependency(project: &api::Project<'_>) -> bool {
 
 /// Compiles the mods (`resolution`'s order, each with its installed mod dependencies) and the
 /// launcher's executable against the prebuilt game `package`, by `route` ([`Route::of`] the same
-/// `projects`), under `builds` (`native/prebuilt-build`): the API route in its `api` folder and
-/// the engine route in its `rustc` folder, each rebuilt every time, and the registry route in the
-/// folder its cargo build is kept in ([`kept_build`]), staged per mods folder (`mods`). Returns
+/// `projects`), under `builds` (`native/prebuilt-build`), in folders keyed by the SDK's inputs
+/// ([`kept_build`]): the API route in `api-<key>`, the engine route in `rustc-<key>`, each mod's
+/// library reused only while its own inputs are unchanged, and the registry route's cargo build in
+/// `<key>`, staged per mods folder (`mods`). Returns
 /// the executable and the dynamic libraries it loads, to be installed beside it.
 // Unlike the source workspace, this route invokes rustc with only selected --extern
 // libraries; it does not resolve or compile arbitrary transitive Cargo dependencies.
@@ -616,8 +630,28 @@ pub(super) fn compile(
     resolution: &dependencies::Resolution,
     consent: Option<&dyn Fn(&super::RegistryInventory) -> bool>,
 ) -> Result<(PathBuf, Vec<PathBuf>), String> {
+    let mut names = std::collections::HashSet::new();
+    names.insert(dylib_name("horizon_patch").to_ascii_lowercase());
+    for item in fs::read_dir(package.runtime.join("deps")).map_err(|e| e.to_string())? {
+        names.insert(
+            item.map_err(|e| e.to_string())?
+                .file_name()
+                .to_string_lossy()
+                .to_ascii_lowercase(),
+        );
+    }
+    for project in projects {
+        check_library_name(
+            &mut names,
+            &dylib_name(&project.crate_name()),
+            &project.bundle.manifest.id,
+        )?;
+    }
+    // Every route's outputs are kept per SDK build (its files, the toolchain and the launcher's
+    // settings): a library reused across builds was always compiled from the same SDK inputs.
+    let key = kept_build(rust, package)?;
     if route == Route::Api {
-        let out = &builds.join("api");
+        let out = &builds.join(format!("api-{key}"));
         let built = super::api_route::compile(
             rust,
             &package.runtime,
@@ -635,7 +669,7 @@ pub(super) fn compile(
     }
     let game = &package.whole(&builds.with_file_name("prebuilt-package"))?;
     if route == Route::Registry {
-        let kept = builds.join(kept_build(rust, package, game)?);
+        let kept = builds.join(&key);
         // Stamped before it fills, so a build that fails still leaves an aged unit.
         fs::create_dir_all(&kept).map_err(|e| e.to_string())?;
         crate::storage::mark_used(&kept).map_err(super::cache_error)?;
@@ -657,7 +691,7 @@ pub(super) fn compile(
         crate::storage::mark_used(&kept).map_err(super::cache_error)?;
         return Ok(built);
     }
-    let out = &builds.join("rustc");
+    let out = &builds.join(format!("rustc-{key}"));
     let catalog = internals::Catalog::read(game)?;
     let generated = catalog
         .prepare(projects.iter().map(|project| &project.bundle.manifest))
@@ -665,7 +699,6 @@ pub(super) fn compile(
     for project in projects {
         catalog.log_mixins(&project.bundle.manifest)?;
     }
-    let _ = fs::remove_dir_all(out);
     fs::create_dir_all(out).map_err(|e| e.to_string())?;
     crate::storage::mark_used(out).map_err(super::cache_error)?;
     let deps = game.join("deps");
@@ -678,6 +711,7 @@ pub(super) fn compile(
     }
     let game_library = library(&deps, "horizon_client")?;
     let mut facades = std::collections::HashMap::new();
+    libraries.insert("mod_vocab", library(&deps, "mod_vocab")?);
     let mut rlibs: std::collections::HashMap<&str, PathBuf> = std::collections::HashMap::new();
     let mut crate_names: std::collections::HashMap<&str, String> = std::collections::HashMap::new();
     for &index in &resolution.order {
@@ -693,7 +727,7 @@ pub(super) fn compile(
             let facade = &generated[id];
             fs::write(&source, &facade.source).map_err(|e| e.to_string())?;
             let rlib = out.join(format!("libinternals_{id}.rlib"));
-            let mut cmd = rustc(rust, game, out, "2024");
+            let mut cmd = rustc(rust, game, out, "2024", &sdk.link_args);
             cmd.args(["--crate-type", "rlib", "--crate-name", "internals"])
                 .arg("-C")
                 .arg(format!("metadata={id}"))
@@ -721,12 +755,22 @@ pub(super) fn compile(
             project,
             &declared[index],
             out,
-            |edition| rustc(rust, game, out, edition),
+            |edition| rustc(rust, game, out, edition, &sdk.link_args),
             |package| match package {
                 "internals" => &facades[id],
                 _ => &libraries[package],
             },
             &rlibs,
+            &library_entry(
+                &api::template(&game.join(super::api_route::TEMPLATE))?,
+                &[&project.bundle.manifest],
+                &catalog,
+                sdk.commit(),
+                id,
+                &project.bundle.manifest.version.to_string(),
+                &[],
+            ),
+            sdk.commit(),
         )?;
         rlibs.insert(id, rlib);
         crate_names.insert(id, krate);
@@ -740,62 +784,108 @@ pub(super) fn compile(
         &rlibs,
         &crate_names,
         &sdk,
-        |edition| rustc(rust, game, out, edition),
+        |edition| rustc(rust, game, out, edition, &sdk.link_args),
     )?;
-    let template = api::template(&game.join(TEMPLATE))?;
-    let manifests: Vec<_> = resolution
-        .order
-        .iter()
-        .map(|&i| &projects[i].bundle.manifest)
-        .collect();
-    let main = out.join("main.rs");
-    let mut main_text = api::main_rs(&template, &manifests, &catalog);
-    if let Some(patch) = &patch {
-        let installs: String = patch
-            .installs
-            .iter()
-            .map(|install| format!("        {install},\n"))
-            .collect();
-        main_text = main_text.replace("/* MOD_REDIRECTS */", installs.trim_end());
+    let mut installed = runtime_libraries(rust, &sdk, game)?;
+    for &index in &resolution.order {
+        installed.push(rlibs[projects[index].bundle.manifest.id.as_str()].clone());
     }
-    fs::write(&main, main_text).map_err(|e| e.to_string())?;
-    let binary = out.join(crate::backend::CLIENT);
-    let mut cmd = rustc(rust, game, out, "2024");
-    cmd.args(["--crate-type", "bin", "--crate-name", "horizon_native_game"]);
-    for (name, path) in wrapper_externs(&deps, &template)? {
-        cmd.arg("--extern")
-            .arg(format!("{name}={}", path.display()));
-    }
-    for (name, rlib) in patch.iter().flat_map(|patch| &patch.rlibs) {
-        cmd.arg("--extern")
-            .arg(format!("{name}={}", rlib.display()));
-    }
-    for (position, &index) in resolution.order.iter().enumerate() {
-        let id = projects[index].bundle.manifest.id.as_str();
-        cmd.arg("--extern")
-            .arg(format!("mod_{position}={}", rlibs[id].display()));
-        if let Some(facade) = facades.get(id) {
-            cmd.arg("--extern")
-                .arg(format!("mod_{position}_internals={}", facade.display()));
+    if let Some(patch) = patch {
+        let source = out.join("horizon_patch.rs");
+        let template = api::template(&game.join(super::api_route::TEMPLATE))?;
+        let entry = library_entry(
+            &template,
+            &[],
+            &catalog,
+            sdk.commit(),
+            "horizon_patch",
+            "0",
+            &patch.installs,
+        );
+        fs::write(&source, &entry).map_err(|e| e.to_string())?;
+        let library = out.join(dylib_name("horizon_patch"));
+        let mut hash = Sha256::new();
+        hash.update(&entry);
+        for (_, path) in &patch.rlibs {
+            hash.update(fs::read(path).map_err(|e| e.to_string())?);
         }
+        let fingerprint = format!("{:x}", hash.finalize());
+        let saved = library.with_extension("fingerprint");
+        let unchanged =
+            library.is_file() && fs::read_to_string(&saved).ok().as_deref() == Some(&fingerprint);
+        let mut cmd = rustc(rust, game, out, "2024", &sdk.link_args);
+        cmd.args(["--crate-type", "dylib", "--crate-name", "horizon_patch"]);
+        for (name, path) in wrapper_externs(&deps, &template)? {
+            cmd.arg("--extern")
+                .arg(format!("{name}={}", path.display()));
+        }
+        for (name, path) in &patch.rlibs {
+            cmd.arg("--extern")
+                .arg(format!("{name}={}", path.display()));
+        }
+        cmd.arg("-o").arg(&library).arg(source);
+        if !unchanged {
+            super::run(cmd, tr("Compiling the patch library"), |_| {})?;
+            fs::write(saved, fingerprint).map_err(|e| e.to_string())?;
+        }
+        super::library_record::validate_exports(&library, "horizon_patch")?;
+        super::library_record::stamp(&library, sdk.commit(), "horizon_patch", "0", true)?;
+        installed.push(library);
     }
-    // The game's libraries load from beside the executable.
-    let origin = match std::env::consts::OS {
-        "linux" => Some("-Wl,-rpath,$ORIGIN"),
-        "macos" => Some("-Wl,-rpath,@executable_path"),
-        _ => None,
-    };
-    for arg in origin.into_iter().map(str::to_owned).chain(sdk.link_args) {
-        cmd.arg("-C").arg(format!("link-arg={arg}"));
+    Ok((
+        package.runtime.join("bin").join(crate::backend::CLIENT),
+        installed,
+    ))
+}
+
+pub(super) fn refuse_closure_rlib(id: &str, name: &str, path: &Path) -> Result<(), String> {
+    if matches!(
+        name,
+        "mod_api" | "mod_vocab" | "mod_points" | "horizon_mod_runtime" | "horizon_core"
+    ) && path.extension().is_some_and(|ext| ext == "rlib")
+    {
+        return Err(trf("Native mod {mod} links API closure crate {crate} as an rlib. Rebuild the SDK with a shared API closure.", &[("mod", id), ("crate", name)]));
     }
-    cmd.arg("-o").arg(&binary).arg(&main);
-    super::run(cmd, "Linking the game", |_| {})?;
-    Ok((binary, runtime_libraries(rust, &deps)?))
+    Ok(())
+}
+
+pub(super) fn dylib_name(krate: &str) -> String {
+    format!(
+        "{}{krate}{}",
+        std::env::consts::DLL_PREFIX,
+        std::env::consts::DLL_SUFFIX
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn library_entry(
+    template: &str,
+    mods: &[&horizon_mod_package::Manifest],
+    catalog: &internals::Catalog,
+    build: &str,
+    id: &str,
+    version: &str,
+    installs: &[String],
+) -> String {
+    api::main_rs(template, mods, catalog)
+        .replace("mod_0::", "crate::")
+        .replace(
+            "/* NATIVE_BUILD */",
+            &format!("{build} {id} {version} {}", crate::rust_toolchain::VERSION),
+        )
+        .replace(
+            "/* MOD_REDIRECTS */",
+            &installs
+                .iter()
+                .map(|i| format!("{i},\n"))
+                .collect::<String>(),
+        )
 }
 
 /// Compiles `project`'s crate as an rlib into `out` with `rustc` (given the edition: rustc with
 /// the route's search paths), its game packages from `library` and its installed mod dependencies
 /// from `rlibs`. Returns the rlib and the crate's name.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn compile_mod<'a>(
     project: &api::Project<'_>,
     declared: &[dependencies::Dependency],
@@ -803,6 +893,8 @@ pub(super) fn compile_mod<'a>(
     rustc: impl Fn(&str) -> Command,
     library: impl Fn(&str) -> &'a PathBuf,
     rlibs: &std::collections::HashMap<&str, PathBuf>,
+    entry: &str,
+    build: &str,
 ) -> Result<(PathBuf, String), String> {
     let id = project.bundle.manifest.id.as_str();
     let edition = project
@@ -824,9 +916,21 @@ pub(super) fn compile_mod<'a>(
             .unwrap_or("src/lib.rs"),
     );
     let mut cmd = rustc(edition);
-    cmd.args(["--crate-type", "rlib", "--crate-name", &krate])
+    fs::write(source.with_file_name("__horizon_entry.rs"), entry).map_err(|e| e.to_string())?;
+    let mut root = fs::read_to_string(&source).map_err(|e| e.to_string())?;
+    check_entry_root(&root, id)?;
+    root.push_str(
+        "\n#[allow(unsafe_code)]\n#[path = \"__horizon_entry.rs\"] mod __horizon_entry;\n",
+    );
+    fs::write(&source, root).map_err(|e| e.to_string())?;
+    cmd.args(["--crate-type", "dylib", "--crate-name", &krate])
         .arg("-C")
         .arg(format!("metadata={id}"));
+    for name in ["mod_api", "mod_vocab", "mod_points"] {
+        refuse_closure_rlib(id, name, library(name))?;
+        cmd.arg("--extern")
+            .arg(format!("{name}={}", library(name).display()));
+    }
     for (name, package) in project.api_dependencies() {
         cmd.arg("--extern")
             .arg(format!("{name}={}", library(package).display()));
@@ -845,26 +949,98 @@ pub(super) fn compile_mod<'a>(
                 .arg(format!("feature=\"{}\"", dependency.id));
         }
     }
-    cmd.arg("--out-dir").arg(out).arg(&source);
-    super::run(cmd, &compiling(id), |_| {})?;
-    Ok((out.join(format!("lib{krate}.rlib")), krate))
+    let library = out.join(dylib_name(&krate));
+    let mut hash = Sha256::new();
+    hash.update(build);
+    hash.update(entry);
+    hash.update(
+        super::source_digest(project.bundle).ok_or(tr("Could not hash native mod inputs"))?,
+    );
+    for dependency in declared {
+        if let Some(path) = rlibs.get(dependency.id.as_str()) {
+            hash.update(fs::read(path).map_err(|e| e.to_string())?);
+        }
+    }
+    let fingerprint = format!("{:x}", hash.finalize());
+    let saved = library.with_extension("fingerprint");
+    if !library.is_file() || fs::read_to_string(&saved).ok().as_deref() != Some(&fingerprint) {
+        cmd.arg("--out-dir").arg(out).arg(&source);
+        super::run(cmd, &compiling(id), |_| {})?;
+    }
+    super::library_record::validate_exports(&library, id)?;
+    super::library_record::stamp(
+        &library,
+        build,
+        id,
+        &project.bundle.manifest.version.to_string(),
+        false,
+    )?;
+    fs::write(saved, fingerprint).map_err(|e| e.to_string())?;
+    Ok((library, krate))
+}
+
+/// Refuses mod `id`'s library file `name` when another library already takes it. Names compare
+/// without case, as Windows' and macOS's default file systems do.
+fn check_library_name(
+    names: &mut std::collections::HashSet<String>,
+    name: &str,
+    id: &str,
+) -> Result<(), String> {
+    if !names.insert(name.to_ascii_lowercase()) {
+        return Err(trf("Native mod {mod} uses reserved or duplicate library file {file}. Choose a unique Cargo library name.", &[("mod", id), ("file", name)]));
+    }
+    Ok(())
+}
+
+/// Refuses mod `id` when its crate root (`source`) forbids unsafe code: the generated library
+/// entry appended to it exports `#[unsafe(no_mangle)]` functions, and `forbid` can't be lifted for
+/// one module. A root this parser can't read is left to rustc, which reports it in its own words.
+pub(super) fn check_entry_root(source: &str, id: &str) -> Result<(), String> {
+    let Ok(file) = syn::parse_file(source) else {
+        return Ok(());
+    };
+    if file.attrs.iter().any(|attr| forbids_unsafe(&attr.meta)) {
+        return Err(trf("{mod}: its crate root forbids unsafe code, which the launcher's generated library entry needs; use #![deny(unsafe_code)] instead", &[("mod", id)]));
+    }
+    Ok(())
+}
+
+/// Whether the attribute `meta` forbids unsafe code: `forbid(unsafe_code)`, or a `cfg_attr` (nested
+/// ones too) carrying it. The launcher doesn't evaluate cfg predicates, so any predicate counts.
+fn forbids_unsafe(meta: &syn::Meta) -> bool {
+    let syn::Meta::List(list) = meta else {
+        return false;
+    };
+    let Ok(items) = list.parse_args_with(
+        syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+    ) else {
+        return false;
+    };
+    if list.path.is_ident("forbid") {
+        items.iter().any(|lint| lint.path().is_ident("unsafe_code"))
+    } else if list.path.is_ident("cfg_attr") {
+        // The first item is the predicate; the rest are the attributes it applies.
+        items.iter().skip(1).any(forbids_unsafe)
+    } else {
+        false
+    }
 }
 
 /// What the build log and a failure call compiling mod `id`: a failure starts
 /// "Compiling <id> failed".
 pub(super) fn compiling(id: &str) -> String {
-    format!("Compiling {id}")
+    trf("Compiling {mod}", &[("mod", id)])
 }
 
 /// The launcher's settings for a kept registry build: bumped whenever the launcher changes the
 /// cargo arguments, the compiler plan or how it stages, so a build made the old way is not reused.
-const KEPT_BUILD_FLAGS: u32 = 1;
+const KEPT_BUILD_FLAGS: u32 = 2;
 
 /// The folder a registry build's cargo output is kept in, under `native/prebuilt-build`: one per
 /// game build, Rust toolchain and launcher settings ([`KEPT_BUILD_FLAGS`]). Inside one, cargo's
 /// own fingerprints decide what to rebuild.
-fn kept_build(rust: &Toolchain, package: &Package, game: &Path) -> Result<String, String> {
-    let sdk = identity(game)?;
+fn kept_build(rust: &Toolchain, package: &Package) -> Result<String, String> {
+    let sdk = identity(&package.runtime)?;
     let mut hasher = Sha256::new();
     hasher.update(KEPT_BUILD_FLAGS.to_le_bytes());
     hasher.update(rust_toolchain::VERSION.as_bytes());
@@ -941,9 +1117,31 @@ fn short_hash(hex: &str) -> &str {
     hex.get(..16).unwrap_or(hex)
 }
 
-/// The runtime shipped beside the prebuilt executable, for every native build route.
-pub(super) fn runtime_libraries(rust: &Toolchain, deps: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut runtime = game_dylibs(deps)?;
+/// The runtime shipped beside the prebuilt executable, for every native build route: every shared
+/// library the package's `runtime` slice records under `deps/` (taken from `game`, the package or
+/// its runtime slice), the standard library and, on Windows, the MinGW runtime the GNU DLLs import.
+/// The package's own record is the list, so a library the game gains ships without a launcher
+/// change.
+pub(super) fn runtime_libraries(
+    rust: &Toolchain,
+    sdk: &Identity,
+    game: &Path,
+) -> Result<Vec<PathBuf>, String> {
+    let mut runtime: Vec<PathBuf> = sdk
+        .slices()?
+        .runtime
+        .iter()
+        .filter(|name| {
+            name.starts_with("deps/")
+                && [".so", ".dll", ".dylib"]
+                    .iter()
+                    .any(|suffix| name.ends_with(suffix))
+        })
+        .map(|name| game.join(name))
+        .collect();
+    if runtime.is_empty() {
+        return Err(tr("The prebuilt game records no runtime libraries.").to_string());
+    }
     runtime.push(standard_library(rust)?);
     if rust.host.target == rust_toolchain::WINDOWS_X64_TARGET {
         // The SDK's GNU DLLs import libgcc, which in turn imports libwinpthread.
@@ -963,33 +1161,68 @@ pub(super) fn runtime_libraries(rust: &Toolchain, deps: &Path) -> Result<Vec<Pat
     Ok(runtime)
 }
 
-/// The game's own dynamic libraries, which the executable loads from beside itself: the game and
-/// the wasm mod runtime it links (`tools/prebuilt_game.py` checks the archive holds both).
-fn game_dylibs(deps: &Path) -> Result<Vec<PathBuf>, String> {
-    let top = if library(deps, "horizon_mod_host").is_ok() {
-        "horizon_mod_host"
-    } else {
-        "horizon_client"
-    };
-    let crates = [top, "horizon_mod_wasm"];
-    crates
-        .into_iter()
-        .map(|krate| {
-            let path = library(deps, krate)?;
-            if path.extension().is_some_and(|ext| ext != "rmeta") {
-                Ok(path)
-            } else {
-                Err(trf(
-                    "The prebuilt game has no {crate}.",
-                    &[("crate", krate)],
-                ))
-            }
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn library_names_are_case_insensitive_and_entry_lints_are_checked() {
+        let mut names = std::collections::HashSet::new();
+        super::check_library_name(&mut names, "Example.dll", "one").unwrap();
+        assert!(super::check_library_name(&mut names, "example.dll", "two")
+            .unwrap_err()
+            .contains("two"));
+        assert!(super::check_entry_root("#![deny(unsafe_code)]", "safe").is_ok());
+        assert!(
+            super::check_entry_root("#![forbid(unsafe_code, unused)]", "safe")
+                .unwrap_err()
+                .contains("safe")
+        );
+        assert!(super::check_entry_root("// #![forbid(unsafe_code)]", "safe").is_ok());
+        let plain = super::check_entry_root("#![forbid(unsafe_code)]", "safe").unwrap_err();
+        for root in [
+            "#![cfg_attr(feature = \"x\", forbid(unsafe_code))]",
+            "#![cfg_attr(all(unix, not(test)), allow(unused), forbid(unsafe_code))]",
+            "#![cfg_attr(unix, cfg_attr(test, forbid(unsafe_code)))]",
+        ] {
+            assert_eq!(
+                super::check_entry_root(root, "safe").unwrap_err(),
+                plain,
+                "{root}"
+            );
+        }
+        assert!(super::check_entry_root("#![cfg_attr(unix, deny(unsafe_code))]", "safe").is_ok());
+        assert!(super::check_entry_root("#![cfg_attr(unix, forbid(", "safe").is_ok());
+    }
+
+    #[test]
+    fn unhashed_metadata_is_found_and_dylib_is_preferred_for_linking() {
+        let dir = tempfile::tempdir().unwrap();
+        let metadata = dir.path().join("libmod_api.rmeta");
+        std::fs::write(&metadata, b"metadata").unwrap();
+        assert_eq!(super::library(dir.path(), "mod_api").unwrap(), metadata);
+        let dylib = dir.path().join(super::dylib_name("mod_api"));
+        std::fs::write(&dylib, b"dylib").unwrap();
+        assert_eq!(super::library(dir.path(), "mod_api").unwrap(), dylib);
+    }
+
+    #[test]
+    fn closure_rlib_refusal_names_the_mod_and_crate() {
+        let message = super::refuse_closure_rlib(
+            "example",
+            "mod_points",
+            std::path::Path::new("libmod_points.rlib"),
+        )
+        .unwrap_err();
+        assert!(message.contains("example"), "{message}");
+        assert!(message.contains("mod_points"), "{message}");
+        assert!(message.contains("rlib"), "{message}");
+        assert!(super::refuse_closure_rlib(
+            "example",
+            "mod_points",
+            std::path::Path::new("libmod_points.rmeta")
+        )
+        .is_ok());
+    }
+
     use super::*;
 
     #[test]
@@ -1146,41 +1379,28 @@ mod tests {
     }
 
     #[test]
-    fn the_executable_carries_the_game_and_its_wasm_runtime() {
-        let deps = super::super::tests::dir("prebuilt-dylibs");
-        let ext = std::env::consts::DLL_EXTENSION;
-        fs::write(deps.join(format!("libhorizon_client.{ext}")), b"").unwrap();
-        fs::write(deps.join("libhorizon_mod_wasm-0123.rmeta"), b"").unwrap();
-        // Metadata alone has no code to load: the archive is incomplete.
-        assert!(game_dylibs(&deps).is_err());
-        fs::write(deps.join(format!("libhorizon_mod_wasm.{ext}")), b"").unwrap();
-        assert_eq!(game_dylibs(&deps).unwrap().len(), 2);
-        fs::write(deps.join(format!("libhorizon_mod_host.{ext}")), b"").unwrap();
-        let names: Vec<_> = game_dylibs(&deps)
-            .unwrap()
-            .iter()
-            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
-            .collect();
-        assert_eq!(
-            names,
-            [
-                format!("libhorizon_mod_host.{ext}"),
-                format!("libhorizon_mod_wasm.{ext}")
-            ]
-        );
-        fs::remove_dir_all(deps).unwrap();
-    }
-
-    #[test]
-    fn prebuilt_runtime_carries_the_managed_gnu_dlls_on_windows_x64() {
+    fn the_runtime_is_every_shared_library_the_package_records_plus_the_toolchains() {
         let scratch = tempfile::tempdir().unwrap();
-        let deps = scratch.path().join("deps");
-        fs::create_dir(&deps).unwrap();
-        let game = deps.join("horizon_mod_host.dll");
-        let wasm = deps.join("horizon_mod_wasm.dll");
-        for library in [&game, &wasm] {
-            fs::write(library, b"").unwrap();
-        }
+        let game = scratch.path();
+        // As a package records its runtime slice: shared libraries under deps/ (the engine slots
+        // library among them, which no fixed list carried), the identity, the executable and
+        // windows-gnu import libraries, which never ship.
+        let sdk: Identity = serde_json::from_value(serde_json::json!({
+            "commit": "test", "rustc": "test", "target": "test", "side": "client", "link_args": [],
+            "slices": {"runtime": [
+                "bin/horizon-client.exe", "deps/horizon_engine_slots.dll", "deps/horizon_mod_host.dll",
+                "deps/libhorizon_mod_host.dll.a", "deps/libmod_api.so", "deps/mod_points.dylib",
+                "horizon-prebuilt.json",
+            ], "api": []},
+        }))
+        .unwrap();
+        let recorded = [
+            "horizon_engine_slots.dll",
+            "horizon_mod_host.dll",
+            "libmod_api.so",
+            "mod_points.dylib",
+        ]
+        .map(|name| game.join("deps").join(name));
         for host in rust_toolchain::hosts() {
             let rust = Toolchain {
                 dir: scratch.path().join(host.target),
@@ -1189,19 +1409,31 @@ mod tests {
             let std = rust.target_libdir().unwrap().join("std-test.dll");
             fs::create_dir_all(std.parent().unwrap()).unwrap();
             fs::write(&std, b"").unwrap();
-            let mut expected = vec![game.clone(), wasm.clone(), std];
+            let mut expected = recorded.to_vec();
+            expected.push(std);
             if host.target == rust_toolchain::WINDOWS_X64_TARGET {
                 let bin = rust.mingw_bin();
                 fs::create_dir_all(&bin).unwrap();
                 for name in ["libgcc_s_seh-1.dll", "libwinpthread-1.dll"] {
-                    assert!(runtime_libraries(&rust, &deps).unwrap_err().contains(name));
+                    assert!(runtime_libraries(&rust, &sdk, game)
+                        .unwrap_err()
+                        .contains(name));
                     let library = bin.join(name);
                     fs::write(&library, b"").unwrap();
                     expected.push(library);
                 }
             }
-            assert_eq!(runtime_libraries(&rust, &deps).unwrap(), expected);
+            assert_eq!(runtime_libraries(&rust, &sdk, game).unwrap(), expected);
         }
+        let unsliced: Identity = serde_json::from_value(serde_json::json!({
+            "commit": "test", "rustc": "test", "target": "test", "side": "client", "link_args": [],
+        }))
+        .unwrap();
+        let rust = Toolchain {
+            dir: scratch.path().to_owned(),
+            host: &rust_toolchain::hosts()[0],
+        };
+        assert!(runtime_libraries(&rust, &unsliced, game).is_err());
     }
 
     /// What [`refusal`] says of one mod whose Cargo.toml is `cargo`.

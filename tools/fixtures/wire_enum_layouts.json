@@ -294,8 +294,10 @@
     {
       "name": "ExplosionInteraction",
       "path": "crate::world::types::ExplosionInteraction",
-      "hash": "649673fec35bab1f",
-      "canonical_path": "crate::world::types::ExplosionInteraction"
+      "hash": "1ede2797636bb977",
+      "canonical_path": "crate::world::types::ExplosionInteraction",
+      "baseline_hash": "649673fec35bab1f",
+      "contract_change": "#3929 takes vanilla's five ExplosionInteraction values in vanilla's order: None 0, Block 1, Mob 2, Tnt 3 (was 2), Trigger 4. Hash independently mixed from the five literal variant names using the original FNV layout algorithm."
     },
     {
       "name": "FakeEffect",

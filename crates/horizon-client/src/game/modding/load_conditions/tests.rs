@@ -205,8 +205,8 @@ fn load_conditions_recipe_reload_counts_and_failed_candidates_keep_old_recipes()
                     assert!(game.recipes().recipe("testmod:enabled").is_some());
                 }
                 let host = game.lan.take();
-                crate::game::lan::forget_sync_data();
-                assert!(crate::game::lan::cached_reload_sync().is_none());
+                crate::game::lan::sync::forget_sync_data();
+                assert!(crate::game::lan::sync::cached_reload_sync().is_none());
                 mode.store(5, Ordering::SeqCst);
                 let error = format!(
                     "{:?}",

@@ -28,6 +28,7 @@ horizon-mod-api-gen = { path = "../horizon-mod-api-gen" }
 rustix = { version = "1", default-features = false, features = ["std", "process", "fs"] }
 
 [dev-dependencies]
+horizon-engine-slots = { path = "../horizon-engine-slots" }
 horizon-world = { path = "../horizon-world" }
 horizon-threads = { path = "../horizon-threads" }
 tempfile = "3.27.0"

@@ -1,5 +1,6 @@
-//! A guest's flying kicks, in their own module so `hub.rs` keeps its size. The
-//! `handlePlayerPositionChange` collision check is in `move_collision`.
+//! A guest's flying kicks and the moves its actions hold, in their own module
+//! so `hub.rs` keeps its size. The `handlePlayerPositionChange` collision
+//! check is in `move_collision`.
 use super::*;
 impl Hub {
     /// `ServerGamePacketListenerImpl.tickPlayer`'s flying check: a player the
@@ -45,5 +46,22 @@ impl Hub {
         if let Some(conn) = kick {
             self.kick(conn, translatable("multiplayer.disconnect.flying", &[]));
         }
+    }
+
+    /// A move still queued for guest `i`, which a packet the game handles
+    /// after this pass must not overtake.
+    pub(super) fn move_queued(&self, i: usize) -> bool {
+        self.guests[i].inbox.iter().any(|entry| {
+            let InboxItem::Packet(p, _) = entry else {
+                return false;
+            };
+            matches!(
+                p,
+                S::MovePlayerPos(_)
+                    | S::MovePlayerPosRot(_)
+                    | S::MovePlayerRot(_)
+                    | S::MovePlayerStatus(_)
+            )
+        })
     }
 }

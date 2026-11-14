@@ -220,6 +220,22 @@ impl MobWorld<'_> {
     /// `BlockState.getCollisionShape(level, pos)` (the empty collision
     /// context) as boxes in the world.
     pub fn block_collision_boxes(&self, x: i32, y: i32, z: i32) -> Vec<Aabb> {
+        let offset = Vec3::new(f64::from(x), f64::from(y), f64::from(z));
+        self.block_shape(x, y, z)
+            .map(|shape| shape.boxes().iter().map(|b| b.move_by(offset)).collect())
+            .unwrap_or_default()
+    }
+    /// Whether the block's collision shape (empty context) has a box meeting `area`.
+    fn block_collides_with(&self, x: i32, y: i32, z: i32, area: Aabb) -> bool {
+        let offset = Vec3::new(f64::from(x), f64::from(y), f64::from(z));
+        self.block_shape(x, y, z).is_some_and(|shape| {
+            shape
+                .boxes()
+                .iter()
+                .any(|b| b.move_by(offset).intersects(area))
+        })
+    }
+    fn block_shape(&self, x: i32, y: i32, z: i32) -> Option<horizon_core::geometry::VoxelShape> {
         let mut scene = SceneCollisions {
             world: self.world,
             binding: self.collision,
@@ -228,11 +244,9 @@ impl MobWorld<'_> {
         let state = self.world.block(x, y, z);
         let at = horizon_core::position::BlockPos::new(x, y, z);
         let context = horizon_world::collision_context::CollisionContext::empty(false);
-        let offset = Vec3::new(f64::from(x), f64::from(y), f64::from(z));
         self.collision
             .collision_shape_with_context(&mut scene, state, at, &context)
-            .map(|shape| shape.boxes().iter().map(|b| b.move_by(offset)).collect())
-            .unwrap_or_default()
+            .ok()
     }
     /// `Level.findSupportingBlock`: of the blocks whose collision shape
     /// meets `area`, the one whose centre is nearest `from` (ties: the
@@ -285,11 +299,7 @@ impl MobWorld<'_> {
                     {
                         continue;
                     }
-                    if !self
-                        .block_collision_boxes(x, y, z)
-                        .iter()
-                        .any(|b| b.intersects(area))
-                    {
+                    if !self.block_collides_with(x, y, z, area) {
                         continue;
                     }
                     let d = (f64::from(x) + 0.5 - from.x).powi(2)
@@ -353,14 +363,22 @@ impl Mob {
         let dh = (new_h - old_h).max(0.0) + 1.0e-6;
         let at = |allowed: Aabb, size_y: f64| free_position(w, allowed, center, new_w, size_y);
         if let Some(p) = at(Aabb::of_size(center, Vec3::new(dw, dh, dw)), new_h) {
-            teleports::set_pos(self, Vec3::new(p.x, p.y - new_h / 2.0, p.z));
+            teleports::set_pos_with(
+                self,
+                Vec3::new(p.x, p.y - new_h / 2.0, p.z),
+                w.section_writer.clone(),
+            );
             return;
         }
         if new_w > old_w
             && new_h > old_h
             && let Some(p) = at(Aabb::of_size(center, Vec3::new(dw, 1.0e-6, dw)), old_h)
         {
-            teleports::set_pos(self, Vec3::new(p.x, p.y - old_h / 2.0 + 1.0e-6, p.z));
+            teleports::set_pos_with(
+                self,
+                Vec3::new(p.x, p.y - old_h / 2.0 + 1.0e-6, p.z),
+                w.section_writer.clone(),
+            );
         }
     }
     fn no_physics(&self) -> bool {
@@ -735,6 +753,14 @@ impl Mob {
             return;
         }
         let mut wanted = gate.delta();
+        // Entity.move: with noPhysics the delta is applied through every block,
+        // and no collision flag is set.
+        if self.no_physics {
+            self.position = self.position.add_vector(wanted);
+            self.horizontal_collision = false;
+            self.vertical_collision_below = false;
+            return;
+        }
         // Entity.move: a block the mob is stuck in (sweet berry bush) scales
         // this move once and stops it.
         if self.stuck_multiplier.length_squared() > 1.0e-7 {
@@ -743,6 +769,7 @@ impl Mob {
             self.velocity = Vec3::ZERO;
         }
         let step = self.kind.step_height as f32;
+        let from = self.position;
         let scene = SceneCollisions {
             world: w.world,
             binding: w.collision,
@@ -774,6 +801,13 @@ impl Mob {
                 self.position.x + moved.x,
                 self.position.y + moved.y,
                 self.position.z + moved.z,
+            );
+            super::living::section_writes::record_with(
+                self.id,
+                self.join,
+                from,
+                self.position,
+                w.section_writer.clone(),
             );
         }
         // !Mth.equal(delta, movement)
@@ -1976,6 +2010,11 @@ impl Mob {
         }
     }
 }
+impl crate::entity_rules::EntityRules for Mob {
+    fn is_no_gravity(&self) -> bool {
+        self.no_gravity
+    }
+}
 /// LivingEntity.getFluidFallingAdjustedMovement.
 fn fluid_falling(gravity: f64, falling: bool, sprinting: bool, m: Vec3) -> Vec3 {
     if gravity != 0.0 && !sprinting {
@@ -2357,7 +2396,7 @@ pub fn random_teleport(
         return false;
     }
     // Entity.teleportTo -> snapTo: the old position moves too, the motion stays.
-    teleports::snap_to(m, Vec3::new(x, ny, z));
+    teleports::snap_to_with(m, Vec3::new(x, ny, z), w.section_writer.clone());
     m.ai.nav.stop();
     // `randomTeleport(..., true)` broadcasts entity event 46.
     events.push(MobEvent::EntityEvent {
@@ -2623,6 +2662,7 @@ mod tests {
                 asks_living_destroy_block: false,
                 asks_baby_spawn: false,
                 border: None,
+                section_writer: None,
             };
             let kind = std::sync::Arc::new(types.types["minecraft:pig"].clone());
             let mut m = Mob::new(1, kind, Vec3::new(0.5, 1.0, 0.5), 0.0);
@@ -2753,6 +2793,7 @@ mod tests {
                 asks_living_destroy_block: false,
                 asks_baby_spawn: false,
                 border: None,
+                section_writer: None,
             };
             let kind = std::sync::Arc::new(types.types["minecraft:pig"].clone());
             let mut m = Mob::new(1, kind, Vec3::new(0.5, 1.0, 0.5), 0.0);
@@ -2884,6 +2925,7 @@ mod tests {
             asks_living_destroy_block: false,
             asks_baby_spawn: false,
             border: None,
+            section_writer: None,
         };
         let kind = std::sync::Arc::new(types.types["minecraft:horse"].clone());
         let mut sank = 0.0;
@@ -3020,6 +3062,7 @@ mod tests {
                 lid_openers: &lid_openers,
                 mod_effects: None,
                 border: None,
+                section_writer: None,
             };
             let top = below.bounds().max_position().y;
             let mut zombie = mob(1, "minecraft:zombie", Vec3::new(8.5, top + 3.0, 8.5));
@@ -3751,6 +3794,8 @@ mod tests {
 
 #[path = "living/fluid_heights.rs"]
 mod fluid_heights;
+#[allow(dead_code)]
+pub mod section_writes;
 #[cfg(test)]
 #[path = "living/size_answer_tests.rs"]
 mod size_answer_tests;

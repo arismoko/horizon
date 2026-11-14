@@ -7,11 +7,13 @@ impl Title {
         batch: &mut HudBatch,
         cursor: (f32, f32),
         hide_splash: bool,
+        phases: &mut dyn FnMut(crate::screen_draw::RenderPhase, &mut HudBatch),
     ) {
-        self.draw_with_items(atlas, None, batch, cursor, hide_splash, false);
+        self.draw_with_items(atlas, None, batch, cursor, hide_splash, false, phases);
     }
     /// [`Title::draw`] with the item models, which draw the item icons of the
     /// Superflat screens the way `GuiGraphics.renderItem` does.
+    #[allow(clippy::too_many_arguments)]
     pub fn draw_with_items(
         &self,
         atlas: &HudAtlas,
@@ -20,16 +22,34 @@ impl Title {
         cursor: (f32, f32),
         hide_splash: bool,
         hide_server_address: bool,
+        phases: &mut dyn FnMut(crate::screen_draw::RenderPhase, &mut HudBatch),
     ) {
         let (w, h) = (batch.width.ceil(), batch.height.ceil());
-        if let Some(rules) = self.rules.borrow_mut().as_mut() {
-            return rules.draw(batch, atlas, cursor);
+        if self.rules.borrow().is_some() {
+            self.rules
+                .borrow()
+                .as_ref()
+                .expect("rules screen is open")
+                .draw_background(batch, atlas);
+            phases(crate::screen_draw::RenderPhase::Background, batch);
+            let tooltip = self
+                .rules
+                .borrow_mut()
+                .as_mut()
+                .expect("rules screen is open")
+                .draw_contents(batch, atlas, cursor);
+            phases(crate::screen_draw::RenderPhase::Foreground, batch);
+            if let Some(tooltip) = tooltip {
+                crate::ui::tooltip(batch, atlas, &tooltip, cursor);
+            }
+            return;
         }
         if self.preparing {
             // `CreateWorldScreen.openCreateWorldScreen`'s queued
             // `GenericMessageScreen`: the menu background and the message
             // alone, centred, no progress.
             crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+            phases(crate::screen_draw::RenderPhase::Background, batch);
             let text =
                 crate::lang::get_or("createWorld.preparing", "Preparing for world creation...");
             let tw = atlas.font.width_text(&Text::literal(text.clone()));
@@ -41,13 +61,14 @@ impl Title {
             batch.fill(atlas, bx - 1.0, by - 1.0, bw + 2.0, bh + 2.0, 0xFFD0D0D0);
             batch.fill(atlas, bx, by, bw, bh, 0xFF000000);
             batch.text(atlas, &text, tx, ty, u32::MAX, false);
+            phases(crate::screen_draw::RenderPhase::Foreground, batch);
             return;
         }
         if let Some(screen) = self.confirm_experiments.borrow().as_ref() {
-            return screen.draw(batch, atlas, cursor);
+            return screen.draw(batch, atlas, cursor, phases);
         }
         if let Some(screen) = self.experiments.borrow().as_ref() {
-            return screen.draw(batch, atlas, cursor);
+            return screen.draw(batch, atlas, cursor, phases);
         }
         let mut fade_from = None;
         if crate::widgets::narrating()
@@ -57,6 +78,7 @@ impl Title {
         }
         match &self.mode {
             Mode::Main => {
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 draw_logo(atlas, batch, w);
                 if !hide_splash && let Some(splash) = self.splash.as_deref() {
                     let tw = HudBatch::text_width(atlas, splash);
@@ -116,6 +138,7 @@ impl Title {
             }
             Mode::Select { worlds, selected } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 centered(
                     atlas,
                     batch,
@@ -287,18 +310,24 @@ impl Title {
                 focus,
                 options,
                 ..
-            } => self.draw_create(atlas, batch, cursor, name, seed, *focus, options),
-            Mode::CreateFlat { flat, .. } => flat::draw(self, atlas, items, batch, cursor, flat),
-            Mode::CreateBuffet { buffet, .. } => buffet::draw(self, atlas, batch, cursor, buffet),
+            } => self.draw_create(atlas, batch, cursor, name, seed, *focus, options, phases),
+            Mode::CreateFlat { flat, .. } => {
+                flat::draw(self, atlas, items, batch, cursor, flat, phases)
+            }
+            Mode::CreateBuffet { buffet, .. } => {
+                buffet::draw(self, atlas, batch, cursor, buffet, phases)
+            }
             Mode::CreatePreset { .. } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
             }
             Mode::Edit { name, focused, .. } => {
-                self.draw_edit(atlas, batch, (w, h), name, *focused)
+                self.draw_edit(atlas, batch, (w, h), name, *focused, phases)
             }
-            Mode::AdoptBiomeRegions { .. } => self.draw_adopt_regions(atlas, batch, (w, h)),
+            Mode::AdoptBiomeRegions { .. } => self.draw_adopt_regions(atlas, batch, (w, h), phases),
             Mode::Delete { world } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 let message = translate(
                     "selectWorld.deleteWarning",
                     "'%s' will be lost forever! (A long time!)",
@@ -323,6 +352,7 @@ impl Title {
             }
             Mode::Recover { world, issues } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 let dir = self.saves.join(&world.folder);
                 let title =
                     Text::literal(lang::get_or("recover_world.title", "Failed to load world"))
@@ -371,6 +401,7 @@ impl Title {
             }
             Mode::Recovered { success, .. } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 let title = lang::get_or("recover_world.done.title", "Recovery done");
                 let message = if *success {
                     lang::get_or("recover_world.done.success", "Recovery was successful!")
@@ -398,6 +429,7 @@ impl Title {
                 downgrade, stem, ..
             } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 // BackupStatus.DOWNGRADE is severe: its question is red (-2142128).
                 let (question, warning, color) = match (downgrade, stem) {
                     (None, Some(StemIssue::Customized)) => (
@@ -456,6 +488,7 @@ impl Title {
             }
             Mode::OptimizeConfirm { erase_cache, .. } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 let description = lang::get_or(
                     "optimizeWorld.confirm.description",
                     "This will attempt to optimize your world by making sure all data is stored in the most recent game format. This can take a very long time, depending on your world. Once done, your world may play faster but will no longer be compatible with older versions of the game. Are you sure you wish to proceed?",
@@ -498,10 +531,12 @@ impl Title {
             }
             Mode::Optimize { world } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 self.draw_optimize(atlas, batch, w, h, &world.name);
             }
             Mode::LowDiskSpace { .. } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 let message = lang::get_or(
                     "selectWorld.warning.lowDiskSpace.description",
                     "There is not much space left on your device.\nRunning out of disk space while in game can lead to your world being damaged.",
@@ -525,11 +560,12 @@ impl Title {
                 }
             }
             Mode::MissingBiomeRegions { missing, .. } => {
-                self.draw_missing_biome_regions(atlas, batch, (w, h), missing)
+                self.draw_missing_biome_regions(atlas, batch, (w, h), missing, phases)
             }
             Mode::Backup { .. } => {
                 self.backup_shown.set(true);
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 centered(
                     atlas,
                     batch,
@@ -556,6 +592,7 @@ impl Title {
             }
             Mode::Error { message, alert, .. } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 let lines: Vec<String> = message
                     .split('\n')
                     .flat_map(|line| wrapped(atlas, line, w - 50.0))
@@ -597,10 +634,13 @@ impl Title {
                 }
             }
             Mode::MissingMods { missing, .. } => {
+                crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 self.draw_missing_mods(atlas, batch, (w, h), missing)
             }
             Mode::MultiplayerWarning { check } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 let message = lang::get_or(
                     "multiplayerWarning.message",
                     "Caution: Online play is offered by third-party servers that are not owned, operated, or supervised by Mojang Studios or Microsoft. During online play, you may be exposed to unmoderated chat messages or other types of user-generated content that may not be suitable for everyone.",
@@ -682,9 +722,12 @@ impl Title {
                     true,
                 );
             }
-            Mode::Onboarding(_) => fade_from = Some(self.draw_onboarding(atlas, batch, w, h)),
+            Mode::Onboarding(_) => {
+                fade_from = Some(self.draw_onboarding(atlas, batch, w, h, phases))
+            }
             Mode::BanNotice(notice) => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+                phases(crate::screen_draw::RenderPhase::Background, batch);
                 let now = chrono::Utc::now().timestamp_millis();
                 let layout = crate::confirm_screen::Choice::new(
                     &atlas.font,
@@ -707,6 +750,7 @@ impl Title {
                 self.started,
                 cursor,
                 hide_server_address,
+                phases,
             ),
             Mode::Realms(screen) => screen.draw(
                 batch,
@@ -717,6 +761,7 @@ impl Title {
                 w,
                 h,
                 self.focused_button.is_none(),
+                phases,
             ),
         }
         // The hovered button's `Tooltip`, drawn once the widgets are.
@@ -796,6 +841,7 @@ impl Title {
         if let Some(from) = fade_from {
             self.draw_onboarding_logo(atlas, batch, w, from);
         }
+        phases(crate::screen_draw::RenderPhase::Foreground, batch);
         if let Mode::Create {
             name,
             creative,

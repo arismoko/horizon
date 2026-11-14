@@ -29,13 +29,9 @@ fn item_model_property(
 including for nested bundle items: `item()`, `count()` and explicit `components()` (not merged
 defaults). `bundle_selected` carries the runtime selection separately; -1 means none. Listeners run in mod order; later answers win.
 Use `"property": "example:charged"` with both `on_true` and `on_false` in the item's
-`minecraft:condition` node. Custom special model renderers are not supplied by this hook.
-
-A `minecraft:special` item model whose `model.type` is another namespace's has no renderer in Horizon: the
-item draws as its `base` model, and the log says so once per type. A mod gets the same result from model
-JSON: a `minecraft:model` leaf naming a model file with `elements` and `display` draws cuboids with a
-transformation per display context, `tints` colours them, and `minecraft:select`, `condition` and
-`range_dispatch` on a property the mod answers through `item_model_property` pick between variants."#]
+`minecraft:condition` node. A `minecraft:special` item model of a mod's own type is drawn by the renderer the
+mod registers in `register_special_model_renderer`; one of a type no mod registered is an error naming it, and
+its item draws the missing model."#]
     /// `bundle_selected` is the runtime bundle selection index; -1 means none.
     #[hook(
         side = "client",

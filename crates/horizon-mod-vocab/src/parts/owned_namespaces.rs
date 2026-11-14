@@ -1,3 +1,4 @@
+// exports: none (reached inside the crate only)
 /// The package inventory carries the same namespace set as content files and
 /// the package loader's collision fence. A package always owns its own ID.
 pub fn owns_namespace(owner: &str, namespace: &str) -> bool {

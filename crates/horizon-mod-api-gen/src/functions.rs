@@ -549,7 +549,7 @@ fn collect(
                     }
                 }
             }
-            Item::Mod(inline) if !crate::source::test_only(&inline.attrs) => {
+            Item::Mod(inline) if !mod_source::modules::test_only(&inline.attrs) => {
                 if let Some((_, inner)) = &inline.content {
                     collect(&format!("{module}::{}", inline.ident), inner, file, out);
                 }

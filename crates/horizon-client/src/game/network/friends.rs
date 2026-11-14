@@ -208,7 +208,14 @@ impl Game<'_> {
         horizon_client::widgets::begin_screen(|| {
             horizon_client::widgets::ScreenInfo::new("friends", friends_screen::TITLE)
         });
-        friends_screen::draw(batch, &self.gui.atlas, self.cursor, &view, true);
+        friends_screen::draw(
+            batch,
+            &self.gui.atlas,
+            self.cursor,
+            &view,
+            true,
+            &mut |phase, batch| self.draw_screen_phase(batch, phase),
+        );
     }
     pub(super) fn friends_screen_click(&mut self) {
         let view = self.friends_view();

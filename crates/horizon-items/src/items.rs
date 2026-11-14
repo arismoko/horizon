@@ -11,6 +11,7 @@ use horizon_world::registry::{BlockRegistry, BlockStateId};
 use horizon_world::{
     item_defaults::ItemDefaults,
     loot::{MAX_LOOT_LEVEL, PackOverlay},
+    tag_layers::TagLayers,
 };
 use serde_json::Value;
 use std::{
@@ -649,31 +650,16 @@ pub(crate) fn load_tag_lists(
     kind: &str,
     overlay: &PackOverlay,
 ) -> Result<HashMap<String, Vec<String>>> {
-    let inventory = horizon_mod_package::enabled::EnabledMods::read(root)?;
-    let conditions = overlay
-        .conditions
-        .with_mod_inventory(inventory.server_ids());
-    let mut raw: HashMap<String, Vec<String>> = HashMap::new();
+    let mut raw: HashMap<String, TagLayers> = HashMap::new();
     /// Through `json_folder`: from the prepared data file, and read once for
     /// the tables a load builds from the same tags.
-    fn walk(
-        dir: &Path,
-        namespace: &str,
-        raw: &mut HashMap<String, Vec<String>>,
-        conditions: &horizon_world::conditions::LoadConditions,
-    ) -> Result<()> {
+    fn walk(dir: &Path, namespace: &str, raw: &mut HashMap<String, TagLayers>) -> Result<()> {
         for file in &horizon_world::json_folder::read(dir)?.files {
             let v: Value = serde_json::from_slice(file.bytes()?)?;
-            if !conditions.allows_path(&v, dir, &file.name) {
-                continue;
-            }
-            let values = v["values"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|e| e.as_str().or_else(|| e["id"].as_str()).map(str::to_owned))
-                .collect();
-            raw.insert(format!("{namespace}:{}", file.name), values);
+            raw.insert(
+                format!("{namespace}:{}", file.name),
+                TagLayers::from_file(&v),
+            );
         }
         Ok(())
     }
@@ -681,12 +667,13 @@ pub(crate) fn load_tag_lists(
     for namespace in crate::content_namespaces::tag_namespaces(root) {
         let dir = root.join(format!("data/{namespace}/tags/{kind}"));
         if dir.exists() {
-            walk(&dir, &namespace, &mut raw, &conditions)?;
+            walk(&dir, &namespace, &mut raw)?;
         }
     }
     // The packs' entries join the game's own, in pack order; a `replace`
-    // file drops what the lower sources put in (`TagLoader.load` walks the
-    // resource stack the same way). `tag_kind` reads the packs' keys
+    // file drops what the lower sources put in and `remove` takes entries
+    // out (`TagLoader.load` walks the resource stack the same way).
+    // `tag_kind` reads the packs' keys
     // (`tags/<ns>:<registry>/<path>`) and yields the `ns:path` ids the raw
     // map is keyed by.
     for (id, files) in overlay.tag_kind(kind) {
@@ -694,41 +681,18 @@ pub(crate) fn load_tag_lists(
             let Ok(v) = serde_json::from_slice::<Value>(bytes) else {
                 continue;
             };
-            if !conditions.allows_tag(&v, kind, &id) {
-                continue;
-            }
-            let slot = raw.entry(id.to_owned()).or_default();
-            if v["replace"].as_bool() == Some(true) {
-                slot.clear();
-            }
-            slot.extend(
-                v["values"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|e| e.as_str().or_else(|| e["id"].as_str()).map(str::to_owned)),
-            );
+            raw.entry(id.to_owned()).or_default().push(&v);
         }
     }
-    fn resolve(name: &str, raw: &HashMap<String, Vec<String>>, out: &mut Vec<String>, depth: u32) {
-        if depth > 32 {
-            return;
-        }
-        for v in raw.get(name).into_iter().flatten() {
-            if let Some(tag) = v.strip_prefix('#') {
-                resolve(tag, raw, out, depth + 1);
-            } else if !out.contains(v) {
-                out.push(v.clone());
-            }
+    fn resolve(name: &str, raw: &HashMap<String, TagLayers>, depth: u32) -> Vec<String> {
+        match raw.get(name) {
+            Some(layers) if depth <= 32 => layers.build(|tag| resolve(tag, raw, depth + 1)),
+            _ => Vec::new(),
         }
     }
     Ok(raw
         .keys()
-        .map(|k| {
-            let mut list = Vec::new();
-            resolve(k, &raw, &mut list, 0);
-            (k.clone(), list)
-        })
+        .map(|k| (k.clone(), resolve(k, &raw, 0)))
         .collect())
 }
 /// An entity type id or `#tag` as the set of entity type ids it names.
@@ -790,6 +754,7 @@ fn worn_mob_visibility(
 }
 
 impl Items {
+    /// Load item data; bind the world's damage catalog before preparing recipes.
     pub fn load(
         root: &Path,
         registry: &BlockRegistry,
@@ -874,6 +839,7 @@ impl Items {
     pub fn catalog(root: &Path, overlay: &PackOverlay, defaults: &ItemDefaults) -> Result<Self> {
         let mut items = Self::load_with(root, &HashMap::new(), overlay, defaults)?;
         items.block_items = Arc::new(ingredient_defaults::block_items(root)?);
+        ingredient_defaults::load_component_damage_registry(root, overlay, &mut items)?;
         Ok(items)
     }
     fn load_with(
@@ -1120,7 +1086,11 @@ impl Items {
         Ok(Self {
             items,
             block_items: Default::default(),
-            component_registry: ingredient_defaults::component_registry(root, &enchantments)?,
+            component_registry: ingredient_defaults::component_registry(
+                root,
+                &enchantments,
+                &entity_tags,
+            )?,
             component_defaults: ingredient_defaults::component_defaults(defaults)?,
             mob_visibility,
             order,
@@ -3281,12 +3251,7 @@ mod tests {
             ),
         ];
         let overlay = PackOverlay::new(&files);
-        for (side, expected) in [
-            (None, "minecraft:stone"),
-            (Some(Side::Client), "minecraft:stone"),
-            (Some(Side::Both), "minecraft:dirt"),
-            (None, "minecraft:stone"),
-        ] {
+        for side in [None, Some(Side::Client), Some(Side::Both), None] {
             let inventory = EnabledMods::new(side.map(|side| ("code_only".into(), side)));
             fs::write(
                 root.join(horizon_mod_package::enabled::MARKER),
@@ -3294,20 +3259,46 @@ mod tests {
             )
             .unwrap();
             let loaded = load_tag_lists(&root, "block", &overlay).unwrap();
-            assert_eq!(loaded["visuals:layers"], [expected, "minecraft:gold_block"]);
             assert_eq!(
-                loaded.contains_key("visuals:base"),
-                side == Some(Side::Both)
+                loaded["visuals:layers"],
+                ["minecraft:iron_block", "minecraft:gold_block"]
+            );
+            assert_eq!(loaded["visuals:base"], ["minecraft:stone"]);
+            assert!(
+                loaded.contains_key("visuals:namespace"),
+                "tag conditions are not evaluated"
             );
             assert!(
-                !loaded.contains_key("visuals:namespace"),
-                "namespaces are not mod IDs"
-            );
-            assert!(
-                !loaded.contains_key("visuals:absent"),
-                "a skipped layer creates no tag"
+                loaded.contains_key("visuals:absent"),
+                "tag conditions do not skip layers"
             );
         }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_higher_packs_remove_takes_entries_out_of_a_tag() {
+        let root = std::env::temp_dir().join(format!("horizon-tag-remove-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let bytes = |value: Value| serde_json::to_vec(&value).unwrap();
+        let files = vec![
+            (
+                "tags/test:item/things".to_owned(),
+                vec![
+                    bytes(json!({"values": ["minecraft:stone", "minecraft:dirt", "#test:other"]})),
+                    bytes(json!({"values": [], "remove": ["minecraft:dirt", "#test:other"]})),
+                    bytes(json!({"neoforge:conditions": [{"type": "neoforge:not",
+                    "value": {"type": "neoforge:true"}}], "values": [], "remove": ["minecraft:stone"]})),
+                ],
+            ),
+            (
+                "tags/test:item/other".to_owned(),
+                vec![bytes(json!({"values": ["minecraft:sand"]}))],
+            ),
+        ];
+        let loaded = load_tag_lists(&root, "item", &PackOverlay::new(&files)).unwrap();
+        assert!(loaded["test:things"].is_empty());
+        assert_eq!(loaded["test:other"], ["minecraft:sand"]);
         fs::remove_dir_all(root).unwrap();
     }
 

@@ -781,7 +781,8 @@ mod tests {
 
     #[test]
     fn generated_main_keeps_mod_order() {
-        let template = include_str!("../../../crates/horizon-client/src/native_main.rs.template");
+        let template =
+            include_str!("../../../crates/horizon-client/src/native_mod_entry.rs.template");
         let dir = fixture();
         let mut base = horizon_mod_package::Package::read(&dir).unwrap().manifest;
         base.id = "base".into();
@@ -794,7 +795,6 @@ mod tests {
         let mods = [&base, &extra];
         for count in 0..=2 {
             let text = main_rs(template, &mods[..count], &internals::Catalog::default());
-            assert!(text.contains("horizon_mod_host::exit_if_compile_child();"));
             let padded = ["/* MOD_ENTRIES */", "/* MOD_SLOTS */", "/* BUILT_MODS */"]
                 .into_iter()
                 .fold(template.to_owned(), |text, marker| {

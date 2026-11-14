@@ -16,7 +16,7 @@ cd greeter
 ```
 
 This writes a flat project, pinned to the build of the current Nightly (or to `--horizon <build>`), and fetches
-that build's SDK (about 2 MB):
+that build's [SDK](../reference/sdk.md):
 
 ```text
 greeter/

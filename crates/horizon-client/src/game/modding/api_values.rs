@@ -2833,6 +2833,19 @@ impl TryIntoApi for horizon_client_core::gamerules::Value {
     }
 }
 
+impl TryIntoEngine for mod_api::GameRuleValue {
+    type Engine = horizon_client_core::gamerules::Value;
+    type Error = ();
+    fn try_into_engine(&self, _: &Items) -> Result<Self::Engine, Self::Error> {
+        match *self {
+            Self::Bool(value) => Ok(Self::Engine::Bool(value)),
+            Self::Int(value) => Ok(Self::Engine::Int(value)),
+            // A kind this game has no rule of.
+            _ => Err(()),
+        }
+    }
+}
+
 #[test]
 fn game_rule_int_snapshot_preserves_full_range() {
     for value in [i32::MIN, -1, 0, 256, i32::MAX] {

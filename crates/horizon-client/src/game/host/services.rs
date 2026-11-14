@@ -17,6 +17,13 @@ impl ClientSession for Game<'_> {
         );
         self.native_client_language()
     }
+    fn client_latency(&self) -> Option<u32> {
+        mod_api::__private::check_access(
+            "client_latency",
+            mod_api::__private::LoadAccess::ClientSetup,
+        );
+        self.native_client_latency()
+    }
     fn client_frame_stats(&self) -> Option<ClientFrameStats> {
         mod_api::__private::check_access(
             "client_frame_stats",
@@ -91,6 +98,10 @@ impl RuntimeLevels for Game<'_> {
     fn unload(&mut self, id: &str) -> Result<(), RuntimeLevelError> {
         mod_api::__private::check_access("unload", mod_api::__private::LoadAccess::WorldOnly);
         self.runtime_level_unload(id)
+    }
+    fn delete(&mut self, id: &str) -> Result<(), RuntimeLevelError> {
+        mod_api::__private::check_access("delete", mod_api::__private::LoadAccess::WorldOnly);
+        self.runtime_level_delete(id)
     }
     fn is_open(&mut self, id: &str) -> bool {
         mod_api::__private::check_access("is_open", mod_api::__private::LoadAccess::WorldOnly);

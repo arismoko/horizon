@@ -231,9 +231,11 @@ pub fn draw(
     cursor: (f32, f32),
     view: &FriendsView,
     in_world: bool,
+    phases: &mut dyn FnMut(horizon_client::screen_draw::RenderPhase, &mut HudBatch),
 ) {
     let (w, h) = (batch.width, batch.height);
     ui::menu_background(batch, atlas, 0.0, 0.0, w, h, in_world);
+    phases(horizon_client::screen_draw::RenderPhase::Background, batch);
     let title = Text::literal(title());
     let tw = atlas.font.width_text(&title);
     batch.text_styled(atlas, &title, ((w - tw) / 2.0).floor(), 15.0, WHITE, true);
@@ -263,6 +265,7 @@ pub fn draw(
             hover,
         );
     }
+    phases(horizon_client::screen_draw::RenderPhase::Foreground, batch);
 }
 /// The button under a click, if it is active.
 pub fn click(

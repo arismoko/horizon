@@ -972,6 +972,7 @@ impl Screen {
         let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
         crate::widgets::join_for_narration(&parts)
     }
+    #[allow(clippy::too_many_arguments)]
     #[horizon_mod_api_macros::replaceable]
     pub fn draw(
         &self,
@@ -981,11 +982,13 @@ impl Screen {
         focused_at: Instant,
         cursor: (f32, f32),
         hide_address: bool,
+        phases: &mut dyn FnMut(crate::screen_draw::RenderPhase, &mut HudBatch),
     ) {
         let (w, h) = (batch.width, batch.height);
         let max = self.max_length();
         crate::widgets::begin_screen(|| self.narration());
         crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+        phases(crate::screen_draw::RenderPhase::Background, batch);
         // GuiGraphicsExtractor.centeredText at width / 2: x - width(text) / 2.
         let centered = |batch: &mut HudBatch, text: &str, y: f32, color: u32| {
             let tw = HudBatch::text_width(atlas, text);
@@ -2500,6 +2503,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn arrow_keys_select_servers_and_shift_moves_them() {
         let dir = std::env::temp_dir().join(format!("horizon-mp-keys-{}", std::process::id()));
         let saves = dir.join("saves");
@@ -2549,6 +2553,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn enter_joins_the_selected_server() {
         let dir = std::env::temp_dir().join(format!("horizon-mp-enter-{}", std::process::id()));
         let saves = dir.join("saves");
@@ -2584,6 +2589,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_server_dragged_by_its_row_moves_and_is_saved_on_release() {
         let dir = std::env::temp_dir().join(format!("horizon-mp-drag-{}", std::process::id()));
         let saves = dir.join("saves");
@@ -2648,6 +2654,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn icon_arrows_join_and_move_servers() {
         let dir = std::env::temp_dir().join(format!("horizon-mp-arrows-{}", std::process::id()));
         let saves = dir.join("saves");
@@ -2721,6 +2728,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn delete_asks_before_removing_the_server() {
         let dir = std::env::temp_dir().join(format!("horizon-mp-delete-{}", std::process::id()));
         let saves = dir.join("saves");
@@ -2790,6 +2798,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn edit_cycles_and_saves_the_server_resource_pack_setting() {
         let dir = std::env::temp_dir().join(format!("horizon-mp-packs-{}", std::process::id()));
         let saves = dir.join("saves");

@@ -124,7 +124,7 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
         Err(e) => return e.to_compile_error(),
     };
     let name = shape.name.clone();
-    let table = quote!(mod_points);
+    let table = quote!(::horizon_engine_slots);
     // The body moves to an inlined inner function, so the return listeners run however it
     // returns; the outer function takes each parameter by a plain, mutable name.
     let inner = syn::Ident::new(
@@ -321,7 +321,7 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
         let (names, values): (Vec<_>, Vec<_>) = before.into_iter().unzip();
         let before = quote! {
             let __back = if __returned {
-                ::mod_api::__private::points::cold(|| ::std::option::Option::Some((#(#values,)*)))
+                #table::__private::cold(|| ::std::option::Option::Some((#(#values,)*)))
             } else {
                 ::std::option::Option::None
             };
@@ -393,7 +393,7 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
         api_part.is_some().then(|| {
             quote! {
                 if __returned {
-                    ::mod_api::__private::points::cold(|| { #api_part });
+                    #table::__private::cold(|| { #api_part });
                 }
             }
         })
@@ -412,7 +412,7 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
         .collect();
     let cancel_local = cancels.then(|| quote!(let mut __cancel = false;));
     let listeners_path = quote! {
-        (#(#owned,)*) = ::mod_api::__private::points::cold(|| { #head_api (#(#owned,)*) });
+        (#(#owned,)*) = #table::__private::cold(|| { #head_api (#(#owned,)*) });
         #stop
     };
     let result_local =

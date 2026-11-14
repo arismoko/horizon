@@ -155,6 +155,7 @@ mod tests {
                         &mut batch,
                         (0.0, 0.0),
                         false,
+                        &mut |phase, batch| game.draw_screen_phase(batch, phase),
                     );
                     let stock_vertices = batch.vertices.len();
                     let view = game.title_screen_render_view(&batch).unwrap();

@@ -2,12 +2,12 @@ name: modding-book
 on:
   push:
     branches: [main]
-    paths: ["docs/modding/**", "crates/horizon-mod-api/**", "crates/horizon-mod-api-gen/**", "xtask/**", "tools/*modding*", "tests/test_modding_*.py"]
+    paths: ["docs/modding/**", "crates/horizon-mod-api/**", "crates/horizon-mod-api-gen/**", "xtask/**", "tools/*modding*", "tests/test_modding_*.py", "tools/ci/nightly.py", "crates/horizon-mod-package/src/sdk/**", "crates/horizon-mod-surface/**"]
   # A PR gets the book itself (concept-pages preprocessor and mdBook build), not the API doc and example builds.
   pull_request:
     # The generator and xtask render the hook-notes and coverage chapters at build time, from the
     # mod API's surface and catalog.
-    paths: ["docs/modding/**", "crates/horizon-mod-api/**", "crates/horizon-mod-api-gen/**", "xtask/**", "tools/*modding*", "tests/test_modding_*.py", ".github/workflows/modding-book.yml"]
+    paths: ["docs/modding/**", "crates/horizon-mod-api/**", "crates/horizon-mod-api-gen/**", "xtask/**", "tools/*modding*", "tests/test_modding_*.py", "tools/ci/nightly.py", "crates/horizon-mod-package/src/sdk/**", "crates/horizon-mod-surface/**", ".github/workflows/modding-book.yml"]
   workflow_dispatch:
 jobs:
   book:
@@ -25,7 +25,7 @@ jobs:
       - if: steps.book.outputs.present == 'true'
         run: cargo install mdbook --locked --version 0.4.52
       - if: steps.book.outputs.present == 'true'
-        run: python3 -m unittest tests.test_modding_concept_pages tests.test_modding_hook_notes tests.test_modding_book_guard
+        run: python3 -m unittest tests.test_modding_concept_pages tests.test_modding_hook_notes tests.test_modding_book_guard tests.test_modding_sdk_tables
       - if: steps.book.outputs.present == 'true'
         run: mdbook build docs/modding
       - if: steps.book.outputs.present == 'true'

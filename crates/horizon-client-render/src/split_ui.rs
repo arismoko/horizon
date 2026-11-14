@@ -565,9 +565,13 @@ impl SplitUi {
         }
     }
 
-    pub fn draw(&self, batch: &mut HudBatch, atlas: &HudAtlas, cursor: (f32, f32), in_world: bool) {
+    pub(crate) fn draw_contents(
+        &self,
+        batch: &mut HudBatch,
+        atlas: &HudAtlas,
+        cursor: (f32, f32),
+    ) -> Option<String> {
         let (w, h) = (batch.width, batch.height);
-        ui::menu_background(batch, atlas, 0.0, 0.0, w, h, in_world);
         graphics_style::title(
             batch,
             atlas,
@@ -587,7 +591,7 @@ impl SplitUi {
             for b in &self.buttons(w, h) {
                 self.draw_button(batch, atlas, cursor, b);
             }
-            return;
+            return None;
         }
         let (monitors, windows, tiles) = self.map(w, h);
         let grey = rgba(160, 160, 160, 255);
@@ -668,7 +672,7 @@ impl SplitUi {
             let label = Text::literal(tr("monitor", &[&(n + 1)]));
             batch.text_styled(atlas, &label, x + 1.0, y + mh + 2.0, grey, true);
         }
-        self.draw_notes(batch, atlas, cursor, &buttons);
+        self.draw_notes(batch, atlas, cursor, &buttons)
     }
 
     fn draw_button(
@@ -758,7 +762,7 @@ impl SplitUi {
         atlas: &HudAtlas,
         cursor: (f32, f32),
         buttons: &[Button],
-    ) {
+    ) -> Option<String> {
         let (w, h) = (batch.width, batch.height);
         let held = self.held.as_ref().map(|h| {
             let who = self
@@ -805,19 +809,11 @@ impl SplitUi {
         }
         // What the pointer's button does (disabled ones too, to say why), as the options screens
         // show theirs. Not the selected player's tile: the pointer is still on it after the click.
-        let help = buttons
+        buttons
             .iter()
             .filter(|b| ui::hovered(cursor, b.0[0], b.0[1], b.0[2], b.0[3]))
             .filter(|b| !matches!(b.2, Target::Player(i) if Some(i) == self.selected))
-            .find_map(|b| self.help(b));
-        if let Some(help) = help {
-            ui::tooltip(
-                batch,
-                atlas,
-                &atlas.font.split(&Text::literal(help), 170.0),
-                cursor,
-            );
-        }
+            .find_map(|b| self.help(b))
     }
     /// A press at `(x, y)` on a screen `w` x `h`, or the mouse moving with it held (`drag`).
     pub fn click(&mut self, (x, y): (f32, f32), (w, h): (f32, f32), drag: bool) -> Click {
@@ -1520,7 +1516,7 @@ mod tests {
         ui.size = SIZE;
         let done = |ui: &SplitUi, frame: u64| {
             let mut batch = HudBatch::scratch([427, 300]);
-            ui.draw(&mut batch, &atlas, (0.0, 0.0), false);
+            ui.draw_contents(&mut batch, &atlas, (0.0, 0.0));
             set_action_screen(9);
             end_frame(frame);
             last_actions(9)

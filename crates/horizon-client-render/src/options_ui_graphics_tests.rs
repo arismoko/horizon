@@ -39,12 +39,13 @@ fn opening_the_graphics_screen_keeps_the_offer_and_report() {
         ..Default::default()
     };
     let batch = || HudBatch::scratch([427, 240]);
-    ui.draw(
+    ui.draw_test_frame(
         &s,
         auto_window(Some(true)),
         &mut batch(),
         &atlas,
         (-1.0, -1.0),
+        &mut |_, _| {},
     );
     ui.show(Page::Graphics);
     assert!(calibrates(&mut ui, &mut s, &atlas));
@@ -68,20 +69,22 @@ fn a_changed_report_shows_without_an_apply() {
     };
     let batch = || HudBatch::scratch([427, 240]);
     ui.show(Page::Graphics);
-    ui.draw(
+    ui.draw_test_frame(
         &s,
         auto_window(Some(false)),
         &mut batch(),
         &atlas,
         (-1.0, -1.0),
+        &mut |_, _| {},
     );
     assert!(!calibrates(&mut ui, &mut s, &atlas));
-    ui.draw(
+    ui.draw_test_frame(
         &s,
         auto_window(Some(true)),
         &mut batch(),
         &atlas,
         (-1.0, -1.0),
+        &mut |_, _| {},
     );
     assert!(calibrates(&mut ui, &mut s, &atlas));
 }
@@ -162,7 +165,7 @@ fn a_held_hdr_start_shows_as_the_graphics_screen_opens() {
             ..Default::default()
         };
         let output = snapshot(&s.horizon, Default::default(), caps, reading);
-        ui.draw(
+        ui.draw_test_frame(
             &s,
             output,
             &mut HudBatch::new(
@@ -174,6 +177,7 @@ fn a_held_hdr_start_shows_as_the_graphics_screen_opens() {
             ),
             &atlas,
             (-1.0, -1.0),
+            &mut |_, _| {},
         );
         ui.show(Page::Graphics);
         assert!(calibrates(&mut ui, &mut s, &atlas) != held, "held {held}");

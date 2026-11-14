@@ -71,6 +71,19 @@ pub trait RecipesClientHost {
     #[access(WorldOnly)]
     fn panel_items(&mut self, mod_id: &str, items: Vec<Stack>);
     /// Side: client.
+    /// How mod `mod_id`'s item panel (`panel_items`) looks from now on:
+    /// `PanelStyle::RecipeBook` (the default: the recipe book's page arrows
+    /// and a plain search box), `PanelStyle::Viewer` (square page buttons on
+    /// a bar over the items and the viewer's search box, as Horizon's Recipes
+    /// panel draws them) or `PanelStyle::Classic` (JEI's list on Minecraft
+    /// 1.12: flush right under page buttons that always show and wrap around,
+    /// the search box at the foot of the screen with a settings button that
+    /// opens the mod's page in Options > Mods). The viewer's look changes
+    /// only the drawing; the classic one also lays the panel out. Kept for
+    /// the session, whether or not the panel is showing.
+    #[access(WorldOnly)]
+    fn panel_style(&mut self, mod_id: &str, style: PanelStyle);
+    /// Side: client.
     /// Places a recipe in the open screen's grid as a click in the recipe
     /// book does (`ServerboundPlaceRecipePacket`): the inventory's grid or a
     /// crafting table's. `all` places as many as the items allow, as with

@@ -193,7 +193,7 @@ fn invalid_top_definition_refuses_the_snapshot_without_mutating_base() {
 }
 
 #[test]
-fn conditions_skip_winning_definitions_before_decode_and_each_tag_layer() {
+fn conditions_skip_winning_definitions_before_decode_but_not_tag_layers() {
     let f = Fixture::new();
     f.write("data/demo/damage_type/heat.json", definition("root"));
     let files = vec![
@@ -203,11 +203,11 @@ fn conditions_skip_winning_definitions_before_decode_and_each_tag_layer() {
         ),
         file(
             "tags/minecraft:damage_type/bypasses_armor",
-            json!({"neoforge:conditions":[{"type":"unsupported"}], "replace":true}),
+            json!({"neoforge:conditions":[{"type":"unsupported"}], "replace":true,"values":["minecraft:starve"]}),
         ),
         file(
             "tags/demo:damage_type/absent",
-            json!({"neoforge:conditions":[{"type":"unsupported"}]}),
+            json!({"neoforge:conditions":[{"type":"unsupported"}],"values":[]}),
         ),
     ];
     let catalog = Catalog::load(
@@ -219,11 +219,15 @@ fn conditions_skip_winning_definitions_before_decode_and_each_tag_layer() {
     )
     .unwrap();
     assert!(catalog.id("demo:heat").is_none());
-    assert!(catalog.in_tag(
-        catalog.id("minecraft:fall").unwrap(),
-        "minecraft:bypasses_armor"
-    ));
-    assert!(!catalog.tags.contains_key("demo:absent"));
+    // Definitions obey conditions; tags ignore them, including replace.
+    assert_eq!(
+        catalog.tags["minecraft:bypasses_armor"],
+        std::collections::BTreeSet::from([catalog.id("minecraft:starve").unwrap()])
+    );
+    assert_eq!(
+        catalog.tags.get("demo:absent"),
+        Some(&std::collections::BTreeSet::new())
+    );
 }
 
 #[test]
@@ -251,4 +255,21 @@ fn a_rejected_override_does_not_uncover_an_exported_definition() {
     assert!(filtered.entries().all(|(_, d)| d.name != "minecraft:fall"));
     assert_eq!(filtered.id("minecraft:stalagmite"), Some(stalagmite));
     assert!(base.definition(fall).is_some());
+}
+
+#[test]
+fn false_conditions_do_not_suppress_damage_tag_operations() {
+    let f = Fixture::new();
+    f.write(
+        "data/minecraft/tags/damage_type/conditional.json",
+        json!({"neoforge:conditions":[{"type":"neoforge:false"}],"values":["minecraft:fall"]}),
+    );
+    let base = resource_tags(&f.0, &PackOverlay::NONE, |id, _| Some(id.to_owned())).unwrap();
+    assert_eq!(base["minecraft:conditional"], ["minecraft:fall"]);
+    let files = vec![file(
+        "tags/minecraft:damage_type/conditional",
+        json!({"neoforge:conditions":[{"type":"neoforge:false"}],"values":["minecraft:starve"],"remove":["minecraft:fall"]}),
+    )];
+    let tags = resource_tags(&f.0, &PackOverlay::new(&files), |id, _| Some(id.to_owned())).unwrap();
+    assert_eq!(tags["minecraft:conditional"], ["minecraft:starve"]);
 }

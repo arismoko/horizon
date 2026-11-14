@@ -204,6 +204,27 @@ impl<'a> DamageLevel<'a> {
             knock_entry: self.knock_entry,
         }
     }
+    /// The same level with a task-local random, retaining its typed hook and attachment context.
+    pub fn reborrow_with_random<'b>(
+        &'b mut self,
+        random: &'b mut horizon_core::random::LegacyRandom,
+    ) -> DamageLevel<'b> {
+        DamageLevel {
+            shape: self.shape,
+            chunks: self.chunks,
+            air: self.air,
+            registry: self.registry,
+            tags: self.tags,
+            block_registries: self.block_registries,
+            random,
+            attachments: self.attachments,
+            attachment_syncs: self.attachment_syncs,
+            hooks: self.hooks,
+            attack: self.attack,
+            client_side: self.client_side,
+            knock_entry: self.knock_entry,
+        }
+    }
     /// Runs `push` as the short entry of `LivingEntity.knockback` (power and direction), which
     /// delegates to the full entry: the knockback hook, fired once inside the full entry, tells
     /// its listener the push came in as [`mod_api::KnockbackEntry::Short`]. A direct call of the

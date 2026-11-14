@@ -87,7 +87,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev
       - name: Build and collect
         run: python tools/prebuilt_game.py build prebuilt ${{ matrix.server && '--server' || '' }}
-      - name: The starter mod and the game executable build against the archive alone
+      # Two starter mods, the second calling the first through its library as a mod calls a declared dependency
+      # (on windows-gnu through the first's import library); `start` then loads both.
+      - name: Two starter mods and the game executable build against the archive alone
         run: python tools/prebuilt_game.py smoke prebuilt
       # Runs what smoke built, installed as the launcher installs it, with no game data: it loads the game's
       # libraries and sets up the mods' runtime, and must stop cleanly at the missing prepared files. A crash
@@ -95,6 +97,7 @@ jobs:
       - name: The game executable starts and loads the game's libraries
         timeout-minutes: 10
         run: python tools/prebuilt_game.py start prebuilt
+      # Warns past 80% of Windows' 65,535 exported names per DLL and fails past 90%.
       - name: Exported names, toward Windows' 65,535
         run: python tools/prebuilt_game.py exports prebuilt | tee -a "$GITHUB_STEP_SUMMARY"
       # The leg's assets, named for its target and side; the layout's number is in each identity (package_format).

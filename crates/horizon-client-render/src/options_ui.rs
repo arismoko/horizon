@@ -2,6 +2,7 @@
 //! Controls, Key Binds, Mouse Settings, Chat Settings, Accessibility,
 //! Language and Resource Packs, laid out like vanilla's HeaderAndFooter /
 //! OptionsList screens and drawn with the shared widgets.
+mod draw;
 mod pack_drop;
 
 use std::time::Instant;
@@ -1768,6 +1769,7 @@ pub struct MusicGroup {
     pub tracks: Vec<MusicTrack>,
 }
 pub struct OptionsUi {
+    frame_draw: Option<draw::FrameDraw>,
     pub stack: Vec<Page>,
     scroll: f32,
     pub(crate) dragging: Option<Opt>,
@@ -1906,6 +1908,7 @@ impl Default for OptionsUi {
         let mut settings_search = ui::EditBox::new(0.0, 0.0, 200.0, 15.0);
         settings_search.focused = false;
         Self {
+            frame_draw: None,
             stack: vec![Page::Main],
             scroll: 0.0,
             dragging: None,
@@ -2390,6 +2393,7 @@ impl OptionsUi {
     }
     /// Open a page whose Done/Escape returns directly to the calling screen.
     pub fn open_at(&mut self, in_world: bool, page: Page) {
+        self.discard_draw();
         self.stack.clear();
         self.data_pack_dir = None;
         self.focus = None;
@@ -3114,360 +3118,6 @@ impl OptionsUi {
         crate::widgets::narratable(|| {
             Narratable::container_list(self.row_bands.len(), hovered_row, rect).key(key)
         });
-    }
-    /// `output`: that of the renderer the options are drawn for, each draw, so the graphics
-    /// screen's rows and calibration read its offer and report as they are now, not another
-    /// window's, and not one from before the page opened.
-    pub fn draw(
-        &mut self,
-        s: &Settings,
-        output: crate::gfx::EffectiveOutput,
-        batch: &mut HudBatch,
-        atlas: &HudAtlas,
-        cursor: (f32, f32),
-    ) {
-        self.output = output;
-        let (w, h) = (batch.width, batch.height);
-        if let Some(error) = &self.resource_error {
-            ui::menu_background(batch, atlas, 0.0, 0.0, w, h, self.in_world);
-            let title = tr("resourcePack.load_fail");
-            // An alert: its title and its message.
-            crate::widgets::begin_screen(|| {
-                crate::widgets::ScreenInfo::new(
-                    "options/resource_error",
-                    crate::widgets::join_for_narration(&[&title.plain(), error]),
-                )
-            });
-            batch.text_styled(
-                atlas,
-                &title,
-                ((w - atlas.font.width_text(&title)) / 2.0).floor(),
-                30.0,
-                u32::MAX,
-                true,
-            );
-            let lines = atlas.font.split(&Text::literal(error), (w - 50.0).max(1.0));
-            let limit = ((h - 110.0) / 9.0).max(1.0) as usize;
-            for (i, line) in lines.iter().take(limit).enumerate() {
-                batch.text_styled(
-                    atlas,
-                    line,
-                    ((w - atlas.font.width_text(line)) / 2.0).floor(),
-                    60.0 + i as f32 * 9.0,
-                    u32::MAX,
-                    true,
-                );
-            }
-            ui::action_button(
-                batch,
-                atlas,
-                crate::widgets::Action::Done,
-                w / 2.0 - 100.0,
-                h - 28.0,
-                200.0,
-                20.0,
-                &tr("gui.done"),
-                true,
-                ui::hovered(cursor, w / 2.0 - 100.0, h - 28.0, 200.0, 20.0),
-            );
-            return;
-        }
-        // The page is its own screen (OptionsScreen, VideoSettingsScreen...).
-        let page = self.page();
-        crate::widgets::begin_screen(|| {
-            crate::widgets::ScreenInfo::new(
-                format!("options/{page:?}"),
-                tr(Self::title(page)).plain(),
-            )
-        });
-        if self.page() == Page::HdrCalibration
-            && let Some(c) = &self.calibration
-        {
-            c.draw(batch, atlas, cursor);
-            return;
-        }
-        let waiting = self.waiting();
-        let in_world = self.in_world;
-        if self.draw_radial_name(batch, atlas, cursor, in_world) {
-            return;
-        }
-        if let Some(shell) = self.shell_mut() {
-            shell.draw(s, batch, atlas, cursor, in_world, waiting);
-            // The keys lay the screen out at the size it was drawn at.
-            self.size = (batch.width, batch.height);
-            return;
-        }
-        if self.page() == Page::SplitSetup {
-            self.split_setup.on = s.extras.splitscreen;
-            // The controller picks a tile up between presses: the screen's size from the draw.
-            self.split_setup.size = (batch.width, batch.height);
-            self.split_setup.draw(batch, atlas, cursor, self.in_world);
-            return;
-        }
-        if self.page() == Page::SplitProfiles {
-            self.split_profiles
-                .draw(batch, atlas, cursor, self.in_world, self.pad_glyphs);
-            return;
-        }
-        if self.page() == Page::Studio {
-            self.studio.draw(batch, atlas, cursor, self.in_world);
-            return;
-        }
-        if self.page() == Page::Mods {
-            ui::menu_background(batch, atlas, 0.0, 0.0, w, h, self.in_world);
-            let blink = self.pack_focus.elapsed().as_millis() as u64;
-            let m = crate::screen_draw::Measure(&atlas.font);
-            let mouse = (cursor.0.floor() as i32, cursor.1.floor() as i32);
-            let screen = self.mods_page(s, (w, h));
-            let mut draws = screen.draw(&m, mouse, blink, crate::hud_overlays::now_ms());
-            screen.bind_icons(&mut draws, atlas, &mut batch.patches);
-            crate::screen_draw::paint(batch, atlas, &draws);
-            return;
-        }
-        if self.page() == Page::Packs {
-            self.watch_data_packs(atlas, (w, h));
-            ui::menu_background(batch, atlas, 0.0, 0.0, w, h, self.in_world);
-            let blink = self.pack_focus.elapsed().as_millis() as u64;
-            let m = crate::screen_draw::Measure(&atlas.font);
-            let mouse = (cursor.0.floor() as i32, cursor.1.floor() as i32);
-            let packs = self.packs(atlas, (w, h));
-            let mut draws = packs.draw(&m, mouse, blink, crate::hud_overlays::now_ms());
-            packs.bind_icons(&mut draws, atlas, &mut batch.patches);
-            crate::screen_draw::paint(batch, atlas, &draws);
-            return;
-        }
-        if self.page() == Page::Pvp {
-            self.wide_extras = wide_extras(s, |t| atlas.font.width(t));
-        }
-        let layout = self.built_layout(s, w, h);
-        let (widgets, top, bottom, content) = layout.parts();
-        self.size = (w, h);
-        let in_world = self.in_world;
-        ui::menu_background(batch, atlas, 0.0, 0.0, w, h, in_world);
-        let list = bottom > top;
-        if list {
-            ui::list_background(batch, atlas, top, bottom, in_world);
-        }
-        let visible = |wd: &Widget| !wd.list || (wd.y < bottom && wd.y + wd.h > top);
-        // The list's narration: the language list is an ObjectSelectionList,
-        // the others ContainerObjectSelectionLists whose rows' widgets are
-        // recorded as they are drawn.
-        let list_key = crate::widgets::key_of(&format!("options/{page:?}/list"));
-        let framebuffer = [(w * batch.scale) as i32, (h * batch.scale) as i32];
-        if list {
-            self.narrate_list(widgets, list_key, (top, bottom), w, cursor);
-        }
-        let mut tooltip = None;
-        // The widget a keyboard-focused tooltip belongs to: `MenuTooltipPositioner`
-        // keeps it against that widget, not at the pointer.
-        let mut tooltip_rect: Option<[f32; 4]> = None;
-        for (wd_idx, wd) in widgets.iter().enumerate() {
-            if !visible(wd) {
-                continue;
-            }
-            let is_focused = self
-                .focus
-                .as_ref()
-                .is_some_and(|fid| matches_focus(fid, wd_idx, wd));
-            let start = batch.vertices.len();
-            let pointer_over = ui::hovered(cursor, wd.x, wd.y, wd.w, wd.h)
-                && (!wd.list || cursor.1 >= top && cursor.1 < bottom);
-            let hover = pointer_over || is_focused;
-            // The tooltip is the pointer's (`setTooltip`, drawn while hovered);
-            // a keyboard-focused widget keeps it against the widget
-            // (`MenuTooltipPositioner`). Focus a mouse click leaves behind
-            // does not: the description goes when the mouse leaves, like
-            // vanilla's.
-            let tip_hover = pointer_over || (is_focused && self.focus_from_keyboard);
-            if tip_hover && let Some(tip) = tooltip_text(s, wd) {
-                tooltip = Some(match &wd.kind {
-                    // The duplicate keybinds tooltip keeps its own lines.
-                    WKind::Button {
-                        act: Act::Key(_), ..
-                    } => tip
-                        .plain()
-                        .split('\n')
-                        .map(|l| Text::literal(l.to_owned()))
-                        .collect::<Vec<_>>(),
-                    _ => atlas.font.split(&tip, 170.0),
-                });
-                tooltip_rect =
-                    (!pointer_over || self.pad_driving).then_some([wd.x, wd.y, wd.w, wd.h]);
-            }
-            match &wd.kind {
-                WKind::Button { label, active, act } => {
-                    ui::focused_button(
-                        batch,
-                        atlas,
-                        [wd.x, wd.y, wd.w, wd.h],
-                        label,
-                        *active,
-                        pointer_over,
-                        is_focused,
-                        matches!(act, Act::Done).then_some(crate::widgets::Action::Done),
-                    );
-                    crate::widgets::last_narratable(|n| {
-                        narrate_widget(n, s, wd, hover, list_key, framebuffer);
-                    });
-                }
-                WKind::Slider { label, value, opt } => {
-                    let dragging = self.dragging == Some(*opt);
-                    let shown = self.slider_shown(*opt, *value);
-                    ui::slider_ext(
-                        batch,
-                        atlas,
-                        wd.x,
-                        wd.y,
-                        wd.w,
-                        label,
-                        shown,
-                        hover || dragging,
-                        is_focused,
-                        self.can_change_value && is_focused,
-                        true,
-                        dragging,
-                    );
-                    crate::widgets::last_narratable(|n| {
-                        narrate_widget(n, s, wd, hover, list_key, framebuffer);
-                    });
-                }
-                WKind::Text {
-                    text,
-                    color,
-                    centered,
-                } => {
-                    if text.is_empty() {
-                        batch.fill(atlas, wd.x, wd.y, wd.w, wd.h, *color);
-                    } else if *centered {
-                        let tw = atlas.font.width_text(text);
-                        // A list's header row (OptionsList.HeaderEntry,
-                        // KeyBindsList.CategoryEntry): a FocusableTextWidget
-                        // narrating its text, 4 pixels of padding round it.
-                        if wd.list && *color == u32::MAX {
-                            crate::widgets::narratable(|| {
-                                let x = wd.x + ((wd.w - tw) / 2.0).floor();
-                                crate::widgets::Narratable::text(
-                                    text.plain(),
-                                    [x - 4.0, wd.y - 4.0, tw + 8.0, 17.0],
-                                )
-                                .key(crate::widgets::key_of(&(list_key, wd.row)))
-                                .child_of(list_key, wd.row)
-                            });
-                        }
-                        batch.text_styled(
-                            atlas,
-                            text,
-                            wd.x + ((wd.w - tw) / 2.0).floor(),
-                            wd.y,
-                            *color,
-                            true,
-                        );
-                    } else {
-                        batch.text_styled(atlas, text, wd.x, wd.y, *color, true);
-                    }
-                }
-                WKind::LanguageRow {
-                    label, selected, ..
-                } => {
-                    let rect = [wd.x, wd.y, wd.w, wd.h];
-                    crate::widgets::record_as(
-                        &label.plain(),
-                        rect,
-                        true,
-                        crate::widgets::Kind::Row,
-                    );
-                    crate::widgets::target_as(rect, crate::widgets::Kind::Row);
-                    if *selected || is_focused {
-                        batch.fill(atlas, wd.x, wd.y, wd.w, wd.h, u32::MAX);
-                        batch.fill(
-                            atlas,
-                            wd.x + 1.0,
-                            wd.y + 1.0,
-                            wd.w - 2.0,
-                            wd.h - 2.0,
-                            rgba(0, 0, 0, 255),
-                        );
-                    }
-                    let tw = atlas.font.width_text(label);
-                    batch.text_styled(
-                        atlas,
-                        label,
-                        wd.x + ((wd.w - tw) / 2.0).floor(),
-                        wd.y + 2.0 + 7.0 - 4.0,
-                        u32::MAX,
-                        true,
-                    );
-                }
-            }
-            if wd.list && (wd.y < top || wd.y + wd.h > bottom) {
-                batch.clip_since(start, 0.0, top, w, bottom);
-            }
-        }
-        if list {
-            ui::separators(batch, atlas, top, bottom, in_world);
-            let sx = self.scrollbar_x(w);
-            ui::scrollbar(batch, atlas, sx, top, bottom, content, self.scroll);
-        }
-        if self.page() == Page::Language {
-            let mut search = self.language_search.clone();
-            if self.focus == Some(FocusId::Search) {
-                search.focused = true;
-            }
-            search.draw(batch, atlas, None);
-            // LanguageSelectScreen's header search box (no message), added
-            // before the list.
-            crate::widgets::last_narratable(|n| n.order = -1);
-            if search.value.is_empty() && !search.focused {
-                batch.text_styled(
-                    atlas,
-                    &tr("gui.language.search").with_color(text::GRAY).italic(),
-                    search.text_x(),
-                    search.text_y(),
-                    u32::MAX,
-                    true,
-                );
-            }
-            self.language_search = search;
-        }
-        if matches!(
-            self.page(),
-            Page::Video | Page::Controls | Page::KeyBinds | Page::ModBrowser
-        ) {
-            let mut search = self.settings_search.clone();
-            if self.focus == Some(FocusId::Search) {
-                search.focused = true;
-            }
-            search.draw(batch, atlas, None);
-            let hint = match self.page() {
-                Page::ModBrowser => "horizon.mods.browse.search",
-                _ => "horizon.options.search",
-            };
-            // Horizon's search box sits in the header, before the list.
-            crate::widgets::last_narratable(|n| {
-                n.order = -1;
-                if let crate::widgets::What::EditBox { message, .. } = &mut n.what {
-                    *message = tr(hint).plain();
-                }
-            });
-            if search.value.is_empty() && !search.focused {
-                batch.text_styled(
-                    atlas,
-                    &tr(hint).with_color(text::GRAY).italic(),
-                    search.text_x(),
-                    search.text_y(),
-                    u32::MAX,
-                    true,
-                );
-            }
-            self.settings_search = search;
-        }
-        if let Some(lines) = tooltip {
-            match tooltip_rect {
-                Some(rect) if self.pad_driving => ui::tooltip_under(batch, atlas, &lines, rect),
-                Some(rect) => ui::tooltip_menu(batch, atlas, &lines, cursor, rect),
-                None => ui::tooltip(batch, atlas, &lines, cursor),
-            }
-        }
     }
     /// Mouse press/drag. Returns events for the game.
     pub fn click(
@@ -6061,6 +5711,54 @@ mod tests {
     }
 
     #[test]
+    fn each_options_renderer_emits_one_phase_pair_around_contents() {
+        use crate::screen_draw::RenderPhase::{Background, Foreground};
+        let atlas = atlas();
+        let settings = Settings::default();
+        for page in [
+            Page::Main,
+            Page::Video,
+            Page::Language,
+            Page::Graphics,
+            Page::Controller,
+            Page::ControllerRadial,
+            Page::Extras,
+            Page::ShaderOptions,
+            Page::PackOptions,
+            Page::Mods,
+            Page::Packs,
+            Page::SplitSetup,
+            Page::SplitProfiles,
+            Page::Studio,
+        ] {
+            let mut ui = OptionsUi::default();
+            ui.show(page);
+            let mut batch = HudBatch::scratch([854, 480]);
+            let mut calls = Vec::new();
+            // A cancelled frame must release the hosted shell's prepared view too.
+            ui.draw_background(&settings, NONE, &mut batch, &atlas);
+            ui.discard_draw();
+            batch = HudBatch::scratch([854, 480]);
+            ui.draw_test_frame(
+                &settings,
+                NONE,
+                &mut batch,
+                &atlas,
+                (-1.0, -1.0),
+                &mut |phase, batch| calls.push((phase, batch.vertices.len())),
+            );
+            assert_eq!(
+                calls.iter().map(|(phase, _)| *phase).collect::<Vec<_>>(),
+                [Background, Foreground],
+                "{page:?}",
+            );
+            assert!(calls[0].1 > 0, "{page:?}: background painted first");
+            assert!(calls[1].1 > calls[0].1, "{page:?}: contents between phases");
+            assert_eq!(calls[1].1, batch.vertices.len(), "{page:?}: no tooltip");
+        }
+    }
+
+    #[test]
     fn mod_key_capture_waits_for_a_chord_or_modifier_release() {
         use winit::keyboard::KeyCode as K;
         let atlas = atlas();
@@ -6276,7 +5974,7 @@ mod tests {
         );
         assert!(!ui.focus_from_keyboard);
         let _ = take_cursor();
-        ui.draw(
+        ui.draw_test_frame(
             &s,
             NONE,
             &mut HudBatch::new(
@@ -6288,9 +5986,10 @@ mod tests {
             ),
             &atlas,
             over,
+            &mut |_, _| {},
         );
         assert_eq!(take_cursor(), Cursor::PointingHand);
-        ui.draw(
+        ui.draw_test_frame(
             &s,
             NONE,
             &mut HudBatch::new(
@@ -6302,6 +6001,7 @@ mod tests {
             ),
             &atlas,
             (-10.0, -10.0),
+            &mut |_, _| {},
         );
         assert_eq!(take_cursor(), Cursor::Arrow, "focus is not mouse hover");
         assert!(
@@ -6309,7 +6009,7 @@ mod tests {
             "moving the pointer does not clear focus"
         );
         ui.focus_from_keyboard = true;
-        ui.draw(
+        ui.draw_test_frame(
             &s,
             NONE,
             &mut HudBatch::new(
@@ -6321,6 +6021,7 @@ mod tests {
             ),
             &atlas,
             (-10.0, -10.0),
+            &mut |_, _| {},
         );
         assert_eq!(
             take_cursor(),
@@ -6347,7 +6048,7 @@ mod tests {
             .expect("visible disabled button");
         let over = (button.x + 1.0, button.y + 1.0);
         let _ = take_cursor();
-        ui.draw(
+        ui.draw_test_frame(
             &s,
             NONE,
             &mut HudBatch::new(
@@ -6359,6 +6060,7 @@ mod tests {
             ),
             &atlas,
             over,
+            &mut |_, _| {},
         );
         assert_eq!(take_cursor(), Cursor::NotAllowed);
         assert!(
@@ -6378,7 +6080,7 @@ mod tests {
             ui.focus.is_none(),
             "an inactive widget rejects the click before focus"
         );
-        ui.draw(
+        ui.draw_test_frame(
             &s,
             NONE,
             &mut HudBatch::new(
@@ -6390,6 +6092,7 @@ mod tests {
             ),
             &atlas,
             (-10.0, -10.0),
+            &mut |_, _| {},
         );
         assert_eq!(take_cursor(), Cursor::Arrow);
     }
@@ -6426,12 +6129,13 @@ mod tests {
         // The pointer is still on the clicked widget: it carries the
         // description (`setTooltip`, drawn while hovered).
         let mut on = HudBatch::scratch([480, 480]);
-        ui.draw(
+        ui.draw_test_frame(
             &s,
             NONE,
             &mut on,
             &atlas,
             (extra.x + extra.w / 2.0, extra.y + extra.h / 2.0),
+            &mut |_, _| {},
         );
         // The pointer moved off: the description goes with it. A mouse
         // focus a click left behind (the look-up keeps the click's widget,
@@ -6439,12 +6143,13 @@ mod tests {
         // the widget, like vanilla's `MenuTooltipPositioner` does for a
         // keyboard focus.
         let mut off = HudBatch::scratch([480, 480]);
-        ui.draw(
+        ui.draw_test_frame(
             &s,
             NONE,
             &mut off,
             &atlas,
             (extra.x + extra.w + 40.0, extra.y + extra.h + 40.0),
+            &mut |_, _| {},
         );
         assert!(
             off.vertices.len() < on.vertices.len(),
@@ -6689,7 +6394,19 @@ mod tests {
                     .unwrap();
                 let cursor = (option.x + 1.0, option.y + 1.0);
                 let mut actual = HudBatch::scratch([480, 480]);
-                ui.draw(&s, NONE, &mut actual, &atlas, cursor);
+                let mut foreground_end = None;
+                ui.draw_test_frame(
+                    &s,
+                    NONE,
+                    &mut actual,
+                    &atlas,
+                    cursor,
+                    &mut |phase, batch| {
+                        if phase == crate::screen_draw::RenderPhase::Foreground {
+                            foreground_end = Some(batch.vertices.len());
+                        }
+                    },
+                );
                 let key = format!("options.inactivityFpsLimit.{mode}.tooltip");
                 assert!(lang::has(&key));
                 let mut expected = HudBatch::scratch([480, 480]);
@@ -6700,6 +6417,11 @@ mod tests {
                     cursor,
                 );
                 assert!(!expected.vertices.is_empty());
+                assert_eq!(
+                    foreground_end,
+                    Some(actual.vertices.len() - expected.vertices.len()),
+                    "foreground precedes the tooltip",
+                );
                 let tail = &actual.vertices[actual.vertices.len() - expected.vertices.len()..];
                 assert_eq!(
                     bytemuck::cast_slice::<_, u8>(tail),
@@ -7321,7 +7043,14 @@ mod tests {
         ui.show(Page::Language);
         let draw_hint = |ui: &mut OptionsUi| {
             let mut batch = HudBatch::scratch([960, 640]);
-            ui.draw(&settings, NONE, &mut batch, &atlas, (-1.0, -1.0));
+            ui.draw_test_frame(
+                &settings,
+                NONE,
+                &mut batch,
+                &atlas,
+                (-1.0, -1.0),
+                &mut |_, _| {},
+            );
             let search = &ui.language_search;
             batch.vertices.iter().any(|v| {
                 v.color == rgba(170, 170, 170, 255)
@@ -7427,7 +7156,7 @@ mod tests {
             let row_y = if above { top - 5.0 } else { bottom - 16.0 };
             ui.scroll = row.y - row_y;
             let (x, width, height) = (row.x, row.w, row.h);
-            ui.draw(&s, NONE, &mut batch, &atlas, (-1.0, -1.0));
+            ui.draw_test_frame(&s, NONE, &mut batch, &atlas, (-1.0, -1.0), &mut |_, _| {});
             let vertices: Vec<_> = batch
                 .vertices
                 .iter()

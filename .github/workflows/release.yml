@@ -89,6 +89,7 @@ jobs:
         # A dry run never publishes; a run off main is always one, whatever its input says.
         run: echo "dry_run=${{ inputs.dry_run || github.ref != 'refs/heads/main' }}" >> "$GITHUB_OUTPUT"
       - id: decide
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASES_PAUSED: ${{ vars.RELEASES_PAUSED }}

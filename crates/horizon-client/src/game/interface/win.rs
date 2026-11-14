@@ -59,6 +59,8 @@ impl Game<'_> {
     }
     pub(super) fn draw_win_screen(&mut self, batch: &mut HudBatch) {
         let Some(win) = self.win.as_mut() else {
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
             return;
         };
         horizon_client::widgets::begin_screen(|| win.screen.screen_info());
@@ -81,7 +83,14 @@ impl Game<'_> {
             ],
             game_time: (self.world.game_time % 24000) as f32 / 24000.0,
         };
-        win.screen.draw(batch, &self.gui.atlas, delta_ticks, fill);
+        win.screen.draw_background(batch, &self.gui.atlas, fill);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+        self.win
+            .as_mut()
+            .unwrap()
+            .screen
+            .draw_contents(batch, &self.gui.atlas, delta_ticks);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
     }
     /// `WinScreen.keyPressed` / `keyReleased`; Escape closes it (`onClose`).
     pub(super) fn win_key(&mut self, event: &KeyEvent) -> Result<()> {

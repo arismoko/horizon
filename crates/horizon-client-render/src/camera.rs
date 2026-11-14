@@ -483,6 +483,36 @@ pub fn view_matrix(yaw: f32, pitch: f32) -> glam::Mat4 {
     glam::Mat4::from_quat(glam::Quat::from_xyzw(-q.x, -q.y, -q.z, q.w))
 }
 
+/// `GameRenderer.projectPointToScreen`: world point `at` seen from a camera at `position` facing
+/// `yaw`/`pitch` through column-major `projection` (the frame's reversed-Z perspective), as
+/// normalised device x and y (-1 to 1 across the screen) and depth z. The view is the camera's
+/// rotation only, without bob or spin, as vanilla's. None for a point at or behind the camera and
+/// for a non-finite `at`, where vanilla returns a mirrored or NaN point.
+pub fn project_point(
+    projection: &[f32; 16],
+    position: [f64; 3],
+    yaw: f32,
+    pitch: f32,
+    at: [f64; 3],
+) -> Option<[f32; 3]> {
+    if !at.iter().all(|v| v.is_finite()) {
+        return None;
+    }
+    // Vanilla subtracts in doubles, then transforms the offset as floats.
+    let offset = glam::Vec3::new(
+        (at[0] - position[0]) as f32,
+        (at[1] - position[1]) as f32,
+        (at[2] - position[2]) as f32,
+    );
+    let clip =
+        glam::Mat4::from_cols_array(projection) * view_matrix(yaw, pitch) * offset.extend(1.0);
+    if clip.w.is_nan() || clip.w <= 0.0 {
+        return None;
+    }
+    let ndc = [clip.x / clip.w, clip.y / clip.w, clip.z / clip.w];
+    ndc.iter().all(|v| v.is_finite()).then_some(ndc)
+}
+
 /// `view_matrix` with a roll about the view direction, in degrees.
 pub fn view_matrix_rolled(yaw: f32, pitch: f32, roll: f32) -> glam::Mat4 {
     let q = Quat::rotation_yxz(
@@ -1033,6 +1063,35 @@ pub fn spinning_effect_matrix(intensity: f32, angle_degrees: f32) -> glam::Mat4 
 
 #[cfg(test)]
 mod tests {
+    /// A synthetic camera at (0, 64, 0) facing south (yaw 0, +Z), 70° FOV, 16:9, near 0.05, far
+    /// 512, reversed Z as the game builds it.
+    fn project(at: [f64; 3]) -> Option<[f32; 3]> {
+        let projection =
+            glam::Mat4::perspective_rh(70f32.to_radians(), 16.0 / 9.0, 512.0, 0.05).to_cols_array();
+        super::project_point(&projection, [0.0, 64.0, 0.0], 0.0, 0.0, at)
+    }
+
+    #[test]
+    fn projected_points_ahead_land_on_screen_and_behind_or_nan_are_none() {
+        let ahead = project([0.0, 64.0, 10.0]).unwrap();
+        assert!(ahead[0].abs() < 1e-6 && ahead[1].abs() < 1e-6, "{ahead:?}");
+        // Reversed Z: depth near / distance, 0.05 / 10.
+        assert!((ahead[2] - 0.005).abs() < 1e-4, "{ahead:?}");
+        // Up and to the camera's right (west, -X, when facing south) at the edge of the view.
+        let corner = (35f64.to_radians()).tan() * 10.0;
+        let edge = project([-corner * 16.0 / 9.0, 64.0 + corner, 10.0]).unwrap();
+        assert!(
+            (edge[0] - 1.0).abs() < 1e-4 && (edge[1] - 1.0).abs() < 1e-4,
+            "{edge:?}"
+        );
+        let near = project([0.0, 64.0, 0.05]).unwrap();
+        assert!((near[2] - 1.0).abs() < 1e-5, "{near:?}");
+        assert_eq!(project([f64::MAX, 64.0, 10.0]), None);
+        assert_eq!(project([0.0, 64.0, -10.0]), None);
+        assert_eq!(project([0.0, 64.0, 0.0]), None);
+        assert_eq!(project([f64::NAN, 64.0, 10.0]), None);
+        assert_eq!(project([0.0, f64::INFINITY, 10.0]), None);
+    }
     #[test]
     fn near_plane_bounds_sit_half_a_near_distance_ahead_of_the_eye() {
         // Facing +Z (yaw 0): the zero-to-one culling projection puts NDC

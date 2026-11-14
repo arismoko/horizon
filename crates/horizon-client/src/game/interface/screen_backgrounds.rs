@@ -167,20 +167,15 @@ impl Game<'_> {
 }
 
 impl Game<'_> {
-    /// `ScreenEvent.Render.Foreground` (only when the screen `drawn`) and
-    /// `Render.Post` for the open screen, once a frame, after it has drawn
-    /// itself and its tooltips, so a native mod draws over it here. Never
-    /// `Playing`: the prompts, books and sign editors drawn over gameplay keep
-    /// it, draw after this point and so over what a mod drew.
-    pub(super) fn draw_screen_with_post_hook(&self, batch: &mut HudBatch, drawn: bool) {
+    /// `ScreenEvent.Render.Post`, after the screen's drawing and tooltips,
+    /// including when Pre cancelled. Gameplay overlays keep their exclusions.
+    pub(super) fn draw_screen_with_post_hook(&self, batch: &mut HudBatch) {
         if let Some(view) = self.screen_render_view(batch) {
-            self.screen_render_end(batch, &view, drawn);
+            self.screen_render_end(batch, &view);
         }
     }
-    /// `ScreenEvent.Render.Pre` then `Render.Background` for the open screen,
-    /// once a frame, before it draws itself: whether it is drawn (a cancelled
-    /// `Render.Pre` skips it and its Background). The Win and Options screens
-    /// call this on their own path. Client only: what a mod draws is its own.
+    /// `ScreenEvent.Render.Pre` for the open screen: whether it draws.
+    /// Background and Foreground are reported by the screen while drawing.
     pub(super) fn draw_screen_with_pre_hook(&self, batch: &mut HudBatch) -> bool {
         match self.screen_render_view(batch) {
             Some(view) => self.screen_render_begin(batch, &view),
@@ -189,9 +184,9 @@ impl Game<'_> {
     }
     /// `draw_screen_with_post_hook` for the title's own screen, once a frame,
     /// after it has drawn and before the toasts.
-    pub(super) fn draw_title_screen_with_post_hook(&self, batch: &mut HudBatch, drawn: bool) {
+    pub(super) fn draw_title_screen_with_post_hook(&self, batch: &mut HudBatch) {
         if let Some(view) = self.title_screen_render_view(batch) {
-            self.screen_render_end(batch, &view, drawn);
+            self.screen_render_end(batch, &view);
         }
     }
     /// `draw_screen_with_pre_hook` for the title's own screens.
@@ -234,5 +229,33 @@ impl Game<'_> {
             return None;
         }
         self.title_screen_view(batch)
+    }
+}
+
+impl Game<'_> {
+    /// Dispatch at the boundary reported by the screen that owns the drawing.
+    /// No view or layout is built unless this particular phase has a listener.
+    pub(super) fn draw_screen_phase(
+        &self,
+        batch: &mut HudBatch,
+        phase: horizon_client::screen_draw::RenderPhase,
+    ) {
+        use horizon_client::screen_draw::RenderPhase;
+        let hook = match phase {
+            RenderPhase::Background => mod_api::HookId::ScreenRenderBackground,
+            RenderPhase::Foreground => mod_api::HookId::ScreenRenderForeground,
+        };
+        if !mod_api::__private::listened(hook) {
+            return;
+        }
+        let view = self
+            .screen_render_view(batch)
+            .or_else(|| self.title_screen_render_view(batch));
+        if let Some(view) = view {
+            match phase {
+                RenderPhase::Background => self.native_screen_render_background(batch, &view),
+                RenderPhase::Foreground => self.native_screen_render_foreground(batch, &view),
+            }
+        }
     }
 }

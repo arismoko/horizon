@@ -522,42 +522,44 @@ impl Registry<'_> {
         Selector::read(set.clone(), false)?.resolve(self, None)
     }
 
+    /// A set with no climate in it, through the shared holder-set decoder.
     fn resolve_leaf(&self, set: &Value) -> std::result::Result<Vec<String>, String> {
-        let mut out = Vec::new();
-        match set {
-            Value::String(s) => match s.strip_prefix('#') {
-                Some(tag) => self.expand(&full(tag), &mut out, &mut BTreeSet::new())?,
-                None => {
-                    let id = full(s);
-                    if !self.ids.contains(&id) {
-                        return Err(format!("unknown {} {id}", self.what));
-                    }
-                    out.push(id);
-                }
-            },
-            Value::Array(list) => {
-                for v in list {
-                    match v {
-                        Value::String(s) if !s.starts_with('#') => {
-                            extend(&mut out, self.resolve_leaf(v)?)
-                        }
-                        _ => return Err(format!("a {} list holds ids only", self.what)),
-                    }
+        horizon_world::holder_set::resolve(set, self)
+    }
+
+    // Determine the edge to drop from the graph, not from traversal order.
+    fn removal_reaches(&self, start: &str, goal: &str) -> bool {
+        let mut pending = vec![start.to_owned()];
+        let mut visited = BTreeSet::new();
+        while let Some(tag) = pending.pop() {
+            if tag == goal {
+                return true;
+            }
+            if !visited.insert(tag.clone()) {
+                continue;
+            }
+            let Some(doc) = self
+                .tags
+                .get(&tag)
+                .and_then(|text| serde_json::from_str::<Value>(text).ok())
+            else {
+                continue;
+            };
+            for value in doc["remove"].as_array().into_iter().flatten().chain(
+                doc["values"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|v| v["remove"].as_bool() == Some(true)),
+            ) {
+                if let Some(inner) =
+                    horizon_world::tag_layers::entry_id(value).and_then(|id| id.strip_prefix('#'))
+                {
+                    pending.push(full(inner));
                 }
             }
-            Value::Object(o) => {
-                let kind = o.get("type").and_then(Value::as_str).unwrap_or_default();
-                let kind = kind.strip_prefix("neoforge:").unwrap_or(kind);
-                match kind {
-                    "any" => out.extend(self.ids.iter().cloned()),
-                    "or" | "and" => return Err(format!("{kind}: no values")),
-                    "not" => return Err("not: no value".into()),
-                    _ => return Err(format!("{} set type {kind:?} is not read", self.what)),
-                }
-            }
-            _ => return Err(format!("not a {} id, tag or list", self.what)),
         }
-        Ok(out)
+        false
     }
 
     fn expand(
@@ -574,25 +576,73 @@ impl Registry<'_> {
             .get(tag)
             .ok_or_else(|| format!("unknown {} tag #{tag}", self.what))?;
         let doc: Value = serde_json::from_str(text).map_err(|e| format!("#{tag}: {e}"))?;
-        for v in doc["values"].as_array().into_iter().flatten() {
-            let (id, required) = match v {
-                Value::String(s) => (s.as_str(), true),
-                Value::Object(o) => match o.get("id").and_then(Value::as_str) {
-                    Some(id) => (id, o.get("required") != Some(&Value::Bool(false))),
-                    None => continue,
-                },
-                _ => continue,
+        let mut own = Vec::new();
+        let operations = doc["values"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|v| (v, v["remove"].as_bool() == Some(true)))
+            .chain(
+                doc["remove"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|v| (v, true)),
+            );
+        for (value, removes) in operations {
+            let Some(id) = horizon_world::tag_layers::entry_id(value) else {
+                continue;
             };
-            match id.strip_prefix('#') {
-                Some(inner) if required || self.tags.contains_key(&full(inner)) => {
-                    self.expand(&full(inner), out, seen)?
+            let required = !removes && value["required"].as_bool() != Some(false);
+            let mut members = Vec::new();
+            if let Some(inner) = id.strip_prefix('#') {
+                let target = full(inner);
+                if removes && target.as_str() > tag && self.removal_reaches(&target, tag) {
+                    log::warn!(
+                        "Horizon: tags {tag} and {target} form a removal cycle; only removal edge {tag} -> {target} is ignored"
+                    );
+                    continue;
                 }
-                Some(_) => {}
-                None if self.ids.contains(&full(id)) => extend(out, [full(id)]),
-                None => {}
+                if let Err(error) = self.expand(&target, &mut members, seen) {
+                    if required {
+                        return Err(error);
+                    }
+                    continue;
+                }
+            } else if self.ids.contains(&full(id)) {
+                members.push(full(id));
+            }
+            if removes {
+                own.retain(|id| !members.contains(id));
+            } else {
+                extend(&mut own, members);
             }
         }
+        seen.remove(tag);
+        extend(out, own);
         Ok(())
+    }
+}
+
+impl horizon_world::holder_set::HolderLookup for Registry<'_> {
+    type Id = String;
+    fn what(&self) -> &str {
+        self.what
+    }
+    fn entry(&self, id: &str) -> std::result::Result<Vec<String>, String> {
+        let id = full(id);
+        match self.ids.contains(&id) {
+            true => Ok(vec![id]),
+            false => Err(format!("unknown {} {id}", self.what)),
+        }
+    }
+    fn tag(&self, tag: &str) -> std::result::Result<Vec<String>, String> {
+        let mut out = Vec::new();
+        self.expand(&full(tag), &mut out, &mut BTreeSet::new())?;
+        Ok(out)
+    }
+    fn all(&self) -> std::result::Result<Vec<String>, String> {
+        Ok(self.ids.iter().cloned().collect())
     }
 }
 
@@ -1217,4 +1267,51 @@ pub fn modified(root: &Path) -> BTreeSet<String> {
         .and_then(|saved| saved.get("unmodified")?.as_object())
         .map(|ids| ids.keys().cloned().collect())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod removal_cycles {
+    use super::*;
+
+    /// Two tags that remove each other resolve without an overflow, and the
+    /// edge toward the later id is ignored, independently of the starting tag.
+    #[test]
+    fn mutual_removals_resolve_without_an_overflow() {
+        let tags: BTreeMap<String, String> = BTreeMap::from([
+            (
+                "test:a".into(),
+                r##"{"values": ["test:one"], "remove": ["#test:b"]}"##.into(),
+            ),
+            (
+                "test:b".into(),
+                r##"{"values": ["test:one", "test:two"], "remove": ["#test:a"]}"##.into(),
+            ),
+        ]);
+        let ids: BTreeSet<String> = ["test:one", "test:two"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let registry = Registry {
+            what: "placed feature",
+            ids: &ids,
+            tags: &tags,
+        };
+        crate::test_log::install();
+        for (start, expected) in [("test:a", "test:one"), ("test:b", "test:two")] {
+            crate::test_log::clear();
+            let out = registry
+                .resolve(&serde_json::json!(format!("#{start}")))
+                .unwrap();
+            assert_eq!(out, [expected]);
+            {
+                let lines = crate::test_log::records();
+                assert!(
+                    lines.iter().any(|(_, line)| line.contains("test:a")
+                        && line.contains("test:b")
+                        && line.contains("only removal edge test:a -> test:b is ignored")),
+                    "{lines:?}"
+                );
+            }
+        }
+    }
 }

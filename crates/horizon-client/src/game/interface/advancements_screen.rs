@@ -6,7 +6,6 @@ use super::{Game, Screen, advancements::text_of};
 use horizon_client::{
     advancements::{Frame, Tree},
     hud::HudBatch,
-    items::ItemStack,
     text::{Style, Text},
     ui,
 };
@@ -362,32 +361,10 @@ impl Game<'_> {
         self.adv_tick_hover(&view, sx, sy, left, top);
         let atlas = &self.gui.atlas;
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, true);
-        let title = Text::translate("gui.advancements", &[]);
-        let tw = atlas.font.width_text(&title);
-        batch.text_styled(
-            atlas,
-            &title,
-            ((w - tw) / 2.0).floor(),
-            12.0,
-            u32::MAX,
-            true,
-        );
-        // The inside.
         let tree = self.adv.tree.clone();
         let tab = self.adv_ui.tab;
         match tab {
-            None => {
-                batch.fill(atlas, ix, iy, 234.0, 113.0, 0xFF00_0000);
-                let mid = ix + 117.0;
-                for (key, y) in [
-                    ("advancements.empty", iy + 56.0 - 4.0),
-                    ("advancements.sad_label", iy + 113.0 - 9.0),
-                ] {
-                    let t = Text::translate(key, &[]);
-                    let tw = atlas.font.width_text(&t);
-                    batch.text_styled(atlas, &t, (mid - tw / 2.0).floor(), y, u32::MAX, true);
-                }
-            }
+            None => batch.fill(atlas, ix, iy, 234.0, 113.0, 0xFF00_0000),
             Some(root) => {
                 let start = batch.vertices.len();
                 let bg = tree.list[root]
@@ -410,6 +387,42 @@ impl Game<'_> {
                         );
                     }
                 }
+                batch.clip_since(start, ix, iy, ix + 234.0, iy + 113.0);
+            }
+        }
+        batch.sprite_region(
+            atlas,
+            "gui/advancements/window",
+            [left, top, 252.0, 140.0],
+            256.0,
+            256.0,
+        );
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+        let title = Text::translate("gui.advancements", &[]);
+        let tw = atlas.font.width_text(&title);
+        batch.text_styled(
+            atlas,
+            &title,
+            ((w - tw) / 2.0).floor(),
+            12.0,
+            u32::MAX,
+            true,
+        );
+        // The inside.
+        match tab {
+            None => {
+                let mid = ix + 117.0;
+                for (key, y) in [
+                    ("advancements.empty", iy + 56.0 - 4.0),
+                    ("advancements.sad_label", iy + 113.0 - 9.0),
+                ] {
+                    let t = Text::translate(key, &[]);
+                    let tw = atlas.font.width_text(&t);
+                    batch.text_styled(atlas, &t, (mid - tw / 2.0).floor(), y, u32::MAX, true);
+                }
+            }
+            Some(_) => {
+                let start = batch.vertices.len();
                 let all = self
                     .adv_ui
                     .cache
@@ -482,21 +495,12 @@ impl Game<'_> {
                         26.0,
                         u32::MAX,
                     );
-                    let icon = ItemStack::new(&d.icon.item, 1);
-                    self.draw_item(batch, &icon, x + 8.0, y + 5.0);
+                    self.draw_item(batch, &d.icon, x + 8.0, y + 5.0);
                 }
                 batch.clip_since(start, ix, iy, ix + 234.0, iy + 113.0);
             }
         }
-        // The window, tabs and title.
-        let atlas = &self.gui.atlas;
-        batch.sprite_region(
-            atlas,
-            "gui/advancements/window",
-            [left, top, 252.0, 140.0],
-            256.0,
-            256.0,
-        );
+        // The tabs and title.
         if view.tabs.len() > 1 {
             for (n, &t) in view.tabs.iter().enumerate() {
                 let Some((ty, i)) = tab_type(n) else { continue };
@@ -521,8 +525,7 @@ impl Game<'_> {
                 let (x, y) = tab_pos(ty, i);
                 let (dx, dy) = icon_offset(ty.0);
                 if let Some(d) = &tree.list[t].display {
-                    let icon = ItemStack::new(&d.icon.item, 1);
-                    self.draw_item(batch, &icon, left + x + dx, top + y + dy);
+                    self.draw_item(batch, &d.icon, left + x + dx, top + y + dy);
                 }
             }
         }
@@ -532,14 +535,6 @@ impl Game<'_> {
             |d| text_of(&d.title),
         );
         batch.text_styled(atlas, &title, left + 8.0, top + 6.0, 0xFF40_4040, false);
-        // Tooltips.
-        if tab.is_some() {
-            let alpha = (self.adv_ui.fade * 255.0).floor() as u32;
-            batch.fill(atlas, ix, iy, 234.0, 113.0, alpha << 24);
-            if let Some(i) = self.adv_ui.hovered {
-                self.adv_draw_hover(batch, i, ix, iy, sx, sy, left, w);
-            }
-        }
         // Done.
         let atlas = &self.gui.atlas;
         let (bx, by) = ((w / 2.0 - 100.0).floor(), h - FOOTER + 6.0);
@@ -556,6 +551,15 @@ impl Game<'_> {
             true,
             hover,
         );
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
+        // Tooltips.
+        if tab.is_some() {
+            let alpha = (self.adv_ui.fade * 255.0).floor() as u32;
+            batch.fill(atlas, ix, iy, 234.0, 113.0, alpha << 24);
+            if let Some(i) = self.adv_ui.hovered {
+                self.adv_draw_hover(batch, i, ix, iy, sx, sy, left, w);
+            }
+        }
         // Tab tooltips: the tab title under the cursor.
         if view.tabs.len() > 1 {
             for (n, &t) in view.tabs.iter().enumerate() {
@@ -769,8 +773,7 @@ impl Game<'_> {
             title_bottom
         };
         lines(batch, &desc, desc_left, desc_y, 0xFF00_FF00);
-        let icon = ItemStack::new(&d.icon.item, 1);
-        self.draw_item(batch, &icon, ix + f(x + 8), iy + f(y + 5));
+        self.draw_item(batch, &d.icon, ix + f(x + 8), iy + f(y + 5));
     }
     /// A left button press or release.
     pub(super) fn advancements_mouse(&mut self, pressed: bool, size: [u32; 2]) {

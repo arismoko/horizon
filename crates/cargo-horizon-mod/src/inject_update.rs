@@ -17,18 +17,19 @@ pub(super) fn run(dir: &Path, args: &[String]) -> Result<(), String> {
         .as_ref()
         .ok_or("inject update needs a [native] mod")?;
     let internals = crate::internals::load(dir, &native.horizon)?;
-    let cache = dir.join("target/horizon-mod/prebuilt");
-    let points = cache.join(&native.horizon).join("points.json");
+    let points = crate::sdk_fetch::build_data(dir, &native.horizon)?.join("points.json");
     let (_, catalog): (_, Catalog) = horizon_mod_package::build_data::read(
         horizon_mod_package::build_data::POINTS,
         &crate::bounded::read(&points, crate::bounded::MAX_CATALOG)?,
     )?;
-    // Older cached snapshots provide the signature behind a declaration's old hash.
+    // Other builds' cached build data provides the signature behind a declaration's old hash.
     let mut old = Vec::new();
-    for entry in fs::read_dir(cache).map_err(|e| e.to_string())? {
+    let cache = dir.join(crate::sdk_fetch::CACHE);
+    for entry in fs::read_dir(&cache).map_err(|e| format!("{}: {e}", cache.display()))? {
         let path = entry
             .map_err(|e| e.to_string())?
             .path()
+            .join(crate::sdk_fetch::BUILD_DATA)
             .join("internals.json");
         let text = match crate::bounded::read(&path, crate::bounded::MAX_CATALOG) {
             Ok(text) => Some(text),

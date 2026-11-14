@@ -20,7 +20,6 @@ impl Game<'_> {
         self.lan_menu_links_tick();
         self.lan_containers_tick();
         self.tick_lan_mount_menus();
-        self.tick_player_menus();
         self.native_players_equipment();
         self.announce_guest_advancements();
         // Entity.commonTick belongs to each player, including spectators and

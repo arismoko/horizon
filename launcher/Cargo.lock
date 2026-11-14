@@ -2960,6 +2960,7 @@ dependencies = [
  "heck 0.5.0",
  "horizon-game-discovery",
  "horizon-mod-point-shape",
+ "horizon-mod-source",
  "horizon-mod-surface",
  "prettyplease",
  "proc-macro2",
@@ -2988,7 +2989,6 @@ version = "0.1.0"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
- "flate2",
  "getrandom 0.4.3",
  "horizon-core",
  "horizon-mod-api-macros",
@@ -3040,6 +3040,17 @@ name = "horizon-mod-runtime"
 version = "0.1.0"
 dependencies = [
  "horizon-core",
+]
+
+[[package]]
+name = "horizon-mod-source"
+version = "0.1.0"
+dependencies = [
+ "horizon-mod-surface",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+ "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]

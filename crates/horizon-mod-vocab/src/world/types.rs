@@ -556,8 +556,15 @@ pub enum ExplosionInteraction {
     /// Blocks break and drop by the `block_explosion_drop_decay` rule (`BLOCK`).
     #[default]
     Block,
+    /// Blocks break and drop by the `mob_explosion_drop_decay` rule when the
+    /// source may grief (its `entity_mob_griefing` answer; with no source, the
+    /// `mob_griefing` rule), and stay when it may not (`MOB`).
+    Mob,
     /// Blocks break and drop by the `tnt_explosion_drop_decay` rule (`TNT`).
     Tnt,
+    /// No block breaks; buttons, levers, doors, trapdoors, fence gates, bells
+    /// and candles react as to a wind charge's burst (`TRIGGER`).
+    Trigger,
 }
 
 /// What made a `tags_updated` notice fire (`TagsUpdatedEvent`'s two subclasses).

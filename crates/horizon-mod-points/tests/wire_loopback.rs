@@ -161,9 +161,9 @@ fn head_and_return_share_the_hook_arena_and_native_listener_list() {
     mod_points::__private::seal();
     __pointa_fixture_list_top();
     let mut args = mod_points::TickArgs::__new();
-    mod_points::dispatch::tick(mod_api::HostSide::Server(&mut Quiet), &mut args);
+    horizon_engine_slots::dispatch::tick(mod_api::HostSide::Server(&mut Quiet), &mut args);
     assert!(args.cancel);
-    mod_points::dispatch::tick_return(mod_api::HostSide::Server(&mut Quiet), &mut args);
+    horizon_engine_slots::dispatch::tick_return(mod_api::HostSide::Server(&mut Quiet), &mut args);
     assert!(!args.cancel);
     assert_eq!(
         (HEAD.load(Ordering::Relaxed), RETURN.load(Ordering::Relaxed)),
@@ -197,7 +197,7 @@ fn head_and_return_share_the_hook_arena_and_native_listener_list() {
     assert_eq!(BODY.load(Ordering::Relaxed), 3);
     assert_eq!(TOP_RETURN.load(Ordering::Relaxed), 3);
     mod_points::stop("guest");
-    mod_points::dispatch::tick(mod_api::HostSide::Server(&mut Quiet), &mut args);
+    horizon_engine_slots::dispatch::tick(mod_api::HostSide::Server(&mut Quiet), &mut args);
     assert!(!args.cancel);
     assert_eq!(HEAD.load(Ordering::Relaxed), 1);
     assert_eq!(fixture_list_top(3.0, 7), 10.0);

@@ -1372,7 +1372,8 @@ impl Loading {
             let delta_ticks = now.duration_since(*frame).as_secs_f32() * 20.0;
             *frame = now;
             horizon_client::widgets::begin_screen(|| win.screen_info());
-            win.draw(batch, &gui.atlas, delta_ticks, Default::default());
+            win.draw_background(batch, &gui.atlas, Default::default());
+            win.draw_contents(batch, &gui.atlas, delta_ticks);
             if win.finished(batch.height) {
                 self.menu.win = None;
             }
@@ -1383,7 +1384,13 @@ impl Loading {
                 .map_or(Default::default(), |r| r.output());
             self.menu
                 .options
-                .draw(&self.settings, output, batch, &gui.atlas, self.menu.cursor);
+                .draw_background(&self.settings, output, batch, &gui.atlas);
+            self.menu
+                .options
+                .draw_contents(&self.settings, batch, &gui.atlas, self.menu.cursor);
+            self.menu
+                .options
+                .draw_overlays(batch, &gui.atlas, self.menu.cursor);
         } else if let Some(title) = &mut self.menu.title {
             title.poll_backup();
             if std::mem::take(&mut title.onboarding_finished) {
@@ -1408,6 +1415,7 @@ impl Loading {
                 self.menu.cursor,
                 self.settings.file.bool("hideSplashTexts"),
                 self.settings.file.bool("hideServerAddress"),
+                &mut |_, _| {},
             );
         }
         if let Some(focus) = self.menu.key_focus

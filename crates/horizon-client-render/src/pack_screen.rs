@@ -2144,6 +2144,7 @@ mod click_sound_tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn the_browsers_search_button_submits_what_was_typed() {
         let atlas = crate::hud::HudAtlas::build(
             &horizon_assets::resource_source::ResourceSource::directory(

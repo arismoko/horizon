@@ -723,6 +723,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_listener_on_a_real_socket_answers_the_handshake_and_both_stats() {
         let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
         let server = socket.local_addr().unwrap();

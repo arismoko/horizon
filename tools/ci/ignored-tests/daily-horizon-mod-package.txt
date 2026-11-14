@@ -27,7 +27,6 @@ horizon-mod-package holder::tests::native_paths_arguments_and_scrubbed_metadata_
 horizon-mod-package holder::tests::private_version_is_refused_before_normal_startup lib daily child-process
 horizon-mod-package holder::tests::replaced_tree_completion_or_unreserved_image_never_starts_game lib daily child-process
 horizon-mod-package install_lock::tests::processes_serialize_the_entire_manifest_transaction lib daily child-process
-horizon-mod-package internals::archive::tests::reads_only_regular_root_catalogs lib daily slow
 horizon-mod-package manifest::tests::project_folder_loads_without_packaging_git_hooks lib daily child-process
 horizon-mod-package output::stdio::tests::saved_copy_never_uses_stdio_or_inherits lib daily child-process
 horizon-mod-package runtime_leases::cleanup::tests::every_claim_owner_holds_the_gate_until_its_last_reference lib daily child-process

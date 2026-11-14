@@ -207,3 +207,6 @@ pub mod render_geometry;
 pub mod render_slots;
 
 pub mod render_views;
+
+#[cfg(test)]
+mod test_log;

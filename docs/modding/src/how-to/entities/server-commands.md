@@ -156,3 +156,33 @@ server tick, every mod is asked to register again. The server rebuilds the typed
 command dispatcher and sends each player's tree after `player_commands_sent`
 filters it, as vanilla does after `/reload`. Repeated requests before that tick
 coalesce; without a world open to players, nothing is rebuilt.
+
+## Custom selector tokens
+
+Side: server. Register a token such as `@allies` once from `Hooks::register` with
+`r.register_entity_selector("allies", Allies)`, where `Allies` implements
+`EntitySelectorType` (NeoForge's `EntitySelectorManager.register` and
+`IEntitySelectorType`). `base` returns its `SelectorBase`: players only, a limit, a
+`SelectorSort` and the translation key of its completion tooltip. `matches(host, source,
+entity)` is asked for each candidate after the base selection and the `[...]` options,
+before sorting and the limit. Return `false` to drop the candidate; a panic drops it too.
+
+Every entity, entities, player and players argument then accepts `@allies[...]`, in
+vanilla commands and mod commands alike, with the same options and selector permission
+as `@e`. The parser reads the whole word after `@` before vanilla's letter, so `@allies`
+is never `@a`, and an unregistered word still fails with
+`argument.entity.selector.unknown`. A name that is empty, not lowercase letters, digits
+and `_`, one of `p a r s e n`, or already registered by any mod refuses the mods at
+startup. The base is evaluated once at registration; a panic or zero limit refuses
+registration. Token names and tooltip keys must fit the protocol string boundary
+(32767 ASCII bytes for names, 32767 UTF-16 units for tooltip keys). Horizon also
+bounds the complete encoded metadata to 256 KiB and refuses the token that would exceed
+that total by name, without changing earlier records. The payload's revision is 1; an
+unsupported revision disables token metadata for that connection with one log line.
+
+The server sends frozen token metadata alongside each command tree to connected Horizon
+clients, including the single-player window. Their command parser and completion use the
+server's names, tooltip keys, base limits and sort order, even without the server's mod
+installed locally. This replaces the previous server's inventory at connection startup.
+Vanilla clients do not receive this Horizon-specific metadata and can still send commands
+containing the token without local completion.

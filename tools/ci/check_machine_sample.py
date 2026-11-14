@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""Compile an immutable machine sample revision against this checkout's API.
+"""Compile the machine sample at PIN against this checkout's API (the daily leg machine-sample.yml).
 
-API-breaking PRs may pair a sample update using a standalone body line:
-Sample commit: <40-character SHA>
-Update PIN in the same fork PR, and link the paired sample PR in its description.
-The body line is an optional consistency check, never a source of mutable pins.
+A pull request that changes the API the sample uses updates PIN to a sample commit that builds against it.
 """
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import time
 import tempfile
@@ -19,12 +15,6 @@ PIN = "6afa900e312922c4d5fca59e6f9d5dedb53176d2"
 
 
 def main():
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    event = json.loads(Path(event_path).read_text()) if event_path else {}
-    body = event.get("pull_request", {}).get("body") or ""
-    match = re.search(r"^Sample commit: ([0-9a-f]{40})\s*$", body, re.MULTILINE)
-    if match and match[1] != PIN:
-        raise SystemExit("Sample commit must match the committed PIN; update it in this PR")
     revision = PIN
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="machine-sample-", dir=ROOT.parent) as directory:

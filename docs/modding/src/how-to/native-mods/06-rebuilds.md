@@ -2,8 +2,8 @@
 
 A native build uses the instance's pinned Horizon commit. Editing or disabling a mod rebuilds
 the mods against that same prebuilt SDK. A mod made for another commit is built when it fits this
-one ([What the launcher does](04-what-the-launcher-does.md#mods-made-for-another-build)); building
-never repins a mod.
+one ([What the launcher does](04-what-the-launcher-does.md#mods-made-for-another-build),
+[the rule](../../reference/sdk/04-fit.md)); building never repins a mod.
 
 ## Update the base
 

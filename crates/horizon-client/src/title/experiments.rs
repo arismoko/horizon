@@ -115,9 +115,16 @@ impl ExperimentsScreen {
         }
         None
     }
-    pub fn draw(&self, batch: &mut HudBatch, atlas: &HudAtlas, cursor: (f32, f32)) {
+    pub fn draw(
+        &self,
+        batch: &mut HudBatch,
+        atlas: &HudAtlas,
+        cursor: (f32, f32),
+        phases: &mut dyn FnMut(crate::screen_draw::RenderPhase, &mut HudBatch),
+    ) {
         let (w, h) = (batch.width, batch.height);
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, self.in_world);
+        phases(crate::screen_draw::RenderPhase::Background, batch);
         let font = &atlas.font;
         // `addTitleHeader`: the title centred in the header's 33 pixels.
         let title = Text::translate("selectWorld.experiments", &[]);
@@ -186,6 +193,7 @@ impl ExperimentsScreen {
                 hover,
             );
         }
+        phases(crate::screen_draw::RenderPhase::Foreground, batch);
     }
 }
 

@@ -63,6 +63,7 @@ impl Game<'_> {
                 (176.0, 166.0),
                 (ox, oy),
             );
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
             let fuel_len = if total_fuel > 0 {
                 ((18 * fuel + total_fuel - 1) / total_fuel).clamp(0, 18)
             } else {
@@ -154,6 +155,7 @@ impl Game<'_> {
                     (176.0, 166.0),
                     (ox, oy),
                 );
+                self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
                 let (tx, ty) = kind.title_pos();
                 batch.text_styled(atlas, &title, ox + tx, oy + ty, GREY, false);
                 batch.text(atlas, &inventory_label, ox + 8.0, oy + 72.0, GREY, false);
@@ -608,6 +610,8 @@ impl Game<'_> {
         {
             tooltip_stack = Some(stack);
         }
+        let browser_tip = self.draw_mod_browser(batch);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
         if self.carried.is_some() {
             self.draw_carried(batch);
             if let Some(stack) = tooltip_stack.filter(|s| self.tooltip_with_carried(s)) {
@@ -617,6 +621,9 @@ impl Game<'_> {
             self.draw_stack_tooltip(batch, &stack, self.cursor.0, self.cursor.1);
         } else if let Some(lines) = tooltip {
             self.draw_tooltip_lines(batch, &lines, self.cursor.0, self.cursor.1);
+        }
+        if let Some(tooltip) = browser_tip {
+            self.draw_mod_browser_tooltip(batch, tooltip);
         }
         true
     }

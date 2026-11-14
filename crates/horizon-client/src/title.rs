@@ -4113,7 +4113,7 @@ mod classic_tests {
         let mut title = Title::new(PathBuf::new(), root, "");
         title.splash = Some("Visible splash!".into());
         let mut batch = HudBatch::scratch([1920, 1080]);
-        title.draw(&atlas, &mut batch, (0.0, 0.0), false);
+        title.draw(&atlas, &mut batch, (0.0, 0.0), false, &mut |_, _| {});
         let cx = (batch.width / 2.0).floor();
         assert_eq!(batch.vertices[0].pos, [cx - 128.0, 30.0]);
         assert_eq!(batch.vertices[2].pos, [cx + 128.0, 74.0]);
@@ -4150,7 +4150,7 @@ mod classic_tests {
         ] {
             title.splash = splash;
             let mut hidden = HudBatch::scratch([1920, 1080]);
-            title.draw(&atlas, &mut hidden, (0.0, 0.0), hide_splash);
+            title.draw(&atlas, &mut hidden, (0.0, 0.0), hide_splash, &mut |_, _| {});
             assert!(
                 !hidden
                     .vertices

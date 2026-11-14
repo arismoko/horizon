@@ -307,6 +307,7 @@ fn a_gated_title_asks_for_the_multiplayer_lists_steps() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn f5_reloads_the_server_list() {
     let mut f = Fixture::new();
     f.click("Multiplayer");
@@ -1186,35 +1187,8 @@ fn delete_removes_links_without_following_them() {
     assert!(outside.join("keep.txt").is_file());
 }
 
-#[test]
-fn hovered_buttons_ask_for_the_hand_or_not_allowed() {
-    use crate::widgets::Cursor;
-    let mut f = Fixture::new();
-    let atlas =
-        crate::hud::HudAtlas::build(&horizon_assets::resource_source::ResourceSource::directory(
-            (Path::new("/nonexistent/horizon-test-assets")).to_owned(),
-        ))
-        .unwrap();
-    let cursor_over = |title: &Title, label: Option<&str>| {
-        let mouse = label.map_or((0.0, 0.0), |label| {
-            let buttons = title.buttons(480.0, 262.0);
-            let b = buttons.iter().find(|b| b.label == label).unwrap();
-            (b.x + b.w / 2.0, b.y + 10.0)
-        });
-        let _ = crate::widgets::take_cursor();
-        title.draw(&atlas, &mut HudBatch::scratch([480, 262]), mouse, true);
-        crate::widgets::take_cursor()
-    };
-    assert_eq!(
-        cursor_over(&f.title, Some("Singleplayer")),
-        Cursor::PointingHand
-    );
-    assert_eq!(cursor_over(&f.title, None), Cursor::Arrow);
-    // The world list's footer is inactive until a world is selected.
-    f.world("A", "Alpha");
-    f.title.enter_singleplayer();
-    assert_eq!(cursor_over(&f.title, Some("Edit")), Cursor::NotAllowed);
-}
+#[path = "draw_cursor_tests.rs"]
+mod draw_cursor_tests;
 
 /// 26.3's en_us strings for the buttons' tooltips, standing in for the
 /// prepared resources.
@@ -1250,7 +1224,9 @@ fn draw_hovered(
         },
     );
     let english = crate::lang::Language::load(&[&TooltipStrings], "en_us");
-    crate::lang::scoped(english, || title.draw(atlas, &mut batch, mouse, true));
+    crate::lang::scoped(english, || {
+        title.draw(atlas, &mut batch, mouse, true, &mut |_, _| {})
+    });
     crate::widgets::end_frame(*frame + 1);
     *frame += 2;
     (
@@ -1364,7 +1340,7 @@ fn world_search_hint_is_gray_and_only_shown_empty_and_unfocused() {
         .unwrap();
     let draw = |title: &Title| {
         let mut batch = HudBatch::scratch([480, 262]);
-        title.draw(&atlas, &mut batch, (0.0, 0.0), true);
+        title.draw(&atlas, &mut batch, (0.0, 0.0), true, &mut |_, _| {});
         batch
     };
     let has_hint = |batch: &HudBatch| {
@@ -1407,7 +1383,8 @@ fn scrolled_world_list_draws_inside_the_list_and_drags_its_scroller() {
         ))
         .unwrap();
     let mut batch = HudBatch::scratch([480, 262]);
-    f.title.draw(&atlas, &mut batch, (0.0, 0.0), true);
+    f.title
+        .draw(&atlas, &mut batch, (0.0, 0.0), true, &mut |_, _| {});
     assert!(!batch.vertices.is_empty());
 }
 
@@ -2747,7 +2724,8 @@ fn a_create_world_tab_label_wider_than_its_tab_stays_inside_it() {
     .unwrap();
     // 90 px wide: three 20 px tabs from x = 14, too narrow for "Game".
     let mut batch = HudBatch::scratch([90, 262]);
-    f.title.draw(&atlas, &mut batch, (0.0, 100.0), true);
+    f.title
+        .draw(&atlas, &mut batch, (0.0, 100.0), true, &mut |_, _| {});
     let labels: Vec<f32> = batch
         .vertices
         .iter()

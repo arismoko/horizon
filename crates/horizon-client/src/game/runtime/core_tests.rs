@@ -51,9 +51,7 @@ fn reload_resolves_parts_against_reloaded_tags() {
             horizon_client::datapack_net::next_session(),
         ));
         horizon_client::datapack_net::serve(Some(previous.clone()));
-        let prepared = game
-            .prepare_world_reload(&stack, &root, game.mods.data_switched)
-            .unwrap();
+        let prepared = game.prepare_world_reload(&stack, &root).unwrap();
         // Preparation must not publish to joining clients.
         assert!(std::sync::Arc::ptr_eq(
             &previous,

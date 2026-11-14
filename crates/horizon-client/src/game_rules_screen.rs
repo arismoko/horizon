@@ -453,9 +453,19 @@ impl RulesScreen {
         })
     }
 
-    pub fn draw(&mut self, batch: &mut HudBatch, atlas: &HudAtlas, cursor: (f32, f32)) {
+    pub fn draw_background(&self, batch: &mut HudBatch, atlas: &HudAtlas) {
         let (w, h) = (batch.width, batch.height);
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, self.in_world);
+    }
+
+    /// Paint contents once and return the hovered tooltip for after Foreground.
+    pub fn draw_contents(
+        &mut self,
+        batch: &mut HudBatch,
+        atlas: &HudAtlas,
+        cursor: (f32, f32),
+    ) -> Option<Vec<Text>> {
+        let (w, h) = (batch.width, batch.height);
         // AbstractGameRulesScreen: its title; InWorldGameRulesScreen's
         // discard question is a ConfirmScreen (title and message).
         crate::widgets::begin_screen(|| {
@@ -478,7 +488,7 @@ impl RulesScreen {
                 Text::translate("gui.no", &[]),
             ];
             confirm(&atlas.font, (w, h)).draw(batch, atlas, cursor, [&labels[0], &labels[1]]);
-            return;
+            return None;
         }
         let rows = self.rows();
         let content = ROW * rows.len() as f32 + 4.0;
@@ -672,8 +682,9 @@ impl RulesScreen {
                 )
                 .with_color(gray),
             );
-            ui::tooltip(batch, atlas, &tip, cursor);
+            return Some(tip);
         }
+        None
     }
 }
 

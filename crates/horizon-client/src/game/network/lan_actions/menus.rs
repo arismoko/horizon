@@ -31,7 +31,7 @@ impl Game<'_> {
 
     /// Hand a container the guest opened over (ServerPlayer.openMenu);
     /// false when it is not one a guest can open.
-    pub(super) fn lan_open_container(&mut self, conn: u32, pos: (i32, i32, i32)) -> bool {
+    pub(in crate::game) fn lan_open_container(&mut self, conn: u32, pos: (i32, i32, i32)) -> bool {
         if pos.1 == crate::game::minecarts::CART_KEY_Y {
             return self.lan_open_vehicle_container(conn, pos);
         }
@@ -273,6 +273,7 @@ impl Game<'_> {
         if counts_openers && !spectator && self.container_openers_changed(pos, true) {
             self.container_edge_sound(pos, true);
         }
+        self.player_menu_opening(conn);
         MenuOpen::Opened
     }
 
@@ -372,6 +373,7 @@ impl Game<'_> {
         };
         host.hub
             .open_container(conn, menu, title, pos, slots, items, None);
+        self.player_menu_opening(conn);
         true
     }
 
@@ -509,41 +511,25 @@ impl Game<'_> {
     }
 
     /// `ServerPlayer.tick`'s `stillValid`: a guest's block container closes
-    /// once the guest is out of reach of its block (a removed block closes it
-    /// in the hub's `sync_containers`).
+    /// once its block is removed or out of reach. Death removes every kind
+    /// of open menu through the same cleanup and synchronous close boundary.
     pub(super) fn lan_containers_tick(&mut self) {
         let Some(host) = self.lan.as_ref() else {
             return;
         };
-        let far: Vec<(u32, Option<(i32, i32, i32)>)> = host
+        let far: Vec<u32> = host
             .hub
             .guests
             .iter()
             .filter(|g| host.hub.here(g))
-            .filter(|g| !self.container_menu_valid(g))
-            .map(|g| {
-                let vehicle = g.menu.as_ref().and_then(|m| match m.slots {
-                    Slots::Block(key) if key.1 == crate::game::minecarts::CART_KEY_Y => Some(key),
-                    _ => None,
-                });
-                (g.conn, vehicle)
+            .filter(|g| {
+                (g.dead && super::super::native_menus::open_menu_of(host, g.conn).is_some())
+                    || !self.container_menu_valid(g)
             })
+            .map(|g| g.conn)
             .collect();
-        for (conn, vehicle) in far {
-            self.guest_container_closed(conn);
-            if let Some(host) = self.lan.as_mut() {
-                host.hub.close_container(conn);
-            }
-            if let Some(key) = vehicle {
-                self.close_guest_vehicle_menu(conn, key);
-            }
-            if let Some(gi) = self
-                .lan
-                .as_ref()
-                .and_then(|host| host.hub.guests.iter().position(|g| g.conn == conn))
-            {
-                self.guest_carried_back(gi);
-            }
+        for conn in far {
+            self.guest_close_menus_and_tell(conn);
         }
     }
 
@@ -554,7 +540,8 @@ impl Game<'_> {
             return true;
         };
         g.menu.as_ref().is_none_or(|m| {
-            !(m.slots.valid(&self.world) && !m.still_valid(&host.hub.loop_context, &self.world, g))
+            m.slots.valid(&self.world)
+                && m.still_valid(&host.hub.loop_context, &self.world, g)
                 && !m.pos.is_some_and(|k| {
                     k.1 == crate::game::minecarts::CART_KEY_Y
                         && !self.chest_vehicle_still_valid(k.2, g)
@@ -609,9 +596,9 @@ impl Game<'_> {
         self.guest_close_menus_and_tell(conn);
     }
 
-    /// `ServerPlayer.closeContainer`: every menu the guest has open closes through
-    /// `guest_close_all` (the lid, stand-ins, the cursor stack back to the inventory,
-    /// `PlayerContainerEvent.Close`), once, and then the client is told to close each window.
+    /// `ServerPlayer.closeContainer`: the client is told to close each window first, and
+    /// then every menu the guest has open closes through `guest_close_all` (the lid,
+    /// stand-ins, the cursor stack back to the inventory, `PlayerContainerEvent.Close`), once.
     pub(in crate::game) fn guest_close_menus_and_tell(&mut self, conn: u32) {
         let Some(host) = self.lan.as_ref() else {
             return;
@@ -630,14 +617,13 @@ impl Game<'_> {
             windows.extend(p.merchant.as_ref().map(|m| m.window));
             windows.extend(p.mount_window.as_ref().map(|m| m.window));
         }
-        self.guest_close_all(conn);
-        let Some(host) = self.lan.as_mut() else {
-            return;
-        };
-        for container in windows {
-            host.hub
-                .send_to(conn, &C::ContainerClose(play::ContainerClose { container }));
+        if let Some(host) = self.lan.as_mut() {
+            for container in windows {
+                host.hub
+                    .send_to(conn, &C::ContainerClose(play::ContainerClose { container }));
+            }
         }
+        self.guest_close_all(conn);
     }
 
     /// `ContainerEntity.isChestVehicleStillValid`: the chest minecart or chest

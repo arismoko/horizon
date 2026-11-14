@@ -572,6 +572,7 @@ impl Game<'_> {
                     / diameter;
             if dist > 1.0
                 || self.item_frames[i].fixed
+                || !self.combat.visits(self.item_frames[i].id)
                 || !self.break_frame_by(i, self.explosion_kill_credit())
             {
                 i += 1;

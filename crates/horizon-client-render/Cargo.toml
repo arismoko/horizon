@@ -13,6 +13,7 @@ horizon-hooks = { path = "../horizon-hooks" }
 horizon-mod-runtime = { path = "../horizon-mod-runtime" }
 mod_api = { package = "horizon-mod-vocab", path = "../horizon-mod-vocab" }
 horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
+horizon-engine-slots = { path = "../horizon-engine-slots" }
 # The GUI atlas's pixels, kept compressed once uploaded (hud.rs `pack_pixels`).
 lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-encode", "safe-decode", "checked-decode"] }
 horizon-assets = { path = "../horizon-assets" }

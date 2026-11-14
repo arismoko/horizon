@@ -416,8 +416,10 @@ pub struct Selector {
     pub player_name: Option<String>,
     /// The entity UUID when the argument was one.
     pub uuid: Option<u128>,
-    /// 'p', 'a', 'r', 's', 'e', 'n'.
+    /// 'p', 'a', 'r', 's', 'e', 'n'; 'e' for a mod's token.
     pub kind: char,
+    /// The mod's selector token (`allies` for `@allies`), whose type filters the candidates.
+    pub token: Option<String>,
     pub limit: usize,
     pub sort: Sort,
     pub include_entities: bool,
@@ -1120,8 +1122,8 @@ impl ArgType {
                     return Err(CommandError::tr_at(
                         "argument.float.low",
                         &[
-                            &horizon_client_core::snbt::java_float(*min),
-                            &horizon_client_core::snbt::java_float(v),
+                            &horizon_core::java_number::float_to_string(*min),
+                            &horizon_core::java_number::float_to_string(v),
                         ],
                         reader,
                     ));
@@ -1131,8 +1133,8 @@ impl ArgType {
                     return Err(CommandError::tr_at(
                         "argument.float.big",
                         &[
-                            &horizon_client_core::snbt::java_float(*max),
-                            &horizon_client_core::snbt::java_float(v),
+                            &horizon_core::java_number::float_to_string(*max),
+                            &horizon_core::java_number::float_to_string(v),
                         ],
                         reader,
                     ));
@@ -1146,8 +1148,8 @@ impl ArgType {
                     return Err(CommandError::tr_at(
                         "argument.double.low",
                         &[
-                            &horizon_client_core::snbt::java_double(*min),
-                            &horizon_client_core::snbt::java_double(v),
+                            &horizon_core::java_number::double_to_string(*min),
+                            &horizon_core::java_number::double_to_string(v),
                         ],
                         reader,
                     ));
@@ -1157,8 +1159,8 @@ impl ArgType {
                     return Err(CommandError::tr_at(
                         "argument.double.big",
                         &[
-                            &horizon_client_core::snbt::java_double(*max),
-                            &horizon_client_core::snbt::java_double(v),
+                            &horizon_core::java_number::double_to_string(*max),
+                            &horizon_core::java_number::double_to_string(v),
                         ],
                         reader,
                     ));

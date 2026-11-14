@@ -68,6 +68,20 @@ class MoveToDaily(unittest.TestCase):
         rows = [line for line in (self.policy / "daily-pkg.txt").read_text().splitlines() if not line.startswith("#")]
         self.assertEqual(rows, ["pkg tests::async_one lib daily game-boot", "pkg tests::slow_one lib daily slow"])
 
+    def test_restore_undoes_apply(self):
+        rows = [self.row("slow_one"), self.row("async_one")]
+        self.apply(rows)
+        restored, skipped = move_to_daily.restore(rows[:1], root=self.root, folder=self.policy)
+        self.assertEqual((len(restored), skipped), (1, []))
+        text = self.source.read_text()
+        self.assertIn("    #[test]\n    fn slow_one() {", text)
+        self.assertIn('#[ignore = "daily"]\n    #[allow(unused)]\n    async fn async_one', text)
+        kept = [line for line in (self.policy / "daily-pkg.txt").read_text().splitlines() if not line.startswith("#")]
+        self.assertEqual(kept, ["pkg tests::async_one lib daily slow"])
+        restored, skipped = move_to_daily.restore([self.row("slow_one")], root=self.root, folder=self.policy)
+        self.assertEqual(restored, [])
+        self.assertEqual(skipped[0][1], "no daily mark above the fn")
+
     def test_running_again_changes_nothing(self):
         rows = [self.row("slow_one"), self.row("async_one")]
         self.apply(rows)

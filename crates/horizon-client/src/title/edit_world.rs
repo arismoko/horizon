@@ -39,8 +39,10 @@ impl Title {
         (w, h): (f32, f32),
         name: &str,
         focused: bool,
+        phases: &mut dyn FnMut(crate::screen_draw::RenderPhase, &mut HudBatch),
     ) {
         crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+        phases(crate::screen_draw::RenderPhase::Background, batch);
         centered(
             atlas,
             batch,
@@ -93,8 +95,10 @@ impl Title {
         atlas: &HudAtlas,
         batch: &mut HudBatch,
         (w, h): (f32, f32),
+        phases: &mut dyn FnMut(crate::screen_draw::RenderPhase, &mut HudBatch),
     ) {
         crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+        phases(crate::screen_draw::RenderPhase::Background, batch);
         let description = lang::get("horizon.biome_regions.adopt.description");
         let lines = wrapped(atlas, &description, w - 50.0);
         self.message_lines.set(lines.len());

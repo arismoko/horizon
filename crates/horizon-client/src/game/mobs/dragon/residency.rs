@@ -55,6 +55,9 @@ impl Game<'_> {
                     self.forget_entity(part);
                 }
             }
+            // The parent's own sidecars go with it too, its `noPhysics` write
+            // included; the parts above are its separate entity ids.
+            self.forget_entity(id);
         }
         self.dragon.discard();
     }

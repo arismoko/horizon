@@ -25,7 +25,7 @@ impl Game<'_> {
             )
         {
             if matches!(key, KeyCode::Escape | KeyCode::ShiftLeft) {
-                self.wake_up();
+                self.wake_up(false, true);
             }
             return Ok(());
         }

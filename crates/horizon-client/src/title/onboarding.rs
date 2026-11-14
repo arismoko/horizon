@@ -250,12 +250,14 @@ impl Title {
         batch: &mut HudBatch,
         w: f32,
         h: f32,
+        phases: &mut dyn FnMut(crate::screen_draw::RenderPhase, &mut HudBatch),
     ) -> usize {
         let Mode::Onboarding(screen) = &self.mode else {
             return batch.vertices.len();
         };
         screen.alpha.set(screen.fade(Instant::now()));
         crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
+        phases(crate::screen_draw::RenderPhase::Background, batch);
         let lines = title_lines(atlas);
         self.message_lines.set(lines.len());
         let first = batch.vertices.len();

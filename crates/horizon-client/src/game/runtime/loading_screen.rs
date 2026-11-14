@@ -353,6 +353,13 @@ impl Loading {
         } else {
             Audio::with_device(&loaded.pack.source, &self.settings.sound_device)
         };
+        // The menu read its language from the prepared root alone (`set_root`) and
+        // `load_resources` skips it on this path: read it again with the mods' layers, in the
+        // language picked in the menu.
+        horizon_client::lang::set(horizon_client::lang::Language::load(
+            &[&loaded.pack.source],
+            &horizon_client::lang::code(),
+        ));
         let pack_error = loaded.pack_error.or_else(|| self.pack_error.take());
         // The game borrows its shared resources for the process's lifetime,
         // like the single copy an integrated server would share.

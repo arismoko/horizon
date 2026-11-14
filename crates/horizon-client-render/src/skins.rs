@@ -1637,6 +1637,7 @@ mod tests {
     /// `getByName` and `getProfileById` answer from the services the
     /// discovery document names; a profile resolves through both.
     #[test]
+    #[ignore = "daily"]
     fn profiles_resolve_through_the_services() {
         use std::io::{BufRead, BufReader, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1814,6 +1815,7 @@ mod tests {
     /// Textures come over plain HTTP too (a local server here; https is the
     /// same request through rustls), and only 2xx answers count.
     #[test]
+    #[ignore = "daily"]
     fn http_get_reads_2xx_bodies() {
         use std::io::{BufRead, BufReader, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -2030,6 +2032,7 @@ mod tests {
     /// A texture download that failed is tried again after the wait, instead of
     /// pinning the player to the default skin for the rest of the session.
     #[test]
+    #[ignore = "daily"]
     fn a_failed_download_is_retried_after_the_wait() {
         use std::io::{BufRead, BufReader, Write};
         use std::sync::atomic::{AtomicUsize, Ordering};

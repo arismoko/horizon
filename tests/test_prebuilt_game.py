@@ -25,8 +25,9 @@ def write_build_data(root: Path, identity: dict | None = None, commit: str = COM
         (root / name).write_text(json.dumps({"schema": 1, "build": {"commit": commit}}))
     so, exe = prebuilt_game.dylib_suffix(), ".exe" if sys.platform == "win32" else ""
     lib = prebuilt_game.dylib_prefix()
-    members = {"runtime": [f"bin/horizon-client{exe}", f"bin/{lib}horizon_native_mods{so}",
-                           f"deps/{lib}horizon_mod_host{so}", f"deps/{lib}horizon_mod_wasm{so}"],
+    members = {"runtime": [f"bin/horizon-client{exe}",
+                           f"deps/{lib}horizon_mod_host{so}", f"deps/{lib}horizon_mod_wasm{so}",
+                           *[f"deps/{lib}{crate}{so}" for crate in ("mod_api", "mod_vocab", "mod_points")]],
                "api": [prebuilt_game.NATIVE_MODS_TEMPLATE, "deps/libmod_api-1.rmeta", "deps/libmod_points-1.rmeta"]}
     for name in members["runtime"] + members["api"]:
         (root / name).parent.mkdir(parents=True, exist_ok=True)
@@ -148,7 +149,7 @@ class RegistryPatchTests(unittest.TestCase):
 
 class SdkAssetTests(unittest.TestCase):
     RUNTIME = ["deps/libhorizon_mod_host.so", "deps/libhorizon_mod_wasm.so", "bin/horizon-client",
-               "bin/libhorizon_native_mods.so"]
+               "deps/libmod_api.so", "deps/libmod_vocab.so", "deps/libmod_points.so"]
     API = ["deps/libmod_api-1.rmeta", "deps/libmod_points-1.rmeta", "host/libserde_derive.so"]
     ENGINE = ["deps/libhorizon_client-1.rmeta", "native/libwindows.a"]
 
@@ -214,7 +215,7 @@ class SdkAssetTests(unittest.TestCase):
                             ({"api": [*api, "deps/libhorizon_mod_host.so"]}, "overlap"),
                             # Each slice holds the members the required inputs name (so neither is empty).
                             ({"api": []}, "lack required members"),
-                            ({"runtime": [prebuilt_game.IDENTITY, *self.RUNTIME[:3]]}, "lack required members"),
+                            ({"runtime": [prebuilt_game.IDENTITY, *self.RUNTIME[:2]]}, "lack required members"),
                             ({"api": api[1:]}, "lack required members"),
                             ({"api": api[:-1]}, "lack required members")):
             with tempfile.TemporaryDirectory() as directory, self.subTest(change), \
@@ -335,6 +336,21 @@ class SdkAssetTests(unittest.TestCase):
             self.assertEqual((root / "fixture.tar.xz").read_bytes(), fixture.read_bytes())
 
 
+class TrackedBlobsTests(unittest.TestCase):
+    def test_bytes_are_the_commits_whatever_the_line_ending_settings(self):
+        # Git for Windows' default (core.autocrlf=true) made the Windows leg's function index differ from the others.
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", folder]
+            subprocess.run([*git, "init", "-q"], check=True)
+            (root / "a.rs").write_bytes(b"fn a() {}\nfn b() {}\n")
+            subprocess.run([*git, "add", "a.rs"], check=True)
+            subprocess.run([*git, "commit", "-q", "-m", "a"], check=True)
+            subprocess.run([*git, "config", "core.autocrlf", "true"], check=True)
+            blobs = dict(prebuilt_game.tracked_blobs(root, "HEAD"))
+        self.assertEqual(blobs, {"a.rs": b"fn a() {}\nfn b() {}\n"})
+
+
 class AllocatorSelectionTests(unittest.TestCase):
     def test_package_format_comes_from_its_one_place(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -366,12 +382,16 @@ class AllocatorSelectionTests(unittest.TestCase):
             pass
 
         def capture(command, **kwargs):
+            if command[:2] == ["cargo", "metadata"]:
+                return json.dumps({"packages": [], "resolve": {"nodes": []}})
             self.assertEqual(command[command.index("--target") + 1], "fixture-host")
+            self.assertEqual(kwargs["env"]["HORIZON_GAME_BUILD_ID"], "fixture-commit")
             self.assertIn("-C prefer-dynamic", kwargs["env"]["RUSTFLAGS"])
             self.assertNotIn("CARGO_ENCODED_RUSTFLAGS", kwargs["env"])
             raise Captured
 
         with patch.object(prebuilt_game, "stage", return_value=Path("staged")), \
+             patch.object(prebuilt_game, "head", return_value="fixture-commit"), \
              patch.object(prebuilt_game, "rustc_host", return_value="fixture-host"), \
              patch.object(prebuilt_game, "run", side_effect=capture), \
              patch.dict(prebuilt_game.os.environ, {"CARGO_ENCODED_RUSTFLAGS": "-Cprefer-dynamic=no"}):
@@ -392,7 +412,8 @@ class ExecutableLinkPolicyTests(unittest.TestCase):
             # engine build script and its real shared link policy, as the SDK build does.
             stubs = {
                 "horizon_game_discovery": 'pub fn declarations(_: &std::path::Path, _: &[&str]) '
-                    '-> std::io::Result<String> { Ok(String::new()) }',
+                    '-> std::io::Result<String> { Ok(String::new()) } '
+                    'pub fn folder_modules(_: &std::path::Path)->Result<String,String>{Ok(String::new())}',
                 "horizon_mod_api_gen": 'pub enum Target { Client } '
                     'pub fn generate(_: &std::path::Path, _: &std::path::Path, _: Target) '
                     '-> std::io::Result<()> { Ok(()) }',
@@ -473,6 +494,20 @@ class PrebuiltContentsTests(unittest.TestCase):
         # Only explicit extern/facade lookup must reject ambiguous names.
         with self.assertRaises(ValueError):
             prebuilt_game.extern_args(output, "shared")
+
+    def test_dylib_metadata_is_collected_from_the_rlib_sidecar(self):
+        root = self.folder("cache/host/release/deps/libmod_api.rlib",
+                           "cache/host/release/deps/libmod_api.rmeta",
+                           "cache/host/release/libmod_api.so")
+        deps, host = root / "sdk/deps", root / "sdk/host"
+        deps.mkdir(parents=True)
+        host.mkdir()
+        copied = prebuilt_game.copy_artifacts([{
+            "reason": "compiler-artifact", "target": {"kind": ["lib"]}, "package_id": "api",
+            "filenames": [str(root / "cache/host/release/deps/libmod_api.rlib"),
+                          str(root / "cache/host/release/libmod_api.so")],
+        }], deps, host, root / "cache/host")
+        self.assertEqual(set(copied["api"]), {"deps/libmod_api.so", "deps/libmod_api.rmeta"})
 
     def test_facades_exclude_build_only_and_ambiguous_runtime_crates(self):
         def package(name, kind="lib"):
@@ -622,18 +657,30 @@ class PrebuiltContentsTests(unittest.TestCase):
         for name, count in (("horizon_client", 45000), ("horizon_mod_wasm", 12000), ("serde_derive", 1)):
             self.assertIn(f"{name}.dll: {count} exported names", output.getvalue())
 
-    def test_exports_warns_about_any_dll_near_the_limit_without_failing(self):
+    def test_exports_warns_past_80_percent_without_failing(self):
         for large in ("horizon_client", "horizon_mod_wasm"):
             root = self.folder("deps/libhorizon_client.so")
             for name in ("horizon_client", "horizon_mod_wasm"):
-                self.dll(root, f"{name}.dll", 49000 if name == large else 48999)
+                self.dll(root, f"{name}.dll", 52429 if name == large else 52428)
             output = io.StringIO()
             with self.subTest(large), contextlib.redirect_stdout(output):
                 prebuilt_game.exports(root)
             warnings = [line for line in output.getvalue().splitlines() if line.startswith("::warning::")]
             self.assertEqual(len(warnings), 1)
-            self.assertIn(f"{large}.dll exports 49,000 names", warnings[0])
+            self.assertIn(f"{large}.dll exports 52,429 names", warnings[0])
             self.assertEqual(output.getvalue().count("exported names (Windows' limit"), 2)
+
+    def test_exports_fails_past_90_percent_after_reporting_every_dll(self):
+        root = self.folder("deps/libhorizon_client.so")
+        self.dll(root, "horizon_client.dll", 58982)
+        self.dll(root, "horizon_mod_wasm.dll", 58981)
+        self.dll(root, "mod_api.dll", 171)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as failed:
+            prebuilt_game.exports(root)
+        self.assertIn("horizon_client.dll (58,982)", str(failed.exception.code))
+        self.assertNotIn("horizon_mod_wasm", str(failed.exception.code))
+        self.assertEqual(output.getvalue().count("exported names (Windows' limit"), 3)
 
     def test_exports_is_silent_without_dlls(self):
         output = io.StringIO()

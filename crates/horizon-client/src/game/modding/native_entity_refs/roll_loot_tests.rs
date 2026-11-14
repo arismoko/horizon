@@ -136,10 +136,7 @@ fn game<'a>(
         &[],
         &[],
     );
-    game.world_tables = game
-        .build_world_tables(&stack, false, &root, false)
-        .unwrap()
-        .0;
+    game.world_tables = game.stage_world_tables(&stack, false, &root).unwrap().0;
     // The command's table argument knows the pack's tables, as after a world opens.
     game.sync_loot_table_ids();
     let level = game.level("minecraft:overworld").unwrap();

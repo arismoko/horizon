@@ -1,4 +1,4 @@
-//! Exercise both commands without downloads, using the pin-keyed catalog cache.
+//! Exercise both commands without downloads, using each pin's cached build data.
 use horizon_mod_package::{Manifest, manifest::MANIFEST};
 use std::{
     fs,
@@ -28,8 +28,11 @@ impl Project {
         project
     }
     fn catalog(&self, revision: &str, text: &str) {
-        let dir = self.dir.join("target/horizon-mod/prebuilt").join(revision);
+        // A verified fetch leaves the build's stamp and its unpacked build data.
+        let build = self.dir.join(".horizon/cache").join(revision);
+        let dir = build.join("build-data");
         fs::create_dir_all(&dir).unwrap();
+        fs::write(build.join("build"), revision).unwrap();
         // A bare entry list gets the build-data header of `revision`.
         let text = if text.trim_start().starts_with('[') {
             format!(r#"{{"schema":1,"build":{{"commit":"{revision}"}},"internals":{text}}}"#)
@@ -43,6 +46,8 @@ impl Project {
             .arg("horizon-mod")
             .args(args)
             .current_dir(&self.dir)
+            // An SDK base with no releases: nothing is downloaded.
+            .env("HORIZON_SDK_BASE", self.dir.join("no-sdk"))
             .output()
             .unwrap()
     }

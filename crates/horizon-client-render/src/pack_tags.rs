@@ -78,20 +78,13 @@ impl Tags {
         else {
             return;
         };
-        for value in json["values"].as_array().into_iter().flatten() {
-            // An entry is an id or `{"id": ..., "required": false}`.
-            let id = value
-                .as_str()
-                .or_else(|| value["id"].as_str())
-                .unwrap_or_default();
-            match id.strip_prefix('#') {
-                Some(inner) => self.collect(registry, &full_id(inner), out, seen),
-                None if !id.is_empty() => {
-                    out.insert(full_id(id));
-                }
-                None => {}
-            }
-        }
+        let members = horizon_world::tag_layers::TagLayers::from_file(&json).build(|inner| {
+            let mut child = HashSet::new();
+            self.collect(registry, &full_id(inner), &mut child, seen);
+            child.into_iter().collect()
+        });
+        out.extend(members.into_iter().map(|id| full_id(&id)));
+        seen.remove(tag);
     }
 }
 
@@ -112,7 +105,7 @@ mod tests {
         };
         write(
             "data/minecraft/tags/block/logs.json",
-            serde_json::json!({"values": ["oak_log", "#pack:fancy", {"id": "mod:log", "required": false}]}),
+            serde_json::json!({"values": ["oak_log", "#pack:fancy", {"id": "mod:log", "required": false}, {"id":"minecraft:oak_log", "remove":true}, "minecraft:oak_log"], "remove":["minecraft:cherry_log"]}),
         );
         // A tag that includes the one including it.
         write(
@@ -122,10 +115,7 @@ mod tests {
         let tags = Tags::new(&ResourceSource::directory(root.clone()));
         let mut logs: Vec<String> = tags.members("block", "logs").iter().cloned().collect();
         logs.sort();
-        assert_eq!(
-            logs,
-            ["minecraft:cherry_log", "minecraft:oak_log", "mod:log"]
-        );
+        assert_eq!(logs, ["minecraft:oak_log", "mod:log"]);
         assert!(tags.contains("block", "minecraft:logs", "minecraft:oak_log"));
         // Another registry's tag of the same name, and a tag no file defines, are empty.
         assert!(tags.members("entity_type", "logs").is_empty());

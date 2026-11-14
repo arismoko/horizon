@@ -198,7 +198,7 @@ pub fn scaled_value(tag: &Tag, path: &NbtPath, scale: f64) -> Result<i32, Comman
 }
 /// The text `data get ... <scale>` prints for the scale (`%.2f`).
 pub fn scale_text(scale: f64) -> Text {
-    Text::literal(crate::java_text::format_fixed(scale, 2))
+    Text::literal(horizon_core::java_number::format_fixed(scale, 2))
 }
 
 #[cfg(test)]

@@ -133,6 +133,7 @@ jobs:
         if: steps.mode.outputs.dry_run != 'true' && inputs.kind == 'nightly'
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           { echo "### nightly/build-* branches"; python3 tools/ci/nightly.py prune-builds --days 7; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: The source of the build (horizon-source.tar.gz)

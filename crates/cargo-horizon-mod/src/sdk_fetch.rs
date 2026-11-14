@@ -4,9 +4,11 @@
 //! `SHA256SUMS` must carry Horizon's signature for the tag `sdk-<build id>`, `sdk.json` must be the
 //! file those sums list and describe that build, and every other file must match `sdk.json`.
 //! `HORIZON_SDK_BASE` (a URL or a folder) replaces the releases' base for a mirror or offline use;
-//! the checks are the same.
+//! the checks are the same. Other builds (an update's target, a fit test's builds) are fetched the
+//! same way into `.horizon/cache/<build id>/`, with their build data unpacked there when a command
+//! reads it.
 use horizon_mod_package::{
-    Manifest,
+    Manifest, build_data,
     index::native,
     manifest::MANIFEST,
     sdk::{self, Index},
@@ -19,6 +21,11 @@ use std::path::{Path, PathBuf};
 
 /// The SDK's folder in a project.
 pub(crate) const DIR: &str = ".horizon/sdk";
+/// Other builds' folders in a project, one per build id.
+pub(crate) const CACHE: &str = ".horizon/cache";
+/// The folder in a build's folder its build data (`points.json`, `internals.json`, …) is
+/// unpacked to.
+pub(crate) const BUILD_DATA: &str = "build-data";
 /// The releases' base, when `HORIZON_SDK_BASE` names none.
 const BASE: &str = horizon_addresses::SDK_RELEASES;
 /// The file naming the build a folder holds, written last: a folder without it is not one.
@@ -29,6 +36,8 @@ const API_SOURCE: &str = "api-source.tar.xz";
 const SMALL: u64 = 16 << 20;
 /// The most the API source may unpack to.
 const API_LIMIT: u64 = 512 << 20;
+/// The most the build data may unpack to: its four files at the tool's bound for one.
+const BUILD_DATA_LIMIT: u64 = 4 * crate::bounded::MAX_CATALOG;
 
 /// A fetched, verified SDK.
 #[derive(Debug)]
@@ -281,7 +290,9 @@ pub(crate) fn fetch(
         return Err(format!("{}: {e}", dir.display()));
     }
     fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let sums = base.read(&tag, horizon_release_sign::SUMS, SMALL)?;
+    let sums = base
+        .read(&tag, horizon_release_sign::SUMS, SMALL)
+        .map_err(|e| format!("game build {build} has no signed SDK (release {tag}): {e}"))?;
     let signature = base.read(&tag, horizon_release_sign::SIGNATURE, SMALL)?;
     let listed =
         horizon_release_sign::verify(&tag, &sums, &String::from_utf8_lossy(&signature), keys)?;
@@ -307,24 +318,34 @@ pub(crate) fn fetch(
     };
     write(SURFACE, &surface)?;
     if api {
-        let archive = dir.join(API_SOURCE);
-        // One byte past the listed size is enough for the check to refuse it.
-        let size = index
-            .asset(API_SOURCE)
-            .map_err(|e| format!("{tag}: {e}"))?
-            .size;
-        let mut body = base.open(&tag, API_SOURCE)?.take(size.saturating_add(1));
-        let mut file =
-            fs::File::create(&archive).map_err(|e| format!("{}: {e}", archive.display()))?;
-        std::io::copy(&mut body, &mut file).map_err(|e| format!("{tag}/{API_SOURCE}: {e}"))?;
-        drop(file);
-        sdk::unpack(&index, API_SOURCE, &archive, &dir.join("api"), API_LIMIT)
-            .map_err(|e| format!("{tag}: {e}"))?;
-        fs::remove_file(&archive).map_err(|e| format!("{}: {e}", archive.display()))?;
+        unpack(base, &index, API_SOURCE, dir, "api", API_LIMIT)?;
     }
     write(sdk::INDEX, &bytes)?;
     write(STAMP, build.as_bytes())?;
     Ok(pinned(&index, dir))
+}
+
+/// Downloads the archive `name` that `index` lists into `dir`, and unpacks it, verified, into
+/// `dir`'s folder `into`.
+fn unpack(
+    base: &Base,
+    index: &Index,
+    name: &str,
+    dir: &Path,
+    into: &str,
+    limit: u64,
+) -> Result<(), String> {
+    let tag = format!("sdk-{}", index.build.commit);
+    let archive = dir.join(name);
+    // One byte past the listed size is enough for the check to refuse it.
+    let size = index.asset(name).map_err(|e| format!("{tag}: {e}"))?.size;
+    let mut body = base.open(&tag, name)?.take(size.saturating_add(1));
+    let mut file = fs::File::create(&archive).map_err(|e| format!("{}: {e}", archive.display()))?;
+    std::io::copy(&mut body, &mut file).map_err(|e| format!("{tag}/{name}: {e}"))?;
+    drop(file);
+    sdk::unpack(index, name, &archive, &dir.join(into), limit)
+        .map_err(|e| format!("{tag}: {e}"))?;
+    fs::remove_file(&archive).map_err(|e| format!("{}: {e}", archive.display()))
 }
 
 fn pinned(index: &Index, dir: &Path) -> PinnedSdk {
@@ -350,9 +371,44 @@ pub(crate) fn fetch_build(project: &Path, text: &str) -> Result<PinnedSdk, Strin
         &base,
         &keys(),
         &build,
-        &project.join(".horizon/cache").join(&build),
+        &project.join(CACHE).join(&build),
         false,
     )
+}
+
+/// The folder holding `build`'s build data, from its signed SDK's `build-data.tar.xz`, unpacked
+/// once into `.horizon/cache/<build>/build-data/`. A build with no SDK release is refused by name;
+/// nothing else is read. Each build's folder stays after a repin, so an update can still show the
+/// old pin's signatures once its release is gone.
+pub(crate) fn build_data(project: &Path, build: &str) -> Result<PathBuf, String> {
+    build_data_from(&Base::from_env(), &keys(), project, build)
+}
+
+fn build_data_from(
+    base: &Base,
+    keys: &[PublicKey],
+    project: &Path,
+    build: &str,
+) -> Result<PathBuf, String> {
+    let dir = project.join(CACHE).join(build);
+    let into = dir.join(BUILD_DATA);
+    // The stamp is written only after the folder's SDK verified, and the build data is renamed
+    // into place only after it unpacked whole from a verified archive.
+    if fs::read_to_string(dir.join(STAMP)).is_ok_and(|stamp| stamp == build) && into.is_dir() {
+        return Ok(into);
+    }
+    fetch(base, keys, build, &dir, false)?;
+    let bytes = fs::read(dir.join(sdk::INDEX)).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let index = Index::read(&bytes, build).map_err(|e| format!("sdk-{build}: {e}"))?;
+    unpack(
+        base,
+        &index,
+        build_data::ARCHIVE,
+        &dir,
+        BUILD_DATA,
+        BUILD_DATA_LIMIT,
+    )?;
+    Ok(into)
 }
 
 #[cfg(test)]

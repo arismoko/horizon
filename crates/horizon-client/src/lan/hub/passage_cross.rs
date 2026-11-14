@@ -77,7 +77,8 @@ impl Hub {
         let g = &self.guests[i];
         let flags = u8::from(g.on_ground);
         let rot = (g.yaw, g.pitch);
-        self.position_change(i, cross.from, rot, flags, ctx, events);
+        // The caller reads the position at once, so the report is committed in place, never held.
+        self.position_change(i, cross.from, rot, flags, Hearing::Crossing, ctx, events);
         let g = &self.guests[i];
         if g.awaiting_teleport.is_some() || g.position != crossing_source(cross.from) {
             // The move check sent its own correction, or kept the player where they were.

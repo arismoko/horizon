@@ -156,23 +156,6 @@ impl Watchdog {
     }
 }
 
-/// Double.toString for the magnitudes positions have (no exponent form
-/// between 1e-3 and 1e7).
-pub(super) fn java_double(v: f64) -> String {
-    if v == 0.0 || (1e-3..1e7).contains(&v.abs()) {
-        format!("{v:?}")
-    } else {
-        let s = format!("{v:E}");
-        let (m, e) = s.split_once('E').unwrap_or((&s, "0"));
-        let m = if m.contains('.') {
-            m.to_owned()
-        } else {
-            format!("{m}.0")
-        };
-        format!("{m}E{e}")
-    }
-}
-
 /// What the startup read before the game's resources were loaded.
 struct Setup {
     props: ServerProperties,
@@ -281,6 +264,62 @@ fn load_combat() -> bool {
             false
         }
     }
+}
+
+/// `server.toml`'s `[entities]` (docs/server.md): `villager_lobotomize` and its check interval. Off without
+/// the file or the section, and (with an error logged) when the section is wrong.
+fn load_entities() {
+    let text = std::fs::read_to_string("server.toml").unwrap_or_default();
+    match parse_entities(&text) {
+        Ok((on, interval)) => {
+            if on {
+                log(
+                    "INFO",
+                    &format!(
+                        "villagers that cannot move skip their brain, rechecked every {interval} ticks (server.toml [entities])"
+                    ),
+                );
+            }
+            horizon_client::mobs::villager::lobotomy::configure(on, interval);
+        }
+        Err(e) => log(
+            "ERROR",
+            &format!("server.toml: {e}; villagers keep their brains"),
+        ),
+    }
+}
+
+/// The `[entities]` section of a `server.toml`: (`villager_lobotomize`, its check interval in ticks). The
+/// section's other keys (`dab`...) belong to other settings, so they are skipped here; `horizon-server` refuses
+/// typos when it reads the file.
+fn parse_entities(text: &str) -> std::result::Result<(bool, u32), String> {
+    #[derive(serde::Deserialize)]
+    #[serde(default)]
+    struct Entities {
+        villager_lobotomize: bool,
+        villager_lobotomize_check_interval: u32,
+    }
+    impl Default for Entities {
+        fn default() -> Self {
+            Self {
+                villager_lobotomize: false,
+                villager_lobotomize_check_interval:
+                    horizon_client::mobs::villager::lobotomy::DEFAULT_INTERVAL,
+            }
+        }
+    }
+    let mut table = toml::from_str::<toml::Table>(text).map_err(|e| e.to_string())?;
+    let Some(section) = table.remove("entities") else {
+        return Ok((
+            false,
+            Entities::default().villager_lobotomize_check_interval,
+        ));
+    };
+    let e: Entities = section.try_into().map_err(|e| format!("[entities]: {e}"))?;
+    if e.villager_lobotomize_check_interval == 0 {
+        return Err("[entities]: villager_lobotomize_check_interval must be at least 1".into());
+    }
+    Ok((e.villager_lobotomize, e.villager_lobotomize_check_interval))
 }
 
 /// The secret for Velocity's player information forwarding, from `forwarding.secret` beside server.properties.
@@ -1120,7 +1159,7 @@ impl Game<'_> {
         self.native_server_starting(true);
         self.native_lifecycle_open_started();
         // The registries the server sends are read while the world prepares.
-        let sync = super::lan::preload_sync_data(&self.res.core.item_data);
+        let sync = super::lan::sync::preload_sync_data(&self.res.core.item_data);
         self.finish_open_world(prepared)?;
         // WorldLoader: the world's packs must load before the server starts. The data store is read
         // now rather than at the first tick (reading parses functions; it runs none), and a broken
@@ -1334,6 +1373,8 @@ impl Game<'_> {
         let chat_filter = load_chat_filter();
         self.set_pvp_legacy_rules(load_combat());
         self.read_runtime_level_cap(|key| props.raw.get(key));
+        load_entities();
+        // Horizon's far ring (docs/hosting.md): server.toml's `max_view_distance`.
         let far = props
             .raw
             .get(FAR_PROPERTY)
@@ -2760,6 +2801,25 @@ mod tests {
             assert_eq!(game.ip_ban_players("127.0.0.1"), [13]);
         });
     }
+    #[test]
+    fn entities_section_is_off_by_default_and_keeps_the_other_settings_keys() {
+        use super::parse_entities;
+        assert_eq!(parse_entities(""), Ok((false, 100)));
+        assert_eq!(
+            parse_entities(
+                "[entities]\nvillager_lobotomize = true\nvillager_lobotomize_check_interval = 40\n"
+            ),
+            Ok((true, 40))
+        );
+        assert_eq!(
+            parse_entities(
+                "[entities]\ndab = true\nmax_collisions = 8\nvillager_lobotomize = true\n"
+            ),
+            Ok((true, 100))
+        );
+        assert!(parse_entities("[entities]\nvillager_lobotomize_check_interval = 0\n").is_err());
+    }
+
     #[test]
     fn whitelist_bypass_file_takes_uuid_prefixes_and_refuses_junk() {
         let ok =

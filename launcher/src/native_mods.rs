@@ -1533,7 +1533,7 @@ pub enum Failed {
     Nothing,
     /// Mods this build can't use were saved into worlds: the player chooses (stay, or back the
     /// worlds up and build without them).
-    Worlds(AtStake),
+    Worlds(Box<AtStake>),
     Other(String),
 }
 
@@ -1592,6 +1592,10 @@ pub struct AtStake {
     pub text: String,
     /// The worlds' names.
     pub worlds: Vec<String>,
+    /// Every mod the stop is about.
+    pub mods: Vec<String>,
+    /// The mods among them that looked compatible and didn't build.
+    pub unbuilt: Vec<String>,
     /// Where backups go.
     pub backups: PathBuf,
     /// The build the instance plays now, as people read it: "Stay on" it is the default.
@@ -1639,6 +1643,18 @@ fn judge_all(
     Ok(verdicts)
 }
 
+/// A build's refusal of the mod tools, as the player reads it. A refused signature is short on
+/// screen, so its reason goes to the build log, where a report can quote it.
+fn refused(refusal: sdk_cache::Refusal) -> String {
+    if let sdk_cache::Refusal::Unsigned { build, why } = &refusal {
+        let _ = append_log(&trf(
+            "The mod tools for {build} were refused: {why}",
+            &[("build", build), ("why", why)],
+        ));
+    }
+    refusal.to_string()
+}
+
 /// Never switch a mod off silently in a game folder with worlds (SDK design §10.1, "Worlds"):
 /// when a world in `home` was saved with a mod of `left`, the build stops with
 /// [`Failed::Worlds`] naming them, unless the player chose `back_up`; then each of those worlds
@@ -1674,16 +1690,27 @@ fn guard_worlds(
             })
             .collect::<Vec<_>>()
             .join("\n\n");
-        return Err(Failed::Worlds(AtStake {
+        return Err(Failed::Worlds(Box::new(AtStake {
             text,
             worlds: at_stake
                 .iter()
                 .map(|(world, _)| world.name.clone())
                 .collect(),
+            mods: left
+                .iter()
+                .filter(|l| at_stake.iter().any(|(_, mods)| mods.contains(&l.id)))
+                .map(|l| l.id.clone())
+                .collect(),
+            unbuilt: left
+                .iter()
+                .filter(|l| matches!(l.why, isolate::Why::DidNotBuild))
+                .filter(|l| at_stake.iter().any(|(_, mods)| mods.contains(&l.id)))
+                .map(|l| l.id.clone())
+                .collect(),
             backups: home.join("backups"),
             stay: String::new(),
             base: String::new(),
-        }));
+        })));
     }
     for (world, _) in &at_stake {
         let made = crate::worlds::backup(home, world).map_err(|error| {
@@ -1832,7 +1859,7 @@ fn pipeline(
         }
         None
     } else {
-        Some(sdk_cache::index(&sdk_base, &revision, &keys).map_err(|r| r.to_string())?)
+        Some(sdk_cache::index(&sdk_base, &revision, &keys).map_err(refused)?)
     };
     let mut fitted: Vec<String> = Vec::new();
     if let Some(sdk) = &sdk {
@@ -1993,8 +2020,7 @@ fn pipeline(
                 let sdk = match sdk {
                     Some(sdk) => sdk,
                     None => {
-                        fetched = sdk_cache::index(&sdk_base, &revision, &keys)
-                            .map_err(|r| r.to_string())?;
+                        fetched = sdk_cache::index(&sdk_base, &revision, &keys).map_err(refused)?;
                         &fetched
                     }
                 };
@@ -2013,7 +2039,7 @@ fn pipeline(
                         })
                     },
                 )
-                .map_err(|r| r.to_string())?
+                .map_err(refused)?
             }
         };
         Some(package)
@@ -2256,11 +2282,11 @@ pub fn build(
         )
         .map_err(|failed| match failed {
             // "Stay" keeps the build the instance plays now.
-            Failed::Worlds(stake) => Failed::Worlds(AtStake {
+            Failed::Worlds(stake) => Failed::Worlds(Box::new(AtStake {
                 stay: playing(instance),
                 base: base.to_owned(),
-                ..stake
-            }),
+                ..*stake
+            })),
             other => other,
         })?;
         check_cancelled()?;
@@ -2427,9 +2453,10 @@ fn copy_runtime(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+mod installation;
 /// Installs `binary` as version `version`, retaining the base's runtime helpers. Clients
 /// reference the base's prepared resources; standalone server exports still carry their own.
-mod installation;
+mod library_record;
 use installation::install;
 
 /// Copies version folder `from` into `to` but for what a new build of `target` makes its own
@@ -2695,14 +2722,16 @@ mod tests {
         };
         let build = "nightly-2026-11-20 (9a8b7c6)";
         // A mod that fit but didn't compile goes through the same rule as one that doesn't fit.
-        for (why, headline) in [
+        for (why, headline, unbuilt) in [
             (
                 isolate::Why::DidNotBuild,
                 "greeter looked compatible with nightly-2026-11-20 (9a8b7c6) but didn't build.",
+                vec!["greeter".to_owned()],
             ),
             (
                 isolate::Why::Unfit("why".into()),
                 "greeter doesn't fit nightly-2026-11-20 (9a8b7c6).",
+                vec![],
             ),
         ] {
             let stopped = guard_worlds(&home, &[left(why)], build, false, &|_| {});
@@ -2711,12 +2740,30 @@ mod tests {
             };
             assert!(stake.text.starts_with(headline), "{}", stake.text);
             assert_eq!(stake.worlds, ["Home"]);
+            assert_eq!(stake.mods, ["greeter"]);
+            assert_eq!(stake.unbuilt, unbuilt);
             assert_eq!(stake.backups, home.join("backups"));
             assert!(
                 !home.join("backups").exists(),
                 "nothing is backed up unasked"
             );
         }
+        // A mod that failed to compile but is in no world isn't part of the stop.
+        let Err(Failed::Worlds(stake)) = guard_worlds(
+            &home,
+            &[left(isolate::Why::DidNotBuild), {
+                let mut other = left(isolate::Why::DidNotBuild);
+                other.id = "elsewhere".into();
+                other
+            }],
+            build,
+            false,
+            &|_| {},
+        ) else {
+            panic!("a world saved with the mod must stop the build");
+        };
+        assert_eq!(stake.mods, ["greeter"]);
+        assert_eq!(stake.unbuilt, ["greeter"]);
         // Chosen: the world is backed up first, then the build may go on without the mod.
         let said = std::cell::RefCell::new(Vec::new());
         guard_worlds(

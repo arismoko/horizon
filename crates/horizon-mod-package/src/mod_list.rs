@@ -374,6 +374,7 @@ impl ModList {
         if self.enabled.is_empty()
             && self.disabled.is_empty()
             && self.keys.is_empty()
+            && self.wasm_memory_cap_mib.is_none()
             && !path.exists()
         {
             return;
@@ -447,6 +448,14 @@ mod tests {
         ] {
             assert_eq!(ModList::parse(text).wasm_memory_cap(), 4096, "{text}");
         }
+        // A cap alone is still saved, in a folder with no list yet.
+        let dir = tempfile::tempdir().unwrap();
+        let only_cap = ModList {
+            wasm_memory_cap_mib: Some(64),
+            ..ModList::default()
+        };
+        only_cap.save(dir.path());
+        assert_eq!(ModList::load(dir.path()).wasm_memory_cap(), 64);
     }
 
     #[test]

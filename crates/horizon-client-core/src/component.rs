@@ -176,6 +176,20 @@ impl Parser<'_> {
         }
         String::from_utf8_lossy(&self.s[start..self.i]).into_owned()
     }
+    /// Up to four hex digits after `\u`; 0xFFFD where they are missing.
+    fn hex4(&mut self) -> u32 {
+        let digits = self.s[self.i..]
+            .iter()
+            .take(4)
+            .map_while(|b| (*b as char).to_digit(16));
+        let (mut value, mut n) = (0, 0);
+        for d in digits {
+            value = value * 16 + d;
+            n += 1;
+        }
+        self.i += n;
+        if n == 4 { value } else { 0xFFFD }
+    }
     fn string(&mut self) -> Result<String, String> {
         self.ws();
         let Some(q @ (b'"' | b'\'')) = self.peek() else {
@@ -189,11 +203,32 @@ impl Parser<'_> {
                 b'\\' => {
                     let Some(e) = self.peek() else { break };
                     self.i += 1;
-                    out.push(match e {
-                        b'n' => b'\n',
-                        b't' => b'\t',
-                        other => other,
-                    });
+                    match e {
+                        b'n' => out.push(b'\n'),
+                        b't' => out.push(b'\t'),
+                        b'r' => out.push(b'\r'),
+                        b'b' => out.push(0x08),
+                        b'f' => out.push(0x0c),
+                        // `\uXXXX` as JSON and SNBT write it, a surrogate pair as one char.
+                        b'u' => {
+                            let mut unit = self.hex4();
+                            if (0xD800..0xDC00).contains(&unit)
+                                && self.s[self.i..].starts_with(b"\\u")
+                            {
+                                let saved = self.i;
+                                self.i += 2;
+                                let low = self.hex4();
+                                if (0xDC00..0xE000).contains(&low) {
+                                    unit = 0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00);
+                                } else {
+                                    self.i = saved;
+                                }
+                            }
+                            let c = char::from_u32(unit).unwrap_or('\u{FFFD}');
+                            out.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes());
+                        }
+                        other => out.push(other),
+                    }
                 }
                 c if c == q => return Ok(String::from_utf8_lossy(&out).into_owned()),
                 c => out.push(c),
@@ -405,6 +440,11 @@ fn object_style<'a>(
 pub(crate) fn hex_color(c: &str) -> Option<u32> {
     let value = i64::from_str_radix(c.strip_prefix('#')?, 16).ok()?;
     (0..=0xFF_FFFF).contains(&value).then_some(value as u32)
+}
+
+/// Whether `c` is a style `color` (`TextColor.parseColor`): a named colour or `#` and hex.
+pub fn is_color(c: &str) -> bool {
+    named_color(c).is_some() || hex_color(c).is_some()
 }
 
 /// `Style.shadow_color`: a packed ARGB int or normalized RGBA array.

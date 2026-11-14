@@ -201,7 +201,9 @@ A group's members share one linear memory: their heaps, stacks and static data t
 the largest `wasm_memory_mib` a member's `horizon-mod.toml` declares (1 to 4096 MiB, wasm32's 4 GiB),
 so a library declares what it and its addons need. Without a declaration, the limit is
 1 GiB or the instance cap, whichever is smaller. The limit is a ceiling, not memory taken: the group
-uses what it grows to. Past the limit, or past what the system gives, `memory.grow` answers -1 inside the
+uses what it grows to. It bounds that used memory only: on 64-bit systems the runtime still reserves
+address space for each memory (4 GiB plus a guard region), committing none of it, and a lower cap does
+not shrink that reservation. Past the limit, or past what the system gives, `memory.grow` answers -1 inside the
 guest and the call goes on; Rust's allocator then reports the failure as usual (`try_reserve` returns an
 error; an infallible allocation ends the call with a trap and the log names the group and its limit).
 

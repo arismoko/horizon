@@ -23,6 +23,9 @@ pub(super) fn install(
         let name = library.file_name().ok_or("invalid library path")?;
         fs::copy(library, partial.join(name)).map_err(|e| format!("{}: {e}", library.display()))?;
     }
+    let mut about = about.clone();
+    about["libraries"] =
+        serde_json::to_value(library_record::collect(libraries)?).map_err(|e| e.to_string())?;
     fs::write(partial.join("native-mods.json"), about.to_string()).map_err(|e| e.to_string())?;
     for bundle in mods {
         package::copy(

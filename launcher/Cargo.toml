@@ -11,7 +11,7 @@ description = "Downloads, prepares and starts Horizon builds"
 horizon-mod-point-emit = { path = "../crates/horizon-mod-point-emit" }
 horizon-addresses = { path = "../crates/horizon-addresses" }
 # Reads the object members out of the mods' rlibs for the API route's C link (`native_mods/api_route.rs`).
-object = { version = "0.39", default-features = false, features = ["read_core", "archive", "std"] }
+object = { version = "0.39", default-features = false, features = ["read_core", "archive", "pe", "std"] }
 # The catalog and mod-owned trait injections share their generation rules.
 # GPUI Fast (longbridge/gpui-fast): Zed's GPUI with retained views and cached scroll layers, under
 # its own name. wgpu renders on Linux, not blade (#3812).

@@ -151,6 +151,7 @@ fn blocking_client_writer_resumes_when_server_drains() {
     assert_eq!(actual, expected);
 }
 #[test]
+#[ignore = "daily"]
 fn tcp_server_resumes_only_from_writable_readiness() {
     let mut poll = Poll::new().unwrap();
     let worker = worker(&poll);

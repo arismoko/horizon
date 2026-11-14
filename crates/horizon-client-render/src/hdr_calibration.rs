@@ -145,7 +145,7 @@ impl Step {
     }
 }
 
-struct Layout {
+pub(crate) struct Layout {
     top: f32,
     hint: Vec<Text>,
     slider: (f32, f32, f32),
@@ -233,12 +233,22 @@ impl Calibration {
             self.layout(font, size).top / size.1.max(1.0),
         )
     }
-    pub fn draw(&self, batch: &mut HudBatch, atlas: &HudAtlas, cursor: (f32, f32)) {
+    pub(crate) fn draw_background(&self, batch: &mut HudBatch, atlas: &HudAtlas) -> Layout {
         let (w, h) = (batch.width, batch.height);
         let l = self.layout(&atlas.font, (w, h));
         // Above the band HDR output draws the test picture over whatever is here.
         batch.fill(atlas, 0.0, 0.0, w, h, rgba(0, 0, 0, 255));
         batch.fill(atlas, 0.0, l.top, w, h - l.top, rgba(24, 24, 24, 255));
+        l
+    }
+    pub(crate) fn draw_contents(
+        &self,
+        batch: &mut HudBatch,
+        atlas: &HudAtlas,
+        cursor: (f32, f32),
+        l: Layout,
+    ) {
+        let w = batch.width;
         let step = self.current();
         let title = Text::literal(lang::tr(
             "HDR Calibration %s/%s: %s",

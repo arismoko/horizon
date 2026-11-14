@@ -274,7 +274,7 @@ impl Game<'_> {
         }
         let inside = (0..3).all(|k| (hit.point[k] - f64::from(hit.pos[k]) - 0.5).abs() < 1.0000001);
         if !inside {
-            let d = horizon_client::java_text::double_to_string;
+            let d = horizon_core::java_number::double_to_string;
             let at = |k: usize| d(hit.point[k]);
             let line = format!(
                 "Rejecting UseItemOnPacket from {}: Location ({}, {}, {}) too far away from hit block BlockPos{{x={}, y={}, z={}}}.",

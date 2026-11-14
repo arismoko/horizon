@@ -9,8 +9,8 @@ use horizon_client::{
     debug_entries::{self, ENTRIES},
     debug_overlay as overlay,
     debug_overlay::Displayer,
-    java_text,
 };
+use horizon_core::java_number;
 use horizon_world::{
     heightmap::{HeightmapState, HeightmapType},
     worldgen::terrain::TerrainBlockStates,
@@ -132,7 +132,7 @@ impl Game<'_> {
                             "position",
                             [format!(
                                 "Speed: {} blocks/tick",
-                                java_text::format_fixed(speed.length(), 3)
+                                java_number::format_fixed(speed.length(), 3)
                             )],
                         );
                     }

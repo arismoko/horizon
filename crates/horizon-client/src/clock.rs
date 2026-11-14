@@ -260,7 +260,7 @@ impl ServerTickRateManager {
         self.base.set_frozen(self.previous_is_frozen);
         SprintReport {
             ticks_per_second,
-            milliseconds_per_tick: crate::java_text::format_fixed2(per_tick),
+            milliseconds_per_tick: horizon_core::java_number::format_fixed2(per_tick),
         }
     }
     /// `checkShouldSprintThisTick`: whether to run this tick without waiting,
@@ -551,6 +551,11 @@ impl FixedStep {
     pub fn average_nanos(&self) -> u64 {
         (self.aggregated / SAMPLES.min(self.tick_count.max(1) as usize) as i64).max(0) as u64
     }
+    /// `getTickTimesNanos`: the last 100 ticks' durations in nanoseconds, the tick numbered
+    /// `n` at index `n % 100` (0 where none was recorded yet).
+    pub fn tick_times(&self) -> Vec<u64> {
+        self.tick_times.iter().map(|&t| t.max(0) as u64).collect()
+    }
     /// The sorted `getTickTimesNanos` array (always 100 entries).
     pub fn sorted_samples(&self) -> Vec<u64> {
         let mut v: Vec<u64> = self.tick_times.iter().map(|&t| t.max(0) as u64).collect();
@@ -562,6 +567,25 @@ impl FixedStep {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `tick_times` lists the durations by `tick % 100`, not oldest first: the 101st tick
+    /// overwrites index 0.
+    #[test]
+    fn tick_times_hold_durations_by_tick_number_modulo_100() {
+        let mut clock = FixedStep::default();
+        for took in [7, 8, 9] {
+            clock.record(std::time::Duration::from_nanos(took));
+        }
+        let times = clock.tick_times();
+        assert_eq!(times.len(), 100);
+        assert_eq!(times[..4], [7, 8, 9, 0]);
+        for took in 10..=109 {
+            clock.record(std::time::Duration::from_nanos(took));
+        }
+        let times = clock.tick_times();
+        assert_eq!(times[..4], [107, 108, 109, 10]);
+        assert_eq!(times[99], 106);
+    }
 
     #[test]
     fn timer_carries_fractions_and_caps_nothing_itself() {

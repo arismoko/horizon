@@ -81,13 +81,10 @@ pub(super) fn texture(state: &ProfessionState, zombie: bool) -> Option<Cow<'stat
     })
 }
 
-pub(super) fn apply(
-    state: &ProfessionState,
-    zombie: bool,
-    variant: u8,
-    poses: &mut super::super::anim::Poses,
-) {
-    let visible = VISUALS.with(|cache| {
+/// `VillagerProfessionLayer`: whether the type layer draws on the parent model with its hat, or on
+/// `noHatModel` because the profession's hat covers the type's.
+pub(super) fn type_hat_shown(state: &ProfessionState, zombie: bool, variant: u8) -> bool {
+    VISUALS.with(|cache| {
         let cache = cache.borrow();
         let Some(visual) = slot(state).and_then(|slot| cache.slots.get(slot)) else {
             return true;
@@ -98,8 +95,7 @@ pub(super) fn apply(
             Hat::Partial => cache.type_hats[species].get(usize::from(variant)) != Some(&Hat::Full),
             Hat::Full => false,
         }
-    });
-    poses.visible("head", visible);
+    })
 }
 
 /// A name built from parts (`entity/villager/profession/farmer`), kept for the

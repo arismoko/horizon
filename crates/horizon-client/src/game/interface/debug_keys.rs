@@ -734,7 +734,7 @@ impl Game<'_> {
             DebugAction::CopyLocation if player => {
                 self.debug_translated("debug.copy_location.message");
                 if let Some(p) = &self.player {
-                    use horizon_client::java_text::format_fixed2 as f2;
+                    use horizon_core::java_number::format_fixed2 as f2;
                     let command = format!(
                         "/execute in {} run tp @s {} {} {} {} {}",
                         self.dim.id(),
@@ -1000,7 +1000,7 @@ impl Game<'_> {
     /// `KeyboardHandler.copyCreateEntityCommand`: the data without its UUID
     /// or position.
     fn copy_create_entity_command(&mut self, kind: &str, pos: Vec3, tag: Option<Tag>) {
-        use horizon_client::java_text::format_fixed2 as f2;
+        use horizon_core::java_number::format_fixed2 as f2;
         let mut command = format!("/summon {kind} {} {} {}", f2(pos.x), f2(pos.y), f2(pos.z));
         if let Some(mut tag) = tag {
             if let Tag::Compound(c) = &mut tag {

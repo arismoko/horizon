@@ -20,6 +20,8 @@ pub(in crate::game) struct GuestMenus {
     /// Names the hub's container clicks of this guest, which have no menu value of their own: a
     /// click while another of the guest's is being decided is refused as busy.
     pub(in crate::game) hub: MenuOwner<()>,
+    /// The successful open already announced to mods, retained through a loan of `GuestPlay`.
+    pub(in crate::game) menu_heard: Option<super::native_menus::HeardMenu>,
 }
 
 impl LanHost {

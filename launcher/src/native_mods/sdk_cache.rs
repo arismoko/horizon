@@ -67,27 +67,27 @@ impl std::fmt::Display for Refusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
             Self::NoSdk { build } => trf(
-                "{build} has no mod tools yet (its SDK build failed or is still running). Use a game build that has them, or try again later.",
+                "The mod tools for {build} aren't ready yet. Pick another game build, or try again later.",
                 &[("build", build)],
             ),
             Self::Offline { build, bytes: Some(bytes) } => trf(
-                "The launcher is offline and the mod tools for {build} aren't downloaded yet ({size}). Connect once, or point the launcher at a copy of them.",
+                "The launcher is offline and the mod tools for {build} aren't downloaded yet ({size}). Connect to the internet and try again.",
                 &[("build", build), ("size", &megabytes(*bytes))],
             ),
             Self::Offline { build, bytes: None } => trf(
-                "The launcher is offline and the mod tools for {build} aren't downloaded yet. Connect once, or point the launcher at a copy of them.",
+                "The launcher is offline and the mod tools for {build} aren't downloaded yet. Connect to the internet and try again.",
                 &[("build", build)],
             ),
-            Self::Unsigned { build, why } => trf(
-                "The mod tools for {build} aren't signed by Horizon, so they were not used: {why}",
-                &[("build", build), ("why", why)],
+            Self::Unsigned { build, .. } => trf(
+                "The mod tools for {build} didn't pass Horizon's safety check, so nothing was installed and your game is untouched. Try again later; if it keeps happening, please report it.",
+                &[("build", build)],
             ),
             Self::UpdateLauncher { build, what } => trf(
-                "The mod tools for {build} need a newer launcher ({what}). Update the launcher.",
+                "The mod tools for {build} need a newer launcher. Update the launcher, then build again.\n({what})",
                 &[("build", build), ("what", what)],
             ),
             Self::OlderRust { build, rust } => trf(
-                "The mod tools for {build} were made with Rust {rust}; this launcher builds mods with Rust {ours}. Use a newer game build.",
+                "The mod tools for {build} are older than this launcher can build with. Pick a newer game build.\n(Rust {rust}; this launcher builds with {ours})",
                 &[("build", build), ("rust", rust), ("ours", rust_toolchain::VERSION)],
             ),
             Self::Refused { build, why } => trf(

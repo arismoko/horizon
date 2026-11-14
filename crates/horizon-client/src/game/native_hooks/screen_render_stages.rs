@@ -4,7 +4,7 @@ use super::*;
 impl Game<'_> {
     /// Before the open screen draws itself (`ScreenEvent.Render.Pre`): draw
     /// here to put something under it, or set `canceled` and the screen is not
-    /// drawn (nor its `native_screen_render_background`).
+    /// drawn (nor its Background or Foreground phase).
     pub(in crate::game) fn native_screen_render_pre(
         &self,
         draw: &mut HudBatch,
@@ -13,7 +13,7 @@ impl Game<'_> {
     ) {
         self.fire_screen_render_pre(draw, screen, canceled);
     }
-    /// Before the open screen's contents (`ScreenEvent.Render.Background`).
+    /// After the panel, before contents (`ScreenEvent.Render.Background`).
     pub(in crate::game) fn native_screen_render_background(
         &self,
         draw: &mut HudBatch,
@@ -21,7 +21,7 @@ impl Game<'_> {
     ) {
         self.fire_screen_render_background(draw, screen);
     }
-    /// After the open screen's contents (`ScreenEvent.Render.Foreground`).
+    /// After contents, before tooltips/carried stack (`ScreenEvent.Render.Foreground`).
     pub(in crate::game) fn native_screen_render_foreground(
         &self,
         draw: &mut HudBatch,

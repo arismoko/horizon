@@ -148,6 +148,7 @@ fn profession_hub(name: &str, vanilla_professions: bool) -> horizon_client::lan:
     let sync = std::sync::Arc::new(sync);
     let config = NetConfig {
         announce: false,
+        listen: false,
         ..NetConfig::loopback(0, name.into(), 2)
     };
     let lan = Lan::start_with(sync.clone(), config).unwrap();

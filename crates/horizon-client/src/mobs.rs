@@ -1,10 +1,8 @@
-//! Mobs: entity types (dimensions and default attributes exported from
-//! vanilla), models (vanilla `LayerDefinitions` baked part trees) and the
-//! `Mob` entity with vanilla's AI framework: goal and target selectors with
-//! priorities and control flags (`goals`), A* pathfinding with walk, swim,
-//! fly and amphibious node evaluators (`path`, `nav`), move/look/jump/body
-//! controls (`control`), `LivingEntity` physics (`living`) and per-species
-//! behaviour, models, animations and sounds.
+//! Mobs: entity types (dimensions and default attributes exported from vanilla), models (vanilla
+//! `LayerDefinitions` baked part trees) and the `Mob` entity with vanilla's AI framework: goal and
+//! target selectors with priorities and control flags (`goals`), A* pathfinding with walk, swim,
+//! fly and amphibious node evaluators (`path`, `nav`), move/look/jump/body controls (`control`),
+//! `LivingEntity` physics (`living`) and per-species behaviour, models, animations and sounds.
 pub mod ai;
 pub mod allay;
 pub mod ambient;
@@ -30,6 +28,7 @@ pub mod copper_golem;
 pub mod creaking;
 pub mod creaking_heart;
 pub mod cube;
+pub mod dab;
 pub mod data;
 pub mod dolphin;
 pub mod doors;
@@ -58,11 +57,14 @@ pub mod landing;
 pub mod leash;
 pub mod living;
 pub mod llama;
+mod mob_slot;
 pub mod mod_behaviors;
 pub mod model_layers;
 pub mod monster_brain;
 pub mod nautilus;
 pub mod neutral_anger;
+pub use mob_slot::MobSlot;
+mod push;
 mod type_attributes;
 pub use neutral_anger::{
     adopt_anger_end, anger_left, persistent_anger, resume_anger, settle_anger_end,
@@ -1470,6 +1472,8 @@ pub struct Mob {
     /// `Entity.needsSync`: knocked back, pushed or jumped since its server
     /// last sent it, so the next update goes out at once.
     pub needs_sync: bool,
+    /// The mobs it pushed this turn, kept while the collision cap is on (`push::Cap`).
+    pub pushed: Vec<u32>,
     /// `Entity.syncPosition`: it bounced this tick (`restituteMovementAfterCollisions`),
     /// so its tracker keeps this position as a step of the next move it sends.
     pub sync_position: bool,
@@ -1526,6 +1530,10 @@ pub struct Mob {
     /// `Entity.firstTick`: no splash for a mob that appears in water.
     pub first_tick: bool,
     pub no_gravity: bool,
+    /// `Entity.noPhysics`: its moves pass through blocks. No save writes it
+    /// (`Entity.saveWithoutId` omits it) and no mob tick rewrites it except a
+    /// vex, which sets it only for the length of its own tick.
+    pub no_physics: bool,
     /// `Entity.mainSupportingBlockPos`: the block it stood on after its last
     /// move.
     pub supporting: Option<[i32; 3]>,
@@ -1607,11 +1615,6 @@ pub struct Mob {
     /// What `entity_size` answered for its pose and vanilla size (`EntityEvent.Size`):
     /// `dims` uses it while it holds.
     pub size_answer: Option<crate::pose::SizeAnswer>,
-}
-impl crate::entity_rules::EntityRules for Mob {
-    fn is_no_gravity(&self) -> bool {
-        self.no_gravity
-    }
 }
 /// A mannequin's `description` and `hide_description` (`Mannequin.updateDescription`):
 /// the default `entity.minecraft.mannequin.label`, none at all, or a component.
@@ -2716,6 +2719,8 @@ pub struct Seen {
     pub still: bool,
     /// `Entity.isVehicle`: something rides it.
     pub carrying: bool,
+    /// Pushes given or taken so far this tick, while the collision cap is on.
+    pub collisions: u32,
 }
 impl Seen {
     /// Whether `canBeCollidedWith` can ever hold for this kind: the slots
@@ -2922,6 +2927,7 @@ impl Mob {
             is_vehicle: equine::is_vehicle(m),
             still: m.species() == Species::HappyGhast && happy_ghast::on_still_timeout(m),
             carrying: m.rider.is_some() || m.extra.rider.is_some(),
+            collisions: 0,
             knockback_resistance: m.attrs.knockback_resistance,
             effects: m
                 .extra
@@ -3319,7 +3325,6 @@ pub trait LiveMobs {
     /// Visit each mob in the disjoint loan, without allocating a snapshot.
     fn for_each(&self, visitor: &mut dyn FnMut(&Mob));
 }
-
 #[derive(Clone)]
 pub struct MobWorld<'a> {
     pub professions: &'a villager::ResolvedProfessions,
@@ -3433,6 +3438,7 @@ pub struct MobWorld<'a> {
     /// The level's world border, whose walls stop a mob's moves
     /// (`Entity.collectColliders`); None: nothing stops them there.
     pub border: Option<&'a horizon_core::geometry::border::BorderGeometry>,
+    pub section_writer: Option<living::section_writes::Observer>,
 }
 /// `MobEffectInstance.tickServer` for a content mod's effect: its
 /// `shouldApplyEffectTickThisTick` and `applyEffectTick`, which the game's
@@ -3710,6 +3716,7 @@ impl Mob {
             horizontal_collision: false,
             vertical_collision_below: false,
             needs_sync: false,
+            pushed: Vec::new(),
             sync_position: false,
             gear_knockback_resistance: None,
             hurt_time: 0,
@@ -3737,6 +3744,7 @@ impl Mob {
             was_eye_in_water: false,
             first_tick: true,
             no_gravity: false,
+            no_physics: false,
             supporting: None,
             standing_on: None,
             no_ai: false,

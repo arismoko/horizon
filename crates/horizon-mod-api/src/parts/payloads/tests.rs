@@ -102,6 +102,7 @@ fn invalid_ownership_versions_and_receiving_handlers_refuse_load() {
             .registrar("1")
             .play_to_server(PayloadId(id.into()), handler());
         assert_eq!(registrar.refused.len(), 1, "{id}");
+        assert!(registrar.refused[0].contains(id), "{id}");
         assert!(registrar.parts.payloads.is_none());
     }
     let mut registrar = PartRegistrar::new("test");
@@ -217,12 +218,14 @@ fn raw_channels_refuse_engine_namespaces_bare_ids_and_typed_collisions() {
         "minecraft:register",
         "minecraft:brand",
         "horizon:payloads",
+        "horizon:selector_tokens",
         "horizon:anything",
         "bare",
     ] {
         let mut registrar = PartRegistrar::new("test");
         declare_raw(&mut registrar, "test", 0, id);
         assert_eq!(registrar.refused.len(), 1, "{id}");
+        assert!(registrar.refused[0].contains(id), "{id}");
         assert!(registrar.parts.payloads.is_none(), "{id}");
     }
     // Typed first, raw second: refused naming both mods.

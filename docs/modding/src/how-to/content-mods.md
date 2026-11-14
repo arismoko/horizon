@@ -30,7 +30,8 @@ cargo horizon-mod check target/horizon-mod/my_mod.hmod   # the registry's checks
   works after one command; your editor needs that first command too. `.horizon/` is in the template's `.gitignore`
   and is never packed. The fetch checks Horizon's signature on the release and every file against its `sdk.json`;
   `HORIZON_SDK_BASE` (a URL or a folder) reads the releases from a mirror instead. When that Nightly has no SDK,
-  `new` says so and asks for `--horizon`. `update` repins a native mod the same way. Its root `impl Hooks` uses
+  `new` says so and asks for `--horizon`. `update` repins a native mod the same way
+  ([the SDK in a mod project](../reference/sdk/03-in-a-project.md)). Its root `impl Hooks` uses
   `#[mod_api::horizon_mod]`. Compile it with `horizon-launcher native-build <path> --trust-native-code`
   ([writing hooks](../start/writing-hooks.md)). Any other `--template` is refused.
 - `build` packs the checked project into `target/horizon-mod/<id>.hmod`: `horizon-mod.toml`, `assets/`,

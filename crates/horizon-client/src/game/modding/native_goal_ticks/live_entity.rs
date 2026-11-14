@@ -95,7 +95,7 @@ impl GoalCx<'_, '_> {
     }
 
     pub(super) fn r_entity_no_physics(&self, entity: EntityRef) -> Option<bool> {
-        self.entity_mob(entity).map(|_| false)
+        self.entity_mob(entity).map(|mob| mob.no_physics)
     }
 
     pub(super) fn r_entity_spectator(&self, entity: EntityRef) -> Option<bool> {

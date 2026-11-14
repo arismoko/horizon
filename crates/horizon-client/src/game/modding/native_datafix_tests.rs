@@ -30,7 +30,7 @@ fn chain(depth: usize, riding: bool) -> Compound {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn a_mods_host_upgrades_old_data_and_refuses_by_name() {
     // The pre-1.13 fixes (the riding chain's) read the data fixers' tables of the prepared resources.
     horizon_world::datafix::set_resources(std::path::Path::new(
@@ -62,9 +62,18 @@ fn a_mods_host_upgrades_old_data_and_refuses_by_name() {
                 host.upgrade_entity_nbt(1900, chain(512, false)),
                 Err(NbtUpgradeError::TooDeep)
             );
-            // 300 riders at DataVersion 100: 300 deep given, 600 deep once `Riding` becomes `Passengers`.
+            // One rider at DataVersion 100 with a payload 510 deep: moving it below its mount's `Passengers`
+            // adds two levels, past the cap. Hundreds of riders would refuse too, but the legacy fixes walk and
+            // copy the whole chain for each one: minutes and gigabytes (horizon-world's datafix tests do the same).
+            let mut rider = chain(1, true);
+            let mut payload = Tag::Compound(Compound::new());
+            for _ in 0..509 {
+                payload = Tag::compound([("x", payload)]);
+            }
+            rider.insert("payload".into(), payload);
+            assert!(host.upgrade_entity_nbt(current, rider.clone()).is_ok());
             assert_eq!(
-                host.upgrade_entity_nbt(100, chain(300, true)),
+                host.upgrade_entity_nbt(100, rider),
                 Err(NbtUpgradeError::UpgradedTooDeep)
             );
         });

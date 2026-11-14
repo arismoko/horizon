@@ -194,8 +194,9 @@ Typed humanoid parts have separate storage, so all twelve fit alongside the eigh
 
 - Hiding happens after Skin Customization, for this frame only.
 - A hidden part takes its children with it: the hat goes with the head, a sleeve with its arm.
-- Only the body loses the part. The armour, held items and other layers keep every part, and
-  the cape, a layer of its own, stays.
+- The body loses the part, and so do the layers drawn on the body's own model, as vanilla's
+  `getParentModel()` layers do: a villager's type, profession and level, a spider's eyes. The
+  armour, held items and other layers keep every part, and the cape, a layer of its own, stays.
 
 ## Text and animation in block entities
 

@@ -178,10 +178,19 @@ pub struct Guest {
     /// The hub tick the player was placed on: chunks go out from the tick
     /// after next, behind the first doTick's packets, as vanilla's do.
     pub placed_at: u64,
+    /// The hub tick the guest entered its level (a join or a level change): `player_move` does not
+    /// hear the tick after it.
+    pub level_entered: u64,
+    /// The last location a movement report was heard at, or a server-side teleport sent the player
+    /// to (position, `[yaw, pitch]`): what `player_move` compares reports with and reports as `from`.
+    /// It is kept apart from the accepted position and may differ from it.
+    pub last_reported: ([f64; 3], [f32; 2]),
     /// The chunk cache centre placeNewPlayer already sent.
     pub center_sent: Option<(i32, i32)>,
     /// Why the connection closed (the console's "lost connection").
     pub left_reason: String,
+    /// A validated movement report the mods have not ruled on yet (`player_move`).
+    pub pending_move: Option<super::hub::PendingMove>,
     /// A disconnect was started ([`Guest::begin_disconnect`]); the connection closes when the
     /// server next polls it, and until then no other disconnect is sent.
     pub disconnect_pending: bool,
@@ -253,6 +262,8 @@ pub struct Guest {
     /// the moves it sent from the old level are ignored, as they would be
     /// while it had a teleport to accept.
     pub landing: bool,
+    /// `landing` was set by a `tp` hold waiting for chunks (`Game::hold_for_chunks`), not by a portal.
+    pub tp_held: bool,
     pub teleport_counter: i32,
     /// `ServerPlayer.getCamera() != this`.
     pub watching: bool,
@@ -677,8 +688,11 @@ impl Guest {
             last_seen: Default::default(),
             signatures: Default::default(),
             placed_at: 0,
+            level_entered: 0,
+            last_reported: (position, [0.0, 0.0]),
             center_sent: None,
             left_reason: String::new(),
+            pending_move: None,
             disconnect_pending: false,
             uuid: j.uuid,
             name: j.name,
@@ -719,6 +733,7 @@ impl Guest {
             awaiting_teleport: None,
             awaiting_keeps_motion: false,
             landing: false,
+            tp_held: false,
             teleport_counter: 0,
             watching: false,
             teleport_tick: 0,
@@ -1233,7 +1248,7 @@ pub fn stack_to_network(
     synced_id: impl Fn(&str, &str) -> Option<i32>,
     s: &Option<ItemStack>,
 ) -> Option<Stack> {
-    network_stack(&item_id, &synced_id, s)
+    Some(network_stack(&item_id, &synced_id, s.as_ref()?))
 }
 /// `ProvidesTrimMaterial.STREAM_CODEC`, `ProvidesBannerPatterns.STREAM_CODEC`,
 /// `AdventureModePredicate.STREAM_CODEC` and `ItemAttributeModifiers.STREAM_CODEC`:
@@ -1614,13 +1629,13 @@ fn trim_component(
         (material, pattern) => Component::TrimDirect { material, pattern },
     })
 }
-fn network_stack(
+/// Convert a borrowed item template with the same component codecs as inventory slots.
+pub(super) fn network_stack(
     item_id: &dyn Fn(&str) -> i32,
     synced_id: &dyn Fn(&str, &str) -> Option<i32>,
-    s: &Option<ItemStack>,
-) -> Option<Stack> {
+    s: &ItemStack,
+) -> Stack {
     let enchantment_id = |name: &str| synced_id("minecraft:enchantment", name);
-    let s = s.as_ref()?;
     let mut stack = Stack::new(item_id(&s.item), s.count as i32);
     if s.damage > 0 {
         stack.added.push((
@@ -1651,6 +1666,17 @@ fn network_stack(
         ));
     }
     if let Some(d) = s.data() {
+        let glint = "minecraft:enchantment_glint_override";
+        if d.other("!minecraft:enchantment_glint_override").is_some() {
+            stack
+                .removed
+                .push(horizon_protocol::item::component::ENCHANTMENT_GLINT_OVERRIDE);
+        } else if let Some(value) = d.other(glint).and_then(crate::item_data::component_bool) {
+            stack.added.push((
+                horizon_protocol::item::component::ENCHANTMENT_GLINT_OVERRIDE,
+                horizon_protocol::item::Component::Bool(value),
+            ));
+        }
         // TridentItem.use runs on both peers: each must see the stack's own durability limit.
         if let Some(horizon_core::nbt::Tag::Int(max)) = d.other("minecraft:max_damage") {
             stack.added.push((
@@ -1713,19 +1739,20 @@ fn network_stack(
                 Some(kind) => (true, kind),
                 None => (false, name.as_str()),
             };
-            if removed && kind == "minecraft:kinetic_weapon" {
-                stack
-                    .removed
-                    .push(horizon_protocol::item::component::KINETIC_WEAPON);
+            if removed {
+                // Resolve every removal through the peer's canonical registry, including
+                // built-ins without a modelled value. Earlier codec branches may have
+                // already recorded this removal.
+                if let Some(id) = synced_id("minecraft:data_component_type", kind)
+                    && !stack.removed.contains(&id)
+                {
+                    stack.removed.push(id);
+                }
             } else if horizon_protocol::item::custom::id(kind).is_some() {
                 if let Some(id) = synced_id("minecraft:data_component_type", kind) {
-                    if removed {
-                        stack.removed.push(id);
-                    } else {
-                        stack
-                            .added
-                            .push((id, horizon_protocol::item::Component::Nbt(value.clone())));
-                    }
+                    stack
+                        .added
+                        .push((id, horizon_protocol::item::Component::Nbt(value.clone())));
                 } else {
                     log::warn!("Cannot send custom component {kind} to this peer");
                 }
@@ -1928,7 +1955,7 @@ fn network_stack(
             let charged = d
                 .charged
                 .iter()
-                .filter_map(|c| network_stack(item_id, synced_id, &Some(c.clone())))
+                .map(|c| network_stack(item_id, synced_id, c))
                 .collect();
             stack.added.push((
                 horizon_protocol::item::component::CHARGED_PROJECTILES,
@@ -1943,12 +1970,7 @@ fn network_stack(
             let slots: Vec<(i32, Stack)> = d
                 .container
                 .iter()
-                .filter_map(|(slot, s)| {
-                    Some((
-                        i32::from(*slot),
-                        network_stack(item_id, synced_id, &Some(s.clone()))?,
-                    ))
-                })
+                .map(|(slot, s)| (i32::from(*slot), network_stack(item_id, synced_id, s)))
                 .collect();
             // The saved list names only the filled slots; the codec counts them
             // all, from the first to the last that holds one.
@@ -1975,7 +1997,7 @@ fn network_stack(
             let contents = d
                 .bundle_contents
                 .iter()
-                .filter_map(|c| network_stack(item_id, synced_id, &Some(c.clone())))
+                .map(|c| network_stack(item_id, synced_id, c))
                 .collect();
             stack.added.push((
                 horizon_protocol::item::component::BUNDLE_CONTENTS,
@@ -2127,7 +2149,7 @@ fn network_stack(
             custom_model_data(t),
         ));
     }
-    Some(stack)
+    stack
 }
 
 /// `CustomModelData.CODEC` read from its saved form, for its stream codec.
@@ -2366,6 +2388,42 @@ mod tests {
             assert_eq!(sent.removed, [kind]);
             assert!(sent.added.is_empty());
         }
+    }
+
+    #[test]
+    fn built_in_and_unmodelled_removals_round_trip_through_the_peer_registry() {
+        let mut item = ItemStack::new("minecraft:stone", 1);
+        for id in [
+            "minecraft:unbreakable",
+            "minecraft:item_model",
+            "example:unmodelled",
+        ] {
+            item.data_mut().set_other(id, None);
+            item.data_mut()
+                .set_other(&format!("!{id}"), Some(Tag::Compound(Default::default())));
+        }
+        let sent = stack_to_network(
+            |_| 1,
+            |registry, name| {
+                assert_eq!(registry, "minecraft:data_component_type");
+                match name {
+                    "minecraft:unbreakable" => Some(4),
+                    "minecraft:item_model" => Some(10),
+                    "example:unmodelled" => Some(300),
+                    _ => None,
+                }
+            },
+            &Some(item),
+        );
+        let mut writer = Writer::new();
+        horizon_protocol::item::Slot::write(&sent, &mut writer);
+        let mut reader = Reader::new(&writer.data);
+        let mut received = horizon_protocol::item::Slot::read(&mut reader)
+            .unwrap()
+            .unwrap();
+        received.removed.sort_unstable();
+        assert_eq!(received.removed, [4, 10, 300]);
+        assert!(received.added.is_empty());
     }
 
     #[test]

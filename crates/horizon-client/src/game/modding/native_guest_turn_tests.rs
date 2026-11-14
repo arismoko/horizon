@@ -177,7 +177,7 @@ fn refused_wire_reload_preserves_hub_and_engine_generation() {
             &[],
         );
         let error = game
-            .prepare_world_reload(&stack, &root, false)
+            .prepare_world_reload(&stack, &root)
             .err()
             .unwrap()
             .to_string();
@@ -204,7 +204,7 @@ fn refused_wire_reload_preserves_hub_and_engine_generation() {
             &[],
             &[],
         );
-        let prepared = game.prepare_world_reload(&stack, &good, false).unwrap();
+        let prepared = game.prepare_world_reload(&stack, &good).unwrap();
         game.install_world_tables(prepared);
         game.run_native_advancement_grants();
         assert!(!Arc::ptr_eq(

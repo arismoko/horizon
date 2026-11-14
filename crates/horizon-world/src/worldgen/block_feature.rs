@@ -306,7 +306,9 @@ impl super::block_predicate::PredicateBlockResolver for FeatureBlockBindings<'_>
         self.fluids.resolve(json)
     }
     fn predicate_block_set(&self, json: &str) -> Result<Arc<BTreeSet<BlockStateId>>, DecodeError> {
-        if let Ok(name) = serde_json::from_str::<String>(json) {
+        let set: serde_json::Value = serde_json::from_str(json)?;
+        // A plain id or tag shares the bound set; other forms resolve anew.
+        if let Some(name) = set.as_str() {
             if let Some(tag) = name.strip_prefix('#') {
                 return self
                     .tags
@@ -318,24 +320,54 @@ impl super::block_predicate::PredicateBlockResolver for FeatureBlockBindings<'_>
             }
             return self
                 .blocks
-                .get(&identifier(&name)?)
+                .get(&identifier(name)?)
                 .cloned()
                 .ok_or_else(|| DecodeError::Registry(format!("unknown predicate block {name}")));
         }
-        let names: Vec<String> = serde_json::from_str(json)?;
-        let mut states = BTreeSet::new();
-        for name in names {
-            states.extend(
-                self.blocks
-                    .get(&identifier(&name)?)
-                    .ok_or_else(|| {
-                        DecodeError::Registry(format!("unknown predicate block {name}"))
-                    })?
-                    .iter()
-                    .copied(),
-            );
+        let lookup = BlockSetLookup {
+            bindings: self,
+            unknown_tags_empty: false,
+        };
+        crate::holder_set::resolve(&set, &lookup)
+            .map(|ids| Arc::new(ids.into_iter().collect()))
+            .map_err(DecodeError::Registry)
+    }
+}
+
+/// Feature blocks as a holder-set registry: a block stands for all its states.
+pub(crate) struct BlockSetLookup<'a, 'r> {
+    pub(crate) bindings: &'a FeatureBlockBindings<'r>,
+    /// Structure processors read a tag no pack defines as empty.
+    pub(crate) unknown_tags_empty: bool,
+}
+impl crate::holder_set::HolderLookup for BlockSetLookup<'_, '_> {
+    type Id = BlockStateId;
+    fn what(&self) -> &str {
+        "block"
+    }
+    fn entry(&self, id: &str) -> Result<Vec<BlockStateId>, String> {
+        let name = identifier(id).map_err(|e| e.to_string())?;
+        self.bindings
+            .blocks
+            .get(&name)
+            .map(|states| states.iter().copied().collect())
+            .ok_or_else(|| format!("unknown block {id}"))
+    }
+    fn tag(&self, tag: &str) -> Result<Vec<BlockStateId>, String> {
+        let name = super::tags::identifier(tag).map_err(|e| e.to_string())?;
+        match self.bindings.tags.get(&name) {
+            Some(states) => Ok(states.iter().copied().collect()),
+            None if self.unknown_tags_empty => Ok(Vec::new()),
+            None => Err(format!("unknown block tag {tag}")),
         }
-        Ok(Arc::new(states))
+    }
+    fn all(&self) -> Result<Vec<BlockStateId>, String> {
+        Ok(self
+            .bindings
+            .blocks
+            .values()
+            .flat_map(|states| states.iter().copied())
+            .collect())
     }
 }
 #[derive(Clone, Debug)]

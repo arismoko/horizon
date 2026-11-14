@@ -13,7 +13,8 @@
 //! admits, and each function marked with `#[horizon_mod_api_macros::replaceable]` in the crates below it. The source tree
 //! carries none of this: only a staged copy does, and everything the pass writes stays on the
 //! line it annotates, so the staged source's line numbers are the pinned source's.
-use crate::source::{self, GameFile};
+use crate::source::{self};
+use mod_source::modules::ModuleFile;
 use quote::quote;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -690,9 +691,9 @@ fn functions<'a>(
     let foreign = foreign_imports(items);
     for item in items {
         match item {
-            Item::Mod(inline) if !source::gated(&inline.attrs) => {
+            Item::Mod(inline) if !mod_source::modules::gated(&inline.attrs) => {
                 if let Some((_, inner)) = &inline.content
-                    && !source::test_only(&inline.attrs)
+                    && !mod_source::modules::test_only(&inline.attrs)
                 {
                     functions(
                         &format!("{module}::{}", inline.ident),
@@ -704,7 +705,8 @@ fn functions<'a>(
                 }
             }
             Item::Fn(function)
-                if !source::gated(&function.attrs) && eligible(&function.attrs, &function.sig) =>
+                if !mod_source::modules::gated(&function.attrs)
+                    && eligible(&function.attrs, &function.sig) =>
             {
                 out.push(Found {
                     module: module.to_owned(),
@@ -717,7 +719,7 @@ fn functions<'a>(
                 });
             }
             Item::Impl(block)
-                if !source::gated(&block.attrs)
+                if !mod_source::modules::gated(&block.attrs)
                     && lifetimes_only(&block.generics)
                     && matches!(&*block.self_ty, Type::Path(ty) if ty.qself.is_none()) =>
             {
@@ -776,8 +778,9 @@ fn inventory(
             Item::Mod(inline) => {
                 if let Some((_, inner)) = &inline.content {
                     let reason = inherited.or_else(|| {
-                        (source::gated(&inline.attrs) || source::test_only(&inline.attrs))
-                            .then_some("conditional/test module")
+                        (mod_source::modules::gated(&inline.attrs)
+                            || mod_source::modules::test_only(&inline.attrs))
+                        .then_some("conditional/test module")
                     });
                     inventory(
                         &format!("{module}::{}", inline.ident),
@@ -792,7 +795,7 @@ fn inventory(
             Item::Fn(function) => record(&function.attrs, &function.sig, inherited, counts),
             Item::Impl(block) => {
                 let reason = inherited.or_else(|| {
-                    if source::gated(&block.attrs) {
+                    if mod_source::modules::gated(&block.attrs) {
                         Some("conditional impl")
                     } else if !lifetimes_only(&block.generics) {
                         Some("impl type/const generics")
@@ -869,7 +872,8 @@ pub(crate) fn marked(root: &Path) -> Result<Vec<(String, String)>, String> {
                                         .then_some("impl type/const generics")
                                 })
                                 .or_else(|| {
-                                    source::gated(&block.attrs).then_some("conditional impl")
+                                    mod_source::modules::gated(&block.attrs)
+                                        .then_some("conditional impl")
                                 });
                             if let Some(reason) = reason {
                                 return Err(format!(
@@ -985,7 +989,7 @@ struct Crate {
     name: String,
     /// Its library root, where its slot array goes.
     lib: PathBuf,
-    files: Vec<GameFile>,
+    files: Vec<ModuleFile>,
     /// Whether only its marked functions are replaceable.
     marked_only: bool,
     /// Its package folder.
@@ -1161,7 +1165,7 @@ fn lexical(path: &Path) -> PathBuf {
 }
 
 /// A package's manifest, parsed.
-fn manifest(package: &Path) -> Result<toml::Table, String> {
+pub(crate) fn manifest(package: &Path) -> Result<toml::Table, String> {
     let path = package.join("Cargo.toml");
     let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     toml::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))

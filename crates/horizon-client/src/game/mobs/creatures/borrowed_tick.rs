@@ -110,12 +110,36 @@ impl Game<'_> {
         let uuid = state.uuid;
         let level_id = state.level_id;
         let round = state.round;
-        // Each mob's position updates in its tick, in order, filed once the game is free: its
-        // teleports (`snapTo`, kept while this record is open), then where its tick left it.
-        let mut section_moves = std::mem::take(&mut self.native_lifecycle.entity_sections.ticked);
-        let teleports = round
+        // Each mob's position updates in its tick, in order, filed and told before the next mob
+        // is examined. The small record remains separate from `Mob` because teleports update
+        // the same position field as ordinary movement.
+        let section_table = round.sections().then(|| {
+            std::rc::Rc::new(std::cell::RefCell::new(std::mem::take(
+                &mut self.native_lifecycle.entity_sections,
+            )))
+        });
+        let mut section_moves = section_table
+            .as_ref()
+            .map(|sections| std::mem::take(&mut sections.borrow_mut().ticked))
+            .unwrap_or_default();
+        crate::mobs::living::section_writes::begin(section_table.is_some());
+        let section_scope = round
             .sections()
-            .then(horizon_client::mobs::living::teleports::Record::open);
+            .then(|| self.entity_section_scope())
+            .flatten();
+        let live_section_observer: Option<crate::mobs::living::section_writes::Observer> =
+            section_scope
+                .zip(section_table.as_ref())
+                .map(|(scope, sections)| {
+                    let observer: crate::mobs::living::section_writes::Observer =
+                        std::rc::Rc::new(std::cell::RefCell::new(
+                            crate::game::entity_sections::LiveSectionObserver::new(
+                                std::rc::Rc::clone(sections),
+                                scope,
+                            ),
+                        ));
+                    observer
+                });
         let mut dispatch_panic = None;
         let mut pushes = std::mem::take(state.pushes);
         let original_len = snapshot.len();
@@ -151,6 +175,10 @@ impl Game<'_> {
         loop {
             let mut pause = None;
             let mut retry_rider = None;
+            // A mob's list is lifted while its world view is borrowed.  Once a
+            // position write was captured, stop after this mob, restore the
+            // list, and tell its writes while the live row is readable.
+            let mut section_yield = false;
             {
                 let ticking = self.entity_ticking_area();
                 let players = self.level_players();
@@ -163,6 +191,9 @@ impl Game<'_> {
                     .map(super::super::boat_leads::boat_state)
                     .collect();
                 let mut base = self.mob_world_base(&[]);
+                // Install the shared observer only on the per-mob view below; keeping the
+                // reusable base empty lets its reference fields remain copyable between rows.
+                base.section_writer = None;
                 base.passenger_objects = passenger_objects;
                 let mut level = horizon_client::health::DamageLevel::lent(
                     &self.world,
@@ -278,6 +309,7 @@ impl Game<'_> {
                             nearest_player,
                             player: None,
                             teams: std::sync::Arc::clone(&base.teams),
+                            section_writer: None,
                             ..base
                         };
                         let kept = horizon_client::mobs::ai::despawn_check(m, &w);
@@ -409,8 +441,10 @@ impl Game<'_> {
                         player_identity: active_identity,
                         player_selection: selection.as_ref(),
                         teams: std::sync::Arc::clone(&base.teams),
+                        section_writer: None,
                         ..base
                     };
+                    w.section_writer = live_section_observer.clone();
                     w.controlling_player_movement = controlling_player_movement;
                     let credit_expiring = if resuming {
                         resume_credit_expiring
@@ -504,11 +538,34 @@ impl Game<'_> {
                     };
                     super::super::tick_profile::end_mob(level_id, sampled);
                     let m = &mut mobs[i];
-                    // Each teleport in its tick, then where the tick left it: one position update
-                    // each (`EntityInLevelCallback.onMove` for each).
-                    if let Some(teleports) = &teleports {
-                        teleports.take_into(&mut section_moves);
-                        section_moves.push((m.id, m.position));
+                    // Its `xo` (`previous`) is where its tick began, unless a teleport in the
+                    // tick (`snapTo`) moved it along: that teleport, then where the tick left
+                    // it, are two position updates (`EntityInLevelCallback.onMove` for each).
+                    if round.sections() {
+                        let captured = crate::mobs::living::section_writes::drain_for(
+                            m.id,
+                            &mut section_moves,
+                        );
+                        if kept && !m.removed {
+                            let changed = captured != 0 || m.previous != m.position;
+                            if changed && captured == 0 {
+                                // A position changed before the lifted tick (or a raw test fixture)
+                                // still has the old filed section as its first write.
+                                section_moves.push(
+                                    crate::mobs::living::section_writes::PositionWrite::baseline(
+                                        m.id, m.join, m.previous,
+                                    ),
+                                );
+                            }
+                            if changed && captured == 0 {
+                                section_moves.push(
+                                    crate::mobs::living::section_writes::PositionWrite::captured(
+                                        m.id, m.join, m.previous, m.position,
+                                    ),
+                                );
+                                section_yield = true;
+                            }
+                        }
                     }
                     if let Some(selection) = &selection
                         && selection.has_switched()
@@ -582,21 +639,25 @@ impl Game<'_> {
                         from,
                     );
                     cursor += 1;
+                    if section_yield {
+                        break;
+                    }
                 }
             }
-            if pause.is_none() && retry_rider.is_none() {
+            if pause.is_none() && retry_rider.is_none() && !section_yield {
                 break;
             }
             // No MobWorld, DamageLevel or navigation loan crosses this boundary.
             // The callback sees the real owning rows and level RNG/attachments,
             // and its writes are the state the continuation will resume from.
             lent.give_back(&mut self.world);
-            self.entity_sections_ticked(&mut section_moves);
-            // Earlier mobs' pushes become visible before the listener can read
-            // or replace another actor's velocity. Departed rows must no longer
-            // resolve as live handles while the batch is temporarily installed.
-            for m in &mut mobs {
-                horizon_client::mobs::apply_mob_pushes(m, &mut pushes);
+            // Earlier mobs' pushes become visible before a real pause callback
+            // can read or replace another actor's velocity. A section-only
+            // yield must not change the normal end-of-pass push ordering.
+            if pause.is_some() || retry_rider.is_some() {
+                for m in &mut mobs {
+                    horizon_client::mobs::apply_mob_pushes(m, &mut pushes);
+                }
             }
             mobs.retain(|m| {
                 index
@@ -614,6 +675,12 @@ impl Game<'_> {
                 std::mem::swap(&mut host.mob_players, &mut bindings);
             }
             let callback_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if section_yield && let Some(sections) = section_table.as_ref() {
+                    self.entity_sections_ticked_live(
+                        &mut sections.borrow_mut(),
+                        &mut section_moves,
+                    );
+                }
                 if let Some(id) = retry_rider {
                     self.dismount_mob(id);
                 } else if let Some(decision) = pause.as_ref() {
@@ -683,7 +750,7 @@ impl Game<'_> {
                 path_writes.append(writes);
             }
             lent = horizon_client::health::LentLevel::take(&mut self.world);
-            resuming = retry_rider.is_none();
+            resuming = retry_rider.is_none() && !section_yield;
             retried_rider = retry_rider;
         }
         laps.lap("creature_loop");
@@ -725,8 +792,20 @@ impl Game<'_> {
                 horizon_client::mobs::apply_mob_pushes(m, &mut pushes);
             }
         }
-        self.entity_sections_ticked(&mut section_moves);
-        self.native_lifecycle.entity_sections.ticked = section_moves;
+        crate::mobs::living::section_writes::finish();
+        drop(live_section_observer);
+        // Keep the reusable write storage for the next pass; the live-row callback has already
+        // consumed every record that belonged to this family tick.
+        section_moves.clear();
+        if let Some(table) = section_table {
+            let mut sections = std::rc::Rc::try_unwrap(table)
+                .ok()
+                .expect("live section observer still held");
+            sections.get_mut().ticked = section_moves;
+            self.native_lifecycle.entity_sections = sections.into_inner();
+        } else {
+            self.native_lifecycle.entity_sections.ticked = section_moves;
+        }
         *state.pushes = pushes;
         *state.mobs = mobs;
         *state.snapshot = snapshot;

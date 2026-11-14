@@ -1081,6 +1081,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn auth_and_command_replies_match_api_v1_goldens() {
         let golden: Value =
             serde_json::from_str(include_str!("../testdata/api-v1-auth-command.json")).unwrap();
@@ -1370,6 +1371,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_backup_whose_flush_fails_turns_saving_back_on() {
         let dir = std::env::temp_dir().join(format!("horizon-server-flush-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -1425,6 +1427,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn the_api_wants_its_token() {
         let dir = std::env::temp_dir().join(format!("horizon-server-api-{}", std::process::id()));
         std::fs::create_dir_all(dir.join(".horizon")).unwrap();
@@ -1477,6 +1480,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_token_and_a_port_from_server_toml() {
         let dir =
             std::env::temp_dir().join(format!("horizon-server-api-fixed-{}", std::process::id()));
@@ -1711,6 +1715,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn backup_replies_match_api_v1_goldens() {
         let golden: Value =
             serde_json::from_str(include_str!("../testdata/api-v1-backups.json")).unwrap();

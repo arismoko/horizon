@@ -1,7 +1,7 @@
 //! What a code mod uses of the surface (design-fit.md 10.2): the scan of its source against the
 //! pinned SDK's `surface.json`, the table `build` packs as `uses.json`, and `check`'s summary.
 use crate::sdk_fetch::PinnedSdk;
-use horizon_mod_api_gen::mod_uses::{self, ModInput, ReadError};
+use mod_source::mod_uses::{self, ModInput, ReadError};
 use mod_surface::child::ChildEntry;
 use mod_surface::uses::{Built, ManifestFacts, Origin, Uses, uses_contained};
 use mod_surface::{Surface, leaf};

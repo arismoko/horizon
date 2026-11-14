@@ -1440,10 +1440,7 @@ pub(super) mod interact_vibration_tests {
             game.world_root = dir.clone();
             let stack = game.reload_datapacks(false, &[]).unwrap();
             let root = game.options.resources.clone();
-            game.world_tables = game
-                .build_world_tables(&stack, false, &root, game.mods.data_switched)
-                .unwrap()
-                .0;
+            game.world_tables = game.stage_world_tables(&stack, false, &root).unwrap().0;
             let items =
                 &mut std::sync::Arc::make_mut(&mut game.world_tables.as_mut().unwrap().items).items;
             let mut info = items["minecraft:fishing_rod"].clone();

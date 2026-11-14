@@ -16,8 +16,7 @@ pkg-fmt = "tgz"
 
 [dependencies]
 horizon-addresses = { path = "../horizon-addresses" }
-horizon-mod-api-gen = { path = "../horizon-mod-api-gen" }
-cap-std = "3.4.6"
+horizon-mod-source = { path = "../horizon-mod-source" }
 # `canonicalize` that keeps plain Windows paths (no verbatim prefix), as `cargo metadata` prints them.
 dunce = "1.0.5"
 horizon-mod-package = { path = "../horizon-mod-package", default-features = false, features = ["index", "prebuilt"] }

@@ -112,8 +112,8 @@ fn a_changed_or_removed_item_it_uses_is_named() {
     assert_eq!(
         said,
         [
-            "the function `give` (changed)",
-            "the hook `player_logged_in` (removed)"
+            "the function give (changed)",
+            "the hook player_logged_in (removed)"
         ]
     );
     std::fs::remove_dir_all(dir).unwrap();
@@ -185,13 +185,13 @@ fn at_most_five_changes_are_named_then_how_many_more() {
         })
         .collect();
     let said = changes(&misfits);
-    assert!(said.contains("`f4`"), "{said}");
-    assert!(!said.contains("`f5`"), "{said}");
+    assert!(said.contains("f4"), "{said}");
+    assert!(!said.contains("f5"), "{said}");
     assert!(
         said.ends_with("and 2 more (all of them are in the build log)"),
         "{said}"
     );
-    assert_eq!(changes(&misfits[..1]), "the function `f0` (removed)");
+    assert_eq!(changes(&misfits[..1]), "the function f0 (removed)");
 }
 
 #[test]
@@ -214,17 +214,16 @@ fn every_message_names_the_mod_the_builds_and_the_worlds() {
     assert_eq!(
         refusal("Greeter", &misfit, build),
         "Greeter doesn't fit this game.\nIt was made for aaaaaaa and this instance runs \
-         nightly-2026-11-13 (afe471c). Since then the game changed 2 things Greeter uses: the hook \
-         `player_logged_in` (changed); the method `ServerHost::give_item` (removed).\nWhat you can \
-         do: play without Greeter. It stays installed and is left out of the build; Turn off \
-         Greeter in its menu on the Mods page to keep it out."
+         nightly-2026-11-13 (afe471c). Since then the game changed 2 things that Greeter uses: the hook \
+         player_logged_in (changed); the method ServerHost::give_item (removed).\nThe game will be \
+         built without Greeter, which stays installed. Ask its author for an update made for this game."
     );
     let fits = Verdict::Fits {
         made_for: made_for.clone(),
     };
     assert_eq!(
         line("Greeter", &fits, build),
-        "Made for aaaaaaa. Fits this game (nightly-2026-11-13 (afe471c))."
+        "Made for aaaaaaa. Fits this game: nightly-2026-11-13 (afe471c)."
     );
     assert!(fits.usable() && Verdict::MadeFor.usable() && !misfit.usable());
     assert_eq!(
@@ -262,11 +261,39 @@ fn an_update_says_how_many_mods_fit_and_which_will_be_switched_off() {
     assert_eq!(
         update_summary(build, 4, &off),
         "Update to nightly-2026-11-20 (9a8b7c6)? 3 of your 4 native mods fit it.\nGreeter does \
-         not: the hook `player_logged_in` (changed). It will be switched off until it is updated."
+         not: the hook player_logged_in (changed). It will be switched off until its author makes a version that fits."
     );
     let exact = Verdict::Exact {
         made_for: OTHER_BUILD.into(),
         why: "[[native.mixin]]",
     };
-    assert_eq!(short(&exact), "it changes game code ([[native.mixin]])");
+    assert_eq!(short(&exact), "it changes the game's own code");
+}
+
+#[test]
+fn the_worlds_buttons_and_the_stopped_mod_say_what_is_so() {
+    assert_eq!(
+        back_up_and_build(1, 1, 0),
+        "Back up this world and build without what doesn't fit"
+    );
+    assert_eq!(
+        back_up_and_build(3, 1, 0),
+        "Back up these worlds and build without what doesn't fit"
+    );
+    assert_eq!(
+        back_up_and_build(1, 2, 2),
+        "Back up this world and build without what didn't build"
+    );
+    assert_eq!(
+        back_up_and_build(2, 2, 1),
+        "Back up these worlds and build without those mods"
+    );
+    assert_eq!(back_up_and_update(1), "Back up this world and update");
+    assert_eq!(back_up_and_update(2), "Back up these worlds and update");
+    assert_eq!(
+        actions_pending("Greeter"),
+        "The build is stopped until you choose under Native mod build; Greeter stays on until then."
+    );
+    assert!(did_not_build_pending("Greeter").contains("stays on until you choose"));
+    assert!(did_not_build_last("Greeter").contains("didn't build the last time"));
 }

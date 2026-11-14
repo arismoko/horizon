@@ -1,11 +1,13 @@
 # Reading data maps
 
-A data map attaches a value to the entries of a registry (NeoForge's `DataMapType`), here
-`minecraft:item` and `minecraft:block`. Data packs and mods' files set the values; a mod reads
-the server's merged values, so a server pack can rebalance a mod's numbers without a rebuild.
+A data map attaches a value to the entries of a registry (NeoForge's `DataMapType`): any registry
+the game names, built in (`minecraft:item`, `minecraft:entity_type`, `minecraft:worldgen/biome`...),
+a pack's or a datapack registry a mod declares. Data packs and mods' files set the values; a mod reads
+what the server made of them, so a server pack can rebalance a mod's numbers without a rebuild.
 
-Define your map with `DataMap`: its id, the registry its entries are in (`Entry`, an
-`ItemKey` or a `BlockKey`), and how a value decodes. Values arrive as the NBT form of the JSON a
+Describe the map once with `DataMap`: its id, the registry its entries are in (`Entry`: an
+`ItemKey`, `BlockKey`, `FluidKey`, `EffectKey`, `EntityTypeKey`, `EnchantmentKey`,
+`BlockEntityTypeKey` or `ProfessionKey`), and how a value decodes. Values arrive as the NBT form of the JSON a
 file held: a whole number is an `Int`, or a `Long` past `i32`, a fraction a `Double`, a boolean a
 `Byte`, an object a `Compound` and an array a `List`. Integer tokens must fit signed
 64-bit NBT `Long`; larger unsigned integers return `DataMapError::Undecodable`,
@@ -42,13 +44,27 @@ fn data_map_types(&self, _: &mut dyn ServerHost, event: &mut DataMapTypesEvent<'
 ```
 
 Its values are `data/mymod/data_maps/item/emc.json` in any data pack, and files the mod pushes
-through `data_pack_files` under `data_maps/mymod:item/emc`:
+through `data_pack_files` under `data_maps/mymod:item/emc`. The folder is the registry's path for
+a `minecraft` registry (`entity_type`, `worldgen/biome`) and `<namespace>/<path>` for another.
+An id the registry doesn't hold is skipped, with one warning per file. A value may carry its own
+load conditions (`WithConditions`): it counts only when they hold.
 
 ```json
-{ "values": { "minecraft:coal": 10, "#minecraft:logs": 32 } }
+{ "values": {
+    "minecraft:coal": 10,
+    "#minecraft:logs": 32,
+    "create:zinc_ingot": {
+      "neoforge:conditions": [{ "type": "neoforge:mod_loaded", "modid": "create" }],
+      "value": 64
+    }
+} }
 ```
 
-Read an entry with `item.data(host, &Emc)` or `block.data(host, &map)`, from any hook with a host:
+Read an entry with its key's `data` (`item.data(host, &Emc)`, `entity_type.data(host, &map)`),
+from any hook with a host. A registry without a typed key is read by name:
+`data_map_value(host, "minecraft:worldgen/biome", "minecraft:plains", "mymod:heat")` gives the
+raw `Tag`, and `data_map_entries(host, registry, map)` the whole map, every entry with a value in
+id order (`IRegistryExtension.getDataMap`). The answers are:
 
 - `Ok(Some(value))`: the merged value. The newest file wins, a `#tag` gives every entry in it the
   value, `replace` drops what earlier files set and `remove` takes entries away.

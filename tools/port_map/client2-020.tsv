@@ -1,5 +1,5 @@
 WorldSelectionList.pollLevelsIgnoreErrors	inline	crates/horizon-client/src/title.rs::list_worlds	the list is read at once, so there is no pending state; a world whose level.dat fails to read is skipped; the upload filter is Realms only, not ported
-WorldSelectionList.extractWidgetRenderState	inline	crates/horizon-client/src/title/draw.rs::Title::draw	the list comes from recent_worlds, re-read at most every 2 seconds, not on every frame
+WorldSelectionList.extractWidgetRenderState	inline	crates/horizon-client/src/title/draw.rs::Title::draw_with_items	the list comes from recent_worlds, re-read at most every 2 seconds, not on every frame
 WorldSelectionList.handleNewLevels	inline	crates/horizon-client/src/title.rs::Title::enter_singleplayer	no worlds opens the new-world screen; otherwise the list is Mode::Select; the Realms upload empty entry is skipped
 WorldSelectionList.updateFilter	inline	crates/horizon-client/src/title.rs::Title::visible_worlds	the search text is applied at each draw; there is no refill step
 WorldSelectionList.loadLevels	inline	crates/horizon-client/src/title.rs::list_worlds	gap: minor: an unreadable saves folder shows no worlds instead of the Unable to load error screen
@@ -12,7 +12,7 @@ WorldSelectionList.updateWidgetNarration	inline	crates/horizon-client/src/screen
 WorldSelectionList.Builder.build	skip:java		builder for the list constructor
 WorldSelectionList.LoadingHeader.extractContent	skip:other		saves are read at once, so the loading header is never shown
 WorldSelectionList.NoWorldsEntry.extractContent	skip:service		empty entry of the Realms world upload list only
-WorldSelectionList.WorldListEntry.<init>	port	crates/horizon-client/src/title/draw.rs::Title::draw	gap: minor: no hover tooltip on overflowing name, folder or info text; the name, folder and date, and mode and version lines are drawn
+WorldSelectionList.WorldListEntry.<init>	port	crates/horizon-client/src/title/draw.rs::Title::draw_with_items	gap: minor: no hover tooltip on overflowing name, folder or info text; the name, folder and date, and mode and version lines are drawn
 WorldSelectionList.WorldListEntry.validateIconFile	port	crates/horizon-client/src/title.rs::Title::icon	gap: minor: no symlink check; an icon that is not a decodable 64x64 image shows the unknown-server icon
 WorldSelectionList.WorldListEntry.getNarration	port	crates/horizon-client/src/title.rs::world_narration	narrator.select.world_info(name, last played, info) joined for narration with selectWorld.locked when the world is locked, then narrator.select(...); gap: minor: a world with experimental settings has no flag, so vanilla's selectWorld.experimental is not joined
 WorldSelectionList.WorldListEntry.keyPressed	port	crates/horizon-client/src/title.rs::Title::join_selected	the selection key joins the selected world as a click does; Enter and Space reach it when the list has focus

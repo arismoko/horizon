@@ -70,6 +70,15 @@ impl horizon_client::hud_kit::icon::IconPainter for IconPainter<'_, '_> {
 pub(super) struct Env<'a, 'g> {
     game: &'a Game<'g>,
 }
+impl Game<'_> {
+    /// Before a frame is drawn: the model draws prepared for the last one are dropped, and so are
+    /// the special model renderers' answers it didn't draw.
+    pub(super) fn begin_frame_draws(&self) {
+        self.prepared_model_draws.borrow_mut().clear();
+        super::native_special_renderers::begin_frame(std::ptr::from_ref(self) as usize);
+    }
+}
+
 impl ItemEnv for Env<'_, '_> {
     fn item_model_property(&self, property: &str, stack: &StackView) -> bool {
         if !mod_api::__private::listened(mod_api::HookId::ItemModelProperty) {
@@ -170,6 +179,17 @@ impl ItemEnv for Env<'_, '_> {
                 seed: ctx.seed,
                 models,
             });
+    }
+    fn special_model_parts(
+        &self,
+        slot: horizon_assets::item_model::SpecialModelSlot,
+        base: &str,
+        config: &std::sync::Arc<horizon_core::nbt::Tag>,
+        stack: &StackView,
+    ) -> Option<horizon_assets::item_model::PreparedParts> {
+        super::native_special_renderers::parts(self.game, slot, config, stack, |parts| {
+            self.game.pack.item_renderer.prepare_parts(base, parts)
+        })
     }
     fn stack_fluid(&self, stack: &StackView) -> Option<&str> {
         // Vanilla's items keep vanilla's closed set; only a mod's own item asks its parts.

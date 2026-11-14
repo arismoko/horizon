@@ -146,7 +146,7 @@ impl Game<'_> {
             }
             if s.tick_count >= s.spawn_item_after {
                 self.spawn_ominous_item(s);
-                return false;
+                return self.forget_finished_spawner(s.id);
             }
             if self.world.game_time % 5 == 0 {
                 self.ominous_spawner_particles(s.position);

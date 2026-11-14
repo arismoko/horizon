@@ -121,6 +121,14 @@ enabled = true               # false pauses it and keeps the webhook
 # [biome_regions]
 # missing = "vanilla"        # generate vanilla's biomes where the missing mods' regions were; "refuse": don't start
 # adopt_installed = true     # new chunks use the installed mods' regions (the world keeps its saved weights)
+# Villagers that cannot move (a trading hall's cells, or riding) skip their brain, which cuts the lag of big halls;
+# they keep trading and restocking (docs/server.md). Not vanilla, so off. Mobs push every mob they overlap, as
+# vanilla does; a crowded pen costs the square of its crowd, and max_collisions caps it (the most other mobs one
+# mob pushes per tick, pushes it receives counted; 0 = no cap, vanilla). To turn them on:
+# [entities]
+# villager_lobotomize = true
+# villager_lobotomize_check_interval = 100   # ticks between rechecks of whether a villager can move
+# max_collisions = 8
 "##;
 
 /// Each typed setting: its section, its name, and the vanilla key it writes.
@@ -213,6 +221,57 @@ pub struct Config {
     /// isn't the default.
     #[serde(default, skip_serializing_if = "BiomeRegions::is_default")]
     pub biome_regions: BiomeRegions,
+    /// `[entities]` (docs/server.md): mob settings passed to the game; written only when it isn't the default.
+    #[serde(default, skip_serializing_if = "Entities::is_default")]
+    pub entities: Entities,
+}
+
+/// `[entities]`: `villager_lobotomize = true` skips the brain of villagers that cannot move (stuck in a cell,
+/// riding something), rechecked every `villager_lobotomize_check_interval` ticks. The game reads it from the
+/// same file (game/dedicated.rs, `load_entities`).
+/// `[entities]`: `dab = true` runs a mob's AI less often the farther it is from the nearest player (Pufferfish's
+/// dynamic activation of brain; crates/horizon-client/src/mobs/dab.rs). Off by default: it is not vanilla's
+/// behaviour. A mob farther than `dab_start_distance` blocks runs its AI every
+/// `clamp(distance² >> dab_activation_dist_mod, 1, dab_max_tick_freq)` ticks. `max_collisions = N` limits how many
+/// other mobs one mob pushes in a tick (pushes it receives count too); 0 is vanilla's behaviour, no cap.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Entities {
+    pub villager_lobotomize: bool,
+    pub villager_lobotomize_check_interval: u32,
+    pub dab: bool,
+    pub dab_start_distance: u32,
+    pub dab_max_tick_freq: u32,
+    pub dab_activation_dist_mod: u32,
+    pub max_collisions: u32,
+}
+impl Default for Entities {
+    fn default() -> Self {
+        Self {
+            villager_lobotomize: false,
+            // Must match `mobs::villager::lobotomy::DEFAULT_INTERVAL` in horizon-client (this crate cannot depend on it).
+            villager_lobotomize_check_interval: 100,
+            dab: false,
+            dab_start_distance: 12,
+            dab_max_tick_freq: 20,
+            dab_activation_dist_mod: 8,
+            max_collisions: 0,
+        }
+    }
+}
+impl Entities {
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+    fn check(&self) -> Result<(), String> {
+        if self.dab_max_tick_freq == 0 {
+            return Err("entities.dab_max_tick_freq must be at least 1".into());
+        }
+        if self.dab_activation_dist_mod > 30 {
+            return Err("entities.dab_activation_dist_mod must be 30 or less".into());
+        }
+        Ok(())
+    }
 }
 
 /// `[combat]`: `legacy = true` resolves the players' melee hits by 1.8.9's rules (no attack cooldown or sweep,
@@ -671,10 +730,14 @@ impl Config {
         self.panel.address()?;
         self.api.check()?;
         self.transfer.check()?;
+        if self.entities.villager_lobotomize_check_interval == 0 {
+            return Err("entities.villager_lobotomize_check_interval must be above zero".into());
+        }
         self.discord.check()?;
         self.anticheat.check()?;
         self.chat_filter.check()?;
         self.prune_chunks.check()?;
+        self.entities.check()?;
         if self.server.port == 0 {
             return Err("server.port must be a port number from 1 to 65535".into());
         }
@@ -813,6 +876,7 @@ pub fn render(config: &Config) -> String {
         "prune_chunks",
         "combat",
         "biome_regions",
+        "entities",
     ] {
         if let Some(settings) = table.get(section) {
             let mut only = toml::Table::new();
@@ -1090,6 +1154,35 @@ mod tests {
     }
 
     #[test]
+    fn the_collision_cap_is_off_unless_its_section_sets_it() {
+        assert_eq!(Config::default().entities.max_collisions, 0);
+        assert!(!TEMPLATE.lines().any(|l| l.trim() == "[entities]"));
+        let on = Config::parse(&format!("{TEMPLATE}\n[entities]\nmax_collisions = 8\n")).unwrap();
+        assert_eq!(on.entities.max_collisions, 8);
+        assert_eq!(Config::parse(&render(&on)).unwrap(), on);
+        let off = render(&Config::default());
+        assert!(!off.lines().any(|l| l.trim() == "[entities]"), "{off}");
+        assert!(Config::parse("[entities]\nmax_collisions = -1\n").is_err());
+        assert!(Config::parse("[entities]\nmax_collision = 8\n").is_err());
+    }
+
+    #[test]
+    fn dab_is_off_unless_its_section_turns_it_on() {
+        assert!(!Config::default().entities.dab);
+        let off = render(&Config::default());
+        assert!(!off.lines().any(|l| l.trim() == "[entities]"), "{off}");
+        let on = Config::parse("[entities]\ndab = true\ndab_max_tick_freq = 10\n").unwrap();
+        assert!(on.entities.dab);
+        assert_eq!(on.entities.dab_start_distance, 12);
+        assert_eq!(on.entities.dab_activation_dist_mod, 8);
+        // Kept when the file is written again.
+        assert_eq!(Config::parse(&render(&on)).unwrap(), on);
+        assert!(Config::parse("[entities]\ndab_max_tick_freq = 0\n").is_err());
+        assert!(Config::parse("[entities]\ndab_activation_dist_mod = 99\n").is_err());
+        assert!(Config::parse("[entities]\ndap = true\n").is_err());
+    }
+
+    #[test]
     fn legacy_combat_is_off_unless_its_section_turns_it_on() {
         assert!(!Config::default().combat.legacy);
         assert!(!TEMPLATE.lines().any(|l| l.trim() == "[combat]"));
@@ -1121,6 +1214,27 @@ mod tests {
         let off = render(&Config::default());
         assert!(!off.lines().any(|l| l.trim() == "[biome_regions]"), "{off}");
         assert!(Config::parse("[biome_regions]\nmissing = \"skip\"\n").is_err());
+    }
+
+    #[test]
+    fn villager_lobotomize_is_off_unless_its_section_turns_it_on() {
+        let off = Config::default().entities;
+        assert!(!off.villager_lobotomize);
+        assert_eq!(off.villager_lobotomize_check_interval, 100);
+        assert!(!TEMPLATE.lines().any(|l| l.trim() == "[entities]"));
+        let on = Config::parse(&format!(
+            "{TEMPLATE}\n[entities]\nvillager_lobotomize = true\nvillager_lobotomize_check_interval = 40\n"
+        ))
+        .unwrap();
+        assert!(on.entities.villager_lobotomize);
+        assert_eq!(on.entities.villager_lobotomize_check_interval, 40);
+        // Kept when the file is written again, and left out while off.
+        assert_eq!(Config::parse(&render(&on)).unwrap(), on);
+        let text = render(&Config::default());
+        assert!(!text.lines().any(|l| l.trim() == "[entities]"), "{text}");
+        assert!(Config::parse("[entities]\nvillager_lobotomize = 1\n").is_err());
+        assert!(Config::parse("[entities]\nvillager_lobotomise = true\n").is_err());
+        assert!(Config::parse("[entities]\nvillager_lobotomize_check_interval = 0\n").is_err());
     }
 
     #[test]

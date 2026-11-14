@@ -1,3 +1,4 @@
+// exports: none (reached inside the crate only)
 //! Load-owned raw payload registrations. No connection state lives here.
 use super::*;
 use crate::{

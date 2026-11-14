@@ -895,6 +895,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_socket_carries_packets_both_ways_in_order_then_disconnects() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -982,6 +983,7 @@ mod tests {
     /// A client that reads nothing holds its disconnect unwritten; a close
     /// then ends the connection at once.
     #[test]
+    #[ignore = "daily"]
     fn a_close_ends_a_disconnect_the_client_does_not_take() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();

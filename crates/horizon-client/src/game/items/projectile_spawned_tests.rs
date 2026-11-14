@@ -59,7 +59,7 @@ fn with_enchantments(defs: &[(&str, Value)], test: impl FnOnce(&mut super::Game<
         let stack = game.reload_datapacks(false, &[]).unwrap();
         let resources = game.options.resources.clone();
         game.world_tables = game
-            .build_world_tables(&stack, false, &resources, game.mods.data_switched)
+            .stage_world_tables(&stack, false, &resources)
             .unwrap()
             .0;
         for (name, _) in defs {

@@ -656,6 +656,7 @@ impl Game<'_> {
         super::client_reload::apply_client_reload(&self.mod_phase, client_applies);
         self.install_loop_context(loop_context);
         self.resolve_entity_renderers();
+        super::native_special_renderers::reload();
         self.texture_atlases_stitched();
         self.native_model_baking_completed();
         self.native_client_resources_reloaded();

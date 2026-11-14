@@ -85,6 +85,14 @@ impl BiomeSourceCatalog {
         Ok(name)
     }
     fn set(&self, raw: &RawValue) -> Result<BiomeSet, DecodeError> {
+        // NeoForge's set objects resolve through the shared decoder, in set order;
+        // a plain list keeps its own order (checkerboard reads it).
+        if raw.get().starts_with('{') {
+            let set: serde_json::Value = serde_json::from_str(raw.get())?;
+            return crate::holder_set::resolve(&set, self)
+                .map(|ids| BiomeSet::Direct(ids.into_iter().collect()))
+                .map_err(DecodeError::Registry);
+        }
         if raw.get().starts_with('"') {
             let name: String = serde_json::from_str(raw.get())?;
             if let Some(name) = name.strip_prefix('#') {
@@ -272,4 +280,29 @@ fn point_json(point: &ParameterPoint) -> String {
         serde_json::to_string(&unquantize(point.offset)).expect("finite offset")
     ));
     format!("{{{}}}", fields.join(","))
+}
+
+impl crate::holder_set::HolderLookup for BiomeSourceCatalog {
+    type Id = String;
+    fn what(&self) -> &str {
+        "biome"
+    }
+    fn entry(&self, id: &str) -> Result<Vec<String>, String> {
+        let id = identifier(id).map_err(|e| e.to_string())?;
+        if self.biomes.contains(&id) {
+            Ok(vec![id])
+        } else {
+            Err(format!("unknown biome {id}"))
+        }
+    }
+    fn tag(&self, tag: &str) -> Result<Vec<String>, String> {
+        let tag = identifier(tag).map_err(|e| e.to_string())?;
+        self.tags
+            .get(&tag)
+            .cloned()
+            .ok_or_else(|| format!("unknown biome tag #{tag}"))
+    }
+    fn all(&self) -> Result<Vec<String>, String> {
+        Ok(self.biomes.iter().cloned().collect())
+    }
 }

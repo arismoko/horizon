@@ -313,15 +313,25 @@ fn controller_rows_group_wrapped_mods_and_exclude_the_description() {
         },
     );
     crate::widgets::end_frame(100);
-    let Mode::MissingMods { missing, .. } = &f.title.mode else {
-        unreachable!()
-    };
     let english = crate::lang::Language::load(&[], "en_us");
+    let mut phases = Vec::new();
     crate::lang::scoped(english, || {
-        f.title
-            .draw_missing_mods(&atlas, &mut batch, (240.0, 480.0), missing);
+        f.title.draw(
+            &atlas,
+            &mut batch,
+            (-1.0, -1.0),
+            true,
+            &mut |phase, batch| phases.push((phase, batch.vertices.len())),
+        );
     });
     crate::widgets::end_frame(101);
+    use crate::screen_draw::RenderPhase::{Background, Foreground};
+    assert_eq!(
+        phases.iter().map(|(phase, _)| *phase).collect::<Vec<_>>(),
+        [Background, Foreground],
+    );
+    assert!(phases[0].1 > 0, "menu background precedes the hook");
+    assert!(phases[1].1 > phases[0].1, "prompt contents follow the hook");
     let rows: Vec<_> = crate::widgets::last_targets()
         .into_iter()
         .filter(|t| t.kind == crate::widgets::Kind::Row)

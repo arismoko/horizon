@@ -166,15 +166,20 @@ impl Game<'_> {
         horizon_client::widgets::begin_screen(|| {
             horizon_client::widgets::ScreenInfo::new("social", social_screen::TITLE)
         });
-        social_screen::draw(
+        social_screen::draw_background(batch, &self.gui.atlas, true);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+        let tooltip = social_screen::draw_contents(
             batch,
             &self.gui.atlas,
             self.cursor,
             &view,
             &mut self.social.search,
             &mut self.social.tooltip,
-            true,
         );
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
+        if let Some(tooltip) = tooltip {
+            horizon_client::ui::tooltip(batch, &self.gui.atlas, &[tooltip], self.cursor);
+        }
     }
     pub(super) fn social_click(&mut self) {
         let size = self.gui_size();

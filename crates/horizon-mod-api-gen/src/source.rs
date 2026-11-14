@@ -2,6 +2,7 @@
 //! and the `cfg`s they are compiled under, following `mod` declarations, `#[path]`s and inline
 //! modules.
 
+use mod_source::modules::{ModuleFile, walk_module_files};
 use quote::ToTokens;
 use std::{
     cell::RefCell,
@@ -9,56 +10,22 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use syn::{Item, Type};
+use syn::Type;
 
-/// A source file of the game's crates, with its module path and the `cfg`s it is compiled under.
-#[derive(Clone)]
-pub(crate) struct GameFile {
-    pub(crate) module: String,
-    pub(crate) path: PathBuf,
-    /// The conditions of the `mod` declarations that lead to it, outermost first.
-    pub(crate) cfg: Vec<String>,
-}
-
-/// The `cfg` conditions in `attrs`, as written, except `cfg(test)`.
-pub(crate) fn conditions(attrs: &[syn::Attribute]) -> Vec<String> {
-    attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("cfg") && !test_only(std::slice::from_ref(attr)))
-        .filter_map(|attr| attr.parse_args::<syn::Meta>().ok())
-        .map(|meta| meta.to_token_stream().to_string())
-        .collect()
-}
-
-/// Whether an item is compiled only into tests, explicitly or by `#[test]`/`#[bench]`.
-pub(crate) fn test_only(attrs: &[syn::Attribute]) -> bool {
-    attrs.iter().any(|attr| {
-        attr.path().is_ident("test")
-            || attr.path().is_ident("bench")
-            || (attr.path().is_ident("cfg")
-                && matches!(attr.parse_args::<syn::Meta>(), Ok(syn::Meta::Path(path)) if path.is_ident("test")))
-    })
-}
-
-/// A module file still to read: its module path, file, children's folder and conditions.
-type Pending = (String, PathBuf, PathBuf, Vec<String>);
-
-/// The files of the module `module`, read from `path` (its children in `dir`), following `mod`
-/// declarations (and `#[path]`s, and inline modules that declare files). With `every_build`, a
-/// module behind a `cfg` is left out with everything under it (the replaceable functions: those every build
-/// compiles); without, it is kept with its conditions (the internals, listed with the builds they
-/// exist in). Test-only modules are always left out, including files gated by inner attributes.
+/// The files of the game's module `module` ([`walk_module_files`]), each parsed with the game's
+/// generated module lists expanded. With `every_build`, the replaceable functions: those every
+/// build compiles; without, the internals, listed with the builds they exist in.
 pub(crate) fn module_files(
     module: String,
     path: PathBuf,
     dir: PathBuf,
     every_build: bool,
-) -> Result<Vec<GameFile>, String> {
+) -> Result<Vec<ModuleFile>, String> {
     let key = (module.clone(), path.clone(), dir.clone(), every_build);
     if let Some(files) = WALKS.with(|walks| walks.borrow().as_ref()?.get(&key).cloned()) {
         return Ok(files);
     }
-    let files = walk_module_files(module, path, dir, every_build)?;
+    let files = walk_module_files(module, path, dir, every_build, crate::game_modules::parse)?;
     WALKS.with(|walks| {
         if let Some(walks) = walks.borrow_mut().as_mut() {
             walks.insert(key, files.clone());
@@ -70,7 +37,7 @@ pub(crate) fn module_files(
 type WalkKey = (String, PathBuf, PathBuf, bool);
 
 thread_local! {
-    static WALKS: RefCell<Option<HashMap<WalkKey, Vec<GameFile>>>> = const { RefCell::new(None) };
+    static WALKS: RefCell<Option<HashMap<WalkKey, Vec<ModuleFile>>>> = const { RefCell::new(None) };
 }
 
 /// Runs `run` with [`module_files`] remembering each walk, for one generation whose sources don't
@@ -78,7 +45,7 @@ thread_local! {
 /// times, once to list what to track and again to read them. Never around a pass that edits the
 /// files it walks, such as staging.
 pub(crate) fn with_walk_cache<T>(run: impl FnOnce() -> T) -> T {
-    struct Reset(Option<HashMap<WalkKey, Vec<GameFile>>>);
+    struct Reset(Option<HashMap<WalkKey, Vec<ModuleFile>>>);
     impl Drop for Reset {
         fn drop(&mut self) {
             WALKS.with(|walks| *walks.borrow_mut() = self.0.take());
@@ -88,168 +55,8 @@ pub(crate) fn with_walk_cache<T>(run: impl FnOnce() -> T) -> T {
     run()
 }
 
-fn walk_module_files(
-    module: String,
-    path: PathBuf,
-    dir: PathBuf,
-    every_build: bool,
-) -> Result<Vec<GameFile>, String> {
-    let mut files = Vec::new();
-    let mut pending = vec![(module, path, dir, Vec::new())];
-    while let Some((module, path, dir, cfg)) = pending.pop() {
-        // A declared module with no file is one another target builds (its file named by a
-        // `cfg_attr` path this walk already followed): nothing here compiles from it.
-        if !path.is_file() {
-            continue;
-        }
-        let source = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let file = crate::game_modules::parse(&path, &source)?;
-        if test_only(&file.attrs) || (every_build && gated(&file.attrs)) {
-            continue;
-        }
-        let cfg = cfg
-            .into_iter()
-            .chain(conditions(&file.attrs))
-            .collect::<Vec<_>>();
-        let here = path
-            .parent()
-            .expect("a source file has a folder")
-            .to_owned();
-        children(
-            &module,
-            &file.items,
-            &here,
-            &dir,
-            &cfg,
-            every_build,
-            &mut pending,
-        );
-        files.push(GameFile { module, path, cfg });
-    }
-    files.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(files)
-}
-
-/// Queues the module files `items` declare, looking inside inline modules too: a file module
-/// declared in `mod a { mod b; }` lives in `dir/a/b.rs`. A `#[path]` is relative to `here`.
-fn children(
-    module: &str,
-    items: &[Item],
-    here: &Path,
-    dir: &Path,
-    cfg: &[String],
-    every_build: bool,
-    pending: &mut Vec<Pending>,
-) {
-    for item in items {
-        if let Item::Macro(included) = item
-            && included.mac.path.is_ident("include")
-            && !test_only(&included.attrs)
-            && !(every_build && gated(&included.attrs))
-            && let Ok(relative) = syn::parse2::<syn::LitStr>(included.mac.tokens.clone())
-        {
-            pending.push((
-                module.to_owned(),
-                here.join(relative.value()),
-                dir.to_owned(),
-                cfg.to_vec(),
-            ));
-        }
-        let Item::Mod(declared) = item else { continue };
-        if test_only(&declared.attrs) || (every_build && gated(&declared.attrs)) {
-            continue;
-        }
-        let name = declared.ident.to_string();
-        let child = format!("{module}::{name}");
-        let cfg: Vec<String> = cfg
-            .iter()
-            .cloned()
-            .chain(conditions(&declared.attrs))
-            .collect();
-        let explicit = declared.attrs.iter().find_map(|attr| match &attr.meta {
-            syn::Meta::NameValue(value) if attr.path().is_ident("path") => match &value.value {
-                syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(path),
-                    ..
-                }) => Some(path.value()),
-                _ => None,
-            },
-            _ => None,
-        });
-        // `#[cfg_attr(unix, path = "a/unix.rs")]`: each target's file, under its condition.
-        let per_target: Vec<(String, String)> = declared
-            .attrs
-            .iter()
-            .filter(|attr| attr.path().is_ident("cfg_attr"))
-            .filter_map(|attr| {
-                let args = attr
-                    .parse_args_with(
-                        syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
-                    )
-                    .ok()?;
-                let mut args = args.into_iter();
-                let condition = args.next()?;
-                let path = args.find_map(|meta| match meta {
-                    syn::Meta::NameValue(value) if value.path.is_ident("path") => {
-                        match value.value {
-                            syn::Expr::Lit(syn::ExprLit {
-                                lit: syn::Lit::Str(path),
-                                ..
-                            }) => Some(path.value()),
-                            _ => None,
-                        }
-                    }
-                    _ => None,
-                })?;
-                Some((condition.to_token_stream().to_string(), path))
-            })
-            .collect();
-        if declared.content.is_none() && explicit.is_none() && !per_target.is_empty() {
-            for (condition, relative) in per_target {
-                let file = here.join(relative);
-                let dir = file
-                    .parent()
-                    .expect("a module file has a folder")
-                    .to_owned();
-                let cfg = cfg.iter().cloned().chain([condition]).collect();
-                pending.push((child.clone(), file, dir, cfg));
-            }
-            continue;
-        }
-        if let Some((_, inner)) = &declared.content {
-            // An inline module's children live in its folder, named by its own `#[path]` if any.
-            let inner_dir = dir.join(explicit.as_deref().unwrap_or(&name));
-            children(
-                &child,
-                inner,
-                &inner_dir,
-                &inner_dir,
-                &cfg,
-                every_build,
-                pending,
-            );
-            continue;
-        }
-        let (file, child_dir) = match explicit {
-            Some(relative) => {
-                let file = here.join(relative);
-                let dir = file
-                    .parent()
-                    .expect("a module file has a folder")
-                    .to_owned();
-                (file, dir)
-            }
-            None if dir.join(format!("{name}.rs")).is_file() => {
-                (dir.join(format!("{name}.rs")), dir.join(&name))
-            }
-            None => (dir.join(&name).join("mod.rs"), dir.join(&name)),
-        };
-        pending.push((child, file, child_dir, cfg));
-    }
-}
-
 /// The files of `horizon_client::game`; see [`module_files`] for `every_build`.
-pub(crate) fn game_files(src: &Path, every_build: bool) -> Result<Vec<GameFile>, String> {
+pub(crate) fn game_files(src: &Path, every_build: bool) -> Result<Vec<ModuleFile>, String> {
     module_files(
         "horizon_client::game".to_owned(),
         src.join("game.rs"),
@@ -274,7 +81,7 @@ pub(crate) fn crate_root(root: &Path, krate: &str) -> Result<(PathBuf, PathBuf),
 }
 
 /// The files of the crate `krate` that every build compiles.
-pub(crate) fn crate_files(root: &Path, krate: &str) -> Result<Vec<GameFile>, String> {
+pub(crate) fn crate_files(root: &Path, krate: &str) -> Result<Vec<ModuleFile>, String> {
     let (_, lib) = crate_root(root, krate)?;
     let dir = lib.parent().expect("a source file has a folder").to_owned();
     module_files(krate.to_owned(), lib, dir, true)
@@ -293,13 +100,6 @@ pub(crate) fn plain_path(path: &str) -> String {
         }
     }
     out
-}
-
-/// Whether `attrs` hold a `cfg` (or `cfg_attr`): the item is compiled only in some builds.
-pub(crate) fn gated(attrs: &[syn::Attribute]) -> bool {
-    attrs
-        .iter()
-        .any(|attr| attr.path().is_ident("cfg") || attr.path().is_ident("cfg_attr"))
 }
 
 /// `r#type` as `type`.
@@ -396,7 +196,7 @@ mod tests {
         std::fs::create_dir_all(&src).unwrap();
         std::fs::write(src.join("lib.rs"), "mod a;\n").unwrap();
         std::fs::write(src.join("a.rs"), "pub fn a() {}").unwrap();
-        let modules = |files: Vec<GameFile>| {
+        let modules = |files: Vec<ModuleFile>| {
             let mut modules: Vec<_> = files.into_iter().map(|file| file.module).collect();
             modules.sort();
             modules

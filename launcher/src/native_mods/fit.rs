@@ -94,21 +94,21 @@ pub(super) fn judge(
 /// An item as people read it: "the hook `player_logged_in`".
 pub fn item(id: &str) -> String {
     let Some((kind, name)) = uses::item(id) else {
-        return format!("`{id}`");
+        return id.to_owned();
     };
     let en = match kind {
-        ItemKind::Hook => "the hook `{name}`",
-        ItemKind::Argument => "the argument `{name}`",
-        ItemKind::Trait => "the trait `{name}`",
-        ItemKind::Method => "the method `{name}`",
-        ItemKind::AssociatedItem => "the associated item `{name}`",
-        ItemKind::Function => "the function `{name}`",
-        ItemKind::Macro => "the macro `{name}`",
-        ItemKind::PartKind => "the Part kind `{name}`",
-        ItemKind::Capability => "the capability `{name}`",
-        ItemKind::Type => "the type `{name}`",
-        ItemKind::Variant => "the variant `{name}`",
-        ItemKind::Field => "the field `{name}`",
+        ItemKind::Hook => "the hook {name}",
+        ItemKind::Argument => "the argument {name}",
+        ItemKind::Trait => "the trait {name}",
+        ItemKind::Method => "the method {name}",
+        ItemKind::AssociatedItem => "the associated item {name}",
+        ItemKind::Function => "the function {name}",
+        ItemKind::Macro => "the macro {name}",
+        ItemKind::PartKind => "the Part kind {name}",
+        ItemKind::Capability => "the capability {name}",
+        ItemKind::Type => "the type {name}",
+        ItemKind::Variant => "the variant {name}",
+        ItemKind::Field => "the field {name}",
     };
     trf(en, &[("name", &name)])
 }
@@ -121,21 +121,18 @@ pub fn change(misfit: &Misfit) -> String {
         Change::Removed => trf("{item} (removed)", &[("item", &what)]),
         Change::Changed => trf("{item} (changed)", &[("item", &what)]),
         Change::LostImpl(name) => trf(
-            "{item} no longer implements `{trait}`",
+            "{item} no longer implements {trait}",
             &[("item", &what), ("trait", name)],
         ),
         Change::Fields { gained, at } if gained.is_empty() => trf(
-            "the fields of {item} changed, and `{at}` builds it field by field",
+            "the fields of {item} changed, and {at} builds it field by field",
             &[("item", &what), ("at", at)],
         ),
         Change::Fields { gained, at } => trf(
-            "{item} gained {fields}, and `{at}` builds it field by field",
+            "{item} gained {fields}, and {at} builds it field by field",
             &[
                 ("item", &what),
-                (
-                    "fields",
-                    &list(gained.iter().map(|name| format!("`{name}`"))),
-                ),
+                ("fields", &list(gained.iter().cloned())),
                 ("at", at),
             ],
         ),
@@ -148,15 +145,15 @@ pub fn change(misfit: &Misfit) -> String {
             ],
         ),
         Change::NotBuildable { at } => trf(
-            "{item} can no longer be built with a literal, and `{at}` builds it",
+            "{item} can no longer be built with a literal, and {at} builds it",
             &[("item", &what), ("at", at)],
         ),
         Change::Path(path) => trf(
-            "`mod_api::{path}` is no longer exported under that path",
+            "mod_api::{path} is no longer exported under that path",
             &[("path", path)],
         ),
         Change::Route { from, owner } => trf(
-            "`{from}` no longer includes `{owner}`, which this mod calls `{member}` on",
+            "{from} no longer includes {owner}, which this mod calls {member} on",
             &[
                 ("from", &leaf(from)),
                 ("owner", &leaf(owner)),
@@ -200,26 +197,26 @@ pub fn line(name: &str, verdict: &Verdict, build: &str) -> String {
     match verdict {
         Verdict::MadeFor => trf("Made for this game ({build}).", &[("build", build)]),
         Verdict::Fits { made_for } => trf(
-            "Made for {made_for}. Fits this game ({build}).",
+            "Made for {made_for}. Fits this game: {build}.",
             &[("made_for", &made(made_for)), ("build", build)],
         ),
         Verdict::Exact { made_for, why } if *why == "internals" => trf(
             "Made for {made_for} only: it uses the game's internals, so it works on exactly that build.",
             &[("made_for", &made(made_for))],
         ),
-        Verdict::Exact { made_for, why } => trf(
-            "Made for {made_for} only: it changes game code ({table}), so it works on exactly that build.",
-            &[("made_for", &made(made_for)), ("table", why)],
+        Verdict::Exact { made_for, .. } => trf(
+            "Made for {made_for} only: it changes the game's own code, so it works on exactly that build.",
+            &[("made_for", &made(made_for))],
         ),
         Verdict::NoList { made_for } => trf(
-            "{mod}'s package was made by an older tool and doesn't say what it uses, so it works on {made_for} only. Its author can rebuild it with the current cargo horizon-mod.",
+            "{mod}'s package was made by an older tool and doesn't say what it uses, so it works on {made_for} only. Its author can rebuild it with the current mod tools.",
             &[("mod", name), ("made_for", &made(made_for))],
         ),
         Verdict::DoesNotFit { made_for, misfits } => {
             let count = misfits.len().to_string();
             if misfits.len() == 1 {
                 trf(
-                    "It was made for {made_for} and this instance runs {build}. Since then the game changed one thing {mod} uses: {items}.",
+                    "It was made for {made_for} and this instance runs {build}. Since then the game changed one thing that {mod} uses: {items}.",
                     &[
                         ("made_for", &made(made_for)),
                         ("build", build),
@@ -229,7 +226,7 @@ pub fn line(name: &str, verdict: &Verdict, build: &str) -> String {
                 )
             } else {
                 trf(
-                    "It was made for {made_for} and this instance runs {build}. Since then the game changed {count} things {mod} uses: {items}.",
+                    "It was made for {made_for} and this instance runs {build}. Since then the game changed {count} things that {mod} uses: {items}.",
                     &[
                         ("made_for", &made(made_for)),
                         ("build", build),
@@ -264,7 +261,7 @@ pub fn headline(name: &str, verdict: &Verdict) -> String {
 /// mod's menu on the Mods page has Turn off).
 pub fn actions(name: &str) -> String {
     trf(
-        "What you can do: play without {mod}. It stays installed and is left out of the build; Turn off {mod} in its menu on the Mods page to keep it out.",
+        "The game will be built without {mod}, which stays installed. Ask its author for an update made for this game.",
         &[("mod", name)],
     )
 }
@@ -277,7 +274,7 @@ pub fn short(verdict: &Verdict) -> String {
         Verdict::Exact { why, .. } if *why == "internals" => {
             tr("it uses the game's internals").to_owned()
         }
-        Verdict::Exact { why, .. } => trf("it changes game code ({table})", &[("table", why)]),
+        Verdict::Exact { .. } => tr("it changes the game's own code").to_owned(),
         Verdict::NoList { .. } => tr("its package doesn't say what it uses").to_owned(),
         Verdict::DoesNotFit { misfits, .. } => changes(misfits),
         Verdict::Points { why, .. } => why.clone(),
@@ -312,7 +309,7 @@ pub fn update_summary(build: &str, total: usize, off: &[(String, String)]) -> St
         .iter()
         .map(|(name, why)| {
             trf(
-                "{mod} does not: {why}. It will be switched off until it is updated.",
+                "{mod} does not: {why}. It will be switched off until its author makes a version that fits.",
                 &[("mod", name), ("why", why)],
             )
         })
@@ -355,6 +352,15 @@ pub fn refusal(name: &str, verdict: &Verdict, build: &str) -> String {
 pub fn did_not_build(name: &str) -> String {
     trf(
         "{mod} looked compatible with this game but didn't build. This is for {mod}'s author to fix; the mod is switched off here. Details were saved to the build log.",
+        &[("mod", name)],
+    )
+}
+
+/// The mod's menu while the stop for worlds saved with it is on screen: nothing is switched off
+/// until the player chooses.
+pub fn did_not_build_pending(name: &str) -> String {
+    trf(
+        "{mod} looked compatible with this game but didn't build. It stays on until you choose under Native mod build; this is for {mod}'s author to fix.",
         &[("mod", name)],
     )
 }
@@ -405,8 +411,49 @@ pub fn stay(current: &str) -> String {
 }
 
 /// The other choice, said on its button.
-pub fn back_up_and_update() -> &'static str {
-    tr("Back up these worlds and update")
+pub fn back_up_and_update(worlds: usize) -> &'static str {
+    match worlds {
+        1 => tr("Back up this world and update"),
+        _ => tr("Back up these worlds and update"),
+    }
+}
+
+/// [`back_up_and_update`] on the Build panel, where nothing is being updated.
+pub fn back_up_and_build(worlds: usize, mods: usize, unbuilt: usize) -> &'static str {
+    match (worlds, unbuilt) {
+        (1, 0) => tr("Back up this world and build without what doesn't fit"),
+        (_, 0) => tr("Back up these worlds and build without what doesn't fit"),
+        (1, n) if n == mods => tr("Back up this world and build without what didn't build"),
+        (_, n) if n == mods => tr("Back up these worlds and build without what didn't build"),
+        (1, _) => tr("Back up this world and build without those mods"),
+        (_, _) => tr("Back up these worlds and build without those mods"),
+    }
+}
+
+/// The choice on the Build panel that builds nothing.
+pub fn dont_build() -> &'static str {
+    tr("Don't build; keep the game as it is")
+}
+
+/// The chip's headline for a mod whose compile failed.
+pub fn didnt_build_headline(name: &str) -> String {
+    trf("{mod} didn't build", &[("mod", name)])
+}
+
+/// The chip's menu after the player chose and the failed mod is still there.
+pub fn did_not_build_last(name: &str) -> String {
+    trf(
+        "{mod} looked compatible with this game but didn't build the last time. This is for {mod}'s author to fix.",
+        &[("mod", name)],
+    )
+}
+
+/// [`actions`] while the stop for worlds saved with `name` is on screen.
+pub fn actions_pending(name: &str) -> String {
+    trf(
+        "The build is stopped until you choose under Native mod build; {mod} stays on until then.",
+        &[("mod", name)],
+    )
 }
 
 #[cfg(test)]

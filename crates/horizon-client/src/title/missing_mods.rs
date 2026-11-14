@@ -160,6 +160,7 @@ impl Title {
         self.scroll.set(Default::default());
     }
 
+    /// The prompt's contents; Title draws the menu background before its background hook.
     pub(super) fn draw_missing_mods(
         &self,
         atlas: &HudAtlas,
@@ -167,7 +168,6 @@ impl Title {
         (w, h): (f32, f32),
         missing: &[MissingMod],
     ) {
-        crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
         let width = w - 32.0;
         let mut lines = wrapped(atlas, &lang::get("horizon.missing_mods.description"), width);
         let description_lines = lines.len();

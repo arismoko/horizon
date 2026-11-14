@@ -1,3 +1,4 @@
+// exports: none (reached inside the crate only)
 //! Self-refusal transport and the registration admission savepoint.
 
 /// Engine admission plumbing; mods call `RegistrationContext::refuse` instead.

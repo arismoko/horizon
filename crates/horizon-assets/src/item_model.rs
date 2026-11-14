@@ -23,9 +23,10 @@ mod mod_properties;
 mod special;
 pub use fluid_container::{FluidAppearance, FluidContainer, FluidContainerTextures};
 pub use mod_properties::{
-    is_item_model_type, is_mod_id, is_range_property, is_select_property, is_skull_kind,
-    is_tint_source, keep_mod_ids, register_item_models, register_range_properties,
-    register_select_properties, register_skull_kinds, register_tint_sources,
+    SpecialModelSlot, is_item_model_type, is_mod_id, is_range_property, is_select_property,
+    is_skull_kind, is_tint_source, keep_mod_ids, register_item_models, register_range_properties,
+    register_select_properties, register_skull_kinds, register_special_model_types,
+    register_tint_sources, special_model_slot,
 };
 pub use special::{SpecialKind, SpecialModel};
 
@@ -427,6 +428,17 @@ pub enum ItemModelNode {
         transformation: Option<Mat4>,
         model: SpecialModel,
     },
+    /// A `minecraft:special` model of a type a native mod registered
+    /// (`register_special_model_renderer`): per stack, its renderer answers which resource models
+    /// draw, each posed and tinted, with `base`'s display transforms, particle and GUI light.
+    RegisteredSpecial {
+        base: String,
+        transformation: Option<Mat4>,
+        /// The `model` object's `type`, resolved to its renderer's slot.
+        slot: SpecialModelSlot,
+        /// The `model` object, converted once at load.
+        config: Arc<horizon_core::nbt::Tag>,
+    },
     FluidContainer(FluidContainer),
     BundleSelectedItem,
     /// A node of a type a native mod registered (`register_item_models`): per stack, its mod
@@ -564,20 +576,30 @@ impl ItemModelNode {
                         .transpose()?,
                 }
             }
-            "minecraft:special" if SpecialModel::is_foreign(required(m, "model")?) => {
-                SpecialModel::warn_foreign_once(required(m, "model")?);
-                // The mod's own renderer is not run: the base model stands in.
-                Self::Model(ModelLeaf {
-                    model: ident(required(m, "base")?)?,
-                    transformation: optional_transformation(m)?,
-                    tints: Vec::new(),
-                })
+            "minecraft:special" => {
+                let model = required(m, "model")?;
+                let base = ident(required(m, "base")?)?;
+                let transformation = optional_transformation(m)?;
+                // A type a mod registered, vanilla's included, is drawn by its renderer; any other
+                // type that isn't vanilla's is an error naming it (`SpecialModel::decode`), so the
+                // item draws the missing model.
+                match registered_special_type(model)? {
+                    Some(slot) => Self::RegisteredSpecial {
+                        base,
+                        transformation,
+                        slot,
+                        config: Arc::new(
+                            horizon_core::json_nbt::json_to_tag(model)
+                                .map_err(|_| err("invalid special model data"))?,
+                        ),
+                    },
+                    None => Self::Special {
+                        base,
+                        transformation,
+                        model: SpecialModel::decode(model)?,
+                    },
+                }
             }
-            "minecraft:special" => Self::Special {
-                base: ident(required(m, "base")?)?,
-                transformation: optional_transformation(m)?,
-                model: SpecialModel::decode(required(m, "model")?)?,
-            },
             "minecraft:bundle/selected_item" => Self::BundleSelectedItem,
             // NeoForge's own item model type, which the engine owns. It is matched ahead of
             // the types mods register, so no mod can take it over.
@@ -624,12 +646,22 @@ impl ItemModelNode {
                 entries.iter().for_each(|(_, m)| m.dependencies(out));
                 fallback.iter().for_each(|f| f.dependencies(out));
             }
-            Self::Special { base, .. } => out.push(base.clone()),
+            Self::Special { base, .. } | Self::RegisteredSpecial { base, .. } => {
+                out.push(base.clone())
+            }
             Self::Registered { models, .. } => {
                 models.iter().for_each(|(_, m)| m.dependencies(out));
             }
         }
     }
+}
+/// The slot of a `minecraft:special` model's `model` object's `type` when a native mod
+/// registered it.
+fn registered_special_type(model: &Value) -> Result<Option<SpecialModelSlot>> {
+    Ok(special_model_slot(&ident(required(
+        object(model)?,
+        "type",
+    )?)?))
 }
 impl SwitchCase {
     fn decode(property: &SelectProperty, v: &Value) -> Result<Self> {
@@ -1159,6 +1191,20 @@ pub trait ItemEnv {
         _models: &mut Vec<String>,
     ) {
     }
+    /// What a mod's registered special model type (`slot`) draws for `stack` in the model node
+    /// of `base` and the model object `config` (the same allocation for the node until resources
+    /// reload): the resource models its renderer answered, each posed in the model's space and
+    /// tinted, prepared for drawing when the answer was accepted. `None` when its renderer refused
+    /// or failed, and the layer draws the missing model; nothing draws for an empty answer.
+    fn special_model_parts(
+        &self,
+        _slot: SpecialModelSlot,
+        _base: &str,
+        _config: &Arc<horizon_core::nbt::Tag>,
+        _stack: &StackView,
+    ) -> Option<PreparedParts> {
+        None
+    }
     /// `PotionContents.getColorOr` for the potion/effects part: the mixed
     /// effect colour, or `None` when the contents have no visible effects.
     fn potion_effect_color(&self, _potion_contents: &Value) -> Option<i32> {
@@ -1221,12 +1267,44 @@ pub enum LayerContent {
     },
     /// `MissingItemModel`.
     Missing,
+    /// What a mod's registered special model type drew for the stack, prepared for drawing
+    /// (`ItemEnv::special_model_parts`): each part's geometry is its own model's quads, posed
+    /// under the layer's transform; the display transforms, particle and GUI light are `base`'s,
+    /// as vanilla's `SpecialModelWrapper` takes them from its base model.
+    Parts(PreparedParts),
     Special {
         base: String,
         model: SpecialModel,
         /// What `extractArgument` reads from the stack.
         argument: Value,
     },
+}
+/// A special model renderer's answer as the item renderer prepared it to draw, its models baked
+/// once (`item_render::PreparedSpecial` in the client), so a draw looks nothing up by name. Kept
+/// as long as the answer is; equal only to itself.
+#[derive(Clone)]
+pub struct PreparedParts(pub Arc<dyn std::any::Any + Send + Sync>);
+impl std::fmt::Debug for PreparedParts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PreparedParts")
+    }
+}
+impl PartialEq for PreparedParts {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+/// One resource model a mod's special model renderer draws.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SpecialPart {
+    /// The model's id (`mymod:item/skillet_pan`), drawn as the model resource itself.
+    pub model: String,
+    /// Where it is drawn, in the special model's space (blocks, as the base model's elements
+    /// over 16).
+    pub pose: Mat4,
+    /// ARGB per tint index, as an item model's `tints`; a quad whose index is past them draws
+    /// white.
+    pub tints: Vec<i32>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layer {
@@ -1502,6 +1580,30 @@ impl Resolve<'_> {
                         FoilType::None
                     },
                     transform,
+                });
+            }
+            ItemModelNode::RegisteredSpecial {
+                base,
+                transformation,
+                slot,
+                config,
+            } => {
+                let content = match self
+                    .env
+                    .special_model_parts(*slot, base, config, self.stack)
+                {
+                    Some(prepared) => LayerContent::Parts(prepared),
+                    None => LayerContent::Missing,
+                };
+                out.layers.push(Layer {
+                    content,
+                    tints: Vec::new(),
+                    foil: if self.has_foil() {
+                        FoilType::Standard
+                    } else {
+                        FoilType::None
+                    },
+                    transform: compose(parent, transformation),
                 });
             }
             ItemModelNode::FluidContainer(container) => {

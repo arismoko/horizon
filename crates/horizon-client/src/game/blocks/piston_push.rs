@@ -395,9 +395,12 @@ impl Game<'_> {
                 return;
             }
             let no_physics = match target {
-                MoveWho::Entity(handle) => {
-                    with_entity!(self, handle, entity => entity.no_physics())
-                }
+                MoveWho::Entity(handle) => with_entity!(self, handle, entity => {
+                    // The four kinds whose struct keeps no `noPhysics` field (a
+                    // shulker bullet among them) hold a mod's write here.
+                    let stored = self.persist.no_physics.get(&entity.id()).copied();
+                    entity.no_physics(stored)
+                }),
                 _ => false,
             };
             if self.lid_spares(lid, root, target, no_physics) {

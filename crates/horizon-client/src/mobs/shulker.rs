@@ -390,13 +390,14 @@ fn teleport(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) -> bool {
             1.0,
             1.0,
         ));
-        super::living::teleports::snap_to(
+        super::living::teleports::snap_to_with(
             m,
             Vec3::new(
                 f64::from(t[0]) + 0.5,
                 f64::from(t[1]),
                 f64::from(t[2]) + 0.5,
             ),
+            w.section_writer.clone(),
         );
         // `level.gameEvent(GameEvent.TELEPORT, oldPos, Context.of(this))`:
         // the BlockPos overload uses `Vec3.atCenterOf(oldPos)`, between the

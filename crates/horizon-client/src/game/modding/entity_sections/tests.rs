@@ -4,6 +4,7 @@ use crate::game::{
     native_entity_refs::tests::{with_client_game, with_game},
 };
 use mod_api::{EntityEnteringSectionEvent, Hooks, HostSide};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// What each told crossing carried: client side, entity id, old, new, chunk changed.
@@ -24,6 +25,21 @@ impl Hooks for Listener {
     }
 }
 
+type Positions = Arc<Mutex<Vec<Option<[f64; 3]>>>>;
+
+struct PositionListener(Positions);
+
+#[mod_api::__subscriptions]
+impl Hooks for PositionListener {
+    fn entity_entering_section(&self, host: HostSide<'_>, event: &mut EntityEnteringSectionEvent) {
+        let position = match host {
+            HostSide::Server(host) => event.entity.position(host),
+            HostSide::Client(host) => event.entity.position(host),
+        };
+        self.0.lock().unwrap().push(position);
+    }
+}
+
 fn observe(test: impl FnOnce(Calls)) {
     let calls = Calls::default();
     let mods = vec![mod_api::ModEntry::new(
@@ -32,6 +48,37 @@ fn observe(test: impl FnOnce(Calls)) {
     )]
     .into();
     mod_platform::testing::with_mods(mods, || test(calls));
+}
+
+fn observe_positions(test: impl FnOnce(Positions)) {
+    let positions = Positions::default();
+    let mods = vec![mod_api::ModEntry::new(
+        "section-positions",
+        Box::new(PositionListener(positions.clone())),
+    )]
+    .into();
+    mod_platform::testing::with_mods(mods, || test(positions));
+}
+
+type CallbackCount = Arc<AtomicUsize>;
+
+struct CountListener(CallbackCount);
+
+#[mod_api::__subscriptions]
+impl Hooks for CountListener {
+    fn entity_entering_section(&self, _: HostSide<'_>, _: &mut EntityEnteringSectionEvent) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+fn observe_count(test: impl FnOnce(CallbackCount)) {
+    let count = Arc::new(AtomicUsize::new(0));
+    let mods = vec![mod_api::ModEntry::new(
+        "section-count",
+        Box::new(CountListener(count.clone())),
+    )]
+    .into();
+    mod_platform::testing::with_mods(mods, || test(count));
 }
 
 fn scope(level: crate::game::Dim) -> Scope {
@@ -195,7 +242,6 @@ fn no_listener_files_no_entity() {
             )
             .unwrap();
         game.teleport_to(Target::Mob(id), [40.0, 70.0, 3.0], None, true);
-        game.entity_sections_stepped(Family::ArmorStands);
         assert!(game.native_lifecycle.entity_sections.filed.is_empty());
     });
 }
@@ -324,6 +370,102 @@ fn a_mobs_teleport_and_its_walk_in_one_tick_are_two_crossings() {
                     (false, id, [0, 7, 0], [0, 8, 0], false),
                 ]
             );
+        })
+    });
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_real_mob_tick_exposes_each_intermediate_position_to_the_listener() {
+    observe_positions(|positions| {
+        with_game(|game| {
+            let id = floating_cow(game, [8.5, 100.0, 8.5]);
+            teleport_then_walk(game, id, &[[8.5, 127.75, 8.5]], [0.0, 0.6, 0.0]);
+            let positions = positions.lock().unwrap();
+            assert_eq!(
+                positions.first().copied().flatten(),
+                Some([8.5, 127.75, 8.5])
+            );
+            assert_eq!(positions.len(), 2);
+            assert!(positions[1].is_some_and(|at| at[1] >= 128.0));
+        })
+    });
+}
+
+#[derive(Clone, Debug)]
+struct TeleportsAndChecks {
+    callbacks: CallbackCount,
+    failed: Arc<AtomicBool>,
+    ran: bool,
+}
+
+impl horizon_client::mobs::goals::Goal for TeleportsAndChecks {
+    fn flags(&self) -> u8 {
+        0
+    }
+
+    fn can_use(
+        &mut self,
+        _: &mut horizon_client::mobs::Mob,
+        _: &mut horizon_client::mobs::goals::Cx<'_, '_, '_>,
+    ) -> bool {
+        !self.ran
+    }
+
+    fn start(
+        &mut self,
+        m: &mut horizon_client::mobs::Mob,
+        cx: &mut horizon_client::mobs::goals::Cx<'_, '_, '_>,
+    ) {
+        self.ran = true;
+        let first = horizon_core::geometry::Vec3::new(8.5, 120.0, 8.5);
+        horizon_client::mobs::living::teleports::set_pos_with(
+            m,
+            first,
+            cx.w.section_writer.clone(),
+        );
+        if self.callbacks.load(Ordering::SeqCst) != 1 {
+            self.failed.store(true, Ordering::SeqCst);
+        }
+        let second = horizon_core::geometry::Vec3::new(8.5, 143.75, 8.5);
+        horizon_client::mobs::living::teleports::set_pos_with(
+            m,
+            second,
+            cx.w.section_writer.clone(),
+        );
+        if self.callbacks.load(Ordering::SeqCst) != 2 {
+            self.failed.store(true, Ordering::SeqCst);
+        }
+    }
+
+    fn box_clone(&self) -> Box<dyn horizon_client::mobs::goals::Goal> {
+        Box::new(self.clone())
+    }
+}
+
+#[test]
+#[ignore = "daily"]
+fn a_real_mob_tick_tells_inside_each_position_write() {
+    observe_count(|callbacks| {
+        with_game(|game| {
+            let id = floating_cow(game, [8.5, 100.0, 8.5]);
+            game.tick_creature_entities().unwrap();
+            callbacks.store(0, Ordering::SeqCst);
+            let failed = Arc::new(AtomicBool::new(false));
+            let i = game.mobs.iter().position(|m| m.id == id).unwrap();
+            game.mobs.update(i, |m| {
+                m.ai.goals.add(
+                    0,
+                    TeleportsAndChecks {
+                        callbacks: callbacks.clone(),
+                        failed: failed.clone(),
+                        ran: false,
+                    },
+                )
+            });
+            game.tick_creature_entities().unwrap();
+            assert!(!failed.load(Ordering::SeqCst));
+            assert_eq!(callbacks.load(Ordering::SeqCst), 2);
         })
     });
 }
@@ -486,7 +628,7 @@ fn a_server_entity_that_leaves_is_forgotten() {
 
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
-fn a_server_mobs_own_move_is_told_at_the_end_of_its_tick() {
+fn a_server_mobs_own_move_is_not_reconstructed_after_its_post() {
     use horizon_core::geometry::Vec3;
     observe(|calls| {
         with_game(|game| {
@@ -510,10 +652,9 @@ fn a_server_mobs_own_move_is_told_at_the_end_of_its_tick() {
                 .update(i, |m| m.position = Vec3::new(1.0, 70.0, 17.0));
             assert!(calls.lock().unwrap().is_empty());
             game.native_tick_post_batch(round);
-            assert_eq!(
-                calls.lock().unwrap().as_slice(),
-                &[(false, id, [0, 4, 0], [0, 4, 1], true)]
-            );
+            // A raw field edit is not a position-write boundary. The Post hook must not
+            // synthesize a crossing after the fact; real ticks record their writes before Post.
+            assert!(calls.lock().unwrap().is_empty());
         })
     });
 }

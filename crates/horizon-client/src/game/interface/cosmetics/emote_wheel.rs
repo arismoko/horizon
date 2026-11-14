@@ -159,6 +159,7 @@ impl Game<'_> {
                 );
             }
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         // Each slice's number and name, in the middle of its band.
         for (i, name) in names.iter().enumerate() {
             let [x, y] = at(cx, cy, (INNER + OUTER) / 2.0, i as f32 * turn);
@@ -189,6 +190,7 @@ impl Game<'_> {
             0xFFA0_A0A8,
             true,
         );
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
     }
 }
 

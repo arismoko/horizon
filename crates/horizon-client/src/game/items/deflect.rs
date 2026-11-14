@@ -129,7 +129,7 @@ impl Game<'_> {
             Some(self.creatures.projectiles[i].id),
         );
         let sweep = self.sweep_before_hit("minecraft:shulker_bullet", false);
-        let p = self.creatures.projectiles.remove(i);
+        let p = self.remove_projectile_at(i);
         let at = [p.position.x, p.position.y, p.position.z];
         self.audio
             .play("minecraft:entity.shulker_bullet.hurt", Some(at), 1.0, 1.0);

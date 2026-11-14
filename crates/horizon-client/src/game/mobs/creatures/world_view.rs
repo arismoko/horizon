@@ -7,6 +7,7 @@ impl Game<'_> {
         let weather = self.can_have_weather();
         let player = self.player_view();
         MobWorld {
+            section_writer: None,
             professions: self.stations().professions.as_ref(),
             loop_context: &self.loop_context,
             foreign: None,

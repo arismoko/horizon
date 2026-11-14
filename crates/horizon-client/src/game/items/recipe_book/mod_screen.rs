@@ -262,11 +262,9 @@ impl Game<'_> {
         self.mod_book_layout(batch.width, self.mod_book_open())
             .map_or((0.0, 0.0), |layout| layout.toggle)
     }
-    pub(super) fn draw_mod_book(&mut self, batch: &mut HudBatch) {
+    pub(super) fn draw_mod_book(&mut self, batch: &mut HudBatch) -> Option<Vec<(Text, u32)>> {
         self.refresh_mod_book();
-        let Some((open, filtering)) = self.mod_book_flags() else {
-            return;
-        };
+        let (open, filtering) = self.mod_book_flags()?;
         let (bx, by) = self.mod_book_button(batch);
         batch.sprite(
             &self.gui.atlas,
@@ -283,7 +281,7 @@ impl Game<'_> {
         }
         self.draw_mod_book_ghosts(batch);
         if !open {
-            return;
+            return None;
         }
         let (xo, yo) = self.book_origin(batch);
         let search = match self.recipe_ui.search.as_mut() {
@@ -303,9 +301,7 @@ impl Game<'_> {
             None => Search::default(),
         };
         let ui = &self.recipe_ui.custom;
-        let Some(presentation) = &ui.presentation else {
-            return;
-        };
+        let presentation = ui.presentation.as_ref()?;
         let buttons: Vec<_> = presentation
             .recipes
             .iter()
@@ -364,9 +360,7 @@ impl Game<'_> {
                 }
             }
         }
-        if let Some(lines) = self.paint_book(batch, &calls) {
-            self.draw_tooltip_lines(batch, &lines, self.cursor.0, self.cursor.1);
-        }
+        self.paint_book(batch, &calls)
     }
     pub(super) fn mod_book_click(&mut self, right: bool) -> bool {
         self.native_net.placement.client.click();

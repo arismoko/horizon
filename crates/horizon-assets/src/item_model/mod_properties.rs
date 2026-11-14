@@ -4,16 +4,29 @@
 //! `range_dispatch` or `select` on a registered property, a tint of a registered source and a node
 //! of a registered type read their answer from the host per stack; a property or tint nobody
 //! registered stays foreign (`foreign.rs`), and a node type nobody registered fails to decode.
+//! The special model types native mods register (`RegisterSpecialModelRendererEvent`) decode
+//! in a `minecraft:special` model, which the host draws per stack, vanilla's types included; one
+//! nobody registered that vanilla doesn't have fails to decode.
 //! The skull types native mods register (`EntityRenderersEvent.CreateSkullModels`) are kinds a
 //! `minecraft:head` model may name.
 use super::identifier;
-use std::{collections::BTreeSet, sync::RwLock};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::RwLock,
+};
 
 static RANGE: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
 static SELECT: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
 static TINT: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
 static NODE: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
 static SKULL: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
+static SPECIAL: RwLock<BTreeMap<String, SpecialModelSlot>> = RwLock::new(BTreeMap::new());
+
+/// A registered special model type, by its place among the ids
+/// [`register_special_model_types`] kept: resolved when a model naming it decodes, so drawing it
+/// looks nothing up by name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SpecialModelSlot(pub u32);
 
 /// Keeps the numeric `range_dispatch` properties native mods registered, before
 /// resources load. An id that is not `<namespace>:<path>` in a namespace other than
@@ -86,6 +99,34 @@ pub fn register_item_models(ids: Vec<String>) -> Vec<String> {
 /// Whether a native mod registered `id` as an item model node type.
 pub fn is_item_model_type(id: &str) -> bool {
     NODE.read().unwrap_or_else(|e| e.into_inner()).contains(id)
+}
+
+/// Keeps the special model types native mods registered (`RegisterSpecialModelRendererEvent`),
+/// before resources load, in place of any kept before: vanilla's types may be among them, as a
+/// later registration replaces an earlier one. An id that is not `<namespace>:<path>`, written in
+/// full, is logged and left out. Returns the ids kept: the slot of each is its index.
+pub fn register_special_model_types(ids: Vec<String>) -> Vec<String> {
+    let mut slots = SPECIAL.write().unwrap_or_else(|e| e.into_inner());
+    slots.clear();
+    let mut kept = Vec::new();
+    for id in ids {
+        if identifier(&id).is_ok_and(|parsed| parsed == id) {
+            slots.insert(id.clone(), SpecialModelSlot(kept.len() as u32));
+            kept.push(id);
+        } else {
+            log::warn!("special model type {id:?} is not <namespace>:<path>");
+        }
+    }
+    kept
+}
+
+/// The slot of the special model type `id`, when a native mod registered it.
+pub fn special_model_slot(id: &str) -> Option<SpecialModelSlot> {
+    SPECIAL
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(id)
+        .copied()
 }
 
 /// Whether a native mod registered `id` as an item tint source.

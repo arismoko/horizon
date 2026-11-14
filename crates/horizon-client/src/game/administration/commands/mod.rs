@@ -40,7 +40,7 @@ use horizon_client::{
     items::ItemStack,
     text::{self, Style, Text},
 };
-use horizon_core::{geometry::Vec3, random::RandomSource};
+use horizon_core::{geometry::Vec3, java_number::float_to_string, random::RandomSource};
 use horizon_protocol::packets::play::{self, Clientbound as C};
 use horizon_world::registry::BlockStateId;
 
@@ -182,18 +182,10 @@ fn entity_name_key(id: &str) -> String {
 fn texts(args: &[Text]) -> Vec<Text> {
     args.to_vec()
 }
-/// Java's String.valueOf(float/double) for the values commands print.
-fn java_float(v: f64) -> String {
-    if v == v.trunc() && v.abs() < 1.0e7 {
-        format!("{v:.1}")
-    } else {
-        format!("{v}")
-    }
-}
 /// String.format(Locale.ROOT, "%.<decimals>f"): Java rounds the shortest
 /// decimal text half-up, which `{:.N}` (exact value, half-even) does not.
 pub(super) fn percent_f(v: f64, decimals: usize) -> String {
-    horizon_client::java_text::format_fixed(v, decimals)
+    horizon_core::java_number::format_fixed(v, decimals)
 }
 /// String.format(Locale.ROOT, "%f").
 fn format_double(v: f64) -> String {
@@ -656,7 +648,7 @@ impl Game<'_> {
                     candidates.extend(self.level_candidates());
                 }
             }
-            out.extend(self.select_in_level(candidates, s, origin));
+            out.extend(self.native_selector_kept(s, candidates, origin));
             if let Some(back) = back {
                 self.enter_command_level(back);
             }
@@ -690,7 +682,7 @@ impl Game<'_> {
     }
     /// The candidates of the level in place that pass the selector
     /// (EntitySelector.getPredicate).
-    fn select_in_level(
+    pub(super) fn select_in_level(
         &mut self,
         candidates: Vec<Target>,
         s: &Selector,
@@ -1521,7 +1513,7 @@ impl Game<'_> {
                 // there at once: the arrival they were waiting for elsewhere
                 // in it (whose chunks lose their tickets) is abandoned.
                 if let Some(conn) = self.lan_acting {
-                    self.server_trips.retain(|trip| !trip.is(conn));
+                    self.hold_for_chunks(conn, v);
                 }
                 let from = self
                     .player
@@ -2196,13 +2188,13 @@ impl Game<'_> {
                 if self.command_clock_state(&clock).rate == rate {
                     return Err(err(
                         "commands.time.rate.already_same",
-                        &[&clock, &java_float(f64::from(rate))],
+                        &[&clock, &float_to_string(rate)],
                     ));
                 }
                 self.command_clock_state(&clock).rate = rate;
                 self.feedback(Text::tr(
                     "commands.time.rate",
-                    &[&clock, &java_float(f64::from(rate))],
+                    &[&clock, &float_to_string(rate)],
                 ));
                 Ok(1)
             }
@@ -2358,9 +2350,7 @@ impl Game<'_> {
                     o.age = u32::MAX / 2;
                 }
             }
-            Target::Projectile(id) => {
-                self.creatures.projectiles.retain(|p| p.id != id);
-            }
+            Target::Projectile(id) => self.remove_projectile(id),
             Target::Stand(id) => self.armor_stands.retain(|a| a.id != id),
             Target::Frame(id) => {
                 // ItemFrame.onKilled.
@@ -2387,8 +2377,8 @@ impl Game<'_> {
             Target::Falling(id) => self.falling.retain(|f| f.id != id),
             Target::Rocket(id) => self.rockets.retain(|r| r.id != id),
             Target::Trident(id) => self.tridents.retain(|t| t.id != id),
-            Target::Spawner(id) => self.ominous_spawners.retain(|s| s.id != id),
-            Target::Cloud(id) => self.breath_clouds.retain(|c| c.id != id),
+            Target::Spawner(id) => self.remove_ominous_spawner(id),
+            Target::Cloud(id) => self.remove_breath_cloud(id),
             Target::Hook(id) => self.remove_fishing_hook(id),
             Target::Knot(_) => {}
             // No command names a part, and `kill` on one would not stop its dragon.
@@ -3561,8 +3551,8 @@ impl Game<'_> {
             p[0].clone(),
             p[1].clone(),
             p[2].clone(),
-            Text::literal(java_float(f64::from(yaw))),
-            Text::literal(java_float(f64::from(pitch))),
+            Text::literal(float_to_string(yaw)),
+            Text::literal(float_to_string(pitch)),
             dim,
         ];
         let key = if targets.len() == 1 {
@@ -3624,8 +3614,8 @@ impl Game<'_> {
             Text::literal(pos[0].to_string()),
             Text::literal(pos[1].to_string()),
             Text::literal(pos[2].to_string()),
-            Text::literal(java_float(f64::from(yaw))),
-            Text::literal(java_float(f64::from(pitch))),
+            Text::literal(float_to_string(yaw)),
+            Text::literal(float_to_string(pitch)),
             Text::literal(self.dim.id()),
         ];
         self.feedback(Text::translate("commands.setworldspawn.success", &args));

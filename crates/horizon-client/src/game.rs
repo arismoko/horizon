@@ -998,7 +998,7 @@ struct Game<'a> {
     damage_tag_generation: u64,
     /// The registries native mods registered data map types for, as of the
     /// server tables' last build: what `data_maps_updated` fires for.
-    data_map_registries: Vec<&'static str>,
+    data_map_registries: Vec<String>,
     /// This game's resource packs (`reload_packs` replaces them).
     pack: PackResources,
     /// The title and menu bundle (GUI atlas, font and panorama).
@@ -4876,7 +4876,7 @@ impl Game<'_> {
             }
             // The early return skips the match below: the hooks still see the
             // screen, after its own drawing.
-            self.draw_screen_with_post_hook(&mut batch, drawn);
+            self.draw_screen_with_post_hook(&mut batch);
             return batch;
         }
         if self.screen == Screen::Options {
@@ -4887,8 +4887,10 @@ impl Game<'_> {
             let drawn = self.draw_screen_with_pre_hook(&mut batch);
             if drawn {
                 self.draw_options(&mut batch);
+            } else {
+                self.ui.options.discard_draw();
             }
-            self.draw_screen_with_post_hook(&mut batch, drawn);
+            self.draw_screen_with_post_hook(&mut batch);
             self.draw_split_hud(&mut batch, true);
             return batch;
         }
@@ -4917,7 +4919,7 @@ impl Game<'_> {
             if drawn {
                 self.draw_debug_options(&mut batch);
             }
-            self.draw_screen_with_post_hook(&mut batch, drawn);
+            self.draw_screen_with_post_hook(&mut batch);
             self.draw_toasts(&mut batch, false);
             self.draw_tutorial_toasts(&mut batch, false);
             self.draw_pack_toasts(&mut batch, false);
@@ -4937,12 +4939,13 @@ impl Game<'_> {
                     self.cursor,
                     self.settings.file.bool("hideSplashTexts"),
                     self.settings.file.bool("hideServerAddress"),
+                    &mut |phase, batch| self.draw_screen_phase(batch, phase),
                 );
             }
             // ScreenEvent.Render.Post over the title's own screens: a mod draws
             // over them here (a pack browser over Create New World, say), and the
             // toasts still come after, as over any screen.
-            self.draw_title_screen_with_post_hook(&mut batch, drawn);
+            self.draw_title_screen_with_post_hook(&mut batch);
             self.draw_toasts(&mut batch, false);
             self.draw_tutorial_toasts(&mut batch, false);
             self.draw_pack_toasts(&mut batch, false);
@@ -5221,7 +5224,6 @@ impl Game<'_> {
         if self.screen == Screen::Chat {
             // The mod layers under the chat stay under the focused chat.
             self.draw_mod_gui_layers(Some("minecraft:chat"), &mut batch);
-            self.draw_chat(&mut batch);
         } else if show_hud {
             if !self.overlay_holds_view() {
                 self.gui_layer("minecraft:chat", &mut batch, |g, batch| g.draw_chat(batch));
@@ -5249,6 +5251,10 @@ impl Game<'_> {
             Screen::Paused if self.pause_menu => self.draw_pause_menu(&mut batch),
             // PauseScreen(false): only its title, at the top.
             Screen::Paused => {
+                self.draw_screen_phase(
+                    &mut batch,
+                    horizon_client::screen_draw::RenderPhase::Background,
+                );
                 let title = self.translate_with_fallback("menu.paused", "Game Paused");
                 horizon_client::widgets::begin_screen(|| {
                     horizon_client::widgets::ScreenInfo::new("paused", title.clone())
@@ -5262,13 +5268,26 @@ impl Game<'_> {
                     u32::MAX,
                     true,
                 );
+                self.draw_screen_phase(
+                    &mut batch,
+                    horizon_client::screen_draw::RenderPhase::Foreground,
+                );
             }
             Screen::GameModeSwitcher => self.draw_gamemode_switcher(&mut batch),
             Screen::EmoteWheel => self.draw_emote_wheel(&mut batch),
             Screen::Dead => self.draw_death_screen(&mut batch),
             Screen::Stats => self.draw_stats(&mut batch),
             Screen::Advancements => self.draw_advancements(&mut batch),
-            Screen::Mod => {}
+            Screen::Mod => {
+                self.draw_screen_phase(
+                    &mut batch,
+                    horizon_client::screen_draw::RenderPhase::Background,
+                );
+                self.draw_screen_phase(
+                    &mut batch,
+                    horizon_client::screen_draw::RenderPhase::Foreground,
+                );
+            }
             Screen::WorldOptions => self.draw_world_options(&mut batch),
             Screen::Friends => self.draw_friends_screen(&mut batch),
             Screen::Social => self.draw_social_screen(&mut batch),
@@ -5279,17 +5298,24 @@ impl Game<'_> {
             Screen::BlockEditor => self.draw_block_editor(&mut batch),
             Screen::DebugOptions => self.draw_debug_options(&mut batch),
             Screen::HudEditor => self.draw_hud_editor(&mut batch),
-            Screen::Studio => {}
+            Screen::Studio => {
+                self.draw_screen_phase(
+                    &mut batch,
+                    horizon_client::screen_draw::RenderPhase::Background,
+                );
+                self.draw_screen_phase(
+                    &mut batch,
+                    horizon_client::screen_draw::RenderPhase::Foreground,
+                );
+            }
             Screen::Inventory => {
                 let from = batch.vertices.len();
                 self.draw_inventory(&mut batch);
-                self.draw_mod_browser(&mut batch);
                 self.draw_pad_menu_guide(&mut batch, from);
             }
             Screen::Creative => {
                 let from = batch.vertices.len();
                 self.draw_creative(&mut batch);
-                self.draw_mod_browser(&mut batch);
                 self.draw_pad_menu_guide(&mut batch, from);
             }
             Screen::Chat => self.draw_chat_screen(&mut batch),
@@ -5299,7 +5325,7 @@ impl Game<'_> {
         // tooltips, so a native mod draws over it here. Never `Playing`: the
         // prompts, books and sign editors drawn over gameplay keep it, draw
         // after this point and so over what a mod drew.
-        self.draw_screen_with_post_hook(&mut batch, drawn);
+        self.draw_screen_with_post_hook(&mut batch);
         self.draw_saving_indicator(&mut batch);
         self.draw_every_toast(&mut batch, !show_hud);
         if self.server_packs.prompt.is_none() {
@@ -5314,179 +5340,6 @@ impl Game<'_> {
         batch
     }
 
-    fn draw_inventory(&mut self, batch: &mut HudBatch) {
-        screen_info::begin_container("container");
-        if self.draw_station(batch) {
-            return;
-        }
-        let (ox, oy) = self.inventory_origin(batch);
-        {
-            let atlas = &self.gui.atlas;
-            self.render_transparent_background("inventory", batch);
-            let part = |batch: &mut HudBatch,
-                        name: &str,
-                        sx: f32,
-                        sy: f32,
-                        w: f32,
-                        h: f32,
-                        dx: f32,
-                        dy: f32| {
-                if let Some(mut r) = atlas.sprites.get(name).copied() {
-                    let (du, dv) = ((r.u1 - r.u0) / r.w as f32, (r.v1 - r.v0) / r.h as f32);
-                    r.u0 += sx * du;
-                    r.v0 += sy * dv;
-                    r.u1 = r.u0 + w * du;
-                    r.v1 = r.v0 + h * dv;
-                    batch.rect_uv(dx, dy, w, h, r, u32::MAX);
-                }
-            };
-            let grey = rgba(64, 64, 64, 255);
-            match self
-                .container
-                .and_then(|k| self.world.block_entities.get(&k))
-            {
-                Some(_) if self.draw_native_screen(batch, ox, oy) => {}
-                Some(BlockEntity::Chest(_)) if self.draw_machine_screen(batch, ox, oy) => {}
-                Some(BlockEntity::Chest(_)) => self.draw_chest_screen(batch, ox, oy),
-                Some(BlockEntity::Furnace(f)) => {
-                    let (tex, key, fallback) = match f.kind {
-                        horizon_client::containers::FurnaceKind::Furnace => {
-                            ("gui/container/furnace", "container.furnace", "Furnace")
-                        }
-                        horizon_client::containers::FurnaceKind::BlastFurnace => (
-                            "gui/container/blast_furnace",
-                            "container.blast_furnace",
-                            "Blast Furnace",
-                        ),
-                        horizon_client::containers::FurnaceKind::Smoker => {
-                            ("gui/container/smoker", "container.smoker", "Smoker")
-                        }
-                    };
-                    part(batch, tex, 0.0, 0.0, 176.0, 166.0, ox, oy);
-                    // A server's furnace menu has the title it was given.
-                    let title = self.remote_menu_title().unwrap_or_else(|| {
-                        horizon_client::text::Text::literal(
-                            self.container_title(self.translate_with_fallback(key, fallback)),
-                        )
-                        .resolve_legacy()
-                    });
-                    screen_info::name_container(|| title.plain());
-                    let tw = atlas.font.width_text(&title);
-                    batch.text_styled(
-                        atlas,
-                        &title,
-                        ox + (176.0 - tw) / 2.0,
-                        oy + 6.0,
-                        grey,
-                        false,
-                    );
-                    let inventory =
-                        self.translate_with_fallback("container.inventory", "Inventory");
-                    batch.text(atlas, &inventory, ox + 8.0, oy + 72.0, grey, false);
-                    if f.lit_remaining > 0 {
-                        // AbstractFurnaceScreen: flame height ceil(lit * 13) + 1.
-                        let total = if f.lit_total == 0 { 200 } else { f.lit_total };
-                        let h = ((f.lit_remaining as f32 / total as f32) * 13.0).ceil() + 1.0;
-                        part(
-                            batch,
-                            "gui/sprites/container/furnace/lit_progress",
-                            0.0,
-                            14.0 - h,
-                            14.0,
-                            h,
-                            ox + 56.0,
-                            oy + 36.0 + 14.0 - h,
-                        );
-                    }
-                    if f.cooking_timer > 0 && f.cooking_total > 0 {
-                        let w = ((f.cooking_timer as f32 / f.cooking_total as f32) * 24.0).ceil();
-                        part(
-                            batch,
-                            "gui/sprites/container/furnace/burn_progress",
-                            0.0,
-                            0.0,
-                            w,
-                            16.0,
-                            ox + 79.0,
-                            oy + 34.0,
-                        );
-                    }
-                }
-                Some(BlockEntity::Brewing(_)) => {}
-                Some(BlockEntity::Crafter(_)) => self.draw_crafter_screen(batch, ox, oy),
-                Some(
-                    BlockEntity::Sign(_)
-                    | BlockEntity::Jukebox(_)
-                    | BlockEntity::Beacon(_)
-                    | BlockEntity::Lectern(_)
-                    | BlockEntity::Sculk(_)
-                    | BlockEntity::Banner(_)
-                    | BlockEntity::CopperGolemStatue(_)
-                    | BlockEntity::CreakingHeart(_)
-                    | BlockEntity::Spawner(_)
-                    | BlockEntity::TrialSpawner(_)
-                    | BlockEntity::Vault(_)
-                    | BlockEntity::Beehive(_)
-                    | BlockEntity::CommandBlock(_)
-                    | BlockEntity::EndGateway(_)
-                    | BlockEntity::Skull(_)
-                    | BlockEntity::DaylightDetector
-                    | BlockEntity::Bell
-                    | BlockEntity::Conduit(_)
-                    | BlockEntity::EndPortal
-                    | BlockEntity::EnchantingTable
-                    | BlockEntity::Campfire(_)
-                    | BlockEntity::ChiseledBookshelf(_)
-                    | BlockEntity::Brushable(_)
-                    | BlockEntity::Shelf(_)
-                    | BlockEntity::Mod(_)
-                    | BlockEntity::PotentSulfur(_)
-                    | BlockEntity::StructureBlock(_)
-                    | BlockEntity::JigsawBlock(_)
-                    | BlockEntity::TestBlock(_)
-                    | BlockEntity::TestInstanceBlock(_),
-                ) => {}
-                None if self.mount_active() => self.draw_mount_background(batch, ox, oy),
-                None => {
-                    let texture = if self.craft_size == 3 {
-                        "gui/container/crafting_table"
-                    } else {
-                        "gui/container/inventory"
-                    };
-                    part(batch, texture, 0.0, 0.0, 176.0, 166.0, ox, oy);
-                    let title = self.translate_with_fallback("container.crafting", "Crafting");
-                    screen_info::name_container(|| title.clone());
-                    let tx = if self.craft_size == 3 { 29.0 } else { 97.0 };
-                    batch.text(atlas, &title, ox + tx, oy + 6.0, grey, false);
-                    if self.craft_size == 3 {
-                        let inventory =
-                            self.translate_with_fallback("container.inventory", "Inventory");
-                        batch.text(atlas, &inventory, ox + 8.0, oy + 72.0, grey, false);
-                    }
-                }
-            }
-        }
-        if self.container.is_none() && self.craft_size != 3 && !self.mount_active() {
-            self.draw_inventory_player(batch, ox, oy);
-        }
-        self.draw_hovered_slot_highlight(batch, false, ox, oy);
-        self.draw_inventory_slots(batch, ox, oy);
-        self.draw_hovered_slot_highlight(batch, true, ox, oy);
-        self.draw_sort_buttons(batch, ox, oy);
-        self.draw_recipe_book(batch);
-        let effect_tip = if self.container.is_none() && self.craft_size == 2 && !self.mount_active()
-        {
-            self.draw_inventory_effects(batch, (ox, oy), 176)
-        } else {
-            None
-        };
-        self.draw_carried(batch);
-        self.draw_slot_tooltip(batch);
-        self.draw_native_screen_tooltip(batch);
-        if let Some(lines) = effect_tip {
-            self.draw_tooltip_lines(batch, &lines, self.cursor.0, self.cursor.1);
-        }
-    }
     pub(super) fn close_container(&mut self) {
         // `Gui.setScreen` clears the old screen's focus before it goes: the
         // key that closed the container (Tab bound to the inventory) has
@@ -6576,7 +6429,7 @@ impl Game<'_> {
         self.session_lock = Some(session_lock);
         // Keep the no-pack preload; a world's packs replace it atomically.
         // A later /reload keeps this session's synchronized registries.
-        lan::open_world_sync_data(
+        lan::sync::open_world_sync_data(
             &self.options.resources,
             &self.res.core.item_data,
             &pack_files(&self.world_tables),
@@ -6770,8 +6623,8 @@ impl Game<'_> {
         }
         // Clear sync data (registries, dialog tags) so dialogs don't leak
         // between worlds.
-        lan::forget_sync_data();
-        lan::forget_server_sources();
+        lan::sync::forget_sync_data();
+        lan::sync::forget_server_sources();
         let mut title = self
             .new_title(std::env::current_dir()?.join("saves"))
             .with_user(|| self.options.player_name());
@@ -7847,33 +7700,31 @@ impl Game<'_> {
         self.occupy_bed(head);
         true
     }
-    fn wake_up(&mut self) {
+    /// `Player.stopSleepInBed`: preserve the flags of the owning wake caller.
+    fn wake_up(&mut self, wake_immediately: bool, update_level: bool) {
         if self.remote.is_some() {
             // InBedChatScreen.sendWakeUp: the server wakes the player.
             self.remote_stop_sleeping();
             return;
         }
+        // PlayerWakeUpEvent: heard at the start of stopSleepInBed, still in bed;
+        // a listener may have woken the player, so the sleep is read after it.
+        self.native_acting_bed_leave(wake_immediately, update_level);
         let Some(head) = self.sleeping.take() else {
             return;
         };
-        self.sleep_timer = 100;
+        self.sleep_timer = if wake_immediately { 0 } else { 100 };
         // The active guest's live body wakes here; the hub owns its wake
         // animation and sleeping metadata, not the suspended outer actor.
         if let Some(i) = self.lan_acting.and_then(|conn| self.guest_index(conn))
             && let Some(host) = self.lan.as_mut()
         {
             // The live turn may have changed its bed since entry.
-            {
-                let value = Some(head);
-                host.hub.guests.update(i, |guest| guest.bed = value);
-            }
-            host.hub.wake(i);
+            host.hub.guests.update(i, |guest| guest.bed = Some(head));
+            host.hub.wake(i, wake_immediately);
             // This live body applies the stand-up pose below, not the later
             // wake_woken_guests pass over stored guest bodies.
-            {
-                let value = None;
-                host.hub.guests.update(i, |guest| guest.woke_from = value);
-            }
+            host.hub.guests.update(i, |guest| guest.woke_from = None);
         }
         let stand = self.bed_wake_pose(head, self.yaw);
         if let Some(p) = self.player.as_mut() {
@@ -7895,9 +7746,6 @@ impl Game<'_> {
                 self.snap_player_model_pitch();
             }
         }
-        if let (Some(player), Some(name)) = (self.lan_acting_uuid, self.lan_acting_name.clone()) {
-            self.native_player_bed_leave(player, &name, head);
-        }
     }
     fn tick_sleep(&mut self) {
         self.sleep_timer = tick_sleep_timer(self.sleep_timer, self.sleeping.is_some());
@@ -7908,14 +7756,13 @@ impl Game<'_> {
             let bed_gone = !self.res.facts().get(bed).name.ends_with("_bed");
             // Vanilla has no Shift wake-up: the chat screen's capitals must
             // not get the sleeper up.
-            if (self.screen != Screen::Chat && self.keys.held(Mapping::Sneak))
-                || bed_gone
+            let wake_immediately = bed_gone
                 || self
                     .player
                     .as_ref()
-                    .is_none_or(|p| p.health.dead_or_dying())
-            {
-                self.wake_up();
+                    .is_none_or(|p| p.health.dead_or_dying());
+            if wake_immediately || (self.screen != Screen::Chat && self.keys.held(Mapping::Sneak)) {
+                self.wake_up(wake_immediately, true);
                 return;
             }
             // setPosToBed: the bed's top (`getSleepHeight`) and 0.125 above
@@ -7971,7 +7818,7 @@ impl Game<'_> {
                 self.world.weather.thunder_time = 0;
             }
             if self.sleeping.is_some() {
-                self.wake_up();
+                self.wake_up(false, false);
             }
             self.wake_guests();
             // SleepStatus.removeAllSleepers: waking everyone is not announced.
@@ -8249,7 +8096,7 @@ impl Game<'_> {
         &mut self,
         consume: impl FnOnce(&mut Renderer, &Frame<'_>) -> Result<bool>,
     ) -> Result<bool> {
-        self.prepared_model_draws.borrow_mut().clear();
+        self.begin_frame_draws();
         let prepare = spans::guard("prepare");
         let mut pr = spans::laps();
         // The window's GPU holds the atlas: its copy in memory is kept
@@ -8735,7 +8582,6 @@ impl Game<'_> {
         let distance = (terrain_distance * 16) as f32;
         let depth_far =
             horizon_client::camera::depth_far(terrain_distance, self.settings.cloud_range);
-        // Only native mods read it: no matrices or allocation per frame without one.
         let mods_read_camera = !mod_api::__private::mods().is_empty();
         self.screen_blur_requested.set(false);
         self.native_camera_frame = (mods_read_camera && !title).then(|| {
@@ -8762,6 +8608,7 @@ impl Game<'_> {
                 dimension: self.dim.id().to_string(),
             }
         });
+        let _projection_frame = (!title).then(|| self.activate_projection_frame());
         pr.lap("pr_projection");
         // GUI hooks project against this frame's camera, including its bob/spin and FOV.
         let mut hud = horizon_client::spans::time("hud", || self.hud(size));
@@ -11427,323 +11274,6 @@ const NUMERIC_KEYS: [KeyCode; 11] = [
     KeyCode::Numpad8,
     KeyCode::Numpad9,
 ];
-
-fn load_world_rest(
-    resource_root: &horizon_assets::resource_source::ResourceRoot,
-    resources: &Resources,
-    assets: &Assets,
-    behaviour_json: &serde_json::Value,
-    gameplay_projection: &[horizon_client::blocks::GameplayProjection],
-    entity_models: Option<&horizon_client::mobs::EntityModelDocument>,
-    item_defaults: &horizon_world::item_defaults::ItemDefaults,
-    visibility: horizon_world::block_render::FaceVisibility,
-    progress: &Progress,
-    started: Instant,
-    // False on a dedicated server, which draws nothing: no block entity
-    // renderer or animate tables (client-side display ticks).
-    draws: bool,
-) -> Result<WorldRest> {
-    let root = resource_root.prepared();
-    let facts = resources.facts();
-    let biomes = resources.biomes();
-    let threads = resources.threads();
-    let registry = assets.registry;
-    let content = horizon_client::datapack::DataPack::from_source(
-        "horizon-content".into(),
-        resource_root.data_changes().clone(),
-    );
-    let files = horizon_client::datapack::DataStore::load(&[&content])
-        .files
-        .into_iter()
-        .collect::<Vec<_>>();
-    let inventory = horizon_mod_package::enabled::EnabledMods::read(root)?;
-    let conditions = horizon_world::conditions::LoadConditions::new(inventory.server_ids());
-    let overlay = &horizon_world::loot::PackOverlay {
-        conditions: &conditions,
-        files: &files,
-    };
-    progress.set(6);
-    // Independent tables load together, within the worker budget the settings
-    // allow. Only the recipes and the stations read another table: the items.
-    let load_items = || -> Result<_> {
-        let items = startup::time("rest.items", || {
-            Items::load(root, registry, facts, overlay, resources.item_defaults())
-        })?;
-        api_values::resolve_item_registry(&items)?;
-        log::info!("load items: {:.2}s", started.elapsed().as_secs_f32());
-        progress.set(7);
-        // The recipe tables, the stations and the recipe book read one folder:
-        // hold its files so it is read once.
-        let _recipe_files = horizon_client::json_folder::read(&root.join("data/minecraft/recipe"));
-        let sources = startup::time("rest.recipe_sources", || {
-            lan::load_sources(
-                root,
-                &resources.core.item_data,
-                resources.core.item_data.context().origin(),
-                overlay,
-            )
-        })?;
-        let recipes = startup::time("rest.recipes", || {
-            Recipes::from_resolved(root, &items, overlay, &sources)
-        })?;
-        let stations = startup::time("rest.stations", || {
-            horizon_client::stations::StationData::from_sources(
-                root,
-                &items,
-                overlay,
-                resources.item_defaults(),
-                (&sources, &recipes),
-            )
-        });
-        Ok((items, recipes, stations))
-    };
-    let load_behaviours = || {
-        startup::time("rest.behaviours", || {
-            Behaviours::load_with_gameplay(registry, root, behaviour_json, gameplay_projection)
-        })
-    };
-    let load_block_entity_render = || -> Result<_> {
-        let _step = startup::step("rest.block_entity_render");
-        if !draws {
-            return Ok(Default::default());
-        }
-        let mut renderer = BlockEntityRenderer::load_with_visibility(
-            resource_root,
-            registry,
-            visibility,
-            resources.item_defaults(),
-        )?;
-        renderer.add_mod_signs(facts, registry);
-        Ok(renderer)
-    };
-    let load_animate = || resource_tables::load_animate_tables(root, registry, draws, biomes);
-    let load_mobs = || -> Result<_> {
-        let _step = startup::step("rest.mobs");
-        let catalog = &resources.motion().attributes;
-        let mut types = if draws {
-            match entity_models {
-                Some(document) => MobTypes::load_with_document_and_defaults(
-                    root,
-                    document,
-                    item_defaults.entries(),
-                    catalog,
-                )?,
-                None => MobTypes::load_with_defaults(root, item_defaults.entries(), catalog)?,
-            }
-        } else {
-            MobTypes::load_for_server(root, catalog)?
-        };
-        // #845: the declared sets take their types' rows — the merged rows
-        // the live attribute map's catalog took in core (the template's with
-        // the declared set on top) — as their attribute map and spawn
-        // fields, so a mob of the type spawns with what the map answers.
-        for declaration in mod_api::__private::entity_attribute_declarations() {
-            let row = catalog.entity_row(&declaration.id).map(std::sync::Arc::new);
-            match (types.types.get_mut(&declaration.id), row) {
-                (Some(kind), Some(row)) => kind.take_attribute_row(row, catalog),
-                (Some(_), None) => log::warn!(
-                    "Horizon: mod entity attributes of {} never reached the catalog; ignored",
-                    declaration.id
-                ),
-                (None, _) => log::warn!(
-                    "Horizon: mod entity attributes of {} name no loaded entity type; ignored",
-                    declaration.id
-                ),
-            }
-        }
-        // #846: the types mods added attributes to take their grown rows the
-        // same way, so a new mob of the type spawns with them.
-        resource_load::take_modified_attribute_rows(
-            &mut types.types,
-            catalog,
-            mod_api::__private::entity_attribute_modifications(),
-        );
-        let mob_types: HashMap<_, _> = types
-            .types
-            .into_iter()
-            .map(|(k, v)| (k, Arc::new(v)))
-            .collect();
-        let mut mob_data = horizon_client::mobs::MobData::load(resource_root, facts);
-        // #847: the mods' spawn rules (`RegisterSpawnPlacementsEvent`) take
-        // their types' placement, heightmap and predicate here, once, so a
-        // spawn check reads one table with no pass over the mods.
-        for declaration in mod_api::__private::spawn_placement_declarations() {
-            if !mob_types.contains_key(&declaration.id) {
-                return Err(format!(
-                    "mod spawn placement of {} names no loaded entity type",
-                    declaration.id
-                )
-                .into());
-            }
-            mob_data.register_mod_spawn(&declaration.id, &declaration.rule);
-        }
-        mob_data.cem = std::sync::RwLock::new(Arc::new(if draws {
-            horizon_client::mobs::cem::CemModels::load(resource_root.source(), &mob_types)
-        } else {
-            horizon_client::mobs::cem::CemModels::default()
-        }));
-        horizon_client::mobs::trial_spawner::load_registry(root);
-        Ok((mob_types, mob_data))
-    };
-    let load_transformers = || -> Result<_> {
-        let _step = startup::step("rest.transformers_models");
-        let transformers = horizon_client::block_transform::Transformers::load(root, registry)?;
-        let player_type = match entity_models {
-            Some(document) => perspective::player_type_with_document(root, document),
-            None => perspective::player_type(root),
-        };
-        let models = (
-            player_type,
-            player_arms(root, "minecraft:player#main", entity_models),
-            player_arms(root, "minecraft:player_slim#main", entity_models),
-            match entity_models {
-                Some(document) => document.model("minecraft:spin_attack#main"),
-                None => horizon_client::mobs::load_model(root, "minecraft:spin_attack#main"),
-            },
-        );
-        Ok((transformers, models))
-    };
-    // The errors cross threads as text.
-    fn text<T, E: std::fmt::Display>(
-        result: std::result::Result<T, E>,
-    ) -> std::result::Result<T, String> {
-        result.map_err(|e| e.to_string())
-    }
-    let (
-        items,
-        behaviours,
-        block_entity_render,
-        animate,
-        mobs,
-        transformers,
-        providers,
-        music,
-        ambient,
-        nether_environment,
-        end_environment,
-    ) = if threads > 1 {
-        std::thread::scope(|scope| {
-            let items = named_scope(scope, "items", || text(load_items()));
-            let behaviours = named_scope(scope, "behaviours", || text(load_behaviours()));
-            let block_entity_render = named_scope(scope, "block_entity_render", || {
-                text(load_block_entity_render())
-            });
-            let animate = named_scope(scope, "animate", || text(load_animate()));
-            let mobs = named_scope(scope, "mobs", || text(load_mobs()));
-            let transformers = named_scope(scope, "transformers", || text(load_transformers()));
-            let providers = named_scope(scope, "providers", || {
-                startup::time("rest.providers", || Providers::load(root))
-            });
-            let music = named_scope(scope, "music", || {
-                startup::time("rest.music", || {
-                    horizon_client::music::MusicTables::load(root)
-                })
-            });
-            let ambient = named_scope(scope, "ambient", || {
-                startup::time("rest.ambient", || {
-                    horizon_client::ambience::AmbientTables::load(root)
-                })
-            });
-            let nether_environment = named_scope(scope, "nether_environment", || {
-                startup::time("rest.nether_environment", || {
-                    text(Environment::load_dimension(
-                        &horizon_assets::resource_source::ResourceSource::directory(
-                            root.to_path_buf(),
-                        ),
-                        "the_nether",
-                    ))
-                })
-            });
-            let end_environment = named_scope(scope, "end_environment", || {
-                startup::time("rest.end_environment", || {
-                    text(Environment::load_dimension(
-                        &horizon_assets::resource_source::ResourceSource::directory(
-                            root.to_path_buf(),
-                        ),
-                        "the_end",
-                    ))
-                })
-            });
-            (
-                items.join().unwrap(),
-                behaviours.join().unwrap(),
-                block_entity_render.join().unwrap(),
-                animate.join().unwrap(),
-                mobs.join().unwrap(),
-                transformers.join().unwrap(),
-                providers.join().unwrap(),
-                music.join().unwrap(),
-                ambient.join().unwrap(),
-                nether_environment.join().unwrap(),
-                end_environment.join().unwrap(),
-            )
-        })
-    } else {
-        (
-            text(load_items()),
-            text(load_behaviours()),
-            text(load_block_entity_render()),
-            text(load_animate()),
-            text(load_mobs()),
-            text(load_transformers()),
-            Providers::load(root),
-            startup::time("rest.music", || {
-                horizon_client::music::MusicTables::load(root)
-            }),
-            startup::time("rest.ambient", || {
-                horizon_client::ambience::AmbientTables::load(root)
-            }),
-            startup::time("rest.nether_environment", || {
-                text(Environment::load_dimension(
-                    &horizon_assets::resource_source::ResourceSource::directory(root.to_path_buf()),
-                    "the_nether",
-                ))
-            }),
-            startup::time("rest.end_environment", || {
-                text(Environment::load_dimension(
-                    &horizon_assets::resource_source::ResourceSource::directory(root.to_path_buf()),
-                    "the_end",
-                ))
-            }),
-        )
-    };
-    let (items, recipes, stations) = items?;
-    let (animate, fog) = animate?;
-    let (mob_types, mob_data) = mobs?;
-    let (transformers, (player_type, player_arm, player_arm_slim, spin_attack)) = transformers?;
-    let nether_environment = nether_environment?;
-    let end_environment = end_environment?;
-    log::info!(
-        "Horizon: resources loaded in {:.1}s; {} block states, {} items, {} biomes; {} worker threads",
-        started.elapsed().as_secs_f32(),
-        facts.states.len(),
-        items.items.len(),
-        biomes.list.len(),
-        threads
-    );
-    progress.set(8);
-    Ok(WorldRest {
-        stations,
-        items,
-        recipes,
-        transformers,
-        providers,
-        block_entity_render: block_entity_render?,
-        animate,
-        fog,
-        music,
-        ambient,
-        nether_environment,
-        end_environment,
-        behaviours: behaviours?,
-        mob_types,
-        mob_data,
-        player_type,
-        player_arm,
-        player_arm_slim,
-        spin_attack,
-    })
-}
 
 /// A title-shaped frame: black clear and panorama, only the HUD is drawn.
 /// The window's `HWND`, for the boot screen's GDI paint (`horizon_threads`):

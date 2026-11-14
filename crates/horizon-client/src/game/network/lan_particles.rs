@@ -973,6 +973,7 @@ pub(in crate::game) mod tests {
     ) {
         let config = NetConfig {
             announce: false,
+            listen: false,
             ..NetConfig::loopback(0, label.into(), 2)
         };
         let mut sync = data::SyncData::empty();

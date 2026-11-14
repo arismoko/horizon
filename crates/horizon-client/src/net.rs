@@ -2085,6 +2085,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn direct_login_preserves_hostname_and_negotiates_brand() {
         let (root, data) = empty_item_data("brand");
         for server_brand in [
@@ -2291,6 +2292,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_server_that_stops_answering_times_out() {
         // The server accepts and then sends nothing, like a frozen server
         // or a network gone without a reset.

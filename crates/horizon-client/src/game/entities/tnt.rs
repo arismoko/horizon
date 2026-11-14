@@ -517,12 +517,7 @@ impl Game<'_> {
             let (id, owner, guest, power) = (t.id, t.owner, t.guest, t.power);
             let used_portal = t.used_portal;
             let silent = self.entity_silent(id);
-            let (owner, guest) = match owner {
-                Some(_) => (owner, guest),
-                None => self
-                    .loaded_tnt_owner(id)
-                    .map_or((None, None), |(w, g)| (Some(w), g)),
-            };
+            let (owner, guest) = self.tnt_owner(id, owner, guest);
             let in_water = self.bounds_in_water(bounds);
             self.tnts.remove(i);
             // PrimedTnt.tick: with `tnt_explodes` off it goes away without exploding.
@@ -538,16 +533,7 @@ impl Game<'_> {
                 self.destroy_type(horizon_client::gamerules::vanilla::TNT_EXPLOSION_DROP_DECAY);
             self.combat.explosion_in_water = in_water;
             self.combat.explosion_direct = Some(id);
-            // `Explosion.getIndirectSourceEntity`: a player-lit TNT names
-            // its igniter, which `blast_attacker` and the damage type read.
-            self.combat.blast_guest = guest;
-            self.combat.blast_owner = tnt_blast_owner(
-                owner,
-                || self.player_attacker(guest),
-                |id| self.mob_display_name(id),
-            );
-            self.combat.blast_owner_player =
-                owner == Some(Who::Player) && self.combat.blast_owner.is_some();
+            self.set_blast_owner(owner, guest);
             let result = self.with_hive_emptying_blast(|g| {
                 g.server_explode_from(
                     center,
@@ -604,6 +590,64 @@ impl Game<'_> {
             Who::Mob(id) if self.mobs.iter().any(|m| m.id == id) => Some(self.uuid_for(id)),
             Who::Mob(id) => self.persist.uuids.get(&id).copied(),
         }
+    }
+    /// `PrimedTnt.getOwner` for the TNT `id` whose own owner is `owner`: else
+    /// the one it was loaded with.
+    fn tnt_owner(
+        &self,
+        id: u32,
+        owner: Option<Who>,
+        guest: Option<u32>,
+    ) -> (Option<Who>, Option<u32>) {
+        match owner {
+            Some(_) => (owner, guest),
+            None => self
+                .loaded_tnt_owner(id)
+                .map_or((None, None), |(w, g)| (Some(w), g)),
+        }
+    }
+    /// `Explosion.getIndirectSourceEntity` of the primed TNT `id` that a
+    /// blast names as its source: its owner, as `set_blast_owner` sets it.
+    pub(super) fn set_tnt_blast_owner(&mut self, id: u32) {
+        let (owner, guest) = self
+            .tnts
+            .iter()
+            .find(|t| t.id == id)
+            .map_or((None, None), |t| (t.owner, t.guest));
+        let (owner, guest) = self.tnt_owner(id, owner, guest);
+        self.set_blast_owner(owner, guest);
+    }
+    /// `Explosion.getIndirectSourceEntity`: a blast whose cause is `owner`
+    /// (a TNT's igniter, a player's projectile, a player) names it, which
+    /// `blast_attacker`, the damage type and kill credit read. A player is the
+    /// one on `guest`, the player in place without one.
+    pub(super) fn set_blast_owner(&mut self, owner: Option<Who>, guest: Option<u32>) {
+        self.combat.blast_guest = guest;
+        self.combat.blast_owner = tnt_blast_owner(
+            owner,
+            || match guest {
+                Some(_) => self.player_attacker(guest),
+                None => self
+                    .player
+                    .as_ref()
+                    .map(|p| (p.entity_id as u32, self.player_display_name())),
+            },
+            |id| self.mob_display_name(id),
+        );
+        self.combat.blast_owner_player =
+            owner == Some(Who::Player) && self.combat.blast_owner.is_some();
+    }
+    /// The attack a player-owned blast's hits land in: its causing player's,
+    /// so a mob it kills is that player's kill.
+    pub(super) fn blast_owner_attack(&self) -> horizon_client::health::Attack {
+        let id = self
+            .combat
+            .blast_owner
+            .as_ref()
+            .map_or(0, |(id, _)| *id as i32);
+        let mut attack = self.attack_of(id);
+        attack.player_uuid = self.player_uuid_of(self.combat.blast_guest);
+        attack
     }
     /// `PrimedTnt.getOwner` for TNT loaded with an `owner`: looked up when
     /// asked, so a player who joined or a mob loaded since is found.

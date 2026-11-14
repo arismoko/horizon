@@ -297,13 +297,14 @@ fn teleport_to_owner(m: &mut Mob, w: &MobWorld) {
         let yd = m.random.next_int_bound(3).unwrap_or(0) - 1;
         let p = [base[0] + xd, base[1] + yd, base[2] + zd];
         if can_teleport_to(m, w, p) {
-            super::living::teleports::snap_to(
+            super::living::teleports::snap_to_with(
                 m,
                 Vec3::new(
                     f64::from(p[0]) + 0.5,
                     f64::from(p[1]),
                     f64::from(p[2]) + 0.5,
                 ),
+                w.section_writer.clone(),
             );
             m.nav_stop();
             return;
@@ -1445,7 +1446,11 @@ fn give_morning_gift(m: &mut Mob, cx: &mut Cx) {
             && !(fluids.in_water || fluids.in_lava)
             && !in_box(&dangerous)
         {
-            super::living::teleports::snap_to(m, Vec3::new(f64::from(x), feet, f64::from(z)));
+            super::living::teleports::snap_to_with(
+                m,
+                Vec3::new(f64::from(x), feet, f64::from(z)),
+                w.section_writer.clone(),
+            );
             m.velocity = Vec3::ZERO;
         }
     }

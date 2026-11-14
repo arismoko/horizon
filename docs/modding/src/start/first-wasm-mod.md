@@ -11,7 +11,8 @@ and [rustup](https://rustup.rs): the first build installs the pinned Rust toolch
 
 Make the project from the wasm template. It is the native project without the `[native]` table: a mod carries
 native code or WebAssembly, never both, and the build writes its own `[wasm]` table. The SDK build the mod is
-made for is pinned in `Cargo.toml` instead, under `[package.metadata.horizon] sdk`.
+made for is pinned in `Cargo.toml` instead, under `[package.metadata.horizon] sdk`
+([the pin](../reference/sdk/03-in-a-project.md#the-pin)).
 
 ```sh
 cargo horizon-mod new greeter --template wasm

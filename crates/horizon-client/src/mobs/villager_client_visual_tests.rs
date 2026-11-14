@@ -3,7 +3,7 @@ use crate::mobs::{anim::Poses, load_model, render::draw};
 use horizon_assets::resource_source::{Resource, ResourceSource};
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn villager_client_partial_hat_cache_refreshes() {
     let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
     let table = ResolvedProfessions::vanilla();
@@ -36,7 +36,10 @@ fn villager_client_partial_hat_cache_refreshes() {
             ]));
             install(&table, &VillagerHats::load(&source));
             let mut poses = Poses::new(&model);
-            apply(&ProfessionState::Vanilla(5), zombie, 0, &mut poses);
+            poses.visible(
+                "head",
+                type_hat_shown(&ProfessionState::Vanilla(5), zombie, 0),
+            );
             let expected_model = if hidden { &no_hat } else { &model };
             let (mut actual, mut expected) = (Vec::new(), Vec::new());
             draw(

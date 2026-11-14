@@ -11,6 +11,7 @@ struct Frame {
     depth: wgpu::Texture,
     group: wgpu::BindGroup,
     bindings: wgpu::BindGroupLayout,
+    atlas: wgpu::TextureView,
 }
 
 /// The software Vulkan adapter (lavapipe, llvmpipe) the pixel tests draw on.
@@ -34,10 +35,19 @@ fn software_frame(
     atlas: &[u8],
     view_proj: Mat4,
     sky: f32,
+    size: [u32; 2],
 ) -> std::result::Result<Frame, String> {
     let adapter = software_adapter()?;
-    let (device, queue) = pollster::block_on(adapter.request_device(&Default::default()))
-        .map_err(|error| format!("software Vulkan device request failed: {error}"))?;
+    let mut required_limits = wgpu::Limits::default();
+    required_limits.max_texture_dimension_2d = required_limits
+        .max_texture_dimension_2d
+        .max(atlas_size[0])
+        .max(atlas_size[1]);
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        required_limits,
+        ..Default::default()
+    }))
+    .map_err(|error| format!("software Vulkan device request failed: {error}"))?;
     let format = wgpu::TextureFormat::Rgba8Unorm;
     let texture = |width, height, format, usage| {
         device.create_texture(&wgpu::TextureDescriptor {
@@ -56,14 +66,14 @@ fn software_frame(
         })
     };
     let color = texture(
-        SIZE,
-        SIZE,
+        size[0],
+        size[1],
         format,
         wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
     );
     let depth = texture(
-        SIZE,
-        SIZE,
+        size[0],
+        size[1],
         wgpu::TextureFormat::Depth32Float,
         wgpu::TextureUsages::RENDER_ATTACHMENT,
     );
@@ -161,13 +171,17 @@ fn software_frame(
         depth,
         group,
         bindings,
+        atlas: atlas_view,
     })
 }
 
 fn readback(frame: &Frame, encoder: wgpu::CommandEncoder) -> std::result::Result<Vec<u8>, String> {
+    let (width, height) = (frame.color.width(), frame.color.height());
+    let row_bytes = width * 4;
+    let pitch = row_bytes.div_ceil(256) * 256;
     let readback = frame.device.create_buffer(&wgpu::BufferDescriptor {
         label: None,
-        size: u64::from(SIZE * SIZE * 4),
+        size: u64::from(pitch) * u64::from(height),
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
         mapped_at_creation: false,
     });
@@ -178,7 +192,7 @@ fn readback(frame: &Frame, encoder: wgpu::CommandEncoder) -> std::result::Result
             buffer: &readback,
             layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(SIZE * 4),
+                bytes_per_row: Some(pitch),
                 rows_per_image: None,
             },
         },
@@ -190,11 +204,14 @@ fn readback(frame: &Frame, encoder: wgpu::CommandEncoder) -> std::result::Result
         .device
         .poll(wgpu::PollType::wait_indefinitely())
         .map_err(|error| error.to_string())?;
-    Ok(readback
+    let mapped = readback
         .slice(..)
         .get_mapped_range()
-        .map_err(|error| error.to_string())?
-        .to_vec())
+        .map_err(|error| error.to_string())?;
+    Ok(mapped
+        .chunks_exact(pitch as usize)
+        .flat_map(|row| row[..row_bytes as usize].iter().copied())
+        .collect())
 }
 
 /// Renders CPU entity quads. A missing software Vulkan adapter fails the test.
@@ -206,7 +223,7 @@ pub fn render(
     hdr: bool,
 ) -> std::result::Result<Vec<u8>, String> {
     let _gpu = crate::gfx::test_gpu::lock();
-    let frame = software_frame(atlas_size, atlas, view_proj, 0.0)?;
+    let frame = software_frame(atlas_size, atlas, view_proj, 0.0, [SIZE, SIZE])?;
     let shader = frame
         .device
         .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -357,7 +374,7 @@ pub fn render_instance(draw: PreparedInstanceDraw<'_>) -> std::result::Result<Ve
         atlas,
         view_proj,
     } = draw;
-    let frame = software_frame(atlas_size, atlas, view_proj, 0.0)?;
+    let frame = software_frame(atlas_size, atlas, view_proj, 0.0, [SIZE, SIZE])?;
     let models = super::prepared_model::PreparedModels::create(
         &frame.device,
         &reuse::Reuse::default(),
@@ -596,7 +613,7 @@ fn cpu_quad(
 #[cfg(test)]
 fn scrgb_center(instanced: bool, light: u32) -> std::result::Result<f32, String> {
     let atlas = [255u8, 255, 255, 255].repeat(16);
-    let mut frame = software_frame([4, 4], &atlas, Mat4::IDENTITY, 0.1)?;
+    let mut frame = software_frame([4, 4], &atlas, Mat4::IDENTITY, 0.1, [SIZE, SIZE])?;
     let mut hdr = super::hdr::Hdr::new(
         &frame.device,
         &frame.queue,
@@ -1033,4 +1050,54 @@ mod scrgb {
             "instanced scRGB {gpu} != cpu {cpu} at tint 0xFF3040 light 0x00F0 (ratio {ratio})"
         );
     }
+}
+
+/// Draws a real screen batch through the engine HUD pipeline on software Vulkan.
+/// Uses the same adapter, atlas upload and readback as the entity pixel fixtures.
+pub fn render_hud(
+    batch: &HudBatch,
+    atlas: &crate::hud::HudAtlas,
+    size: [u32; 2],
+) -> std::result::Result<Vec<u8>, String> {
+    let _gpu = crate::gfx::test_gpu::lock();
+    let frame = software_frame(
+        [atlas.width, atlas.height],
+        &atlas.pixels(),
+        Mat4::IDENTITY,
+        0.0,
+        size,
+    )?;
+    let sampler = frame.device.create_sampler(&Default::default());
+    let mut hud = crate::hud::HudRenderer::new(
+        &frame.device,
+        wgpu::TextureFormat::Rgba8Unorm,
+        &frame.atlas,
+        &frame.atlas,
+        &frame.atlas,
+        &sampler,
+        false,
+    )
+    .map_err(|error| error.to_string())?;
+    let mut uploads = super::upload::Uploads::new(&frame.device);
+    let mut encoder = frame.device.create_command_encoder(&Default::default());
+    let color = frame.color.create_view(&Default::default());
+    let depth = frame.depth.create_view(&Default::default());
+    {
+        let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &color,
+                resolve_target: None,
+                depth_slice: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        });
+    }
+    hud.prepare(&frame.device, &mut uploads, &mut encoder, batch, size);
+    uploads.finish(&encoder);
+    hud.draw(&mut encoder, &color, &depth, batch, size);
+    readback(&frame, encoder)
 }

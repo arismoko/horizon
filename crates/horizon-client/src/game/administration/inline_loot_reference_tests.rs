@@ -94,10 +94,7 @@ fn game<'a>(resources: &'a mut Option<std::sync::Arc<crate::game::Resources>>) -
         &[],
         &[],
     );
-    game.world_tables = game
-        .build_world_tables(&stack, false, &root, false)
-        .unwrap()
-        .0;
+    game.world_tables = game.stage_world_tables(&stack, false, &root).unwrap().0;
     let _ = horizon_client::structure_blocks::load_thread_loot_data(
         &game.options.resources,
         &game.pack_files(),

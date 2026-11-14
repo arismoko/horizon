@@ -68,7 +68,7 @@ jobs:
             fi
             export PATH="$CARGO_HOME/bin:$PATH"
             # Ordinary rustc invocations through the shared compiler cache, as in lint.
-            echo "RUSTC_WRAPPER=$GITHUB_WORKSPACE/tools/ci/clippy-cache.sh" >> "$GITHUB_ENV"
+            echo "RUSTC_WRAPPER=$GITHUB_WORKSPACE/tools/ci/compiler-cache.sh" >> "$GITHUB_ENV"
           fi
           bash tools/ci/rustup_install.sh --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
       # The build runs at the runner's size, not the host's (tools/ci/cargo_jobs.py), as lint's did.

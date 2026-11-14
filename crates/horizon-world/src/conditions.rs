@@ -113,14 +113,6 @@ impl LoadConditions {
         })
     }
 
-    /// Evaluate one tag layer.
-    pub fn allows_tag(&self, file: &Value, registry: &str, id: &str) -> bool {
-        self.allows_context(file, || {
-            let (namespace, path) = id.split_once(':').unwrap_or(("minecraft", id));
-            format!("data/{namespace}/tags/{registry}/{path}.json")
-        })
-    }
-
     /// Evaluate a resource whose namespace and path are stored separately.
     pub fn allows_parts(&self, file: &Value, kind: &str, namespace: &str, path: &str) -> bool {
         self.allows_context(file, || format!("data/{namespace}/{kind}/{path}.json"))

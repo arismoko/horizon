@@ -238,24 +238,48 @@ impl StartCache {
     }
 }
 
-fn biome_set(data: &GeneratorData, value: &Value) -> Result<BTreeSet<BiomeId>, super::DecodeError> {
-    let names: Vec<&str> = match value {
-        Value::String(s) => vec![s.as_str()],
-        Value::Array(a) => a.iter().filter_map(Value::as_str).collect(),
-        _ => Vec::new(),
+/// A structure's biome holder set in any form `crate::holder_set` reads. An
+/// absent field, an unknown biome or tag names nothing, and a list may also
+/// hold tags, as this reader always allowed.
+fn biome_set(
+    lookup: &impl crate::holder_set::HolderLookup<Id = BiomeId>,
+    value: &Value,
+) -> Result<BTreeSet<BiomeId>, super::DecodeError> {
+    let resolve = |set: &Value| {
+        crate::holder_set::resolve(set, lookup)
+            .map(|ids| ids.into_iter().collect::<BTreeSet<_>>())
+            .map_err(super::DecodeError::Registry)
     };
-    let mut out = BTreeSet::new();
-    for name in names {
-        match name.strip_prefix('#') {
-            Some(tag) => {
-                for biome in data.biome_tags.get(tag).into_iter().flatten() {
-                    out.extend(data.biome_id(biome));
-                }
-            }
-            None => out.extend(data.biome_id(name)),
-        }
+    match value {
+        Value::Array(list) => list.iter().filter(|value| value.is_string()).try_fold(
+            BTreeSet::new(),
+            |mut out, set| {
+                out.extend(resolve(set)?);
+                Ok::<_, super::DecodeError>(out)
+            },
+        ),
+        set @ (Value::String(_) | Value::Object(_)) => resolve(set),
+        _ => Ok(BTreeSet::new()),
     }
-    Ok(out)
+}
+struct StructureBiomes<'a>(&'a GeneratorData);
+impl crate::holder_set::HolderLookup for StructureBiomes<'_> {
+    type Id = BiomeId;
+    fn what(&self) -> &str {
+        "biome"
+    }
+    fn entry(&self, id: &str) -> Result<Vec<BiomeId>, String> {
+        Ok(self.0.biome_id(id).into_iter().collect())
+    }
+    fn tag(&self, tag: &str) -> Result<Vec<BiomeId>, String> {
+        let members = self.0.biome_tags.get(tag).into_iter().flatten();
+        Ok(members.filter_map(|biome| self.0.biome_id(biome)).collect())
+    }
+    fn all(&self) -> Result<Vec<BiomeId>, String> {
+        Ok((0..self.0.biome_names().len() as u32)
+            .map(BiomeId)
+            .collect())
+    }
 }
 impl StructureState {
     pub(super) fn new(
@@ -270,7 +294,7 @@ impl StructureState {
             &raw.structures,
             &raw.sets,
             raw.pools.clone(),
-            &|value| biome_set(data, value),
+            &|value| biome_set(&StructureBiomes(data), value),
             super::structure::mod_types::mod_structure_types(),
         )?;
         let possible_sets = registry
@@ -988,6 +1012,48 @@ pub(crate) fn tag_json(tag: &horizon_core::nbt::Tag) -> Value {
 mod tests {
     use super::*;
     use crate::worldgen::structure::stronghold::{ring_positions, ring_searches};
+
+    #[test]
+    fn structure_biome_plain_lists_and_scalar_fields_keep_their_leniency() {
+        struct Biomes;
+        impl crate::holder_set::HolderLookup for Biomes {
+            type Id = BiomeId;
+            fn what(&self) -> &str {
+                "biome"
+            }
+            fn entry(&self, id: &str) -> Result<Vec<BiomeId>, String> {
+                Ok((id == "minecraft:plains")
+                    .then_some(BiomeId(0))
+                    .into_iter()
+                    .collect())
+            }
+            fn tag(&self, id: &str) -> Result<Vec<BiomeId>, String> {
+                self.entry(id)
+            }
+            fn all(&self) -> Result<Vec<BiomeId>, String> {
+                Ok(vec![BiomeId(0), BiomeId(1)])
+            }
+        }
+        assert_eq!(
+            biome_set(
+                &Biomes,
+                &serde_json::json!(["#minecraft:plains", false, 19, {}])
+            )
+            .unwrap(),
+            BTreeSet::from([BiomeId(0)])
+        );
+        for value in [
+            serde_json::json!(null),
+            serde_json::json!(19),
+            serde_json::json!(false),
+        ] {
+            assert!(biome_set(&Biomes, &value).unwrap().is_empty());
+        }
+        assert_eq!(
+            biome_set(&Biomes, &serde_json::json!({"type":"neoforge:any"})).unwrap(),
+            BTreeSet::from([BiomeId(0), BiomeId(1)])
+        );
+    }
 
     #[test]
     fn saved_jigsaw_round_trip_and_whole_start_fallback() {

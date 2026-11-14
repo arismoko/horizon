@@ -56,6 +56,8 @@ pub struct PartRegistrar {
     /// Parts registered so far, by every mod: the next part's `order`.
     pub(crate) registered: usize,
     pub(crate) parts: Parts,
+    /// Aggregate selector metadata bytes during this registration pass.
+    pub(crate) entity_selector_bytes: usize,
     pub(crate) tags: TagParts,
     pub(crate) block_entity_types: Vec<BlockEntityTypeDecl>,
     pub(crate) block_entity_transforms: HashMap<String, Arc<dyn crate::BlockEntityTransform>>,
@@ -99,6 +101,7 @@ impl PartRegistrar {
             mod_wasm: false,
             registered: 0,
             parts: Self::capability_parts(),
+            entity_selector_bytes: 0,
             tags: TagParts::default(),
             block_entity_types: Vec::new(),
             block_entity_transforms: HashMap::new(),

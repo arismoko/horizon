@@ -396,7 +396,15 @@ mod tests {
         let mut s = Settings::default();
         let mut shell = Shell::<ExtrasScreen>::default();
         let mut batch = HudBatch::scratch([1708, 960]);
-        shell.draw(&s, &mut batch, &atlas, (0.0, 0.0), false, None);
+        shell.draw_test_frame(
+            &s,
+            &mut batch,
+            &atlas,
+            (0.0, 0.0),
+            false,
+            None,
+            &mut |_, _| {},
+        );
         crate::widgets::end_frame(1);
         let size = (batch.width, batch.height);
         let cols = Columns::of(size.0, size.1).with_note_lines(NOTE_LINES);

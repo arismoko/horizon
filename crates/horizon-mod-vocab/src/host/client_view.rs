@@ -58,6 +58,32 @@ pub trait ClientViewClientHost {
     #[access(ClientSetup)]
     fn camera(&self) -> Option<Camera>;
     /// Side: client.
+    /// World point `at` projected on this frame's screen (`GameRenderer.projectPointToScreen`):
+    /// normalised device x and y, -1 to 1 across the screen (x to the right, y up), and depth z
+    /// (reversed: nearer is larger). The view is the camera's rotation without bob or spin, as
+    /// vanilla's. Unlike vanilla, None for a point behind the camera or a non-finite `at`; also None
+    /// outside a world, before extraction, and between render frames. Supported during GUI,
+    /// screen and world drawing after camera extraction. In GUI pixels of a [`DrawContext`] of size
+    /// `[w, h]`: `((x + 1) / 2 * w, (1 - y) / 2 * h)`.
+    #[access(ClientSetup)]
+    fn project(&self, at: [f64; 3]) -> Option<[f32; 3]>;
+    /// Side: client.
+    /// The local player's item use as the client sees it: the hand, ticks used and ticks left
+    /// (`isUsingItem`, `getUsedItemHand`, `getTicksUsingItem`, `getUseItemRemainingTicks`).
+    /// None when the player uses no item or no client world is open. Sends nothing.
+    #[access(ClientSetup)]
+    fn local_item_use(&self) -> Option<ItemUse>;
+    /// Side: client.
+    /// Turns the local player's view to `yaw` and `pitch` (degrees), as `setYRot` and `setXRot`
+    /// store them: yaw as given (not wrapped; the server wraps it), pitch `% 360` then clamped to
+    /// -90..90. The previous-frame angles move by the same amount, as `Entity.turn` does for the
+    /// mouse, so the view doesn't jump for a frame. Sends no packet: the game's own player sync of
+    /// this client tick sends the look in its one move packet, only while the camera is the player
+    /// (the rotation-only packet when riding); a call after that step goes out the next tick.
+    /// `NotFinite`, changing nothing, for a NaN or infinite value; `NoWorld` outside a client world.
+    #[access(WorldOnly)]
+    fn set_local_rotation(&mut self, yaw: f32, pitch: f32) -> Result<(), LocalRotationError>;
+    /// Side: client.
     /// The entity the view follows (`Minecraft.getCameraEntity`): the entity a server attached
     /// the camera to, else the local player. None outside a client world.
     #[access(ClientSetup)]
@@ -93,7 +119,8 @@ pub trait ClientViewClientHost {
     fn crosshair_target(&self) -> Option<CrosshairTarget>;
     /// Side: client.
     /// Current targeting controls. Stale entity overrides are omitted. Reach comes from the
-    /// player's vanilla interaction-range attributes, including server and equipment modifiers.
+    /// player's vanilla interaction-range attributes, including server and equipment modifiers:
+    /// this is the read for the player's block and entity reach.
     #[access(WorldOnly)]
     fn targeting(&self) -> ClientTargeting;
     /// Side: client.

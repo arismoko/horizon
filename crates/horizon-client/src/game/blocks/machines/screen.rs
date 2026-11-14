@@ -48,6 +48,7 @@ impl Game<'_> {
             r.v1 = r.v0 + height * dv;
             batch.rect_uv(ox, oy, 176.0, height, r, u32::MAX);
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         let grey = horizon_client::hud::rgba(64, 64, 64, 255);
         let title = &self.remote_menu_title().unwrap_or_else(|| {
             horizon_client::text::Text::literal(

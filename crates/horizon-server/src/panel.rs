@@ -335,6 +335,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn login_links_name_an_address_a_browser_can_open() {
         let tailnet: SocketAddr = "100.100.1.2:8130".parse().unwrap();
         assert_eq!(reachable(tailnet), tailnet);
@@ -366,6 +367,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn sign_in_with_a_link() {
         let dir = std::env::temp_dir().join(format!("horizon-server-panel-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();

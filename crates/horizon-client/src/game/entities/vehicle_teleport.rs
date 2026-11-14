@@ -455,7 +455,12 @@ impl Game<'_> {
                 TeleportMotion::Keep => game.transition_motion(target),
                 TeleportMotion::Stop => None,
             };
-            game.teleport_to_in_level(target, at, rotation, [false; 3], turn_riders);
+            let from = game.place_teleport_in_level(target, at, rotation, [false; 3], turn_riders);
+            if let Some(from) = from
+                && game.options.dedicated.is_some()
+            {
+                game.native_entity_teleport(game.dim.id(), root, from, at);
+            }
             match kept {
                 Some(kept) => game.restore_transition_motion(target, kept),
                 None => game.teleport_stops(target),
@@ -587,6 +592,7 @@ impl Game<'_> {
         rotation: Option<PlacedRotation>,
     ) {
         let riders = self.mob_passenger_ids(vehicle);
+        let mut guest_steps = Vec::new();
         for id in riders {
             let mut carried = None;
             if let Some(m) = self.mob_object_mut(id) {
@@ -665,7 +671,9 @@ impl Game<'_> {
                         g.pitch = pitch;
                     });
                 }
+                let id = host.hub.guests[i].entity_id as u32;
                 let g = host.hub.guests[i].position;
+                let from = Vec3::new(g[0], g[1], g[2]);
                 let at = passenger_destination(old, new, Vec3::new(g[0], g[1], g[2]));
                 if rotation.is_some() {
                     // A rider turned with its vehicle: its position packet
@@ -674,7 +682,11 @@ impl Game<'_> {
                 } else {
                     host.hub.teleport_keeping_motion(i, [at.x, at.y, at.z]);
                 }
+                guest_steps.push((id, from, at));
             }
+        }
+        for (id, from, to) in guest_steps {
+            self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
         }
     }
 

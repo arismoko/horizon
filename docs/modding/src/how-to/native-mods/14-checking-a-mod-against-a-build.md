@@ -17,7 +17,9 @@ In a mod folder, `cargo horizon-mod` does this for you from the SDK it fetched i
   Paper names, offline; `--all` searches every item. `cargo horizon-mod sdk diff <build> <build>` prints what
   changed between two builds, from their small files alone, so it works for builds whose game files are pruned.
 
-The rest of this page is how the same check runs by hand.
+Every command and its exit codes are in [Commands](../../reference/sdk/05-commands.md), and the rule the check
+applies in [Fitting another build](../../reference/sdk/04-fit.md). The rest of this page is how the same check runs
+by hand.
 
 Every build's SDK carries its surface export (`surface.json`). Given the surface
 of the build a mod was made for and the mod's folder, write the mod's uses table, then check it against

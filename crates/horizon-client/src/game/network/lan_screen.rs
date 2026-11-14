@@ -740,20 +740,47 @@ impl Game<'_> {
     }
 
     pub(super) fn draw_world_options(&mut self, batch: &mut HudBatch) {
-        let Some(mut o) = self.world_options.take() else {
+        let Some(view) = self.world_options.as_ref().map(|o| o.view) else {
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
             return;
         };
-        match o.view {
-            View::Options => self.draw_options_view(&mut o, batch, self.cursor),
+        match view {
+            View::Options => self.draw_options_view(batch, self.cursor, true),
             View::LockQuestion => {
                 // PopupScreen: the screen behind without the pointer, then the popup.
-                self.draw_options_view(&mut o, batch, (-1.0, -1.0));
-                self.draw_lock_question(&o, batch);
+                self.draw_options_view(batch, (-1.0, -1.0), false);
+                self.draw_lock_question(batch);
             }
             View::Restrictions => self.draw_restrictions(batch),
             View::GameRules => {
-                if let Some(rules) = o.rules.as_mut() {
-                    rules.draw(batch, &self.gui.atlas, self.cursor);
+                if self.world_options.as_ref().unwrap().rules.is_some() {
+                    self.world_options
+                        .as_ref()
+                        .unwrap()
+                        .rules
+                        .as_ref()
+                        .unwrap()
+                        .draw_background(batch, &self.gui.atlas);
+                    self.draw_screen_phase(
+                        batch,
+                        horizon_client::screen_draw::RenderPhase::Background,
+                    );
+                    let tooltip = self
+                        .world_options
+                        .as_mut()
+                        .unwrap()
+                        .rules
+                        .as_mut()
+                        .unwrap()
+                        .draw_contents(batch, &self.gui.atlas, self.cursor);
+                    self.draw_screen_phase(
+                        batch,
+                        horizon_client::screen_draw::RenderPhase::Foreground,
+                    );
+                    if let Some(tooltip) = tooltip {
+                        ui::tooltip(batch, &self.gui.atlas, &tooltip, self.cursor);
+                    }
                 } else {
                     ui::menu_background(
                         batch,
@@ -764,13 +791,21 @@ impl Game<'_> {
                         batch.height,
                         true,
                     );
+                    self.draw_screen_phase(
+                        batch,
+                        horizon_client::screen_draw::RenderPhase::Background,
+                    );
+                    self.draw_screen_phase(
+                        batch,
+                        horizon_client::screen_draw::RenderPhase::Foreground,
+                    );
                 }
             }
         }
-        self.world_options = Some(o);
     }
 
-    fn draw_lock_question(&self, o: &WorldOptions, batch: &mut HudBatch) {
+    fn draw_lock_question(&self, batch: &mut HudBatch) {
+        let o = self.world_options.as_ref().unwrap();
         // PopupScreen over WorldOptionsScreen: its title and message.
         horizon_client::widgets::begin_screen(|| {
             let name = Text::translate(
@@ -807,6 +842,7 @@ impl Game<'_> {
             fh,
             u32::MAX,
         );
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         for (line, x, y) in &p.lines {
             batch.text_styled(atlas, line, *x, *y, u32::MAX, true);
         }
@@ -826,6 +862,7 @@ impl Game<'_> {
                 hover,
             );
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
     }
 
     fn draw_restrictions(&self, batch: &mut HudBatch) {
@@ -838,6 +875,7 @@ impl Game<'_> {
         let atlas = &self.gui.atlas;
         let (w, h) = (batch.width, batch.height);
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, true);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         let title = Text::translate("restrictions_screen.title", &[]);
         let tw = atlas.font.width_text(&title);
         batch.text_styled(
@@ -878,9 +916,10 @@ impl Game<'_> {
             true,
             hover,
         );
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
     }
 
-    fn draw_options_view(&self, o: &mut WorldOptions, batch: &mut HudBatch, cursor: (f32, f32)) {
+    fn draw_options_view(&mut self, batch: &mut HudBatch, cursor: (f32, f32), active_screen: bool) {
         horizon_client::widgets::begin_screen(|| {
             horizon_client::widgets::ScreenInfo::new(
                 "world_options",
@@ -889,11 +928,16 @@ impl Game<'_> {
         });
         let atlas = &self.gui.atlas;
         let (w, h) = (batch.width, batch.height);
-        o.scroll = o.scroll.clamp(0.0, o.scroll_limit(h));
         // extractMenuBackground: the in-world background, the list
         // background under the content, then the separators over it.
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, true);
         ui::list_background(batch, atlas, HEADER, h - FOOTER, true);
+        ui::separators(batch, atlas, HEADER, h - FOOTER, true);
+        if active_screen {
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+        }
+        let o = self.world_options.as_mut().unwrap();
+        o.scroll = o.scroll.clamp(0.0, o.scroll_limit(h));
         let title = Text::translate("options.worldOptions.title", &[]);
         let tw = atlas.font.width_text(&title);
         batch.text_styled(
@@ -1029,7 +1073,6 @@ impl Game<'_> {
             o.content_height(),
             o.scroll.trunc(),
         );
-        ui::separators(batch, atlas, HEADER, h - FOOTER, true);
         for (b, bx, by, bw) in WorldOptions::footer(w, h) {
             let active = o.active(b);
             let is_focused = o.focused_button == Some(b);
@@ -1051,8 +1094,12 @@ impl Game<'_> {
                 hover,
             );
         }
+        let tooltip = WorldOptions::port_tooltip(&o.port, cursor, o.remote);
+        if active_screen {
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
+        }
         // The widgets are drawn; the port box's tooltip goes over them.
-        if let Some(tip) = WorldOptions::port_tooltip(&o.port, cursor, o.remote) {
+        if let Some(tip) = tooltip {
             // Tooltip.splitTooltip: font.split(message, 170).
             ui::tooltip(batch, atlas, &atlas.font.split(&tip, 170.0), cursor);
         }

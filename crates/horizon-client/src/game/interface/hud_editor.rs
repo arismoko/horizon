@@ -113,6 +113,7 @@ impl Game<'_> {
             .find(|(_, [x, y, w, h])| cx >= *x && cx < x + w && cy >= *y && cy < y + h)
     }
     pub(super) fn draw_hud_editor(&mut self, batch: &mut HudBatch) {
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         let atlas = &self.gui.atlas;
         let (w, h) = (batch.width, batch.height);
         let colour = |c: u32| {
@@ -154,6 +155,7 @@ impl Game<'_> {
             let hover = active && ui::hovered(self.cursor, x, y, BUTTON_W, BUTTON_H);
             ui::button(batch, atlas, x, y, BUTTON_W, BUTTON_H, label, active, hover);
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
     }
     /// A press: a button, else the widget under the cursor (right button: back to its corner).
     pub(super) fn hud_editor_press(&mut self, right: bool) {

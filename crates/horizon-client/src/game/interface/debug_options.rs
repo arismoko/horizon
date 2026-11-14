@@ -200,7 +200,9 @@ impl Game<'_> {
         self.settings.save(&Self::options_path());
     }
     pub(super) fn draw_debug_options(&mut self, batch: &mut HudBatch) {
-        let Some(mut s) = self.debug_options.take() else {
+        let Some(s) = self.debug_options.as_ref() else {
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
             return;
         };
         let (w, h) = (batch.width, batch.height);
@@ -217,9 +219,18 @@ impl Game<'_> {
         let rows = rows(&s.search.value);
         let (top, bottom) = (HEADER, h - FOOTER);
         let content = content_height(rows.len());
-        s.scroll.clamp(top, bottom, content);
-        // The list: background, rows clipped to it, separators, scrollbar.
+        self.debug_options
+            .as_mut()
+            .unwrap()
+            .scroll
+            .clamp(top, bottom, content);
+        // The list's background and separators, then its clipped rows and scrollbar.
         ui::list_background(batch, atlas, top, bottom, in_world);
+        ui::separators(batch, atlas, top, bottom, in_world);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+        let (title_x, header_top, lines) = self.debug_options_header(w);
+        let gui_scale_label = self.debug_gui_scale_label();
+        let s = self.debug_options.as_mut().unwrap();
         let first = batch.vertices.len();
         let left = row_left(w);
         let inside = self.cursor.1 >= top && self.cursor.1 < bottom;
@@ -266,7 +277,6 @@ impl Game<'_> {
             }
         }
         batch.clip_since(first, 0.0, top, w, bottom);
-        ui::separators(batch, atlas, top, bottom, in_world);
         ui::scrollbar(
             batch,
             atlas,
@@ -277,7 +287,6 @@ impl Game<'_> {
             s.scroll.amount.trunc(),
         );
         // The header: title, search box, warning.
-        let (title_x, header_top, lines) = self.debug_options_header(w);
         let title = Text::translate("debug.options.title", &[]);
         batch.text_styled(atlas, &title, title_x, header_top + 5.0, u32::MAX, true);
         s.search.x = title_x + atlas.font.width_text(&title) + 8.0;
@@ -305,7 +314,7 @@ impl Game<'_> {
         let labels = [
             Text::translate(Profile::Default.translation_key(), &[]),
             Text::translate(Profile::Performance.translation_key(), &[]),
-            self.debug_gui_scale_label(),
+            gui_scale_label,
             Text::translate("gui.done", &[]),
         ];
         let active = [
@@ -338,11 +347,11 @@ impl Game<'_> {
                 tooltip = Some(Text::translate("options.debugGuiScale.tooltip", &[]));
             }
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
         if let Some(tooltip) = tooltip {
             let lines = atlas.font.split(&tooltip, 200.0);
             ui::tooltip(batch, atlas, &lines, self.cursor);
         }
-        self.debug_options = Some(s);
     }
     /// A left click: a status button, the search box, a footer button.
     pub(super) fn debug_options_click(&mut self) {

@@ -879,7 +879,6 @@ mod tests {
                     );
                     let other = game.block_entity(level, [5, 64, 0]).unwrap();
                     assert!(player.open_menu(game, other).unwrap());
-                    game.tick_player_menus();
                     let host = game.lan.as_ref().unwrap();
                     Some(host.hub.guest(12).unwrap().menu.as_ref().unwrap().window)
                 } else {

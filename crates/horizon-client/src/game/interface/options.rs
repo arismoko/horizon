@@ -181,16 +181,24 @@ impl Game<'_> {
     pub(super) fn draw_options(&mut self, batch: &mut HudBatch) {
         self.watch_pack_folder();
         let context = self.controller_settings_context();
-        let mut ui = std::mem::take(&mut self.ui.options);
-        if ui.controller_open() {
-            ui.set_controller_context(context);
+        if self.ui.options.controller_open() {
+            self.ui.options.set_controller_context(context);
         }
         let output = self
             .renderer
             .as_ref()
             .map_or(Default::default(), |r| r.output());
-        ui.draw(&self.settings, output, batch, &self.gui.atlas, self.cursor);
-        self.ui.options = ui;
+        self.ui
+            .options
+            .draw_background(&self.settings, output, batch, &self.gui.atlas);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+        self.ui
+            .options
+            .draw_contents(&self.settings, batch, &self.gui.atlas, self.cursor);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
+        self.ui
+            .options
+            .draw_overlays(batch, &self.gui.atlas, self.cursor);
         self.show_calibration((batch.width, batch.height));
     }
     /// Whose controller settings these are and what this game sees (`controller_ui`): the

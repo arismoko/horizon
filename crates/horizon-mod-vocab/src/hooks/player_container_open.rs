@@ -10,10 +10,10 @@ pub trait Hooks {
     /// block it is of in `dimension` (none for a trade, a vehicle's, a mod's
     /// native menu or a mount's inventory, which has no menu type in vanilla
     /// and is told as `horizon:mount_inventory`). The player's own inventory
-    /// is not one. Heard once a tick, so a menu opened and closed again
-    /// inside one tick is not; one that replaces another comes after that
-    /// one's close. The player's state is swapped in. `player_container_close`
-    /// follows. Server-side.
+    /// is not one, nor is failed construction. Heard synchronously after construction, the open packet
+    /// is queued and full contents sent, with the new menu already current.
+    /// Replacing a menu follows its close; even inside one tick, open precedes
+    /// `player_container_close`. The player's state is swapped in. Server-side.
     #[hook(
         side = "server",
         contract = "listen",

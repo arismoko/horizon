@@ -763,25 +763,6 @@ impl Game<'_> {
         self.ui.registries.permission = level;
         out
     }
-    /// Active enchantment registry snapshot for command codecs and completions.
-    /// Replace both ID views; keep the existing registry tags intact.
-    pub(super) fn sync_enchantment_registries(&mut self) {
-        let mut ids: Vec<String> = self
-            .active_enchantment_definitions()
-            .list
-            .iter()
-            .map(|entry| entry.id.to_string())
-            .collect();
-        ids.sort();
-        ids.dedup();
-        self.ui.registries.enchantments = ids.clone();
-        self.ui
-            .registries
-            .by_registry
-            .entry("minecraft:enchantment".into())
-            .or_default()
-            .ids = ids;
-    }
     /// `ResourceOrIdArgument`'s loot tables are the server's: every table the
     /// world plays with, the game's, the content mods' and its packs'.
     pub(in crate::game) fn sync_loot_table_ids(&mut self) {
@@ -933,6 +914,9 @@ impl Game<'_> {
             .map(|(k, _)| k.clone())
             .collect();
         self.sync_enchantment_registries();
+        if self.remote.is_none() {
+            self.ui.registries.selector_tokens = super::native_entity_selectors::selector_tokens();
+        }
         // After the export, which keys the registry with vanilla's tags.
         self.sync_stat_registries();
     }
@@ -949,7 +933,7 @@ impl Game<'_> {
         };
         self.ui.registries.target_block = hit.as_ref().map(|h| h.pos);
         self.ui.registries.target_point =
-            hit.map(|h| h.point.map(horizon_client::java_text::format_fixed2));
+            hit.map(|h| h.point.map(horizon_core::java_number::format_fixed2));
         self.ui.registries.selected_entities = self.crosshair_entity_uuid().into_iter().collect();
         // ClientPacketListener.getOnlinePlayerNames on a server.
         if let Some(names) = self.remote_online_names() {
@@ -1025,7 +1009,7 @@ impl Game<'_> {
         // InBedChatScreen.onClose: leaving the screen means getting up; the
         // screen goes once the player has woken (`tick_in_bed_chat`).
         if self.ui.in_bed_chat && self.sleeping.is_some() {
-            self.wake_up();
+            self.wake_up(false, true);
             return;
         }
         let text = self
@@ -1442,7 +1426,7 @@ impl Game<'_> {
                 .built_chat(width, height)
                 .map_or_else(|| Self::leave_bed_button(width, height), |l| l.leave_bed);
             if horizon_client::screen_draw::inside((cursor.0 as i32, cursor.1 as i32), x, y, w, h) {
-                self.wake_up();
+                self.wake_up(false, true);
                 return;
             }
         }
@@ -1722,7 +1706,10 @@ impl Game<'_> {
         Some(horizon_protocol::crypto::uuid_string(bits))
     }
     pub(super) fn draw_chat_screen(&mut self, batch: &mut HudBatch) {
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+        self.gui_layer("minecraft:chat", batch, |g, batch| g.draw_chat(batch));
         let Some(mut screen) = self.ui.chat_screen.take() else {
+            self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
             return;
         };
         // ChatScreen.updateNarrationState: the restricted prompt is
@@ -1750,16 +1737,18 @@ impl Game<'_> {
             .chat_opened
             .map_or(0, |t| t.elapsed().as_millis() as u64);
         let draws = screen.draw(&m, mouse, blink, background);
-        horizon_client::screen_draw::paint(batch, &self.gui.atlas, &draws);
         self.ui.chat_screen = Some(screen);
+        let tooltip = horizon_client::screen_draw::paint(batch, &self.gui.atlas, &draws);
         if in_bed {
             let (w, h) = (batch.width, batch.height);
             let rect = self
                 .built_chat(w, h)
                 .map_or_else(|| Self::leave_bed_button(w, h), |l| l.leave_bed);
             let button = Self::leave_bed_draws(&m, mouse, rect);
-            horizon_client::screen_draw::paint(batch, &self.gui.atlas, &button);
+            let _ = horizon_client::screen_draw::paint(batch, &self.gui.atlas, &button);
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
+        horizon_client::screen_draw::paint_tooltip(batch, &self.gui.atlas, &draws, tooltip);
         // The hovered message part's tooltip (`renderComponentHoverEffect`),
         // or the text of the message tag under the cursor.
         let height = batch.height as i32;
@@ -2975,10 +2964,7 @@ mod enchantment_snapshot_tests {
         game.world_root = dir;
         let stack = game.reload_datapacks(false, &[]).unwrap();
         let root = game.options.resources.clone();
-        game.world_tables = game
-            .build_world_tables(&stack, false, &root, game.mods.data_switched)
-            .unwrap()
-            .0;
+        game.world_tables = game.stage_world_tables(&stack, false, &root).unwrap().0;
         assert!(
             game.world_tables.is_some(),
             "the real active table container must be available"
@@ -3130,9 +3116,8 @@ mod damage_type_registry_tests {
         .unwrap();
         game.world_root = dir;
         let stack = game.reload_datapacks(false, &[]).unwrap();
-        (game.world_tables, game.health_resources) = game
-            .build_world_tables(&stack, false, &root, game.mods.data_switched)
-            .unwrap();
+        (game.world_tables, game.health_resources, _) =
+            game.stage_world_tables(&stack, false, &root).unwrap();
         game.level.allow_commands = Some(true);
         game.build_registries();
 

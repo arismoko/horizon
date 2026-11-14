@@ -20,7 +20,9 @@ impl Game<'_> {
     pub(super) fn tick_friends(&mut self) {}
 
     /// Only reached by naming the screen (`horizon-ctl`): back to the pause menu.
-    pub(super) fn draw_friends_screen(&mut self, _batch: &mut HudBatch) {
+    pub(super) fn draw_friends_screen(&mut self, batch: &mut HudBatch) {
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
         self.set_screen(Screen::Paused);
     }
 

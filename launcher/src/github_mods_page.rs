@@ -469,6 +469,12 @@ impl Launcher {
         right = right.child(
             switch(format!("native-switch-{id}"), on, &t).on_click(cx.listener(
                 move |this, _: &ClickEvent, _, cx| {
+                    if on && this.stop_names(&id) {
+                        this.mods.message =
+                            Some(Err(tr("Choose what to do about your worlds first").into()));
+                        cx.notify();
+                        return;
+                    }
                     if !on && this.settings.native_mods_allowed_at.is_none() {
                         this.pending_consent = Some(PendingConsent::Local(id.clone()));
                         cx.notify();

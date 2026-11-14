@@ -742,6 +742,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn connects_to_ipv4_although_the_resolver_lists_ipv6_first() {
         // Both listen, as with a server whose IPv6 address accepts and then resets.
         let Some(v6_listener) = ipv6_loopback() else {
@@ -756,6 +757,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn falls_back_to_ipv6_when_ipv4_refuses() {
         let Some(v6_listener) = ipv6_loopback() else {
             return;
@@ -771,6 +773,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_dead_address_does_not_hold_up_the_next() {
         // A controlled pending dial cannot be intercepted by a VPN or proxy.
         let held_listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -808,6 +811,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn every_failure_reports_the_first_address() {
         let closed = |_| {
             TcpListener::bind("127.0.0.1:0")
@@ -827,6 +831,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_silent_peer_times_out_and_a_closed_one_ends_the_stream() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -844,6 +849,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn loopback_with_compression_and_encryption() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -1069,6 +1075,7 @@ mod tests {
     /// Encrypted bytes that arrive in the same read as the last plain packet
     /// are decrypted once encryption is enabled.
     #[test]
+    #[ignore = "daily"]
     fn encrypted_bytes_read_before_enabling_encryption() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -1094,6 +1101,7 @@ mod tests {
     /// skips it (its PacketDecoder only reads a packet from a readable
     /// buffer), so the client stays connected.
     #[test]
+    #[ignore = "daily"]
     fn an_empty_compressed_frame_is_skipped() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -1116,6 +1124,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn tcp_stream_enables_nodelay_and_keepalive() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();

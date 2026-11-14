@@ -247,7 +247,7 @@ fn existing_fieldless_enum_layouts_match_baseline() {
     );
     assert_eq!(
         <crate::world::types::ExplosionInteraction as Wire>::layout(&mut vec![]),
-        0x649673fec35bab1f,
+        0x1ede2797636bb977,
         "ExplosionInteraction"
     );
     assert_eq!(

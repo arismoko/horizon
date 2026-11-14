@@ -123,6 +123,9 @@ pub(super) struct Mods {
     /// Installed wasm declarations, reread only when the instance's files or enable list change.
     /// The mod whose route menu is open.
     pub(super) route_open: Option<String>,
+    /// The instance and the mods whose compile failed in the last stop: their chips say so until
+    /// the next build attempt, whatever the player chose.
+    pub(super) unbuilt: Option<(String, Vec<String>)>,
     native_files: std::cell::RefCell<Option<(String, Vec<native_status::Installed>)>>,
     /// Java mods' checks, by source and project.
     pub(super) checks: HashMap<(SourceId, String), Checking>,
@@ -216,6 +219,7 @@ impl Mods {
             native_update: Default::default(),
             update_stayed: Default::default(),
             route_open: None,
+            unbuilt: None,
             native_files: Default::default(),
             updates: HashMap::new(),
             confirm_remove: None,

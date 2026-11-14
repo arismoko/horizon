@@ -18,7 +18,6 @@ mod host;
 mod layout;
 mod named_hooks;
 mod parts;
-pub mod wire_types;
 pub use catalog::DECLARATIONS;
 use catalog::{Catalog, Contract, DrawContext, Hook, HostAccess, PartKind, PhaseContext, Side};
 use heck::ToSnakeCase;
@@ -674,7 +673,6 @@ pub mod functions;
 pub mod internals;
 pub mod internals_view;
 pub mod loops;
-pub mod mod_uses;
 pub mod notes;
 pub mod patch;
 pub mod points;
@@ -682,7 +680,9 @@ pub mod replace;
 pub(crate) mod source;
 pub mod staging;
 pub mod surface;
-pub use build::{generate, generate_points, generate_render, write_if_changed};
+pub use build::{
+    generate, generate_engine_points, generate_points, generate_render, write_if_changed,
+};
 pub use notes::generate as generate_hook_notes;
 mod staged;
 pub use staged::{MODS_STAGE, staged_mods};

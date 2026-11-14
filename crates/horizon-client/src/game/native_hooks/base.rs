@@ -1955,16 +1955,6 @@ impl Game<'_> {
     ) {
         self.fire_player_bed_enter(player, name, pos, cancel);
     }
-    /// A server player woke or stood up from the bed at `pos`, after their
-    /// sleeping state changed.
-    pub(in crate::game) fn native_player_bed_leave(
-        &mut self,
-        player: u128,
-        name: &str,
-        pos: [i32; 3],
-    ) {
-        self.fire_player_bed_leave(player, name, pos);
-    }
     /// A server player's book edit or signing packet is about to be applied. `pages` is its page
     /// count; `signing` means the packet has a title. Set `cancel` to drop the edit.
     pub(in crate::game) fn native_player_edit_book(
@@ -3543,18 +3533,6 @@ impl Game<'_> {
     ) {
         self.fire_right_click_block(click, use_block, use_item, cancellation_result, canceled);
     }
-    /// An explosion at `center` in `dimension` (`minecraft:overworld`) is
-    /// about to break `blocks`: `ServerExplosion.explode` with its `toBlow`,
-    /// before any block is hit. Take out the positions to spare; they keep
-    /// their block and get no fire. Entities are hurt as before. Server-side.
-    pub(in crate::game) fn native_explosion_detonate(
-        &mut self,
-        dimension: &str,
-        center: [f64; 3],
-        blocks: &mut Vec<[i32; 3]>,
-    ) {
-        self.fire_explosion_detonate(dimension, center, blocks);
-    }
     /// A player fills (`stack` an empty bucket) or empties a bucket at `pos`:
     /// `BucketItem.use`, where it asks `Level.mayInteract`. Set `canceled`
     /// and the bucket does nothing. Server-side, for every player of the
@@ -3743,10 +3721,10 @@ impl Game<'_> {
     /// block it is of in `dimension` (none for a trade, a vehicle's, a mod's
     /// native menu or a mount's inventory, which has no menu type in vanilla
     /// and is told as `horizon:mount_inventory`). The player's own inventory
-    /// is not one. Heard once a tick, so a menu opened and closed again
-    /// inside one tick is not; one that replaces another comes after that
-    /// one's close. The player's state is swapped in. `native_player_container_close`
-    /// follows. Server-side.
+    /// is not one, nor is failed construction. Heard synchronously after construction, the open packet
+    /// is queued and full contents sent, with the new menu already current.
+    /// Replacing a menu follows its close; even inside one tick, open precedes
+    /// `native_player_container_close`. The player's state is swapped in. Server-side.
     pub(in crate::game) fn native_player_container_open(
         &mut self,
         player: u128,

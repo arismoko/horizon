@@ -24,3 +24,4 @@ workspace = true
 
 [dependencies]
 horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
+horizon-engine-slots = { path = "../horizon-engine-slots" }

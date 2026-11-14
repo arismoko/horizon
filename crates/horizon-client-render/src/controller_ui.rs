@@ -622,7 +622,15 @@ mod tests {
         let atlas = atlas();
         let mut batch = HudBatch::scratch(WINDOW);
         assert_eq!((batch.width, batch.height), SIZE);
-        ui.draw(s, &mut batch, &atlas, (0.0, 0.0), false, waiting);
+        ui.draw_test_frame(
+            s,
+            &mut batch,
+            &atlas,
+            (0.0, 0.0),
+            false,
+            waiting,
+            &mut |_, _| {},
+        );
         crate::widgets::end_frame(crate::widgets::generation() + 1);
         batch
     }
@@ -632,7 +640,7 @@ mod tests {
         let mut batch = HudBatch::scratch(WINDOW);
         assert_eq!((batch.width, batch.height), SIZE);
         let at = ui.point_at(s, SIZE, over);
-        ui.draw(s, &mut batch, &atlas, at, false, waiting);
+        ui.draw_test_frame(s, &mut batch, &atlas, at, false, waiting, &mut |_, _| {});
         crate::widgets::end_frame(crate::widgets::generation() + 1);
         let dock = Columns::of(SIZE.0, SIZE.1).dock;
         let labelled = crate::widgets::last_labelled();

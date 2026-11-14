@@ -5,13 +5,41 @@ use crate::*;
 #[path = "__private/registry_installation.rs"]
 mod registry_installation;
 
-/// The native mods compiled into a game: the launcher-to-game build contract, not a mod-facing
-/// API. The launcher generates the rows from the selected manifests, independently of the mods'
-/// hook factories; the game checks them against the packages beside its executable
-/// (`horizon_mod_package::runtime`). It lives in the API's closure so that the launcher's
-/// `horizon_native_mods` library, built from the API slice alone, can name it.
+/// Native libraries' launcher-to-game registration contract, not a mod-facing API.
+/// The launcher generates manifest rows independently of hook factories. The game checks
+/// them against the packages beside its executable (`horizon_mod_package::runtime`).
+/// These types live in the shared API closure so every library uses the same Rust ABI.
 pub mod native {
-    /// One native mod compiled into the executable, with its manifest's `side`.
+    /// One dynamically loaded native library, registered before the engine seal.
+    pub struct NativeMod {
+        /// Hook factories owned by this library.
+        pub entries: fn() -> Vec<crate::ModEntry>,
+        /// Compiled API point listeners owned by this library.
+        pub slots: fn() -> Vec<super::points::SlotListener>,
+        /// Manifest identities (empty for the patch library).
+        pub built: &'static [BuiltMod],
+        /// Install patch copies and return their verification rows.
+        pub installs: fn() -> Vec<(&'static str, &'static [&'static str], bool)>,
+    }
+
+    impl NativeMod {
+        /// The library's registration, as its generated entry module builds it.
+        pub fn new(
+            entries: fn() -> Vec<crate::ModEntry>,
+            slots: fn() -> Vec<super::points::SlotListener>,
+            built: &'static [BuiltMod],
+            installs: fn() -> Vec<(&'static str, &'static [&'static str], bool)>,
+        ) -> Self {
+            Self {
+                entries,
+                slots,
+                built,
+                installs,
+            }
+        }
+    }
+
+    /// One native mod supplied by a library, with its manifest's `side`.
     #[derive(Clone, Copy, Debug, Default, PartialEq)]
     pub struct BuiltMod {
         pub id: &'static str,
@@ -98,6 +126,24 @@ pub fn command_argument_types() -> Vec<(String, std::sync::Arc<dyn crate::Comman
         .iter()
         .map(|info| (info.id.to_string(), info.argument.clone()))
         .collect()
+}
+
+/// The selector tokens mods registered at startup, by name, for the game's command
+/// registries. Not part of the mod surface.
+pub fn entity_selector_types() -> impl Iterator<Item = (&'static str, &'static crate::SelectorBase)>
+{
+    crate::parts::installed_entity_selectors()
+        .iter()
+        .map(|info| (info.name.as_ref(), &info.base))
+}
+
+/// Resolve an installed selector's handler by reference, without allocating or cloning a resource.
+pub fn entity_selector_type(name: &str) -> Option<&'static dyn crate::EntitySelectorType> {
+    let selectors = crate::parts::installed_entity_selectors();
+    selectors
+        .binary_search_by(|info| info.name.as_ref().cmp(name))
+        .ok()
+        .map(|index| selectors[index].selector.as_ref())
 }
 
 /// The startup package inventory at an owning engine load boundary.

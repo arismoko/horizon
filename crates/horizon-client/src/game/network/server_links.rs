@@ -154,6 +154,7 @@ impl Game<'_> {
         let atlas = &self.gui.atlas;
         let (w, h) = (batch.width, batch.height);
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, true);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         let links = self.server_links().to_vec();
         self.links_ui.scroll = self
             .links_ui
@@ -239,6 +240,7 @@ impl Game<'_> {
             true,
             hover,
         );
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
         if wh {
             ui::tooltip(
                 batch,
@@ -326,6 +328,7 @@ impl Game<'_> {
         let atlas = &self.gui.atlas;
         let (w, h) = (batch.width, batch.height);
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, true);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         let url = self.links_ui.confirm.clone().unwrap_or_default();
         let trusted = self.links_ui.trusted;
         horizon_client::widgets::begin_screen(|| {
@@ -367,6 +370,7 @@ impl Game<'_> {
                 hover,
             );
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
     }
     /// ConfirmLinkScreen's answer: yes opens the browser, the middle button
     /// copies the link, no closes; all return to Server Links.
@@ -403,6 +407,7 @@ impl Game<'_> {
         let atlas = &self.gui.atlas;
         let (w, h) = (batch.width, batch.height);
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, true);
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Background);
         let layout = dialog_warning_layout(atlas, (w, h));
         for (line, x, y) in &layout.lines {
             batch.text_styled(atlas, line, *x, *y, u32::MAX, true);
@@ -433,6 +438,7 @@ impl Game<'_> {
                 hover,
             );
         }
+        self.draw_screen_phase(batch, horizon_client::screen_draw::RenderPhase::Foreground);
     }
     /// WarningScreen's answer: disconnect, or back to Server Links.
     pub(super) fn dialog_warning_click(&mut self) -> Result<()> {

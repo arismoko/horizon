@@ -15,6 +15,14 @@ pub fn testing_command_arguments() -> Vec<super::CommandArgumentInfoInput> {
         .map(Into::into)
         .collect()
 }
+/// The immutable entity selector declarations, copied without exposing Installed.
+#[cfg(any(test, feature = "testing"))]
+pub fn testing_entity_selectors() -> Vec<super::EntitySelectorInfoInput> {
+    crate::parts::installed_entity_selectors()
+        .iter()
+        .map(Into::into)
+        .collect()
+}
 /// Probe only whether a hook may access Parts in the current game context.
 #[cfg(any(test, feature = "testing"))]
 pub fn check_parts(

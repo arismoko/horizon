@@ -104,3 +104,12 @@ checks their literal bytes. The Shape pin records the approved four-variant
 contract, independently mixing the literal variant names with the original
 FNV layout algorithm. Its original captured hash remains in `baseline_hash`.
 The other frozen pins and the identity inventory remain unchanged.
+
+## Intentional explosion-interaction contract change
+
+Issue #3929 gives `ExplosionInteraction` vanilla's five values in vanilla's
+order: `None` 0, `Block` 1, `Mob` 2, `Tnt` 3 (was 2) and `Trigger` 4, a clean
+break with the host call that takes it. `explosion_interactions_cross_in_vanillas_order`
+checks their literal bytes. The pin records the five-variant contract,
+independently mixing the literal variant names with the original FNV layout
+algorithm; the captured hash remains in `baseline_hash`.

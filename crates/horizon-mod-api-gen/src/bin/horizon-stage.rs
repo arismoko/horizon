@@ -19,8 +19,8 @@
 //! `--base-notes` (the base tree's folder; required with `--notes`). Exits 1 when a new note
 //! names an id that did not change, or with `--gate` when a breaking change has no note; 2 when
 //! an input cannot be read or the options are wrong.
-use horizon_mod_api_gen::mod_uses;
 use horizon_mod_api_gen::staging::{self, Mode};
+use mod_source::mod_uses;
 use mod_surface::Surface;
 use mod_surface::uses::{Fit, ManifestFacts, Origin, UsesTable, fits, uses_contained};
 use std::path::PathBuf;
