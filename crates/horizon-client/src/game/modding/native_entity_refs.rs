@@ -798,7 +798,7 @@ impl Game<'_> {
     /// The entity's position (`Entity.position`): its feet, the middle of
     /// its box for a painting or an item frame.
     pub(super) fn entity_position(&self, entity: EntityRef) -> Option<[f64; 3]> {
-        self.resolve(entity)?.position()
+        EntityRead::resolve(self, entity)?.position()
     }
     /// The block the entity's position is in (`Entity.blockPosition`). API
     /// 373.
@@ -809,12 +809,12 @@ impl Game<'_> {
     /// The entity's yaw and pitch in degrees (`Entity.getYRot`, `getXRot`); 0
     /// for the kinds that don't turn. API 373.
     pub(super) fn entity_rotation(&self, entity: EntityRef) -> Option<[f32; 2]> {
-        self.resolve(entity)?.rotation()
+        EntityRead::resolve(self, entity)?.rotation()
     }
     /// The entity's type (`Entity.getType`): `minecraft:zombie`. API
     /// 373.
     pub(super) fn entity_kind(&self, entity: EntityRef) -> Option<String> {
-        self.resolve(entity)?.kind()
+        EntityRead::resolve(self, entity)?.kind()
     }
     /// The entity's UUID (`Entity.getUUID`), the one it is saved with; an
     /// entity that has none yet gets it now, as a new vanilla entity does.
@@ -829,7 +829,7 @@ impl Game<'_> {
     /// The level the entity is in (`Entity.level`): on a client, the
     /// client's level. API 373.
     pub(super) fn entity_level(&self, entity: EntityRef) -> Option<LevelRef> {
-        self.resolve(entity)?.level()
+        EntityRead::resolve(self, entity)?.level()
     }
 }
 
