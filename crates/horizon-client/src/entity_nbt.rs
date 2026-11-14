@@ -321,7 +321,9 @@ pub fn migrate_player_uuid(tag: &mut Tag, old: [i32; 4], new: [i32; 4]) {
             }
         }
         Tag::Compound(map) => {
-            map.for_each_mut(|_, tag| { migrate_player_uuid(tag, old, new); });
+            map.for_each_mut(|_, tag| {
+                migrate_player_uuid(tag, old, new);
+            });
         }
         _ => {}
     }

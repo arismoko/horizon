@@ -87,18 +87,22 @@ pub fn from_tag(mut tag: Tag, known: &dyn Fn(&str) -> bool) -> Vec<Hotbar> {
                 }
             }
             // Entries that are no stacks are dropped from their row.
-            rows.for_each_mut(|_, row| { if let Tag::List(items) = row {
-                items.retain(|i| {
-                    matches!(i, Tag::Compound(_))
-                        || (version > 3818 && matches!(i, Tag::String(_)))
-                });
-            } });
-        } else {
-            rows.for_each_mut(|_, row| { if let Tag::List(items) = row {
-                for item in items.iter_mut().filter(|i| matches!(i, Tag::String(_))) {
-                    *item = Tag::Compound(Default::default());
+            rows.for_each_mut(|_, row| {
+                if let Tag::List(items) = row {
+                    items.retain(|i| {
+                        matches!(i, Tag::Compound(_))
+                            || (version > 3818 && matches!(i, Tag::String(_)))
+                    });
                 }
-            } });
+            });
+        } else {
+            rows.for_each_mut(|_, row| {
+                if let Tag::List(items) = row {
+                    for item in items.iter_mut().filter(|i| matches!(i, Tag::String(_))) {
+                        *item = Tag::Compound(Default::default());
+                    }
+                }
+            });
         }
     }
     horizon_world::datafix::update_hotbar(&mut tag);

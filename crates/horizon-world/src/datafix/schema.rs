@@ -127,7 +127,9 @@ impl Walker<'_> {
     /// `DSL.compoundList(type)`: every value of a map.
     fn values(&mut self, ty: Ty, v: &mut Tag, name: &str) {
         if let Some(Tag::Compound(c)) = v.get_mut(name) {
-            c.for_each_mut(|_, value| { self.walk(ty, value); });
+            c.for_each_mut(|_, value| {
+                self.walk(ty, value);
+            });
         }
     }
     /// A list of compounds, each with a typed field.
@@ -168,7 +170,9 @@ impl Walker<'_> {
                 if k < key(4771, 0)
                     && let Some(Tag::Compound(c)) = v.get_mut("CustomBossEvents")
                 {
-                    c.for_each_mut(|_, e| { self.field(Ty::TextComponent, e, "Name"); });
+                    c.for_each_mut(|_, e| {
+                        self.field(Ty::TextComponent, e, "Name");
+                    });
                 }
                 self.walk(Ty::LightweightLevel, v);
             }
@@ -245,7 +249,9 @@ impl Walker<'_> {
             }
             Ty::Hotbar => {
                 if let Tag::Compound(c) = v {
-                    c.for_each_mut(|_, row| { self.list_in(Ty::ItemStack, row); });
+                    c.for_each_mut(|_, row| {
+                        self.list_in(Ty::ItemStack, row);
+                    });
                 }
             }
             Ty::Stats => {
@@ -298,7 +304,9 @@ impl Walker<'_> {
             }
             Ty::SavedCustomBossEvents => {
                 if let Some(Tag::Compound(c)) = v.get_mut("data") {
-                    c.for_each_mut(|_, e| { self.field(Ty::TextComponent, e, "Name"); });
+                    c.for_each_mut(|_, e| {
+                        self.field(Ty::TextComponent, e, "Name");
+                    });
                 }
             }
             Ty::SavedMapData => {
@@ -818,33 +826,35 @@ impl Walker<'_> {
         let Some(Tag::Compound(dims)) = v.get_mut("dimensions") else {
             return;
         };
-        dims.for_each_mut(|_, dim| { let Some(g) = dim.get_mut("generator") else {
-            return;
-        };
-        match as_str(g.get("type")).as_deref() {
-            Some("minecraft:flat") => {
-                if let Some(s) = g.get_mut("settings") {
-                    self.field(Ty::Biome, s, "biome");
-                    self.list_of_field(Ty::BlockName, s, "layers", "block");
-                }
-            }
-            Some("minecraft:noise") => {
-                if let Some(b) = g.get_mut("biome_source") {
-                    match as_str(b.get("type")).as_deref() {
-                        Some("minecraft:fixed") => self.field(Ty::Biome, b, "biome"),
-                        Some("minecraft:checkerboard") => self.list(Ty::Biome, b, "biomes"),
-                        _ => {}
+        dims.for_each_mut(|_, dim| {
+            let Some(g) = dim.get_mut("generator") else {
+                return;
+            };
+            match as_str(g.get("type")).as_deref() {
+                Some("minecraft:flat") => {
+                    if let Some(s) = g.get_mut("settings") {
+                        self.field(Ty::Biome, s, "biome");
+                        self.list_of_field(Ty::BlockName, s, "layers", "block");
                     }
                 }
-                if let Some(s) = g.get_mut("settings")
-                    && let Tag::Compound(_) = s
-                {
-                    self.field(Ty::BlockName, s, "default_block");
-                    self.field(Ty::BlockName, s, "default_fluid");
+                Some("minecraft:noise") => {
+                    if let Some(b) = g.get_mut("biome_source") {
+                        match as_str(b.get("type")).as_deref() {
+                            Some("minecraft:fixed") => self.field(Ty::Biome, b, "biome"),
+                            Some("minecraft:checkerboard") => self.list(Ty::Biome, b, "biomes"),
+                            _ => {}
+                        }
+                    }
+                    if let Some(s) = g.get_mut("settings")
+                        && let Tag::Compound(_) = s
+                    {
+                        self.field(Ty::BlockName, s, "default_block");
+                        self.field(Ty::BlockName, s, "default_fluid");
+                    }
                 }
+                _ => {}
             }
-            _ => {}
-        } });
+        });
     }
 }
 

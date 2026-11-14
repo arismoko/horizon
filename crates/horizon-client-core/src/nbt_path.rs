@@ -355,7 +355,11 @@ impl NbtPath {
         let first_copy = copy_tag(value);
         let mut used_first = false;
         let mut make = || {
-            let next = if used_first { copy_tag(&first_copy) } else { clone_tag(&first_copy) };
+            let next = if used_first {
+                copy_tag(&first_copy)
+            } else {
+                clone_tag(&first_copy)
+            };
             used_first = true;
             next
         };
@@ -416,7 +420,11 @@ impl NbtPath {
                     if at < 0 || at as usize > list.len() {
                         return Err(CollectionError::InvalidIndex(at as i32));
                     }
-                    let value = if used_first { copy_tag(v) } else { clone_tag(v) };
+                    let value = if used_first {
+                        copy_tag(v)
+                    } else {
+                        clone_tag(v)
+                    };
                     list.insert(at as usize, value);
                     at += 1;
                     any = true;
@@ -611,7 +619,11 @@ fn set_tag(node: &Node, parent: &mut Tag, make: &mut dyn FnMut() -> Tag) -> usiz
         .unwrap_or(0),
         Node::Index(i) => with_elements(parent, |list, kind| {
             let n = list.len() as i64;
-            let idx = if *i < 0 { n + i64::from(*i) } else { i64::from(*i) };
+            let idx = if *i < 0 {
+                n + i64::from(*i)
+            } else {
+                i64::from(*i)
+            };
             if (0..n).contains(&idx) {
                 let value = make();
                 if list[idx as usize] != value && kind.accepts(&value) {
@@ -876,7 +888,6 @@ mod tests {
         }
     }
 
-
     fn tag(s: &str) -> Tag {
         parse_snbt(s).unwrap().0
     }
@@ -1101,20 +1112,39 @@ mod tests {
     fn observing_preserves_history_but_setting_uses_java_semantic_copy() {
         // Independent Temurin25 String-key HashMap witnesses distinguish the
         // original tree from CompoundTag.copy, after a later remove/reinsert.
-        let mut source = tag("{payload:{AaAaAaAa:0,AaAaAaBB:1,AaAaBBAa:2,AaAaBBBB:3,AaBBAaAa:4,AaBBAaBB:5,AaBBBBAa:6,AaBBBBBB:7,BBAaAaAa:8,BBAaAaBB:9,BBAaBBAa:10,BBAaBBBB:11,BBBBAaAa:12,BBBBAaBB:13,BBBBBBAa:14,BBBBBBBB:15}}");
-        let Some(Tag::Compound(map)) = source.get_mut("payload") else { panic!("payload") };
+        let mut source = tag(
+            "{payload:{AaAaAaAa:0,AaAaAaBB:1,AaAaBBAa:2,AaAaBBBB:3,AaBBAaAa:4,AaBBAaBB:5,AaBBBBAa:6,AaBBBBBB:7,BBAaAaAa:8,BBAaAaBB:9,BBAaBBAa:10,BBAaBBBB:11,BBBBAaAa:12,BBBBAaBB:13,BBBBBBAa:14,BBBBBBBB:15}}",
+        );
+        let Some(Tag::Compound(map)) = source.get_mut("payload") else {
+            panic!("payload")
+        };
         map.remove(&"AaAaBBBB".into());
         let path = NbtPath::parse("payload").unwrap();
         let mut observed = path.get(&source).unwrap().pop().unwrap();
         fn reinsert(tag: &mut Tag) -> String {
-            let Tag::Compound(map) = tag else { panic!("compound") };
+            let Tag::Compound(map) = tag else {
+                panic!("compound")
+            };
             assert_eq!(map.remove(&"AaAaAaAa".into()), Some(Tag::Int(0)));
             map.insert("AaAaAaAa".into(), Tag::Int(0));
-            map.keys().map(|key| key.to_string().unwrap()).collect::<Vec<_>>().join(",")
+            map.keys()
+                .map(|key| key.to_string().unwrap())
+                .collect::<Vec<_>>()
+                .join(",")
         }
-        assert_eq!(reinsert(&mut observed), "BBAaBBBB,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
+        assert_eq!(
+            reinsert(&mut observed),
+            "BBAaBBBB,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB"
+        );
         let mut target = Tag::Compound(Compound::new());
-        assert_eq!(path.set(&mut target, source.get("payload").unwrap()).unwrap(), 1);
-        assert_eq!(reinsert(target.get_mut("payload").unwrap()), "BBAaAaAa,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
+        assert_eq!(
+            path.set(&mut target, source.get("payload").unwrap())
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            reinsert(target.get_mut("payload").unwrap()),
+            "BBAaAaAa,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB"
+        );
     }
 }

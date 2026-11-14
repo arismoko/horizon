@@ -44,7 +44,11 @@ fn fields(
     hopper_cooldown: Option<i32>,
 ) -> Compound {
     use crate::containers::BlockEntity;
-    let pending = if matches!(e, BlockEntity::Chest(_)) { pending } else { None };
+    let pending = if matches!(e, BlockEntity::Chest(_)) {
+        pending
+    } else {
+        None
+    };
     let components = match e {
         BlockEntity::Banner(b) => b.components.clone(),
         BlockEntity::CopperGolemStatue(components) => components.clone(),
@@ -232,7 +236,8 @@ fn fields(
     if let Some(name) = custom_name
         && !entries.iter().any(|(key, _)| *key == "CustomName")
     {
-        map.entry("CustomName".into()).or_insert_with(|| name.clone());
+        map.entry("CustomName".into())
+            .or_insert_with(|| name.clone());
     }
     if let Some(pending) = pending {
         pending.write_tags(&mut map);
@@ -270,12 +275,23 @@ mod tests {
         // Vanilla 26.3's observed conduit /data display: Target and components
         // collide, and saveAdditional writes Target before the common tail.
         let entity = BlockEntity::Conduit(Some([1, 2, 3, 4]));
-        let tag = data((4098, 300, 4098), &entity, "minecraft:conduit", None, None, None, None);
+        let tag = data(
+            (4098, 300, 4098),
+            &entity,
+            "minecraft:conduit",
+            None,
+            None,
+            None,
+            None,
+        );
         assert_eq!(
             horizon_client_core::snbt::pretty(&tag).plain(),
             r#"{Target: [I; 1, 2, 3, 4], components: {}, x: 4098, y: 300, z: 4098, id: "minecraft:conduit"}"#,
         );
         assert!(tag.get("keepPacked").is_none());
-        assert_eq!(encode((4098, 300, 4098), &entity, "minecraft:conduit").get("keepPacked"), Some(&Tag::Byte(0)));
+        assert_eq!(
+            encode((4098, 300, 4098), &entity, "minecraft:conduit").get("keepPacked"),
+            Some(&Tag::Byte(0))
+        );
     }
 }

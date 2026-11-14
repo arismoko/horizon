@@ -1277,26 +1277,28 @@ fn entity_uuids(tag: &mut Tag) {
     match tag {
         Tag::Compound(c) => {
             let show_entity = matches!(c.get(&"action".into()), Some(Tag::String(a)) if a.to_string_lossy() == "show_entity");
-            c.for_each_mut(|k, v| { if show_entity && k.to_string_lossy() == "uuid" {
-                let ints = match v {
-                    Tag::List(l) => l
-                        .iter()
-                        .map(|t| match t {
-                            Tag::Int(i) => Some(*i),
-                            _ => None,
-                        })
-                        .collect::<Option<Vec<i32>>>(),
-                    Tag::String(s) => {
-                        crate::uuid::uuid_from_text(&s.to_string_lossy()).map(Vec::from)
+            c.for_each_mut(|k, v| {
+                if show_entity && k.to_string_lossy() == "uuid" {
+                    let ints = match v {
+                        Tag::List(l) => l
+                            .iter()
+                            .map(|t| match t {
+                                Tag::Int(i) => Some(*i),
+                                _ => None,
+                            })
+                            .collect::<Option<Vec<i32>>>(),
+                        Tag::String(s) => {
+                            crate::uuid::uuid_from_text(&s.to_string_lossy()).map(Vec::from)
+                        }
+                        _ => None,
+                    };
+                    if let Some(ints) = ints.filter(|i| i.len() == 4) {
+                        *v = Tag::IntArray(ints);
                     }
-                    _ => None,
-                };
-                if let Some(ints) = ints.filter(|i| i.len() == 4) {
-                    *v = Tag::IntArray(ints);
+                } else {
+                    entity_uuids(v);
                 }
-            } else {
-                entity_uuids(v);
-            } });
+            });
         }
         Tag::List(l) => l.iter_mut().for_each(entity_uuids),
         _ => {}

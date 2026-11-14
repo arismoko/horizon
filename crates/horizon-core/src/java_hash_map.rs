@@ -162,7 +162,12 @@ impl<'a, K: JavaKey, V> Entry<'a, K, V> {
     }
     pub fn or_insert_with(self, make: impl FnOnce() -> V) -> &'a mut V {
         let index = self.index.unwrap_or_else(|| {
-            let index = self.map.free.last().copied().unwrap_or(self.map.nodes.len() as u32);
+            let index = self
+                .map
+                .free
+                .last()
+                .copied()
+                .unwrap_or(self.map.nodes.len() as u32);
             self.map.put_hashed(self.key, make(), self.hash);
             index
         });
@@ -222,7 +227,6 @@ impl<K: JavaKey, V> Default for JavaHashMap<K, V> {
     }
 }
 
-
 /// `h ^ (h >>> 16)`: the hash the map places a key by.
 fn spread(hash: i32) -> i32 {
     hash ^ ((hash as u32) >> 16) as i32
@@ -245,12 +249,18 @@ impl<K: JavaKey, V> JavaHashMap<K, V> {
         K: Clone,
     {
         Self {
-            nodes: self.nodes.iter().map(|node| node.as_ref().map(|node| Node {
-                key: node.key.clone(),
-                value: clone_value(&node.value),
-                hash: node.hash,
-                next: node.next,
-            })).collect(),
+            nodes: self
+                .nodes
+                .iter()
+                .map(|node| {
+                    node.as_ref().map(|node| Node {
+                        key: node.key.clone(),
+                        value: clone_value(&node.value),
+                        hash: node.hash,
+                        next: node.next,
+                    })
+                })
+                .collect(),
             free: self.free.clone(),
             links: self.links.clone(),
             buckets: self.buckets.clone(),
@@ -261,7 +271,9 @@ impl<K: JavaKey, V> JavaHashMap<K, V> {
         }
     }
     pub(crate) fn values_in_storage_order(&self) -> impl Iterator<Item = &V> {
-        self.nodes.iter().filter_map(|node| node.as_ref().map(|node| &node.value))
+        self.nodes
+            .iter()
+            .filter_map(|node| node.as_ref().map(|node| &node.value))
     }
     pub fn len(&self) -> usize {
         self.len
@@ -311,7 +323,12 @@ impl<K: JavaKey, V> JavaHashMap<K, V> {
         } else {
             self.find_hashed(&key, hash).map(|(_, index)| index)
         };
-        Entry { map: self, key, hash, index }
+        Entry {
+            map: self,
+            key,
+            hash,
+            index,
+        }
     }
     /// Mutate values in Java traversal order without allocating or cloning keys.
     /// The callback cannot structurally change the map or retain a mutable value.
@@ -327,16 +344,21 @@ impl<K: JavaKey, V> JavaHashMap<K, V> {
     pub fn retain(&mut self, mut keep: impl FnMut(&K, &mut V) -> bool) {
         let mut cursor = self.cursor();
         while cursor.has_next() {
-            self.next_entry(&mut cursor).expect("exclusive traversal").expect("entry");
+            self.next_entry(&mut cursor)
+                .expect("exclusive traversal")
+                .expect("entry");
             let node = self.node_mut(cursor.current);
             if !keep(&node.key, &mut node.value) {
-                self.remove_current(&mut cursor).expect("exclusive traversal");
+                self.remove_current(&mut cursor)
+                    .expect("exclusive traversal");
             }
         }
     }
     /// Requested heap storage, excluding the keys' and values' own allocations.
     pub fn storage_bytes(&self) -> usize {
-        self.nodes.capacity().saturating_mul(size_of::<Option<Node<K, V>>>())
+        self.nodes
+            .capacity()
+            .saturating_mul(size_of::<Option<Node<K, V>>>())
             .saturating_add(self.free.capacity().saturating_mul(size_of::<u32>()))
             .saturating_add(self.links.capacity().saturating_mul(size_of::<Links>()))
             .saturating_add(self.buckets.capacity().saturating_mul(size_of::<Bucket>()))

@@ -26,6 +26,15 @@ fn assert_covers_charge<T>(
     build: impl FnOnce() -> T,
     charge: impl FnOnce(&T) -> usize,
 ) {
+    assert_charge(case, build, charge, None);
+}
+
+fn assert_charge<T>(
+    case: &str,
+    build: impl FnOnce() -> T,
+    charge: impl FnOnce(&T) -> usize,
+    expected_live: Option<usize>,
+) {
     assert_eq!(live_bytes(), 0, "previous case leaked tagged storage");
     let value = {
         // Direct tag() is unconditional: the alloc-census feature is unnecessary
@@ -38,14 +47,19 @@ fn assert_covers_charge<T>(
     // backing allocator's metadata/rounding, exactly the accounting boundary here.
     let observed = live_bytes();
     let charged = charge(&value);
-    assert!(
-        observed > 0,
-        "{case}: census must observe real retained storage"
-    );
-    assert!(
-        charged >= observed,
-        "{case}: charge {charged} undercounts {observed} live requested bytes"
-    );
+    if let Some(expected) = expected_live {
+        assert_eq!(observed, expected, "{case}: live retained storage");
+        assert_eq!(charged, expected, "{case}: exact empty-storage charge");
+    } else {
+        assert!(
+            observed > 0,
+            "{case}: census must observe real retained storage"
+        );
+        assert!(
+            charged >= observed,
+            "{case}: charge {charged} undercounts {observed} live requested bytes"
+        );
+    }
     drop(value);
     assert_eq!(
         live_bytes(),
@@ -56,15 +70,26 @@ fn assert_covers_charge<T>(
 
 #[test]
 fn opaque_map_charges_cover_independently_observed_live_layouts() {
-    assert_covers_live_layout("fresh empty NBT compound", horizon_core::nbt::Compound::new);
-    assert_covers_live_layout("unused entry keeps the empty compound allocation-free", || {
-        let mut map = horizon_core::nbt::Compound::new();
-        drop(map.entry(JavaString::from("unused")));
-        map
-    });
+    assert_charge(
+        "fresh empty NBT compound",
+        horizon_core::nbt::Compound::new,
+        OwnedHeap::owned_heap_bytes,
+        Some(0),
+    );
+    assert_charge(
+        "unused entry keeps the empty compound allocation-free",
+        || {
+            let mut map = horizon_core::nbt::Compound::new();
+            drop(map.entry(JavaString::from("unused")));
+            map
+        },
+        OwnedHeap::owned_heap_bytes,
+        Some(0),
+    );
     assert_covers_live_layout("populated NBT compound", || {
         (0..4096)
-            .map(|i| (JavaString::from(i.to_string().as_str()), Tag::Int(i))).collect::<horizon_core::nbt::Compound>()
+            .map(|i| (JavaString::from(i.to_string().as_str()), Tag::Int(i)))
+            .collect::<horizon_core::nbt::Compound>()
     });
     assert_covers_live_layout("nested maps and spare child capacities", || {
         let mut outer = horizon_core::nbt::Compound::new();
@@ -100,6 +125,14 @@ fn opaque_map_charges_cover_independently_observed_live_layouts() {
                 map.remove(&JavaString::from(i.to_string().as_str()));
             }
         }
+        map
+    });
+    assert_covers_live_layout("allocated then emptied NBT compound", || {
+        let mut map = horizon_core::nbt::Compound::new();
+        for i in 0..128 {
+            map.insert(JavaString::from(i.to_string().as_str()), Tag::Int(i));
+        }
+        map.clear();
         map
     });
     assert_covers_live_layout("retained empty root", || {

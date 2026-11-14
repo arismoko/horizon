@@ -311,7 +311,9 @@ impl<'a> JsonTag<'a> {
                 }
                 Work::Object(keys) => {
                     let values = done.split_off(done.len() - keys.len());
-                    done.push(Value::Object(keys.into_iter().zip(values.into_iter().rev()).collect()));
+                    done.push(Value::Object(
+                        keys.into_iter().zip(values.into_iter().rev()).collect(),
+                    ));
                 }
             }
         }
@@ -402,12 +404,16 @@ mod tests {
             r#"{"BB":0,"Aa":3,"BB":{"BB":1,"Aa":2}}"#,
         ] {
             let value: Value = serde_json::from_str(source).unwrap();
-            let Tag::Compound(root) = json_to_tag(&value).unwrap() else { panic!("compound") };
+            let Tag::Compound(root) = json_to_tag(&value).unwrap() else {
+                panic!("compound")
+            };
             assert_eq!(
                 root.keys().map(|key| key.0.clone()).collect::<Vec<_>>(),
                 [vec![66, 66], vec![65, 97]],
             );
-            let Some(Tag::Compound(nested)) = root.get(&"BB".into()) else { panic!("compound") };
+            let Some(Tag::Compound(nested)) = root.get(&"BB".into()) else {
+                panic!("compound")
+            };
             assert_eq!(
                 nested.keys().map(|key| key.0.clone()).collect::<Vec<_>>(),
                 [vec![66, 66], vec![65, 97]],

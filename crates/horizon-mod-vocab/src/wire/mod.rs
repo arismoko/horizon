@@ -1059,7 +1059,10 @@ impl Wire for horizon_core::nbt::Compound {
     const MIN: usize = 4;
     fn layout(visiting: &mut Vec<&'static str>) -> u64 {
         layout_mix(
-            layout_mix(Self::LAYOUT_SEED, horizon_core::nbt::JavaString::layout(visiting)),
+            layout_mix(
+                Self::LAYOUT_SEED,
+                horizon_core::nbt::JavaString::layout(visiting),
+            ),
             crate::Tag::layout(visiting),
         )
     }

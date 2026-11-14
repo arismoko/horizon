@@ -212,7 +212,10 @@ mod ceiling_tests {
         for bottom in ["false", "true"] {
             for code in 0..81 {
                 let mut n = code;
-                let mut props = horizon_core::nbt::Compound::from([("bottom".into(), Tag::String(bottom.into()))]);
+                let mut props = horizon_core::nbt::Compound::from([(
+                    "bottom".into(),
+                    Tag::String(bottom.into()),
+                )]);
                 for side in ["north", "east", "south", "west"] {
                     props.insert(
                         side.into(),
@@ -226,7 +229,7 @@ mod ceiling_tests {
                 ]));
             }
         }
-        let mut defaults: BTreeMap<_, _> = names
+        let mut defaults: horizon_core::nbt::Compound = names
             .iter()
             .enumerate()
             .map(|(i, name)| ((*name).into(), Tag::Int(i as i32)))

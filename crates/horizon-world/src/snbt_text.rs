@@ -49,14 +49,16 @@ impl Utf8Output {
     fn escaped_surrogate(&mut self, unit: u16) {
         self.value.push_str("\\u");
         for shift in [12, 8, 4, 0] {
-            self.value.push(char::from(HEX[usize::from((unit >> shift) & 15)]));
+            self.value
+                .push(char::from(HEX[usize::from((unit >> shift) & 15)]));
         }
     }
     fn unit(&mut self, unit: u16) {
         if let Some(high) = self.high.take() {
             if (0xdc00..=0xdfff).contains(&unit) {
                 let scalar = 0x10000 + (u32::from(high - 0xd800) << 10) + u32::from(unit - 0xdc00);
-                self.value.push(char::from_u32(scalar).expect("surrogate pair"));
+                self.value
+                    .push(char::from_u32(scalar).expect("surrogate pair"));
                 return;
             }
             self.escaped_surrogate(high);
@@ -66,7 +68,8 @@ impl Utf8Output {
         } else if (0xdc00..=0xdfff).contains(&unit) {
             self.escaped_surrogate(unit);
         } else {
-            self.value.push(char::from_u32(u32::from(unit)).expect("non-surrogate UTF-16"));
+            self.value
+                .push(char::from_u32(u32::from(unit)).expect("non-surrogate UTF-16"));
         }
     }
     fn finish(mut self) -> String {
@@ -85,17 +88,29 @@ pub fn quote_and_escape(input: &str) -> String {
 }
 
 fn unquoted_key(key: &[u16]) -> bool {
-    let ascii_lower = |unit: u16| if (65..=90).contains(&unit) { unit + 32 } else { unit };
+    let ascii_lower = |unit: u16| {
+        if (65..=90).contains(&unit) {
+            unit + 32
+        } else {
+            unit
+        }
+    };
     for reserved in [b"true".as_slice(), b"false".as_slice()] {
         if key.len() == reserved.len()
-            && key.iter().zip(reserved).all(|(&unit, &byte)| ascii_lower(unit) == u16::from(byte))
+            && key
+                .iter()
+                .zip(reserved)
+                .all(|(&unit, &byte)| ascii_lower(unit) == u16::from(byte))
         {
             return false;
         }
     }
     let letter = |unit| (65..=90).contains(&unit) || (97..=122).contains(&unit);
-    key.first().is_some_and(|&unit| letter(unit) || matches!(unit, 46 | 95))
-        && key.iter().all(|&unit| letter(unit) || (48..=57).contains(&unit) || matches!(unit, 46 | 95 | 43 | 45))
+    key.first()
+        .is_some_and(|&unit| letter(unit) || matches!(unit, 46 | 95))
+        && key.iter().all(|&unit| {
+            letter(unit) || (48..=57).contains(&unit) || matches!(unit, 46 | 95 | 43 | 45)
+        })
 }
 
 /// UI-only UTF-8 projection; lossless serialization uses the UTF-16 visitor.
@@ -154,7 +169,9 @@ fn integer(value: i64, sink: &mut impl FnMut(u16)) {
 
 fn compound_entry(key: &JavaString, value: &Tag, sink: &mut impl FnMut(u16)) {
     if unquoted_key(&key.0) {
-        for &unit in &key.0 { sink(unit); }
+        for &unit in &key.0 {
+            sink(unit);
+        }
     } else {
         quoted_units(key.0.iter().copied(), sink);
     }
@@ -190,7 +207,9 @@ fn visit(tag: &Tag, sink: &mut impl FnMut(u16)) {
         Tag::ByteArray(values) => {
             ascii("[B;", sink);
             for (i, value) in values.iter().enumerate() {
-                if i != 0 { sink(44); }
+                if i != 0 {
+                    sink(44);
+                }
                 integer(i64::from(*value as i8), sink);
                 sink(66);
             }
@@ -199,7 +218,9 @@ fn visit(tag: &Tag, sink: &mut impl FnMut(u16)) {
         Tag::IntArray(values) => {
             ascii("[I;", sink);
             for (i, value) in values.iter().enumerate() {
-                if i != 0 { sink(44); }
+                if i != 0 {
+                    sink(44);
+                }
                 integer(i64::from(*value), sink);
             }
             sink(93);
@@ -207,7 +228,9 @@ fn visit(tag: &Tag, sink: &mut impl FnMut(u16)) {
         Tag::LongArray(values) => {
             ascii("[L;", sink);
             for (i, value) in values.iter().enumerate() {
-                if i != 0 { sink(44); }
+                if i != 0 {
+                    sink(44);
+                }
                 integer(*value, sink);
                 sink(76);
             }
@@ -216,7 +239,9 @@ fn visit(tag: &Tag, sink: &mut impl FnMut(u16)) {
         Tag::List(values) => {
             sink(91);
             for (i, value) in values.iter().enumerate() {
-                if i != 0 { sink(44); }
+                if i != 0 {
+                    sink(44);
+                }
                 visit(value, sink);
             }
             sink(93);
@@ -228,9 +253,11 @@ fn visit(tag: &Tag, sink: &mut impl FnMut(u16)) {
                 compound_entry(key, value, sink);
             } else {
                 let mut entries: Vec<_> = values.iter().collect();
-                entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+                entries.sort_unstable_by_key(|(key, _)| *key);
                 for (i, (key, value)) in entries.into_iter().enumerate() {
-                    if i != 0 { sink(44); }
+                    if i != 0 {
+                        sink(44);
+                    }
                     compound_entry(key, value, sink);
                 }
             }
@@ -283,13 +310,18 @@ mod tests {
         let tag = Tag::String(JavaString(vec![
             0, 8, 9, 10, 11, 12, 13, 31, 34, 39, 92, 0xd800, 0xd83d, 0xde00, 0xdc00,
         ]));
-        let mut expected: Vec<u16> = "'\\x00\\b\\t\\n\\x0B\\f\\r\\x1F\"\\'\\\\".encode_utf16().collect();
+        let mut expected: Vec<u16> = "'\\x00\\b\\t\\n\\x0B\\f\\r\\x1F\"\\'\\\\"
+            .encode_utf16()
+            .collect();
         expected.extend([0xd800, 0xd83d, 0xde00, 0xdc00, 39]);
         assert_eq!(to_snbt_utf16(&tag).0, expected);
         let mut streamed = Vec::new();
         write_snbt_utf16(&tag, |unit| streamed.push(unit));
         assert_eq!(streamed, expected);
-        assert_eq!(to_snbt(&tag), "'\\x00\\b\\t\\n\\x0B\\f\\r\\x1F\"\\'\\\\\\uD800\u{1f600}\\uDC00'");
+        assert_eq!(
+            to_snbt(&tag),
+            "'\\x00\\b\\t\\n\\x0B\\f\\r\\x1F\"\\'\\\\\\uD800\u{1f600}\\uDC00'"
+        );
     }
 
     #[test]

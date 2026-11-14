@@ -66,7 +66,9 @@ impl<'a> Iterator for CompoundIter<'a> {
         self.inner.as_mut()?.next()
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.as_ref().map_or((0, Some(0)), Iterator::size_hint)
+        self.inner
+            .as_ref()
+            .map_or((0, Some(0)), Iterator::size_hint)
     }
 }
 impl ExactSizeIterator for CompoundIter<'_> {}
@@ -82,7 +84,9 @@ impl Iterator for CompoundIntoIter {
         self.inner.as_mut()?.next()
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.as_ref().map_or((0, Some(0)), Iterator::size_hint)
+        self.inner
+            .as_ref()
+            .map_or((0, Some(0)), Iterator::size_hint)
     }
 }
 impl ExactSizeIterator for CompoundIntoIter {}
@@ -100,11 +104,19 @@ impl<'a> CompoundEntry<'a> {
     pub fn or_insert_with(self, make: impl FnOnce() -> Tag) -> &'a mut Tag {
         if self.map.0.is_none() {
             let value = make();
-            return self.map.0.insert(Box::new(JavaHashMap::default()))
-                .entry(self.key).or_insert(value);
+            return self
+                .map
+                .0
+                .insert(Box::new(JavaHashMap::default()))
+                .entry(self.key)
+                .or_insert(value);
         }
-        self.map.0.as_deref_mut().expect("allocated map")
-            .entry(self.key).or_insert_with(make)
+        self.map
+            .0
+            .as_deref_mut()
+            .expect("allocated map")
+            .entry(self.key)
+            .or_insert_with(make)
     }
 }
 
@@ -128,7 +140,9 @@ impl Compound {
         self.get(key).is_some()
     }
     pub fn insert(&mut self, key: JavaString, value: Tag) -> Option<Tag> {
-        self.0.get_or_insert_with(|| Box::new(JavaHashMap::default())).put(key, value)
+        self.0
+            .get_or_insert_with(|| Box::new(JavaHashMap::default()))
+            .put(key, value)
     }
     pub fn remove(&mut self, key: &JavaString) -> Option<Tag> {
         self.0.as_deref_mut()?.remove(key)
@@ -142,7 +156,9 @@ impl Compound {
         CompoundEntry { map: self, key }
     }
     pub fn iter(&self) -> CompoundIter<'_> {
-        CompoundIter { inner: self.0.as_deref().map(JavaHashMap::entries) }
+        CompoundIter {
+            inner: self.0.as_deref().map(JavaHashMap::entries),
+        }
     }
     pub fn keys(&self) -> impl ExactSizeIterator<Item = &JavaString> {
         self.iter().map(|(key, _)| key)
@@ -171,10 +187,17 @@ impl Compound {
         })
     }
     fn clone_with(&self, mut clone_value: impl FnMut(&Tag) -> Tag) -> Self {
-        Self(self.0.as_deref().map(|map| Box::new(map.clone_with(&mut clone_value))))
+        Self(
+            self.0
+                .as_deref()
+                .map(|map| Box::new(map.clone_with(&mut clone_value))),
+        )
     }
     fn values_in_storage_order(&self) -> impl Iterator<Item = &Tag> {
-        self.0.as_deref().into_iter().flat_map(JavaHashMap::values_in_storage_order)
+        self.0
+            .as_deref()
+            .into_iter()
+            .flat_map(JavaHashMap::values_in_storage_order)
     }
 }
 impl Clone for Compound {
@@ -190,7 +213,9 @@ impl std::fmt::Debug for Compound {
 impl PartialEq for Compound {
     fn eq(&self, other: &Self) -> bool {
         self.len() == other.len()
-            && self.iter().all(|(key, value)| other.get(key) == Some(value))
+            && self
+                .iter()
+                .all(|(key, value)| other.get(key) == Some(value))
     }
 }
 impl Eq for Compound {}
@@ -229,7 +254,9 @@ impl IntoIterator for Compound {
     type Item = (JavaString, Tag);
     type IntoIter = CompoundIntoIter;
     fn into_iter(self) -> Self::IntoIter {
-        CompoundIntoIter { inner: self.0.map(|map| (*map).into_iter()) }
+        CompoundIntoIter {
+            inner: self.0.map(|map| (*map).into_iter()),
+        }
     }
 }
 impl<'a> IntoIterator for &'a Compound {
@@ -317,7 +344,11 @@ fn clone_tree(root: &Tag, java_copy: bool) -> Tag {
     match root {
         Tag::List(values) if values.is_empty() => return root.clone(),
         Tag::Compound(values) if values.is_empty() => {
-            return if java_copy { Tag::Compound(Compound::new()) } else { root.clone() };
+            return if java_copy {
+                Tag::Compound(Compound::new())
+            } else {
+                root.clone()
+            };
         }
         Tag::List(_) | Tag::Compound(_) => {}
         _ => return root.clone(),
@@ -1553,7 +1584,10 @@ mod tests {
         let wire = [
             10, 3, 0, 2, 66, 66, 0, 0, 0, 3, 3, 0, 2, 65, 97, 0, 0, 0, 2, 0,
         ];
-        assert_eq!(write_network(&Tag::Compound(parsed.clone()), Limits::default()).unwrap(), wire);
+        assert_eq!(
+            write_network(&Tag::Compound(parsed.clone()), Limits::default()).unwrap(),
+            wire
+        );
         let (Tag::Compound(decoded), used) = read_network(&wire, Limits::default()).unwrap() else {
             panic!("compound");
         };
@@ -2057,40 +2091,63 @@ mod tests {
     fn string_tree_bins_and_ordered_mutation_match_java25_runtime() {
         // Independent Temurin 25.0.5+8 HashMap<String, Integer> oracle.
         let keys = [
-            "AaAaAaAa", "AaAaAaBB", "AaAaBBAa", "AaAaBBBB",
-            "AaBBAaAa", "AaBBAaBB", "AaBBBBAa", "AaBBBBBB",
-            "BBAaAaAa", "BBAaAaBB", "BBAaBBAa", "BBAaBBBB",
-            "BBBBAaAa", "BBBBAaBB", "BBBBBBAa", "BBBBBBBB",
+            "AaAaAaAa", "AaAaAaBB", "AaAaBBAa", "AaAaBBBB", "AaBBAaAa", "AaBBAaBB", "AaBBBBAa",
+            "AaBBBBBB", "BBAaAaAa", "BBAaAaBB", "BBAaBBAa", "BBAaBBBB", "BBBBAaAa", "BBBBAaBB",
+            "BBBBBBAa", "BBBBBBBB",
         ];
         let mut map = Compound::new();
         let order = |map: &Compound| {
-            map.keys().map(|key| key.to_string().unwrap()).collect::<Vec<_>>().join(",")
+            map.keys()
+                .map(|key| key.to_string().unwrap())
+                .collect::<Vec<_>>()
+                .join(",")
         };
         for (i, key) in keys.into_iter().enumerate() {
             map.insert(key.into(), Tag::Int(i as i32));
             match i + 1 {
-                11 => assert_eq!(order(&map), "AaAaBBBB,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa"),
-                12 => assert_eq!(order(&map), "AaAaBBBB,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBAaBBBB"),
+                11 => assert_eq!(
+                    order(&map),
+                    "AaAaBBBB,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa"
+                ),
+                12 => assert_eq!(
+                    order(&map),
+                    "AaAaBBBB,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBAaBBBB"
+                ),
                 _ => {}
             }
         }
-        assert_eq!(order(&map), "AaAaBBBB,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
+        assert_eq!(
+            order(&map),
+            "AaAaBBBB,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB"
+        );
         assert_eq!(map.remove(&"AaAaBBBB".into()), Some(Tag::Int(3)));
         let expected = "AaBBAaAa,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB";
         assert_eq!(order(&map), expected);
         let root = Tag::Compound(map);
         for retained in [root.clone(), clone_tag(&root)] {
-            let Tag::Compound(mut retained) = retained else { panic!("compound") };
+            let Tag::Compound(mut retained) = retained else {
+                panic!("compound")
+            };
             assert_eq!(retained.remove(&"AaAaAaAa".into()), Some(Tag::Int(0)));
             retained.insert("AaAaAaAa".into(), Tag::Int(0));
-            assert_eq!(order(&retained), "BBAaBBBB,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
+            assert_eq!(
+                order(&retained),
+                "BBAaBBBB,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB"
+            );
         }
-        let Tag::Compound(mut copy) = copy_tag(&root) else { panic!("compound") };
+        let Tag::Compound(mut copy) = copy_tag(&root) else {
+            panic!("compound")
+        };
         assert_eq!(order(&copy), expected);
         assert_eq!(copy.remove(&"AaAaAaAa".into()), Some(Tag::Int(0)));
         copy.insert("AaAaAaAa".into(), Tag::Int(0));
-        assert_eq!(order(&copy), "BBAaAaAa,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
-        let Tag::Compound(mut map) = root else { panic!("compound") };
+        assert_eq!(
+            order(&copy),
+            "BBAaAaAa,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB"
+        );
+        let Tag::Compound(mut map) = root else {
+            panic!("compound")
+        };
         let mut visited = Vec::new();
         map.for_each_mut(|key, value| {
             visited.push(key.to_string().unwrap());
@@ -2106,14 +2163,26 @@ mod tests {
             r#"{"minecraft:custom_data":{BB:"first",Aa:"second"},"!minecraft:custom_data":{}}"#,
             r#"{"!minecraft:custom_data":{},"minecraft:custom_data":{BB:"first",Aa:"second"}}"#,
         ] {
-            let Tag::Compound(mut map) = parse_snbt(source).unwrap().0 else { panic!("compound") };
-            let order = |map: &Compound| map.keys().map(|key| key.to_string().unwrap()).collect::<Vec<_>>();
-            assert_eq!(order(&map), ["!minecraft:custom_data", "minecraft:custom_data"]);
+            let Tag::Compound(mut map) = parse_snbt(source).unwrap().0 else {
+                panic!("compound")
+            };
+            let order = |map: &Compound| {
+                map.keys()
+                    .map(|key| key.to_string().unwrap())
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                order(&map),
+                ["!minecraft:custom_data", "minecraft:custom_data"]
+            );
             let Some(Tag::Compound(nested)) = map.get(&"minecraft:custom_data".into()) else {
                 panic!("nested data");
             };
             assert_eq!(order(nested), ["BB", "Aa"]);
-            assert_eq!(map.get(&"!minecraft:custom_data".into()), Some(&Tag::Compound(Compound::new())));
+            assert_eq!(
+                map.get(&"!minecraft:custom_data".into()),
+                Some(&Tag::Compound(Compound::new()))
+            );
             for i in 0..31 {
                 map.insert(format!("k{i}").as_str().into(), Tag::Int(i));
             }
@@ -2125,16 +2194,19 @@ mod tests {
 
     #[test]
     fn entry_after_removal_and_retain_keep_java_collision_history() {
-        let mut map = Compound::from([
-            ("BB".into(), Tag::Int(1)),
-            ("Aa".into(), Tag::Int(2)),
-        ]);
+        let mut map = Compound::from([("BB".into(), Tag::Int(1)), ("Aa".into(), Tag::Int(2))]);
         map.remove(&"BB".into());
         *map.entry("BB".into()).or_insert_with(|| Tag::Int(3)) = Tag::Int(4);
-        *map.entry("Aa".into()).or_insert_with(|| panic!("occupied value")) = Tag::Int(5);
+        *map.entry("Aa".into())
+            .or_insert_with(|| panic!("occupied value")) = Tag::Int(5);
         assert_eq!(
-            map.iter().map(|(key, value)| (key.to_string().unwrap(), value.clone())).collect::<Vec<_>>(),
-            [("Aa".to_owned(), Tag::Int(5)), ("BB".to_owned(), Tag::Int(4))],
+            map.iter()
+                .map(|(key, value)| (key.to_string().unwrap(), value.clone()))
+                .collect::<Vec<_>>(),
+            [
+                ("Aa".to_owned(), Tag::Int(5)),
+                ("BB".to_owned(), Tag::Int(4))
+            ],
         );
         let mut visited = Vec::new();
         map.retain(|key, value| {

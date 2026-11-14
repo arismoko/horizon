@@ -1564,11 +1564,10 @@ impl crate::wire::Wire for crate::Holder {
 impl crate::wire::Wire for crate::AttachmentForm {
     layout_fields!("encoded" => Option<horizon_core::nbt::Compound>, "policy" => crate::AttachmentPolicy, "write" => crate::AttachmentWrite);
     const LAYOUT_SEED: u64 = crate::wire::layout_name("AttachmentForm");
-    const MIN: usize = <::std::option::Option<
-        horizon_core::nbt::Compound,
-    > as crate::wire::Wire>::MIN
-        + <crate::AttachmentPolicy as crate::wire::Wire>::MIN
-        + <crate::AttachmentWrite as crate::wire::Wire>::MIN;
+    const MIN: usize =
+        <::std::option::Option<horizon_core::nbt::Compound> as crate::wire::Wire>::MIN
+            + <crate::AttachmentPolicy as crate::wire::Wire>::MIN
+            + <crate::AttachmentWrite as crate::wire::Wire>::MIN;
     fn put(&self, out: &mut crate::wire::Writer) {
         out.put(&self.encoded);
         out.put(&self.policy);

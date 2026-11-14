@@ -1142,13 +1142,19 @@ impl Game<'_> {
         let key = (p[0], p[1], p[2]);
         let name = self.data_block_name(p);
         let e = self.world.block_entities.get(&key)?;
-        let pending = self.world.chunks
+        let pending = self
+            .world
+            .chunks
             .get(&(key.0 >> 4, key.2 >> 4))
             .and_then(|chunk| chunk.saved.as_ref())
             .and_then(|saved| saved.pending_loot.get(&key));
         Some(save::block_entity_encode::data(
-            key, e, &name, self.world.block_lock(key),
-            self.world.block_names.get(&key), pending,
+            key,
+            e,
+            &name,
+            self.world.block_lock(key),
+            self.world.block_names.get(&key),
+            pending,
             (name == "minecraft:hopper").then(|| self.hopper_cooldown(key)),
         ))
     }
@@ -2571,7 +2577,15 @@ mod bell_command_identity_tests {
             }
             // No raw input: factory/model and the real common writer supply metadata.
             let fresh = BlockEntity::for_block("minecraft:bell").unwrap();
-            let tag = save::block_entity_encode::data((-3, 204, 11), &fresh, "minecraft:bell", None, None, None, None);
+            let tag = save::block_entity_encode::data(
+                (-3, 204, 11),
+                &fresh,
+                "minecraft:bell",
+                None,
+                None,
+                None,
+                None,
+            );
             assert_eq!(tag.get("x"), Some(&Tag::Int(-3)));
             assert_eq!(tag.get("y"), Some(&Tag::Int(204)));
             assert_eq!(tag.get("z"), Some(&Tag::Int(11)));

@@ -68,6 +68,12 @@ command above to inspect the selection rather than relying on historical counts.
 | 39 | Benchmarks (34) | `L/benchmark.rs`, `tools/perf_bench.py`, `crates/horizon-system/`, `crates/horizon-bench/` | `python3 -m unittest tests.test_perf_bench`; [benchmark.md](benchmark.md) |
 | 40 | Explosions and TNT (31) | `G/entities/explosion.rs`, `G/entities/tnt.rs`, `G/blocks/nether_portal.rs`, `G/entities/vehicle_teleport.rs` | sulfur_portal_blast (calculator oracle; actual portal, `/tp` and mod cross-level arrivals, immediate item merges, transient TNT portal protection and disk reset); lan_e2e blast |
 
+NBT compounds (`crates/horizon-core/src/nbt.rs` and `java_hash_map.rs`) retain Java map
+traversal, including collision and mutation history. Rust `Clone` preserves that history;
+use `nbt::copy_tag` for Java `CompoundTag.copy` semantics. Reads must not reconstruct maps.
+Block-entity writers construct superclass/subclass fields before adding metadata, rather
+than repairing a completed compound and changing its traversal.
+
 Portal arrival regressions run with `python3 tools/test_sulfur_portal_blast_parity.py`
 and prepared 26.3 resources in `HORIZON_TEST_RESOURCES`. The harness supplies private
 game/XDG/launcher homes and serializes the gameplay tests. To use an already built

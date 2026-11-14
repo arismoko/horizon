@@ -8,7 +8,6 @@ pub use horizon_world::snbt_text::{quote_and_escape, to_snbt};
 
 // ---- the coloured form -----------------------------------------------------
 
-
 struct Pretty {
     indentation: String,
     result: Text,
