@@ -222,9 +222,12 @@ fn conditions_skip_winning_definitions_before_decode_but_not_tag_layers() {
     // Definitions obey conditions; tags ignore them, including replace.
     assert_eq!(
         catalog.tags["minecraft:bypasses_armor"],
-        [catalog.id("minecraft:starve").unwrap()]
+        std::collections::BTreeSet::from([catalog.id("minecraft:starve").unwrap()])
     );
-    assert_eq!(catalog.tags.get("demo:absent"), Some(&Vec::new()));
+    assert_eq!(
+        catalog.tags.get("demo:absent"),
+        Some(&std::collections::BTreeSet::new())
+    );
 }
 
 #[test]
