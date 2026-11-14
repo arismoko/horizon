@@ -86,42 +86,81 @@ pub enum LogicalSide {
     Client,
     Server,
 }
-/// Operations on the clicked slot, including its placement and take rules.
-pub trait SlotView {
-    fn item(&self) -> Option<ItemStack>;
-    /// Test placement without imposing resident stack count or damage maxima.
-    /// Unknown item identities or unrepresentable component payloads still refuse.
-    fn may_place(&self, stack: &ItemStack) -> bool;
-    fn may_pickup(&self) -> bool;
-    fn allow_modification(&self) -> bool;
-    fn safe_insert(&mut self, stack: Option<ItemStack>, count: u32) -> Option<ItemStack>;
-    fn safe_take(&mut self, count: u32, max: u32) -> Option<ItemStack>;
-}
-// no wire: borrowed call-scoped view; transport uses owned snapshots rather than serializing references.
-/// Access to the carried stack, as `createCarriedSlotAccess`.
-// exhaustive: the game builds it with a literal; mods only read it
-pub struct CarriedAccess<'a>(#[doc(hidden)] pub &'a mut Option<ItemStack>);
-impl CarriedAccess<'_> {
-    pub fn get(&self) -> Option<&ItemStack> {
-        self.0.as_ref()
-    }
-    pub fn set(&mut self, stack: Option<ItemStack>) {
-        *self.0 = stack;
-    }
-}
-// no wire: borrowed call-scoped view; transport uses owned snapshots rather than serializing references.
-/// A pickup click's slot and cursor, including empty stacks.
-// exhaustive: the game builds it with a literal; mods only read it
-pub struct StackedOnOther<'a> {
+/// A pickup click on a menu slot, as `item_stacked_on_other` is asked about it: the stacks are the
+/// ones the click found, frozen before any listener ran. A listener answers through
+/// [`StackedOnOtherResult`]; it does not write these.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct StackedOnOther {
+    /// The clicking player's UUID, when a player is clicking.
     pub player: Option<u128>,
+    /// The clicking player's entity id, when a player is clicking.
     pub player_entity_id: Option<i32>,
+    /// The clicked slot's menu index.
     pub slot: usize,
+    /// Which container the slot is in, as the menu numbers them.
     pub container: usize,
+    /// The slot's index in that container.
     pub container_slot: usize,
+    /// A left-button click (a right-button click is not primary).
     pub primary: bool,
-    pub carried: CarriedAccess<'a>,
-    pub clicked: &'a mut dyn SlotView,
-    pub cancellation_result: bool,
+    /// The stack on the cursor, `None` when it is empty.
+    pub carried: Option<ItemStack>,
+    /// The stack in the clicked slot, `None` when it is empty.
+    pub clicked: Option<ItemStack>,
+}
+impl StackedOnOther {
+    /// The click `slot` (menu index) of `container`'s slot `container_slot`, with the stacks it found.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        player: Option<u128>,
+        player_entity_id: Option<i32>,
+        slot: usize,
+        container: usize,
+        container_slot: usize,
+        primary: bool,
+        carried: Option<ItemStack>,
+        clicked: Option<ItemStack>,
+    ) -> Self {
+        Self {
+            player,
+            player_entity_id,
+            slot,
+            container,
+            container_slot,
+            primary,
+            carried,
+            clicked,
+        }
+    }
+}
+/// What a listener does to a stack the click found.
+#[derive(Clone, Debug, Default, PartialEq)]
+// exhaustive: a stack is left alone or replaced, nothing else
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum StackResult {
+    /// Leave the stack as the click found it.
+    #[default]
+    Keep,
+    /// Replace the stack: `None` empties it.
+    Set(Option<ItemStack>),
+}
+/// A listener's answer to [`StackedOnOther`], validated once and applied once. Setting a stack is
+/// allowed only on a cancelled click that is also `handled` (the listener did the click's work
+/// itself); on any other the click is refused and nothing changes. A replaced stack must be a
+/// valid stack (a known item, a count of at least one within the item's maximum).
+#[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct StackedOnOtherResult {
+    /// `ItemStackedOnOtherEvent.setCancellationResult`: on a cancelled click, whether the click
+    /// is done (`true`: the listener's work is all of it) or the plain pickup still runs.
+    pub handled: bool,
+    /// The cursor after the click.
+    pub carried: StackResult,
+    /// The clicked slot after the click.
+    pub clicked: StackResult,
 }
 /// What `AnvilUpdateEvent` asks about once `createResult` made vanilla's
 /// result with a left input, and what the mods may change: the `output`,

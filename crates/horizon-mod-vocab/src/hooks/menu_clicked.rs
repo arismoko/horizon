@@ -7,7 +7,9 @@ pub trait Hooks {
     /// inventory, `native_menu_inventory_slot`; -999 outside), the `button`
     /// and the click's `mode` (`ClickType`'s id) of the player `uuid`.
     /// No player's state is swapped in: the menu helpers take the player's
-    /// UUID.
+    /// UUID. The mods are told inside an action: what a listener writes
+    /// through the `Host` stays when it returns, and is undone, with the rest
+    /// of the action, when a listener fails (panics or traps).
     #[hook(
         side = "server",
         contract = "listen",

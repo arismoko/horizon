@@ -504,11 +504,15 @@ fn __horizon_mod_hooks() -> Box<dyn Hooks> {
         }
         fn item_stacked_on_other(
             &self,
-            _: &dyn LoopContext,
-            event: &mut mod_api::ItemStackedOnOtherEvent<'_, '_>,
+            _: mod_api::HostSide,
+            event: &mut mod_api::ItemStackedOnOtherEvent<'_>,
         ) -> mod_api::Flow {
-            *event.event.carried.0 = None;
-            event.event.cancellation_result = true;
+            // A cancelled, handled click that moves the cursor's stack into the slot.
+            use mod_api::item::menu::StackResult;
+            event.result.handled = true;
+            event.result.clicked = StackResult::Set(event.event.carried.clone());
+            event.result.carried = StackResult::Set(None);
+            event.cancelled = true;
             mod_api::Flow::Continue
         }
         fn living_jump_power(
@@ -1470,28 +1474,55 @@ fn wire_loopback_nested_tuple_reference_writes_back() {
         corrupt: false,
     };
     install_counter();
-    let mut carried = Some(mod_api::ItemStack::new(REGISTERED_ITEM.get().unwrap(), 1).unwrap());
-    let mut clicked = guest::Guest;
-    let mut stack = mod_api::StackedOnOther {
-        player: None,
-        player_entity_id: None,
-        slot: 0,
-        container: 0,
-        container_slot: 0,
-        primary: true,
-        carried: mod_api::item::menu::CarriedAccess(&mut carried),
-        clicked: &mut clicked,
-        cancellation_result: false,
+    struct Client;
+    impl mod_api::Host for Client {}
+    mod_api::impl_host_areas!(Client);
+    impl mod_api::ClientHost for Client {}
+    mod_api::impl_client_host_areas!(Client);
+    use mod_api::item::menu::{StackResult, StackedOnOther, StackedOnOtherResult};
+    let stone = mod_api::ItemStack::new(REGISTERED_ITEM.get().unwrap(), 3).unwrap();
+    let event = StackedOnOther::new(Some(7), Some(9), 2, 0, 2, true, Some(stone.clone()), None);
+    let mut result = StackedOnOtherResult::default();
+    let mut event = mod_api::ItemStackedOnOtherEvent {
+        event: &event,
+        result: &mut result,
+        cancelled: false,
     };
-    module.item_stacked_on_other(
-        &Context,
-        &mut mod_api::ItemStackedOnOtherEvent {
-            event: &mut stack,
-            cancelled: false,
-        },
-    );
-    assert!(stack.carried.0.is_none());
-    assert!(stack.cancellation_result);
+    // The typed answer crosses the boundary both ways: the frozen stacks in, the stacks out.
+    let flow = module.item_stacked_on_other(mod_api::HostSide::Client(&mut Client), &mut event);
+    assert!(matches!(flow, mod_api::Flow::Continue));
+    assert!(event.cancelled);
+    assert!(result.handled);
+    assert_eq!(result.carried, StackResult::Set(None));
+    assert_eq!(result.clicked, StackResult::Set(Some(stone.clone())));
+    // Side by side with the same listener run natively (no wire): the same outcome.
+    struct Native;
+    #[mod_api::__subscriptions]
+    impl Hooks for Native {
+        fn item_stacked_on_other(
+            &self,
+            _: mod_api::HostSide,
+            event: &mut mod_api::ItemStackedOnOtherEvent<'_>,
+        ) -> mod_api::Flow {
+            event.result.handled = true;
+            event.result.clicked = StackResult::Set(event.event.carried.clone());
+            event.result.carried = StackResult::Set(None);
+            event.cancelled = true;
+            mod_api::Flow::Continue
+        }
+    }
+    let frozen = StackedOnOther::new(Some(7), Some(9), 2, 0, 2, true, Some(stone), None);
+    let mut direct = StackedOnOtherResult::default();
+    let mut native_event = mod_api::ItemStackedOnOtherEvent {
+        event: &frozen,
+        result: &mut direct,
+        cancelled: false,
+    };
+    let native_flow =
+        Native.item_stacked_on_other(mod_api::HostSide::Client(&mut Client), &mut native_event);
+    assert!(matches!(native_flow, mod_api::Flow::Continue));
+    assert!(native_event.cancelled);
+    assert_eq!(direct, result);
 }
 thread_local! {
     static REGISTERED_ITEM:std::cell::Cell<Option<mod_api::ItemKey>> = const {std::cell::Cell::new(None)};

@@ -45,9 +45,27 @@ type ComposterRandoms =
 pub(super) struct OpenTransactions {
     levels: Vec<Level>,
     closing: Option<TransactionLifecycle>,
+    /// How many writes the journals have been asked to keep, ever: a whole-state epoch that no
+    /// restore moves back. A decision that read a player's inventory or a container's slots
+    /// compares it before and after its listeners ran; an equal rewrite counts as a write.
+    writes: u64,
+    /// The same count for a player's own state only (inventory, cursor, menu storage): what a
+    /// decision that must stay open to other writes (a mod's move into another block) reads.
+    player_writes: u64,
     composter_epoch: Option<mod_api::WorldEpoch>,
     /// Each composter port owns its transactional random stream, independently of Level.random.
     composter_randoms: ComposterRandoms,
+}
+
+impl OpenTransactions {
+    /// The journaled-write epoch.
+    pub(in crate::game) fn writes(&self) -> u64 {
+        self.writes
+    }
+    /// The journaled-write epoch of players' own state.
+    pub(in crate::game) fn player_writes(&self) -> u64 {
+        self.player_writes
+    }
 }
 
 impl std::ops::Deref for OpenTransactions {
@@ -566,6 +584,7 @@ impl Game<'_> {
     /// Keeps the block entity at `pos` as it is, with its attachments and a hopper's
     /// cooldown, if a transaction is open and hasn't yet.
     pub(super) fn journal_block_entity(&mut self, pos: Pos) {
+        self.transactions.writes = self.transactions.writes.wrapping_add(1);
         let Some(level) = self.transactions.last_mut() else {
             return;
         };
@@ -621,6 +640,7 @@ impl Game<'_> {
     /// the entity's slot list (a mod's list shorter than its container) is a write that grows
     /// the list: the entity is kept whole instead, length and all.
     pub(super) fn journal_block_entity_slot(&mut self, pos: Pos, slot: usize) {
+        self.transactions.writes = self.transactions.writes.wrapping_add(1);
         let exists = self
             .world
             .block_entities
@@ -700,6 +720,8 @@ impl Game<'_> {
     /// Keeps the inventory of the player whose state is in `Game` now, `uuid`, as it is, if a
     /// transaction is open and hasn't yet. Called inside `native_as_player`.
     pub(super) fn journal_player(&mut self, uuid: u128) {
+        self.transactions.player_writes = self.transactions.player_writes.wrapping_add(1);
+        self.transactions.writes = self.transactions.writes.wrapping_add(1);
         let Some(level) = self.transactions.last_mut() else {
             return;
         };
@@ -758,6 +780,8 @@ impl Game<'_> {
     }
     /// Keeps `player`'s menu storage as it is, if a transaction is open and hasn't yet.
     pub(super) fn journal_menus(&mut self, player: mod_api::PlayerRef) {
+        self.transactions.player_writes = self.transactions.player_writes.wrapping_add(1);
+        self.transactions.writes = self.transactions.writes.wrapping_add(1);
         let Some(level) = self.transactions.last() else {
             return;
         };
@@ -780,6 +804,7 @@ impl Game<'_> {
     }
     /// Keeps entity `id`'s inventory as it is, if a transaction is open and hasn't yet.
     pub(super) fn journal_entity(&mut self, id: u32) {
+        self.transactions.writes = self.transactions.writes.wrapping_add(1);
         if self.transactions.is_empty() {
             return;
         }

@@ -20,8 +20,8 @@ use horizon_world::native_load_context::{LoopContext, LoopSide};
 pub use mod_api::item::menu::{LogicalSide, MenuButtonContext};
 mod models;
 pub use models::{
-    AnvilCraft, AnvilUpdate, AnvilVanilla, CarriedAccess, GrindstonePlace, GrindstoneTake,
-    SlotRules, SlotView, StackedOnOther,
+    AnvilCraft, AnvilUpdate, AnvilVanilla, GrindstonePlace, GrindstoneTake, PlanningRules,
+    RuleAnswers, SlotRules, SlotView, StackedClick, StackedOutcome, StoredRules,
 };
 use std::sync::Arc;
 
@@ -124,6 +124,9 @@ pub struct Env<'a> {
     /// The mods' `menu_slot_rules`, lent by the game with the read-only `Host` behind it (none
     /// keeps every slot's own answer: a data-only consumer, or a click made without the game).
     pub slot_rules: Option<&'a dyn SlotRules>,
+    /// What the mods decided about this pickup click (`item_stacked_on_other`), made by the game
+    /// before the click (none: no listener, so the plain click).
+    pub stacked: Option<&'a StackedOutcome>,
 }
 
 /// The maps of the level a menu is in.
@@ -321,85 +324,6 @@ struct Slot {
     container: usize,
     index: usize,
     role: Role,
-}
-
-struct MenuSlotView<'a, 'e> {
-    menu: &'a mut Menu,
-    env: &'a Env<'e>,
-    slot: usize,
-}
-
-impl SlotView for MenuSlotView<'_, '_> {
-    fn with_staged(&mut self, edit: &mut dyn FnMut(&mut dyn SlotView) -> bool) -> bool {
-        let mut menu = self.menu.clone();
-        let mut run = |maps: Option<&dyn Maps>, maker: Option<&dyn crate::merchant::MapMaker>| {
-            let trade = self.env.trade.map(|trade| crate::merchant::TradeEnv {
-                maps: maker,
-                ..*trade
-            });
-            let env = Env {
-                maps,
-                trade: trade.as_ref(),
-                ..*self.env
-            };
-            edit(&mut MenuSlotView {
-                menu: &mut menu,
-                env: &env,
-                slot: self.slot,
-            })
-        };
-        let mut with_maps = |maker: Option<&dyn crate::merchant::MapMaker>| match self.env.maps {
-            Some(maps) => maps.with_staged(&mut |maps| run(Some(maps), maker)),
-            None => run(None, maker),
-        };
-        let accepted = match self.env.trade.and_then(|trade| trade.maps) {
-            Some(maker) => maker.with_staged(&mut |maker| with_maps(Some(maker))),
-            None => with_maps(None),
-        };
-        if accepted {
-            self.menu.install_state(menu);
-        }
-        accepted
-    }
-    fn items(&self) -> &crate::items::Items {
-        self.env.items
-    }
-
-    fn item(&self) -> Option<ItemStack> {
-        self.menu.slot(self.slot).cloned()
-    }
-    fn may_place(&self, stack: &ItemStack) -> bool {
-        self.menu.may_place(self.env, self.slot, stack)
-    }
-    fn may_pickup(&self) -> bool {
-        self.menu.may_pickup(self.env, self.slot)
-    }
-    fn allow_modification(&self) -> bool {
-        if self.menu.slot(self.slot).is_some() {
-            self.menu.allow_modification(self.env, self.slot)
-        } else {
-            let empty = ItemStack::new("minecraft:air", 0);
-            self.may_pickup() && self.may_place(&empty)
-        }
-    }
-    fn safe_insert(&mut self, mut stack: Option<ItemStack>, count: u32) -> Option<ItemStack> {
-        self.menu
-            .safe_insert(self.env, self.slot, &mut stack, count);
-        stack
-    }
-    fn safe_take(&mut self, count: u32, max: u32) -> Option<ItemStack> {
-        self.menu.safe_take(self.env, self.slot, count, max)
-    }
-}
-
-/// NeoForge's `ItemStackedOnOtherEvent`, before either item override.
-#[inline(never)]
-pub fn native_item_stacked_on_other(
-    context: &LoopContext,
-    event: &mut StackedOnOther<'_>,
-    canceled: &mut bool,
-) {
-    crate::native_client_hooks::item_stacked_on_other(context, event, canceled);
 }
 
 /// `BeaconBlockEntity.BEACON_EFFECTS`: the powers of each pyramid level.
@@ -3399,56 +3323,11 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: None,
             slot_rules: None,
+            stacked: None,
         };
         let mut menu = Menu::new(kind);
         menu.creative = true;
         test(&env, &mut menu);
-    }
-
-    #[test]
-    #[ignore = "requires prepared resources"]
-    fn staged_slot_refusal_restores_contents_and_on_take_side_effects() {
-        let mut ran = false;
-        with_menu(Kind::Brewing, |env, menu| {
-            ran = true;
-            let potion = ItemStack::new("minecraft:potion", 1);
-            for take in [false, true] {
-                for accepted in [false, true] {
-                    *menu = Menu::new(Kind::Brewing);
-                    menu.brewed_potion_hook = true;
-                    if take {
-                        menu.set_slot(env, 0, Some(potion.clone()));
-                    }
-                    let committed = MenuSlotView { menu, env, slot: 0 }.with_staged(&mut |slot| {
-                        if take {
-                            assert_eq!(slot.safe_take(1, 1), Some(potion.clone()));
-                        } else {
-                            assert!(slot.safe_insert(Some(potion.clone()), 1).is_none());
-                        }
-                        accepted
-                    });
-                    assert_eq!(committed, accepted);
-                    assert_eq!(menu.slot(0), (take != accepted).then_some(&potion));
-                    assert_eq!(
-                        menu.brewed_potion_takes.as_slice(),
-                        if take && accepted {
-                            std::slice::from_ref(&potion)
-                        } else {
-                            &[]
-                        }
-                    );
-                    assert_eq!(
-                        menu.brewed.as_slice(),
-                        if take && accepted {
-                            std::slice::from_ref(&potion)
-                        } else {
-                            &[]
-                        }
-                    );
-                }
-            }
-        });
-        assert!(ran, "prepared menu fixture was not loaded");
     }
 
     #[test]
@@ -3548,6 +3427,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: None,
             slot_rules: None,
+            stacked: None,
         };
         let mut fuel = ItemStack::new("minecraft:stone", 2);
         fuel.data_mut().set_loot_component(
@@ -3597,6 +3477,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: None,
             slot_rules: None,
+            stacked: None,
         };
         for (input, payment) in [
             (Input::Pickup, 8),
@@ -3818,6 +3699,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: None,
             slot_rules: Some(&rules),
+            stacked: None,
         });
     }
 
@@ -4229,44 +4111,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn listener_safe_take_consumes_crafting_inputs() {
-        with_menu(Kind::Crafting, |env, menu| {
-            menu.creative = false;
-            menu.set_slot(env, 1, stack("oak_log", 1));
-            menu.settle(env);
-            let mut view = MenuSlotView { menu, env, slot: 0 };
-            let mut carried = None;
-            let mut event = StackedOnOther {
-                player: None,
-                player_entity_id: None,
-                slot: 0,
-                container: MAIN,
-                container_slot: 0,
-                primary: true,
-                carried: CarriedAccess(&mut carried),
-                clicked: &mut view,
-                cancellation_result: false,
-            };
-            let listener = |event: &mut StackedOnOther<'_>| {
-                event.carried.set(event.clicked.safe_take(4, 4));
-            };
-            listener(&mut event);
-            assert_eq!(carried, stack("oak_planks", 4));
-            assert!(menu.slot(1).is_none());
-            let mut grid = vec![None; 9];
-            grid[0] = stack("oak_log", 1);
-            assert_eq!(
-                menu.item_crafted,
-                vec![(
-                    "minecraft:oak_planks".to_owned(),
-                    stack("oak_planks", 4).unwrap(),
-                    grid
-                )]
-            );
-        });
-    }
-
-    #[test]
     fn quick_move_landing_routes_plain_containers() {
         for (kind, size) in [
             (Kind::Hopper, 5),
@@ -4425,9 +4269,6 @@ pub(crate) mod tests {
                 // still never ask it, because it is not a mod menu type.
                 menu_still_valid_listens: |menu| {
                     matches!(menu, "test:rules" | "minecraft:generic_9x3")
-                },
-                item_stacked_on_other: |context, _, canceled| {
-                    *canceled = context.setting("rules_mod", "stack").is_some();
                 },
                 living_heal: |context, _, amount, cancel| {
                     if context.setting("rules_mod", "stack").is_some() {
@@ -4594,30 +4435,6 @@ pub(crate) mod tests {
         });
         // The other loop hooks read the same context: before the reload the
         // setting is missing, after it every one sees it.
-        let stacked_on_other = |context: &LoopContext, menu: &mut Menu| {
-            let mut canceled = false;
-            bare_env_in(context, |env| {
-                let mut carried = None;
-                let mut view = MenuSlotView {
-                    menu: &mut *menu,
-                    env,
-                    slot: 0,
-                };
-                let mut event = StackedOnOther {
-                    player: None,
-                    player_entity_id: None,
-                    slot: 0,
-                    container: MAIN,
-                    container_slot: 0,
-                    primary: true,
-                    carried: CarriedAccess(&mut carried),
-                    clicked: &mut view,
-                    cancellation_result: false,
-                };
-                native_item_stacked_on_other(context, &mut event, &mut canceled);
-            });
-            canceled
-        };
         let name = |context: &LoopContext| {
             let mut displayname = crate::text::Text::literal("Alex");
             crate::lan::hub::native_player_name_format(
@@ -4637,10 +4454,8 @@ pub(crate) mod tests {
             );
             display_name.map(|text| text.plain())
         };
-        assert!(!stacked_on_other(&before, &mut menu));
         assert_eq!(name(&before), "Alex");
         assert_eq!(tab_list(&before), None);
-        assert!(stacked_on_other(&after, &mut menu));
         assert_eq!(name(&after), "3");
         assert_eq!(tab_list(&after), Some("3".to_owned()));
         // The motion value hooks read it too, and change nothing without it.
@@ -4957,6 +4772,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: None,
             slot_rules: None,
+            stacked: None,
         };
         // Both a pick-up onto the cursor and a shift-click into the inventory.
         for input in [Input::Pickup, Input::QuickMove] {
@@ -5048,6 +4864,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: None,
             slot_rules: None,
+            stacked: None,
         };
         let menu = &mut Menu::new(mod_menu());
         {
@@ -5455,6 +5272,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: None,
             slot_rules: None,
+            stacked: None,
         };
 
         let mut menu = Menu::new(Kind::Inventory);
@@ -5511,6 +5329,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: Some(&known),
             slot_rules: None,
+            stacked: None,
         };
 
         let mut menu = Menu::new(Kind::Inventory);
@@ -5567,6 +5386,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: Some(&known),
             slot_rules: None,
+            stacked: None,
         };
 
         let mut menu = Menu::new(Kind::Inventory);
@@ -5627,6 +5447,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: Some(&known),
             slot_rules: None,
+            stacked: None,
         };
 
         let mut menu = Menu::new(Kind::Inventory);
@@ -5677,6 +5498,7 @@ pub(crate) mod tests {
             can_equip: None,
             known_recipes: None,
             slot_rules: None,
+            stacked: None,
         };
         let potion = ItemStack::new("minecraft:potion", 1);
         let mut seen = Vec::new();

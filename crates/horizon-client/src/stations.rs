@@ -2217,6 +2217,7 @@ mod tests {
             can_equip: None,
             known_recipes: None,
             slot_rules: None,
+            stacked: None,
         };
         let mut menu = menu::Menu::new(menu::Kind::Smithing);
         menu.set_slot(&env, 1, Some(base));

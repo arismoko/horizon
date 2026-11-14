@@ -1414,7 +1414,7 @@ clicks already.
 
 `dyn LoopContext` is the read-only view for a hook fired inside a menu, recipe or
 player-list loop, where no game is at hand (a catalog entry names it with
-`"context": "loop"`; `item_stacked_on_other`, `player_name_format`,
+`"context": "loop"`; `player_name_format`,
 `player_tab_list_name_format`, `living_jump_power`, `living_speed`, `living_flying_speed`, `living_heal`, `living_breathe`, `living_drown`, `living_fall`, `farmland_trample`, `living_jump`, `ender_entity_teleport`, `fluid_flow`, `player_stays_on_ground_surface`, `block_jump_factor`, `block_speed_factor`, `friction`, `ingredient_test` and the sound hooks below take it). `side()` is `LoopSide::Server` or
 `LoopSide::Client`, `registry(name)` borrows names in registry ID order,
 `setting(mod_id, key)` returns a loaded mod's setting captured when the context was
@@ -1425,10 +1425,10 @@ start and again after each resource reload, and a server builds one when it star
 mods and again on each `/reload`, so a reload captures fresh settings. A LAN or dedicated server's hub holds the server's
 current one, so its Tab list and chat names, and the clicks of its players, see it too.
 
-`item_stacked_on_other(context, event, canceled)` is NeoForge's `ItemStackedOnOtherEvent`, fired inside a pickup click on
-either side. The event no longer carries a side: `context.side()` says it. `player_name_format(context, username,
+`item_stacked_on_other(host, event, result, canceled)` is NeoForge's `ItemStackedOnOtherEvent`, fired inside a pickup click on
+either side with the game's `Host` and the click frozen in `event`; see its hook documentation. `player_name_format(context, username,
 displayname)` and `player_tab_list_name_format(context, player, name, display_name)` format a player's name for chat and
-commands (both sides) and for the Tab list (server). All three are contract version `2`: a mod written for `1` takes the
+commands (both sides) and for the Tab list (server). The name hooks are contract version `2`: a mod written for `1` takes the
 context as a new first argument of the `Hooks` method, and reads the side from it instead of `event.side`.
 
 `ingredient_test(context, kind, data, stack, accept)` is the match-time half of a mod's own ingredient kind: it runs when recipe matching tests a concrete stack against the kind, with `accept` already true. `context` is the loop context of the side that matches: the server's for the server's crafting grids, furnaces, stations and recipe tables, the client's for the client's own grid prediction, recipe book and ghost recipes. It fires inside recipe matching, so it takes no `Host` (a deferred call would reorder matching). Matching passes the context explicitly from the game or menu environment that holds it; there is no global. A mod reads an ingredient with `Ingredient::test(host, stack)` (`&dyn Host`, as handle reads do): the game answers with its own loop context, a mod never builds one, and the old `test(stack)` is gone. `Ingredient` is plain data. `ingredient` (load, `DataLoadContext`) and `ingredient_test` stay separate hooks and the load path is unchanged. Contract version `2`: a mod written for `1` takes the context as a new first argument of the `Hooks` method. With no listener the cost is one `listened` branch per test; the context is one pointer, with no allocation. Recipe matching tests every slot change on both sides (per tick for a furnace) and on each click.

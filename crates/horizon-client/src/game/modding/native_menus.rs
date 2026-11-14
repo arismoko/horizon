@@ -379,7 +379,7 @@ impl Game<'_> {
                     slot,
                     button,
                     mode,
-                } => self.native_menu_clicked(uuid, window, slot, button, mode),
+                } => self.menu_clicked_decided(uuid, window, slot, button, mode),
                 NativeMenuEvent::Closed { uuid, window } => self.native_menu_closed(uuid, window),
             }
         }

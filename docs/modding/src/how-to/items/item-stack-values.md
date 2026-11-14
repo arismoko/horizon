@@ -77,8 +77,12 @@ edits retain those captured engine values. Consuming mutable events such as `bon
 `item_after_vertical_collision` lend `Option<ItemStack>` so a listener can consume the value by
 setting `None`.
 
-The `item_stacked_on_other` bridge commits its clicked slot, cursor and cancellation flags as
-one unit, including the menu's slot-operation queues and map-id reservations. The block-entity
+The `item_stacked_on_other` hook does not lend the slot: it hands the listener the cursor and
+the clicked slot's stack, frozen, and takes a typed answer (`StackedOnOtherResult`: `handled`, and
+`StackResult::Keep` or `Set` for the cursor and the slot) that the game validates once and applies
+once. A stack can be set only by a cancelled click that is also `handled`; any other answer that
+sets one is refused. A write through the `Host` to what the click read makes the click stale: it is
+refused and every write the listener made is undone. The block-entity
 tick, menu-button and menu-quick-move bridges validate their captured snapshot outputs together
 before applying them. These are output guarantees, not whole-world transactions: independent
 `ServerHost` storage writes, commands, messages and other effects are not rolled back on a

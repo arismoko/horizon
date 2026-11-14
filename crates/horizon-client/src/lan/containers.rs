@@ -783,6 +783,86 @@ impl Hub {
         })
     }
 
+    /// The cursor and the stack in menu slot `slot` of guest `conn`'s open menu, as a click on it
+    /// finds them now: what a decision compares with the stacks it froze.
+    pub fn click_stacks(
+        &self,
+        conn: u32,
+        slot: usize,
+        world: &World,
+    ) -> Option<(Option<ItemStack>, Option<ItemStack>)> {
+        let i = self.guests.iter().position(|g| g.conn == conn)?;
+        Some((
+            self.guests[i].carried.clone(),
+            self.view_slot(i, world, slot),
+        ))
+    }
+
+    /// The pickup click `p` as `item_stacked_on_other` is asked about it, on the container the
+    /// first step read: the stacks it finds. `None` for a click that never asks.
+    pub fn stacked_click(
+        &mut self,
+        prepared: &mut PreparedClick,
+        p: &play::ContainerClick,
+    ) -> Option<crate::menu::StackedClick> {
+        if p.input != menu::input::PICKUP {
+            return None;
+        }
+        let loop_context = &self.loop_context;
+        self.guests.update(prepared.i, |guest| {
+            View {
+                guest,
+                container: prepared.items.as_deref_mut(),
+                shulker: prepared.shulker,
+                container_limits: Vec::new(),
+                hidden: &prepared.hidden,
+                loop_context,
+            }
+            .stacked_click(i32::from(p.slot), i32::from(p.button))
+        })
+    }
+
+    /// Run the click `p` on the prepared state to see what it would ask of `rules`, then put
+    /// everything it touched back: the guest's slots and cursor, the container's slots and the
+    /// drag. Only what `rules` kept of the asks remains.
+    pub fn plan_click(
+        &mut self,
+        prepared: &mut PreparedClick,
+        p: &play::ContainerClick,
+        rules: &dyn Rules,
+    ) {
+        let loop_context = &self.loop_context;
+        self.guests.update(prepared.i, |guest| {
+            let kept = (
+                guest.inventory.clone(),
+                guest.armor.clone(),
+                guest.offhand.clone(),
+                guest.carried.clone(),
+                guest.craft_grid.clone(),
+                guest.craft_result.clone(),
+            );
+            let (items, drag) = (prepared.items.clone(), prepared.drag.clone());
+            let _ = menu::click(
+                &mut View {
+                    guest,
+                    container: prepared.items.as_deref_mut(),
+                    shulker: prepared.shulker,
+                    container_limits: prepared.container_limits.clone(),
+                    hidden: &prepared.hidden,
+                    loop_context,
+                },
+                &mut prepared.drag,
+                i32::from(p.slot),
+                i32::from(p.button),
+                p.input,
+                rules,
+            );
+            (guest.inventory, guest.armor, guest.offhand) = (kept.0, kept.1, kept.2);
+            (guest.carried, guest.craft_grid, guest.craft_result) = (kept.3, kept.4, kept.5);
+            (prepared.items, prepared.drag) = (items, drag);
+        });
+    }
+
     /// The last step: the container's slots back into the world, the unfinished drag back on the
     /// menu, and the client told what it got wrong. Returns the stacks the click threw out.
     pub fn finish_click(

@@ -45,7 +45,6 @@ pub(super) const IMPORTS: &[&str] = &[
     "RenderAssets",
     "InstanceGroups",
     "Tags",
-    "item::menu::SlotView",
     "Registrar",
     "CapabilityProviders",
     "TicketValidation",
