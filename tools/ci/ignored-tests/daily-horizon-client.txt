@@ -26,6 +26,11 @@ horizon-client game::mounts::tests::feeding_a_mount_draws_from_its_own_random_an
 horizon-client game::native_block_entity_transform_tests::structure_transform_placement_rotations_mirrors_unset_and_refusal lib daily child-process
 horizon-client game::native_entity_selectors::tests::nearest_teammate_filters_before_limit_and_drops_false_and_panicking_candidates lib daily game-boot
 horizon-client game::native_entity_selectors::tests::synced_selector_tokens_survive_client_registry_refresh lib daily game-boot
+horizon-client game::native_explosion_resistance_tests::a_batched_read_answers_each_cell_in_order lib daily resources
+horizon-client game::native_explosion_resistance_tests::a_block_state_reads_the_resistance_its_block_declares lib daily resources
+horizon-client game::native_explosion_resistance_tests::a_cell_reads_what_a_blast_meets_there lib daily resources
+horizon-client game::native_explosion_resistance_tests::a_reads_calculator_is_the_one_the_blasts_rays_use lib daily resources
+horizon-client game::native_explosion_resistance_tests::a_two_layer_box_reads_y_after_z_after_x lib daily resources
 horizon-client game::native_server::network_settings_tests::server_settings_follow_the_network_config lib daily slow
 horizon-client game::natural_spawning::tests::spawn_candidates_match_the_uncached_union_while_players_move lib daily slow
 horizon-client game::server_reload::tests::datapack_publication_tests::data_map_first_open_uses_staged_membership lib daily resources

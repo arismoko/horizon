@@ -97,6 +97,76 @@ its own source and cause and leaves the other blast's as they were.
 handle, a `source` that is stale, names no entity or is a player in another
 level, a chunk that isn't loaded, or a radius outside `0 < radius <= 32`.
 
+## Reading explosion resistance
+
+Three reads tell a mod what a blast would meet without setting one off, as a
+mod that casts its own rays and breaks blocks over several ticks needs.
+
+`host.block_states().explosion_resistance(state)` is the value the block of
+`state` declares (`Block.getExplosionResistance`): stone 6, obsidian 1200,
+bedrock 3,600,000, water 100, a content block's `explosion_resistance`. It is a
+Horizon addition, readable on both sides: vanilla only reads it at a position.
+Parts and fluids don't change it. `None` for an unknown state.
+
+`level.explosion_resistance(host, pos, source, center, radius, fire,
+interaction)` is what the blast `level.explode(host, source, center, radius,
+fire, interaction)` would meet in the cell at `pos`, on the server, by the rule
+its rays use. The answer is typed, because no resistance is not a resistance of
+0: a ray loses only its fixed step in a cell with no resistance.
+
+| `ExplosionResistance` | When |
+| --- | --- |
+| `Resists(r)` | The larger of the block's answer (its parts' `explosion_resistance` first, then its own value) and the fluid's (water and lava 100) |
+| `NoResistance` | Air with no fluid, or void air above and below the level |
+| `Unavailable` | A stale level or `source`, a chunk that isn't loaded, or a state the game doesn't know |
+
+A read never loads a chunk. The blast's calculator is the one `explode` gives
+the same source, chosen once for both: as vanilla's
+`EntityBasedExplosionDamageCalculator` asks the source itself,
+
+- a primed TNT minecart's rails and the blocks under them resist 0, and its
+  blast spares them;
+- a dangerous wither skull caps a block it may destroy at 0.8;
+- any other source, and no source, has the default calculator.
+
+A respawn anchor's water cell belongs to the anchor's own blast, which has no
+source and no description a mod can give, so no read sees it. Parts are asked
+with the `ExplosionStart` the blast would have: its causing entity and damage
+type come from `source` as for `explode`.
+
+`level.explosion_resistances(host, &cells, source, center, radius, fire,
+interaction)` reads many cells in one call, one answer a cell in the order
+`cells` gives:
+
+| `ResistanceCells` | Order |
+| --- | --- |
+| `Box { min, max }` | Every cell, both corners included: x fastest, then z, then y |
+| `Columns { columns, min_y, max_y }` | Each column in the order given, from `min_y` up to `max_y` |
+
+A read of more than `ResistanceCells::MAX` (262,144) cells, or of an inverted
+area, is refused with `ResistanceCellsError` and reads nothing. It runs on the
+server tick, so read a big area in pieces. A block's parts are asked once a
+cell, unless every part on the block that answers `explosion_resistance`
+declares its answer pure:
+
+```rust
+#[mod_api::horizon_part]
+impl BlockPart for Reinforced {
+    fn explosion_resistance(&self, _: &dyn LevelHost, _: &mut ExplosionResistanceEvent<'_>) -> Option<f32> {
+        Some(5000.0)
+    }
+    fn explosion_resistance_is_pure(&self) -> bool {
+        true
+    }
+}
+```
+
+Then a batched read asks them once a state per call; one part that doesn't
+declare it keeps the whole block at once a cell. Declare it only when the
+answer depends on nothing but the state and the explosion; either way the
+answer stays a pure function of its inputs, since a ray asks once as it enters
+a block.
+
 ## Entities that destroy blocks
 
 `can_entity_destroy(host, event)` answers whether `event.entity` may destroy the
