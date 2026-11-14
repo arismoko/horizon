@@ -6310,11 +6310,11 @@ impl Game<'_> {
     /// ClientPacketListener.handleMovePlayer.
     fn remote_teleport(&mut self, p: &play::PlayerPosition) -> Result<()> {
         use play::relative as rel;
-        let current = self
+        let (had_player, current) = self
             .player
             .as_ref()
-            .map(|pl| pl.position)
-            .unwrap_or(Vec3::ZERO);
+            .map(|pl| (true, pl.position))
+            .unwrap_or((false, Vec3::ZERO));
         let velocity = self
             .player
             .as_ref()
@@ -6339,8 +6339,7 @@ impl Game<'_> {
             (yaw, pitch),
             p,
         );
-        // BlockStatePredictionHandler.onTeleport: a prediction made before this
-        // one keeps its block but not the player position it remembered.
+        // BlockStatePredictionHandler.onTeleport: a prior prediction keeps its block, not its remembered player position.
         if let Some(r) = self.remote.as_mut() {
             r.last_teleport_sequence = r.sequence;
         }
@@ -6392,6 +6391,7 @@ impl Game<'_> {
                 self.apply_remote_abilities();
             }
         }
+        entity_section_steps::player_teleport(self, had_player, current, position);
         if !self.replay.playing() {
             self.previous_position = position;
         }

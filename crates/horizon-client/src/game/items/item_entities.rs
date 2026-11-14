@@ -96,20 +96,6 @@ impl Game<'_> {
             for splash in entered {
                 self.apply_item_splash(splash);
             }
-            let from = item.previous;
-            let to = item.position;
-            if !discarded && round.sections() {
-                let live = self.entity_section_step_visible(
-                    items[i].id,
-                    [from.x, from.y, from.z],
-                    [to.x, to.y, to.z],
-                );
-                if !live {
-                    removed[i] = true;
-                    cells.remove(i, to);
-                    continue;
-                }
-            }
             let item = &mut items[i];
             if discarded {
                 removed[i] = true;
@@ -181,6 +167,20 @@ impl Game<'_> {
                 removed[i] = true;
                 cells.remove(i, item.position);
                 continue;
+            }
+            let from = item.previous;
+            let to = item.position;
+            if round.sections() {
+                let live = self.entity_section_step_visible(
+                    item.id,
+                    [from.x, from.y, from.z],
+                    [to.x, to.y, to.z],
+                );
+                if !live {
+                    removed[i] = true;
+                    cells.remove(i, to);
+                    continue;
+                }
             }
             let item_id = item.id;
             let saved = native_components::ITEM_ENVIRONMENT_DAMAGE

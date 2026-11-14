@@ -766,7 +766,11 @@ impl Game<'_> {
             let (id, from, to) = (r.id, r.previous, r.position);
             self.rockets.insert(i, r);
             self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
-            i += 1;
+            i = self
+                .rockets
+                .iter()
+                .position(|rocket| rocket.id == id)
+                .map_or(i, |index| index + 1);
         }
     }
     /// `FireworkRocketEntity.explode` and `dealExplosionDamage`.

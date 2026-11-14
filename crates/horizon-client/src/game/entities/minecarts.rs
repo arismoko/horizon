@@ -2147,7 +2147,7 @@ impl Game<'_> {
         let id = self.carts[i].id;
         let result =
             self.with_entity_held_out(id, |game| section_steps::tick_riding(game, id, i, intent));
-        let Some((i, alive, cart_step, player_step)) = result else {
+        let Some((_, alive, cart_step, player_step)) = result else {
             return true;
         };
         section_steps::tell(self, id, cart_step);
@@ -2156,7 +2156,9 @@ impl Game<'_> {
         // the rider, and getDismountLocationForPassenger places it beside the
         // cart instead of leaving it at the seat.
         if alive && self.riding.is_none() {
-            self.dismount_cart(i);
+            if let Some(i) = self.carts.iter().position(|cart| cart.id == id) {
+                self.dismount_cart(i);
+            }
         }
         true
     }
