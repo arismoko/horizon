@@ -50,6 +50,16 @@ macro_rules! define_upward {
         }
 
         #[unsafe(no_mangle)]
+        pub fn horizon_up_goal_move_to(
+            mob: &mut $crate::__private::Mob,
+            w: &$crate::__private::MobWorld<'_>,
+            at: [f64; 3],
+            speed: f64,
+        ) -> bool {
+            $crate::goal::move_to(mob, w, at, speed)
+        }
+
+        #[unsafe(no_mangle)]
         pub fn horizon_up_goal_pick(
             game: &$game,
             mob: &$crate::__private::Mob,

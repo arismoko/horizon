@@ -164,3 +164,15 @@ impl LevelWrite for Game<'_> {
         self.level_set_block(level, pos, state, flags)
     }
 }
+
+/// Slice proof (compile only): a goal body that writes the level while its mob is lent. The
+/// mob is a `&mut Mob` the tick took out of `Game::mobs`, the level is `&mut Game` itself.
+#[cfg(test)]
+#[allow(dead_code)]
+fn lent_mob_writes_the_level(
+    game: &mut Game<'_>,
+    mob: &mut crate::mobs::Mob,
+    state: BlockStateId,
+) -> Result<bool, LevelWriteError> {
+    mod_answers::goal::mob_places_block_below(mob, game, "minecraft:overworld", state)
+}

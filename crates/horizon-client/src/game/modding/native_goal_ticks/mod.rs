@@ -334,12 +334,7 @@ impl GoalCxBackend for GoalCx<'_, '_, '_> {
     }
 
     fn move_to(&mut self, at: [f64; 3], speed: f64) -> bool {
-        // The navigation handle's own boundary: numbers the pathfinder does
-        // not take refuse here as they refuse there.
-        if !super::native_mob_navigation::navigation_move_accepts(at, speed) {
-            return false;
-        }
-        self.m.nav_move_to(self.w, at, speed)
+        crate::game::host::upward::horizon_up_goal_move_to(self.m, self.w, at, speed)
     }
 
     fn stop_navigation(&mut self) {

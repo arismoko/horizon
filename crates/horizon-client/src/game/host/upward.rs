@@ -19,6 +19,13 @@ unsafe extern "Rust" {
         kind: &str,
         canceled: &mut bool,
     );
+    /// A mod goal's `move_to` on its own mob, which the tick lends as `&mut Mob`.
+    pub(in crate::game) safe fn horizon_up_goal_move_to(
+        mob: &mut Mob,
+        w: &MobWorld<'_>,
+        at: [f64; 3],
+        speed: f64,
+    ) -> bool;
     /// A mod goal's `entity_pick` for the mob in hand, over the level the game lends.
     pub(in crate::game) safe fn horizon_up_goal_pick(
         game: &Game<'_>,
