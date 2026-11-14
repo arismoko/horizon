@@ -416,8 +416,10 @@ pub struct Selector {
     pub player_name: Option<String>,
     /// The entity UUID when the argument was one.
     pub uuid: Option<u128>,
-    /// 'p', 'a', 'r', 's', 'e', 'n'.
+    /// 'p', 'a', 'r', 's', 'e', 'n'; 'e' for a mod's token.
     pub kind: char,
+    /// The mod's selector token (`allies` for `@allies`), whose type filters the candidates.
+    pub token: Option<String>,
     pub limit: usize,
     pub sort: Sort,
     pub include_entities: bool,
