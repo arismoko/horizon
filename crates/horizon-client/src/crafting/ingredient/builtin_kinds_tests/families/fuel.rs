@@ -846,3 +846,4 @@ fn brewing_fuel_codec_compiles_recipes_and_borrows_live_values() {
         );
     }
 }
+
