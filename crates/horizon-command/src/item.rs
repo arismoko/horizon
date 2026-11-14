@@ -109,7 +109,9 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
     if id == "minecraft:cooking_fuel" {
         return horizon_items::item_data::cooking_fuel::decode(value);
     }
-    if id == "minecraft:use_cooldown" { return use_cooldown(value); }
+    if id == "minecraft:use_cooldown" {
+        return use_cooldown(value);
+    }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
         let Tag::Compound(_) = value else {
@@ -158,7 +160,8 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
                     .expect("validated numeric nutrition") as i32,
             ),
         )]),
-        "minecraft:custom_model_data" => horizon_items::item_data::custom_model_data::decode(value).expect("validated custom model data"),
+        "minecraft:custom_model_data" => horizon_items::item_data::custom_model_data::decode(value)
+            .expect("validated custom model data"),
         "minecraft:enchantments" | "minecraft:stored_enchantments" => {
             let Tag::Compound(entries) = value else {
                 unreachable!("validated enchantment map")
@@ -184,7 +187,12 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
-        "minecraft:custom_model_data" => horizon_items::item_data::custom_model_data::valid(t).then_some(()).ok_or_else(|| "Expected custom model data record with floats, flags, strings and colors lists".into()),
+        "minecraft:custom_model_data" => horizon_items::item_data::custom_model_data::valid(t)
+            .then_some(())
+            .ok_or_else(|| {
+                "Expected custom model data record with floats, flags, strings and colors lists"
+                    .into()
+            }),
         "minecraft:use_cooldown" => use_cooldown(t).map(|_| ()),
         "minecraft:cooking_fuel" => horizon_items::item_data::cooking_fuel::decode(t).map(|_| ()),
         "minecraft:brewing_fuel" => horizon_items::item_data::brewing_fuel::decode(t).map(|_| ()),

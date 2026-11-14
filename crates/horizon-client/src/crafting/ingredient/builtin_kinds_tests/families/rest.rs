@@ -1941,6 +1941,33 @@ fn next_component_codecs_reject_bad_records_preserve_siblings_and_presence() {
     let context = load.loop_context(LoopSide::Server, []);
     for (id, valid, malformed) in [
         (
+            "minecraft:use_cooldown",
+            json!({"seconds":1,"ignored":true}),
+            vec![
+                json!({}),
+                json!({"seconds":null}),
+                json!({"seconds":0}),
+                json!({"seconds":-0.0}),
+                json!({"seconds":-1}),
+                json!({"seconds":1e100}),
+                json!({"seconds":1,"cooldown_group":7}),
+                json!({"seconds":1,"cooldown_group":"bad group"}),
+            ],
+        ),
+        (
+            "minecraft:custom_model_data",
+            json!({"floats":[1],"flags":[true],"strings":["x"],"colors":[[1,0,0]],"ignored":true}),
+            vec![
+                json!({"floats":1}),
+                json!({"floats":["1"]}),
+                json!({"flags":true}),
+                json!({"flags":["true"]}),
+                json!({"strings":[1]}),
+                json!({"colors":[[1,0]]}),
+                json!({"colors":["red"]}),
+            ],
+        ),
+        (
             "minecraft:cooking_fuel",
             json!({"burn_time":-5,"speed_multiplier":-2,"ignored":true}),
             vec![
@@ -2045,6 +2072,11 @@ fn next_component_codecs_reject_bad_records_preserve_siblings_and_presence() {
         let mut loose_source = source(valid.clone());
         loose_source["strict"] = json!(false);
         let loose = Ingredient::parse(&loose_source, &items).unwrap();
+        for malformed in [Tag::End, Tag::Byte(0), Tag::List(vec![])] {
+            let mut candidate = ItemStack::new("minecraft:paper", 1);
+            candidate.data_mut().set_other(id, Some(malformed));
+            assert!(!loose.test_in(&context, &candidate), "{id}");
+        }
         let removal_id = format!("!{id}");
         let absence_source = json!({"type":"neoforge:components","items":"minecraft:paper","components":{removal_id.clone():{}}});
         let absent = Ingredient::parse(&absence_source, &items).unwrap();

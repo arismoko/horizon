@@ -908,3 +908,45 @@ fn use_cooldown_recipe_decodes_record_and_matches_borrowed_values() {
         );
     }
 }
+
+#[test]
+fn use_cooldown_literal_float_bounds_and_missing_seconds() {
+    let items = Items::empty();
+    for seconds in [
+        Tag::Float(0),
+        Tag::Float((-0.0_f32).to_bits()),
+        Tag::Float(f32::INFINITY.to_bits()),
+        Tag::Float(f32::NEG_INFINITY.to_bits()),
+        Tag::Float(f32::NAN.to_bits()),
+        Tag::Int(-1),
+    ] {
+        assert!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:use_cooldown",
+                &Tag::compound([("seconds", seconds)]),
+                &items.component_registry
+            )
+            .is_err()
+        );
+    }
+    for seconds in [f32::from_bits(1), f32::MAX] {
+        let raw = Tag::compound([("seconds", Tag::Float(seconds.to_bits()))]);
+        assert_eq!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:use_cooldown",
+                &raw,
+                &items.component_registry
+            )
+            .unwrap(),
+            raw
+        );
+    }
+    assert!(
+        horizon_command::item::decoded_component_value(
+            "minecraft:use_cooldown",
+            &Tag::compound([("cooldown_group", Tag::String("shared".into()))]),
+            &items.component_registry
+        )
+        .is_err()
+    );
+}
