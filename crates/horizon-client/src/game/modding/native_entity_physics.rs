@@ -9,7 +9,7 @@
 //! constructors set.
 use super::{Game, commands::Target};
 use horizon_client::mobs::Species;
-use horizon_client::projectiles::ProjectileKind;
+use horizon_client::projectiles::{Projectile, ProjectileKind};
 use mod_api::EntityRef;
 
 impl Game<'_> {
@@ -149,6 +149,14 @@ impl Game<'_> {
         self.forget_entity(id);
     }
 
+    /// A player's blow takes a projectile out at `i` (`hit_shulker_bullet`):
+    /// the `noPhysics` write stored for a shulker bullet leaves with it.
+    pub(super) fn remove_projectile_at(&mut self, i: usize) -> Projectile {
+        let p = self.creatures.projectiles.remove(i);
+        self.forget_entity(p.id);
+        p
+    }
+
     /// A command drops an ominous item spawner: its stored `noPhysics` write
     /// leaves with it.
     pub(super) fn remove_ominous_spawner(&mut self, id: u32) {
@@ -185,6 +193,13 @@ impl Game<'_> {
     /// A breath cloud expiring inside a `retain_mut`: forget its stored
     /// `noPhysics` write and refuse it, in one call.
     pub(super) fn forget_expired_cloud(&mut self, id: u32) -> bool {
+        self.forget_entity(id);
+        false
+    }
+
+    /// An ominous item spawner finishing inside a `retain_mut`: forget its
+    /// stored `noPhysics` write and refuse it, in one call.
+    pub(super) fn forget_finished_spawner(&mut self, id: u32) -> bool {
         self.forget_entity(id);
         false
     }
@@ -613,10 +628,11 @@ mod tests {
         });
     }
 
-    /// A player blow destroys the bullet and its stored override together.
+    /// A player's blow removes a shulker bullet (`hit_shulker_bullet`): the
+    /// `noPhysics` write stored for it has to leave with it.
     #[test]
     #[ignore = "daily"]
-    fn no_physics_entry_is_cleared_when_a_blow_destroys_a_shulker_bullet() {
+    fn no_physics_entry_is_cleared_when_a_players_blow_removes_a_shulker_bullet() {
         use super::super::native_entity_refs::tests::with_game;
         use horizon_client::projectiles::Projectile;
         use horizon_core::geometry::Vec3;
@@ -644,7 +660,33 @@ mod tests {
             assert!(!game.creatures.projectiles.iter().any(|p| p.id == id));
             assert!(
                 !game.persist.no_physics.contains_key(&id),
-                "the entry left with the entity the blow destroyed"
+                "the entry left with the bullet the player's blow removed"
+            );
+        });
+    }
+
+    /// An ominous item spawner that finishes its countdown is taken away by
+    /// `tick_ominous_item_spawners`: its entry goes with it.
+    #[test]
+    #[ignore = "daily"]
+    fn no_physics_entry_is_cleared_when_an_ominous_item_spawner_finishes() {
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::items::ItemStack;
+
+        with_game(|game| {
+            game.add_ominous_item_spawner(ItemStack::new("minecraft:air", 1), [4.5, 200.0, 4.5], 1);
+            let id = game.ominous_spawners[0].id;
+            game.persist.no_physics.insert(id, false);
+            assert!(game.persist.no_physics.contains_key(&id));
+
+            game.tick_ominous_item_spawners();
+            assert!(
+                !game.ominous_spawners.iter().any(|s| s.id == id),
+                "the spawner finished"
+            );
+            assert!(
+                !game.persist.no_physics.contains_key(&id),
+                "the entry left with the spawner that finished"
             );
         });
     }
@@ -740,26 +782,6 @@ mod tests {
             let entity = EntityRef::new(WorldEpoch::new(0), 1);
             assert!(!entity.set_no_physics(game, true));
             assert!(!entity.set_no_physics(game, false));
-        });
-    }
-    #[test]
-    #[ignore = "daily"]
-    fn no_physics_entry_is_cleared_when_an_ominous_spawner_completes() {
-        use super::super::native_entity_refs::tests::with_game;
-        use horizon_client::items::ItemStack;
-        with_game(|game| {
-            game.add_ominous_item_spawner(
-                ItemStack::new("minecraft:arrow", 1),
-                [0.0, 80.0, 0.0],
-                1,
-            );
-            let id = game.ominous_spawners.last().unwrap().id;
-            let entity = game.entity(id).unwrap();
-            assert!(entity.set_no_physics(game, false));
-            assert!(game.persist.no_physics.contains_key(&id));
-            game.tick_ominous_item_spawners();
-            assert!(!game.ominous_spawners.iter().any(|s| s.id == id));
-            assert!(!game.persist.no_physics.contains_key(&id));
         });
     }
 }
