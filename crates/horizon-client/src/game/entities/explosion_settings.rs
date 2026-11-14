@@ -33,10 +33,12 @@ pub(super) enum SourceCalculator {
     /// `PrimedTnt.USED_PORTAL_DAMAGE_CALCULATOR`, a primed TNT's that went
     /// through a portal: a nether portal neither resists nor breaks.
     PortalProof,
-    /// `AbstractWindCharge`'s calculator: the blocks of
+    /// A wind charge's `SimpleExplosionDamageCalculator`: the blocks of
     /// `#blocks_wind_charge_explosions` resist 3,600,000 and every other
-    /// cell, fluids included, nothing.
-    WindCharge(HashSet<String>),
+    /// cell, fluids included, nothing; entities are pushed but never
+    /// damaged, by 1.22 for a player's wind charge (`WindCharge`) and 1 for
+    /// a breeze's (`BreezeWindCharge`).
+    WindCharge(BlastCalculator),
 }
 
 /// `SimpleExplosionDamageCalculator(explodesBlocks, damagesEntities,
@@ -105,14 +107,12 @@ impl Game<'_> {
     /// usual rule. The rays and every resistance read take it from here.
     pub(super) fn blast_calculator_step(&self, name: &str) -> Option<(f32, bool)> {
         let settings = &self.combat.blast_settings;
-        let immune = match (&settings.calculator, &settings.source_calculator) {
-            (Some(c), _) => c.immune.as_ref()?,
-            (None, SourceCalculator::WindCharge(tag)) => tag,
-            (None, SourceCalculator::PortalProof) => {
-                return (name == "minecraft:nether_portal").then_some((0.0, true));
-            }
-            (None, SourceCalculator::Default) => return None,
-        };
+        if let (None, SourceCalculator::PortalProof) =
+            (&settings.calculator, &settings.source_calculator)
+        {
+            return (name == "minecraft:nether_portal").then_some((0.0, true));
+        }
+        let immune = self.blast_simple_calculator()?.immune.as_ref()?;
         let taken = if immune.contains(name) {
             (IMMUNE_RESISTANCE + 0.3) * 0.3
         } else {
@@ -120,20 +120,30 @@ impl Game<'_> {
         };
         Some((taken, false))
     }
+    /// The blast's `SimpleExplosionDamageCalculator`: the mod's when it
+    /// passes one, which replaces every rule of the source's, else a wind
+    /// charge's own. None for the default and portal-proof calculators.
+    fn blast_simple_calculator(&self) -> Option<&BlastCalculator> {
+        let settings = &self.combat.blast_settings;
+        match (&settings.calculator, &settings.source_calculator) {
+            (Some(c), _) | (None, SourceCalculator::WindCharge(c)) => Some(c),
+            _ => None,
+        }
+    }
     /// `shouldBlockExplode`: false when the calculator explodes no blocks.
     pub(super) fn blast_explodes_blocks(&self) -> bool {
-        let calculator = self.combat.blast_settings.calculator.as_ref();
+        let calculator = self.blast_simple_calculator();
         calculator.is_none_or(|c| c.explodes_blocks)
     }
-    /// `shouldDamageEntity`.
+    /// `shouldDamageEntity`: false for a wind charge's calculator.
     pub(super) fn blast_damages_entities(&self) -> bool {
-        let calculator = self.combat.blast_settings.calculator.as_ref();
+        let calculator = self.blast_simple_calculator();
         calculator.is_none_or(|c| c.damages_entities)
     }
-    /// `getKnockbackMultiplier`: 1 by default; the calculator's, or 0 for a
-    /// flying player (`Abilities.flying`).
+    /// `getKnockbackMultiplier`: 1 by default; a simple calculator's (a wind
+    /// charge's 1.22 or 1), or 0 for a flying player (`Abilities.flying`).
     pub(super) fn blast_knockback(&self, flying_player: bool) -> f32 {
-        match &self.combat.blast_settings.calculator {
+        match self.blast_simple_calculator() {
             Some(_) if flying_player => 0.0,
             Some(c) => c.knockback,
             None => 1.0,
