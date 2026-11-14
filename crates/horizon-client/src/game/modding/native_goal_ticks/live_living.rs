@@ -6,7 +6,7 @@ use horizon_client::mobs::villager;
 use mod_api::ItemStack;
 use mod_api::{ActiveEffect, EffectKey, EquipmentSlot, Hand, LivingRef, Pose};
 
-impl GoalCx<'_, '_> {
+impl GoalCx<'_, '_, '_> {
     fn live_living_mob(&self, living: LivingRef) -> Option<&Mob> {
         match self.resolve(living.entity())? {
             Resolved::Own => Some(self.m),

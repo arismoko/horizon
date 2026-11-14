@@ -6,7 +6,7 @@ use super::{GoalCx, Resolved};
 use crate::mobs::{self, Mob};
 use mod_api::{LivingRef, MobGoalEntry, MobRef, PathType, RaidRef};
 
-impl GoalCx<'_, '_> {
+impl GoalCx<'_, '_, '_> {
     fn live_mob(&self, mob: MobRef) -> Option<&Mob> {
         match self.resolve(mob.entity())? {
             Resolved::Own if !self.m.removed => Some(self.m),

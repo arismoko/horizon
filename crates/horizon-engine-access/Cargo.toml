@@ -1,0 +1,18 @@
+[package]
+name = "horizon-engine-access"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "What the engine's subsystems answer, as traits: entities, levels. Below the game and below every crate that answers a mod's calls."
+
+[lib]
+name = "engine_access"
+
+[dependencies]
+horizon-world = { path = "../horizon-world" }
+mod_api = { package = "horizon-mod-vocab", path = "../horizon-mod-vocab" }
+
+[lints]
+workspace = true

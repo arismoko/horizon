@@ -3,7 +3,7 @@ use super::{GoalCx, Resolved};
 use crate::mobs::Mob;
 use mod_api::EntityRef;
 
-impl GoalCx<'_, '_> {
+impl GoalCx<'_, '_, '_> {
     pub(super) fn r_entity_on_block(&self, entity: EntityRef) -> Option<[i32; 3]> {
         let mob = match self.resolve(entity)? {
             Resolved::Own if !self.m.removed => &*self.m,

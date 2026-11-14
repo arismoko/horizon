@@ -9,6 +9,8 @@ use mod_api::__private::game::*;
 use mod_api::*;
 
 include!(concat!(env!("OUT_DIR"), "/game_host_modules.rs"));
+pub(super) mod upward;
+
 
 impl Host for Game<'_> {
     fn backend(&self) -> Option<BackendRef<'_>> {

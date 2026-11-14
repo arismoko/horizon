@@ -3,7 +3,7 @@
 use super::{GoalCx, Resolved};
 use mod_api::EntityRef;
 
-impl GoalCx<'_, '_> {
+impl GoalCx<'_, '_, '_> {
     pub(super) fn is_game_entity(&self, entity: EntityRef) -> bool {
         if matches!(
             self.resolve(entity),

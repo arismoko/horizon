@@ -38,6 +38,7 @@ horizon-threads = { path = "../horizon-threads" }
 horizon-perf-format = { path = "../horizon-perf-format" }
 horizon-hdr = { path = "../horizon-hdr" }
 horizon-world = { path = "../horizon-world" }
+horizon-engine-access = { path = "../horizon-engine-access" }
 horizon-protocol = { path = "../horizon-protocol" }
 # server.properties, eula.txt and the user lists, shared with horizon-server.
 horizon-server-files = { path = "../horizon-server-files" }
@@ -179,6 +180,8 @@ path = "tests/skull_models.rs"
 workspace = true
 
 [dev-dependencies]
+# The game's own test binary links no host crate: it defines the calls the game makes up (game/host/upward.rs).
+horizon-mod-answers = { path = "../horizon-mod-answers" }
 horizon-client-core = { path = "../horizon-client-core", features = ["test-language-publication"] }
 horizon-client-lib = { path = "../horizon-client-lib", default-features = false, features = ["test-payload-probe", "test-publication-scope", "test-residency-observer"] }
 horizon-mod-wasm = { path = "../horizon-mod-wasm", features = ["runtime-fixture", "listener-fixture", "test-copy-probe"] }

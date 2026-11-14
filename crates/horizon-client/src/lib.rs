@@ -1,7 +1,8 @@
 //! Gameplay and startup, above the reusable client library.
 // No `#![recursion_limit]` or other inner attribute horizon-mixins doesn't know here: the
 // launcher's horizon-mixins then rejects every native mod targeting this crate (#8169).
-#![forbid(unsafe_code)]
+// `deny`, not `forbid`: `game/host/upward.rs` declares the game's calls up to the host crate.
+#![deny(unsafe_code)]
 extern crate self as horizon_client;
 pub use horizon_client_lib::carrier_store;
 pub use horizon_client_lib::*;

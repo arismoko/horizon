@@ -13,6 +13,7 @@ horizon-engine-slots = { path = "../horizon-engine-slots" }
 mod-points = { package = "horizon-mod-points", path = "../horizon-mod-points" }
 horizon-guest-stack = { path = "../horizon-guest-stack" }
 horizon-client = { path = "../horizon-client", default-features = false }
+horizon-mod-answers = { path = "../horizon-mod-answers" }
 
 horizon-mod-package = { path = "../horizon-mod-package", default-features = false, features = ["index"] }
 horizon-mod-wasm = { path = "../horizon-mod-wasm" }

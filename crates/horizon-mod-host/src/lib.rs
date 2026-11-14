@@ -7,6 +7,7 @@ mod native_libraries;
 pub use native_libraries::{GAME_BUILD_ID, RUSTC_VERSION, main};
 
 mod loading;
+mod upward;
 pub use loading::main_with;
 
 /// Establish main-thread stack capacity before compiler-child handling.

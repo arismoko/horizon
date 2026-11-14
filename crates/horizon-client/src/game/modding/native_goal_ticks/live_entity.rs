@@ -11,7 +11,7 @@ use super::{GoalCx, Resolved};
 use crate::mobs::Mob;
 use mod_api::{EntityRef, MobCategory};
 
-impl GoalCx<'_, '_> {
+impl GoalCx<'_, '_, '_> {
     pub(super) fn r_entity_tags(&self, entity: EntityRef) -> Option<Vec<String>> {
         self.w.goal_host?.mob_tags(self.entity_mob(entity)?)
     }
@@ -256,23 +256,11 @@ impl GoalCx<'_, '_> {
         entity: EntityRef,
         distance: f64,
     ) -> Option<mod_api::ClipHit> {
-        if !(distance.is_finite() && distance >= 0.0) {
-            return None;
-        }
-        let mob = self.entity_mob(entity)?;
-        let from = [mob.position.x, mob.eye_y(), mob.position.z];
-        let look = self.r_entity_view_vector(entity)?;
-        let to = std::array::from_fn(|i| from[i] + look[i] * distance);
-        let level = self.r_entity_level(entity)?;
-        mod_api::__private::backend_read(self.host, |backend| {
-            backend.level_clip(
-                level,
-                from,
-                to,
-                mod_api::ClipBlock::Outline,
-                mod_api::ClipFluid::None,
-            )
-        })
-        .flatten()
+        crate::game::host::upward::horizon_up_goal_pick(
+            self.game,
+            self.entity_mob(entity)?,
+            self.w,
+            distance,
+        )
     }
 }

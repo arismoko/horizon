@@ -38,10 +38,13 @@ mod redirect_tests;
 /// [`mobs::part_goals::GoalHost`], the snapshot and the player view ride on
 /// it) and the game host behind the tick, for the reads that are the level's
 /// own. The writes apply to the mob itself.
-pub(super) struct GoalCx<'a, 'w> {
+pub(super) struct GoalCx<'a, 'w, 'g> {
     m: &'a mut Mob,
     w: &'a MobWorld<'w>,
     host: &'a dyn Host,
+    /// The same game as `host`, by its type: what the goal's bodies in `horizon-mod-answers`
+    /// read the level through.
+    game: &'a Game<'g>,
 }
 
 /// What a handle names in the goal view: the ticking mob itself, the player
@@ -56,7 +59,7 @@ enum Resolved<'a> {
     Dragon(TargetInfo),
 }
 
-impl GoalCx<'_, '_> {
+impl GoalCx<'_, '_, '_> {
     /// Resolve `entity` in the tick's view, or None for a stale or foreign
     /// handle, an entity the snapshot does not carry, or a player the tick
     /// does not stand in: the identity the tick captured where it lent its
@@ -317,7 +320,7 @@ impl GoalCx<'_, '_> {
     }
 }
 
-impl GoalCxBackend for GoalCx<'_, '_> {
+impl GoalCxBackend for GoalCx<'_, '_, '_> {
     fn host(&self) -> &dyn Host {
         self
     }
@@ -447,7 +450,7 @@ impl GoalCxBackend for GoalCx<'_, '_> {
     }
 }
 
-impl BehaviorCxBackend for GoalCx<'_, '_> {
+impl BehaviorCxBackend for GoalCx<'_, '_, '_> {
     fn host(&self) -> &dyn Host {
         self
     }
@@ -714,7 +717,12 @@ impl mobs::part_goals::GoalHost for Game<'_> {
             GoalOp::Stop => "goal_stop",
             GoalOp::Tick => "goal_tick",
         };
-        let mut gcx = GoalCx { m, w, host: self };
+        let mut gcx = GoalCx {
+            m,
+            w,
+            host: self,
+            game: self,
+        };
         let mut context = mod_api::GoalContext::new(&mut gcx);
         let _guard = enter_native_mod(ModCall {
             id: mod_id,
@@ -757,7 +765,12 @@ impl mobs::part_goals::GoalHost for Game<'_> {
         };
         // The same view a goal runs on (#824): one boundary, the brain's
         // memories typed on top.
-        let mut gcx = GoalCx { m, w, host: self };
+        let mut gcx = GoalCx {
+            m,
+            w,
+            host: self,
+            game: self,
+        };
         let mut context = mod_api::BehaviorCx::new(&mut gcx);
         let _guard = enter_native_mod(ModCall {
             id: mod_id,
@@ -818,6 +831,7 @@ impl Game<'_> {
             m: mob,
             w: world,
             host: self,
+            game: self,
         };
         let mut new_target = original;
         let mut cancel = false;

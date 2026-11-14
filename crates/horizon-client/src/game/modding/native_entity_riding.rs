@@ -10,6 +10,16 @@ use horizon_client::{
 };
 use mod_api::{EntityRef, LeashHolder, LivingRef};
 
+/// The write half of `entity_leash_to_knot`, for the answering crate's body (`engine_access`).
+impl engine_access::EntityLeash for Game<'_> {
+    fn leash_to_knot(&mut self, entity: EntityRef, pos: [i32; 3]) -> bool {
+        let Some(target) = self.native_entity_target(entity) else {
+            return false;
+        };
+        self.native_set_leash(entity, target, Holder::Knot(pos), None)
+    }
+}
+
 impl Game<'_> {
     /// The dismount search with a vehicle or passenger lent out of `self.mobs`.
     pub(super) fn scoped_mob_dismount_location(

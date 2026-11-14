@@ -23,6 +23,8 @@ use super::{
     entity::{Entity as _, entity_lists_of, for_each_entity},
     transactions::After,
 };
+use super::native_entity_access::uuid_from_words;
+use engine_access::{EntityIdentity, EntityRead, EntityView, UuidState};
 use horizon_core::geometry::{Aabb, Vec3};
 use horizon_items::items::ItemStack;
 use horizon_world::registry::BlockStateId;
@@ -789,21 +791,13 @@ impl Game<'_> {
         })
     }
 
+    // The reads below answer the mod API's `entity_*` host methods through the entity view the
+    // game offers to `engine_access`; the game's own callers use them as shorthands. The mod
+    // host's bodies for the same methods live in `horizon-mod-answers`.
     /// The entity's position (`Entity.position`): its feet, the middle of
     /// its box for a painting or an item frame.
     pub(super) fn entity_position(&self, entity: EntityRef) -> Option<[f64; 3]> {
-        if self.native_lifecycle.epoch() == Some(entity.epoch())
-            && let Some((id, position)) = self.native_lifecycle.entity_sections.write_position
-            && id == entity.id()
-        {
-            return Some(position);
-        }
-        match self.native_entity_read_target(entity) {
-            Some(target) => self.target_position(target),
-            None => self
-                .native_client_tracked(entity)
-                .map(|(_, position)| position),
-        }
+        self.resolve(entity)?.position()
     }
     /// The block the entity's position is in (`Entity.blockPosition`). API
     /// 373.
@@ -814,76 +808,28 @@ impl Game<'_> {
     /// The entity's yaw and pitch in degrees (`Entity.getYRot`, `getXRot`); 0
     /// for the kinds that don't turn. API 373.
     pub(super) fn entity_rotation(&self, entity: EntityRef) -> Option<[f32; 2]> {
-        Some(self.target_rotation(self.native_entity_read_target(entity)?))
+        self.resolve(entity)?.rotation()
     }
     /// The entity's type (`Entity.getType`): `minecraft:zombie`. API
     /// 373.
     pub(super) fn entity_kind(&self, entity: EntityRef) -> Option<String> {
-        match self.native_entity_read_target(entity) {
-            Some(t) => Some(self.target_type(t)),
-            None => self
-                .native_client_tracked(entity)
-                .map(|(kind, _)| kind.to_owned()),
-        }
+        self.resolve(entity)?.kind()
     }
     /// The entity's UUID (`Entity.getUUID`), the one it is saved with; an
     /// entity that has none yet gets it now, as a new vanilla entity does.
     /// On a client, the one the server added it with (a player's is its
     /// profile's). API 373.
     pub(super) fn entity_uuid(&mut self, entity: EntityRef) -> Option<u128> {
-        if let Some(r) = &self.remote {
-            let id = i32::try_from(entity.id()).ok()?;
-            if self.native_entity_read_target(entity).is_none()
-                && self.native_client_tracked(entity).is_none()
-            {
-                return None;
-            }
-            if let Some(words) =
-                self.known_resident_entity_uuid_at(self.native_level_key(), entity.id())
-            {
-                return Some(uuid_from_words(words));
-            }
-            if let Some((uuid, _)) = r.level_player(id) {
-                return Some(uuid);
-            }
-            return self
-                .persist
-                .uuids
-                .get(&entity.id())
-                .copied()
-                .map(uuid_from_words);
+        match self.uuid_state(entity)? {
+            UuidState::Known(uuid) => Some(uuid),
+            UuidState::Unassigned => Some(self.assign_uuid(entity)),
         }
-        let words = match self.native_entity_target(entity)? {
-            Target::Player => {
-                let dimension = self.current_player_resident_location()?.owner.dimension;
-                return self
-                    .known_resident_entity_uuid_at(dimension, entity.id())
-                    .map(uuid_from_words);
-            }
-            Target::Guest(conn) => return self.command_guest(conn).map(|g| g.uuid),
-            _ => self.uuid_for(entity.id()),
-        };
-        Some(uuid_from_words(words))
     }
     /// The level the entity is in (`Entity.level`): on a client, the
     /// client's level. API 373.
     pub(super) fn entity_level(&self, entity: EntityRef) -> Option<LevelRef> {
-        let key = match self.native_entity_read_target(entity) {
-            Some(t) if self.is_logical_server() => self.target_level(t).key(),
-            Some(_) => self.native_level_key(),
-            None => self
-                .native_client_tracked(entity)
-                .map(|_| self.native_level_key())?,
-        };
-        Some(self.level_ref(entity.epoch(), key))
+        self.resolve(entity)?.level()
     }
-}
-
-/// A saved UUID's four ints (`UUIDUtil.uuidFromIntArray`) as one number.
-fn uuid_from_words(words: [i32; 4]) -> u128 {
-    words
-        .iter()
-        .fold(0, |uuid, w| (uuid << 32) | u128::from(*w as u32))
 }
 
 include!("native_entity_refs/tick_item_read.rs");

@@ -2,7 +2,7 @@
 use super::GoalCx;
 use mod_api::{EntityRef, LivingRef};
 
-impl GoalCx<'_, '_> {
+impl GoalCx<'_, '_, '_> {
     pub(super) fn r_entity_dismount_location(
         &self,
         vehicle: EntityRef,

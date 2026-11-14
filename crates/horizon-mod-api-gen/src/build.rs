@@ -59,10 +59,10 @@ pub fn generate(root: &Path, out_dir: &Path, target: Target) -> Result<(), Strin
                 )?,
             ),
             ("game_host_modules.rs", game_host_modules(root)?),
-            ("mod_api_fire_generated.rs", generated.fire),
+            ("mod_api_fire_generated.rs", slice_upward(generated.fire)),
             // The mob tick's goal read view (#1077), included beside the
             // engine's `GoalCx` in `mobs/part_goals.rs`.
-            ("mod_api_goal_view_generated.rs", generated.goal_view),
+            ("mod_api_goal_view_generated.rs", generated.goal_view.replace("GoalCx<'_, '_>", "GoalCx<'_, '_, '_>")),
         ],
         Target::Api | Target::Vocab => {
             if matches!(target, Target::Api) {
@@ -462,4 +462,13 @@ pub(super) fn track(root: &Path, all_game: bool) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Slice only (host-crate-slice): the hooks whose host is built above the game call up to it
+/// instead of passing `self` as the host. A full version emits this from the hook catalog.
+fn slice_upward(fire: String) -> String {
+    fire.replace(
+        "mod_api::dispatch_entity_tick_pre(self,",
+        "super::super::host::upward::horizon_up_entity_tick_pre(self,",
+    )
 }

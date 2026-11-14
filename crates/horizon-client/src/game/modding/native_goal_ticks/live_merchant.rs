@@ -3,7 +3,7 @@ use super::GoalCx;
 use crate::mobs::{Mob, Species, render::VILLAGER_TYPES};
 use mod_api::{MerchantOffer, MerchantRef, PlayerRef};
 
-impl GoalCx<'_, '_> {
+impl GoalCx<'_, '_, '_> {
     fn lent_merchant(&self, merchant: MerchantRef) -> Option<&Mob> {
         let mob = self.entity_mob(merchant.entity())?;
         (self.w.goal_host?.merchant_is_live(mob)

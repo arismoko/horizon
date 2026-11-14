@@ -25,6 +25,8 @@ members = [
     "crates/horizon-world",
     "crates/horizon-client",
     "crates/horizon-engine-slots",
+    "crates/horizon-engine-access",
+    "crates/horizon-mod-answers",
     "crates/horizon-mod-points",
     "crates/horizon-internals",
     "crates/horizon-client-lib",

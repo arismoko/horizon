@@ -1833,6 +1833,7 @@ dependencies = [
  "horizon-core",
  "horizon-cosmetics",
  "horizon-dualsense",
+ "horizon-engine-access",
  "horizon-engine-slots",
  "horizon-friends",
  "horizon-game-discovery",
@@ -1841,6 +1842,7 @@ dependencies = [
  "horizon-hooks",
  "horizon-items",
  "horizon-java-properties",
+ "horizon-mod-answers",
  "horizon-mod-api",
  "horizon-mod-api-gen",
  "horizon-mod-api-macros",
@@ -2096,6 +2098,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-engine-access"
+version = "0.1.0"
+dependencies = [
+ "horizon-mod-vocab",
+ "horizon-world",
+]
+
+[[package]]
 name = "horizon-engine-slots"
 version = "0.1.0"
 dependencies = [
@@ -2214,6 +2224,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-mod-answers"
+version = "0.1.0"
+dependencies = [
+ "horizon-client-lib",
+ "horizon-core",
+ "horizon-engine-access",
+ "horizon-mod-vocab",
+ "horizon-world",
+]
+
+[[package]]
 name = "horizon-mod-api"
 version = "0.1.0"
 dependencies = [
@@ -2309,6 +2330,7 @@ dependencies = [
  "horizon-client",
  "horizon-engine-slots",
  "horizon-guest-stack",
+ "horizon-mod-answers",
  "horizon-mod-api",
  "horizon-mod-package",
  "horizon-mod-points",
