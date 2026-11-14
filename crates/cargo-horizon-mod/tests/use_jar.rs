@@ -2,6 +2,7 @@ use sha2::{Digest, Sha512};
 use std::{fs, io::Write, process::Command};
 
 #[test]
+#[ignore = "daily"]
 fn use_jar_records_exact_metadata_hash_and_order_without_copying_the_jar() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
         "target/use-jar-{}-{}",

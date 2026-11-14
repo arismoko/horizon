@@ -1753,6 +1753,7 @@ pub(crate) struct ItemStack { #[allow(dead_code)] kind: StackKind }
     }
 
     #[test]
+    #[ignore = "daily"]
     fn discovery_keeps_the_catalog_and_normal_output_and_reports_compiler_uses() {
         let game = "struct Thing { field: u32 }\nimpl Thing { fn method(&self) -> u32 { self.field } }\nfn free() {}\n";
         let normal = Fixture::new(game);
@@ -2015,6 +2016,7 @@ union Value { #[cfg(windows)] windows: u32, #[cfg(test)] test_field: u32 }
     }
 
     #[test]
+    #[ignore = "daily"]
     fn staged_signatures_expose_private_types_and_traits() {
         let fixture = shapes_fixture("struct Game;\n");
         fixture.put("crates/horizon-items/src/items.rs",
@@ -2464,6 +2466,7 @@ const LABEL: &str = "é"; struct AfterUnicode;
     }
 
     #[test]
+    #[ignore = "daily"]
     fn listed_function_module_helpers_compile_from_outside() {
         let fixture = Fixture::new("struct Game;\n");
         fixture.lower();

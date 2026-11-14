@@ -15,6 +15,7 @@ fn git(root: &Path, args: &[&str]) {
 }
 
 #[test]
+#[ignore = "daily"]
 fn client_and_server_layouts_require_and_ship_std() {
     let root = std::env::temp_dir().join(format!("xtask-packaging-{}", std::process::id()));
     fs::create_dir_all(&root).unwrap();

@@ -556,7 +556,8 @@ jobs:
       # these 4-core runners it was no faster (#4978).
       - name: Build the runtime holder test actor
         if: needs.changes.outputs.rust_required != 'false'
-        run: cargo build $JOBS --profile test -p horizon-mod-package --features runtime-process --example holder_actor
+        # The command lives in tools/ci/ignored_shards.py PREPARE, which the daily run uses too.
+        run: python3 tools/ci/ignored_shards.py --prepare horizon-mod-package $JOBS
       # Compile first, apart from running: the build's time and its slowest units show on their own.
       - name: Build Rust core test binaries
         if: needs.changes.outputs.rust_required != 'false'
@@ -770,6 +771,12 @@ jobs:
       # The unit tier: a test that boots the game is #[ignore = "daily"]; the fixtures are in tools/ci/game-boot-fixtures.txt.
       - name: Game-boot tests are daily tests
         run: python3 tools/ci/check_game_boot_tests.py
+      # The unit tier: a test that starts a child process is #[ignore = "daily"]; helpers in tools/ci/process-spawns.txt.
+      - name: Process-starting tests are daily tests
+        run: python3 tools/ci/check_process_tests.py
+      # A test that reruns its own test executable by --exact must select it ignored or not, or a daily one checks nothing.
+      - name: Test reruns select ignored tests too
+        run: python3 tools/ci/reexec_include_ignored.py --check
       # docs/layers.md: a crate depends only on its own layer or a lower one; today's exceptions only shrink.
       - name: Crates follow the layers
         if: needs.changes.outputs.rust_required != 'false'
@@ -868,7 +875,7 @@ jobs:
           cargo clippy $JOBS --all-targets --locked -- -D warnings
           cargo test $JOBS --no-fail-fast --locked --lib --bins
           cargo test $JOBS --no-fail-fast --locked --test storage
-          cargo build $JOBS --manifest-path ../Cargo.toml --locked -p horizon-mod-package --features runtime-process --example holder_actor
+          python3 ../tools/ci/ignored_shards.py --prepare horizon-mod-package $JOBS
           cargo test $JOBS --no-fail-fast --manifest-path ../Cargo.toml --locked -p horizon-mod-package --features runtime-process --lib
   # A dispatch with `pr`: posts the heavy jobs' results on that pull request's head. It runs none of its code, so it
   # alone holds the write permission, and only for commit statuses.

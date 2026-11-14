@@ -1,6 +1,7 @@
 use std::{path::Path, process::Command};
 
 #[test]
+#[ignore = "daily"]
 fn run_refuses_code_mods_without_building() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target")

@@ -7,13 +7,17 @@ fn isolated() -> bool {
         return false;
     }
     let test = std::thread::current().name().unwrap().to_owned();
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args(["--include-ignored", "--exact", &test, "--nocapture"])
+        .env("RECORD_GC_ISOLATED", "1")
+        .output()
+        .unwrap();
+    // The child must run this one test: a success that ran nothing (an ignored or filtered name) checks nothing.
+    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", &test, "--nocapture"])
-            .env("RECORD_GC_ISOLATED", "1")
-            .status()
-            .unwrap()
-            .success()
+        output.status.success() && stdout.contains("test result: ok. 1 passed;"),
+        "the isolated rerun of {test} did not pass exactly one test:\n{stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
     );
     true
 }
@@ -73,6 +77,7 @@ fn assert_malformed_roots_retained(invalid: &[usize]) {
 }
 
 #[test]
+#[ignore = "daily"]
 fn both_malformed_roots_retain_entire_group() {
     if isolated() {
         return;
@@ -81,6 +86,7 @@ fn both_malformed_roots_retain_entire_group() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn either_malformed_root_retains_entire_group() {
     if isolated() {
         return;
@@ -112,13 +118,18 @@ fn closed_stdio_actor() {
 
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn collection_with_closed_stdio() {
     if isolated() {
         return;
     }
     let (root, path) = fixture();
     let status = Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", "holder::record::gc::tests::closed_stdio_actor"])
+        .args([
+            "--include-ignored",
+            "--exact",
+            "holder::record::gc::tests::closed_stdio_actor",
+        ])
         .env("RECORD_GC_CLOSED_ROOT", root.path())
         .status()
         .unwrap();
@@ -139,6 +150,7 @@ fn independent_owner_actor() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn final_process_exit_authorizes_collection() {
     if isolated() {
         return;
@@ -149,6 +161,7 @@ fn final_process_exit_authorizes_collection() {
     let spawn = || {
         let mut child = Command::new(std::env::current_exe().unwrap())
             .args([
+                "--include-ignored",
                 "--exact",
                 "holder::record::gc::tests::independent_owner_actor",
                 "--nocapture",
@@ -189,6 +202,7 @@ fn final_process_exit_authorizes_collection() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn collective_owners_and_complete_group() {
     if isolated() {
         return;
@@ -209,6 +223,7 @@ fn collective_owners_and_complete_group() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn malformed_unknown_and_wrong_identity_retain_entire_group() {
     if isolated() {
         return;
@@ -262,6 +277,7 @@ fn malformed_unknown_and_wrong_identity_retain_entire_group() {
 
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn links_are_not_followed_or_unlinked() {
     if isolated() {
         return;

@@ -1613,6 +1613,7 @@ fn the_prediction_records_each_client_tick_and_the_server_ticks_it_had_seen() {
 /// and its mod's update tag, then once per tick however often it is synced,
 /// with no `BlockEntityData` for one whose mod gives no tag.
 #[test]
+#[ignore = "daily"]
 fn a_synced_mod_block_entity_reaches_the_chunks_players_once_a_tick() {
     use horizon_client::block_entity_types::{self, BlockEntityTypes};
     use horizon_client::containers::{BlockEntity, ModBlockEntity};
@@ -1625,6 +1626,7 @@ fn a_synced_mod_block_entity_reaches_the_chunks_players_once_a_tick() {
         assert!(
             std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
+                    "--include-ignored",
                     "--exact",
                     "a_synced_mod_block_entity_reaches_the_chunks_players_once_a_tick",
                     "--nocapture",

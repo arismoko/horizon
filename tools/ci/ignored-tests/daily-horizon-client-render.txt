@@ -35,6 +35,7 @@ horizon-client-render perf_capture::tests::three_units_of_a_and_one_of_b_split_t
 horizon-client-render perf_capture::tests::time_blocks_and_ticks_per_block_follow_when_they_were_added lib daily slow
 horizon-client-render perf_capture::tests::wall_samples_carry_their_state_and_a_second_kind lib daily slow
 horizon-client-render radial_overlay::tests::every_action_has_an_icon_and_every_string_a_horizon_key lib daily slow
+horizon-client-render split_ui::tests::locale_switch_and_pack_overrides_keep_the_same_draft lib daily child-process
 horizon-client-render streaming::cover_tests::the_buckets_answer_as_the_scan lib daily slow
 horizon-client-render streaming::cover_tests::the_grid_answers_as_the_scan lib daily slow
 horizon-client-render sunrise_fan::tests::angular_sector_matches_all_triangle_search test:sunrise_shader daily slow

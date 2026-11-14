@@ -36,6 +36,7 @@ fn directory(path: &Path) -> Dir {
 }
 
 #[test]
+#[ignore = "daily"]
 fn shared_readers_exclude_cleanup_but_not_an_unrelated_tree() {
     if isolated_test() {
         return;
@@ -62,6 +63,7 @@ fn shared_readers_exclude_cleanup_but_not_an_unrelated_tree() {
 
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn a_moved_tree_keeps_its_identity_and_redirected_registries_are_refused() {
     if isolated_test() {
         return;
@@ -93,6 +95,7 @@ fn a_moved_tree_keeps_its_identity_and_redirected_registries_are_refused() {
 
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn a_lock_file_cannot_redirect_access_outside_the_registry() {
     if isolated_test() {
         return;
@@ -123,6 +126,7 @@ fn a_lock_file_cannot_redirect_access_outside_the_registry() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn gate_excludes_collection_mid_acquire_and_until_last_claim_drops() {
     if isolated_test() {
         return;
@@ -153,6 +157,7 @@ fn gate_excludes_collection_mid_acquire_and_until_last_claim_drops() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn entry_is_noncreating_and_owns_independent_exclusion() {
     if isolated_test() {
         return;
@@ -204,6 +209,7 @@ fn entry_refuses_junction_components() {
 
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn entry_does_not_follow_redirected_components() {
     if isolated_test() {
         return;
@@ -220,6 +226,7 @@ fn entry_does_not_follow_redirected_components() {
 
 #[cfg(target_os = "linux")]
 #[test]
+#[ignore = "daily"]
 fn unsupported_volume_refuses_registry_and_tree_without_creating_entries() {
     if isolated_test() {
         return;
@@ -240,6 +247,7 @@ fn unsupported_volume_refuses_registry_and_tree_without_creating_entries() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn retiring_an_exclusive_unit_key_does_not_retire_other_units_or_the_gate() {
     if isolated_test() {
         return;
@@ -269,6 +277,7 @@ fn retiring_an_exclusive_unit_key_does_not_retire_other_units_or_the_gate() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn publication_snapshot_excludes_new_builds_without_blocking_game_tree_claims() {
     if isolated_test() {
         return;
@@ -295,6 +304,7 @@ fn publication_snapshot_excludes_new_builds_without_blocking_game_tree_claims() 
 }
 
 #[test]
+#[ignore = "daily"]
 fn unit_removal_excludes_new_installs_and_games_through_atomic_detachment() {
     if isolated_test() {
         return;
@@ -376,6 +386,7 @@ fn windows_unit_removal_never_restores_completion_after_a_rename_refusal() {
 
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn unit_removal_refuses_a_redirected_final_component() {
     if isolated_test() {
         return;

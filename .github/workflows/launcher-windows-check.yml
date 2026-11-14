@@ -133,6 +133,21 @@ jobs:
       - run: cargo test --no-fail-fast --release --locked -p horizon-mod-package --features runtime-process --lib
         working-directory: .
         shell: bash
+      # The package's daily tests (its rows in tools/ci/ignored-tests/, the ones that start processes among them) run
+      # here on Windows too, by name: no other ignored test (a manual one, a fixture writer) runs.
+      - name: The package's daily tests
+        working-directory: .
+        shell: bash
+        # bash -eo pipefail: a failure of the policy reader fails the step, never an empty selection.
+        run: |
+          listed=$(python tools/ci/ignored_tests.py --daily-tests horizon-mod-package lib | tr -d '\r')
+          if [ -z "$listed" ]; then
+            echo "horizon-mod-package's library has no daily rows: nothing to run"
+            exit 0
+          fi
+          mapfile -t tests <<< "$listed"
+          cargo test --no-fail-fast --release --locked -p horizon-mod-package --features runtime-process --lib \
+            -- --ignored --exact "${tests[@]}"
 
   launcher-processes:
     # The tests/ targets that start the launcher binary (the test job runs every other target). Release, as players

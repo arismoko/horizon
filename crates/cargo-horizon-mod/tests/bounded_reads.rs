@@ -61,6 +61,7 @@ const COMMANDS: &[&[&str]] = &[
     &["internals", "sync"],
 ];
 #[test]
+#[ignore = "daily"]
 fn bounded_manifest_commands() {
     let f = Fixture::new("manifest");
     let path = f.0.join("horizon-mod.toml");
@@ -77,6 +78,7 @@ fn bounded_manifest_commands() {
 }
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn bounded_special_manifests() {
     use std::os::unix::fs::symlink;
     let f = Fixture::new("special");
@@ -143,6 +145,7 @@ fn bounded_catalog_commands() {
 
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn bounded_discovery_reread() {
     use std::os::unix::fs::PermissionsExt;
     let f = Fixture::new("discovery");

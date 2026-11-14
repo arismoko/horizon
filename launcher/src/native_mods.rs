@@ -3796,7 +3796,7 @@ mod tests {
     /// A command that succeeds leaves its time in the build log; one that fails leaves none.
     #[cfg(unix)]
     #[test]
-    #[ignore = "starts child processes: runs in the daily ignored-test shards"]
+    #[ignore = "daily"]
     fn each_command_logs_its_time() {
         let _guard = TEST_STATE.lock().unwrap();
         clear_log().unwrap();
