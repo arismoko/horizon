@@ -11,7 +11,7 @@ use mod_api::{
 /// A handle resolved once: the entity the game simulates, the copy a client tracks, or the
 /// position an `entity_section` hook is in the middle of writing. The getters read the game
 /// through the shared borrow the view holds; none of them resolves again.
-pub(in crate::game) struct EntityAt<'a, 'g> {
+pub struct EntityAt<'a, 'g> {
     game: &'a Game<'g>,
     entity: EntityRef,
     written: Option<[f64; 3]>,

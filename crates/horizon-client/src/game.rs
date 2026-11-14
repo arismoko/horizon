@@ -959,6 +959,7 @@ struct TickScratch {
 
 // Public as a name only: no field, method or constructor is, so the crate above the game can say
 // `&mut Game` in the calls the game makes up to it and cannot touch anything else.
+#[allow(private_interfaces)]
 pub struct Game<'a> {
     /// Shared with an integrated server; `collision` and `motion` borrow from it.
     res: Arc<Resources>,
