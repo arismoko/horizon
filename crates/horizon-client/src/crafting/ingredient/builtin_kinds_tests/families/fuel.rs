@@ -642,3 +642,207 @@ fn compostable_layers_compile_real_recipes_and_match_borrowed_values() {
     );
 }
 
+#[test]
+fn brewing_fuel_codec_compiles_recipes_and_borrows_live_values() {
+    use horizon_core::nbt::JavaString;
+    use serde_json::json;
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:blaze_powder".into(),
+        [(
+            "minecraft:brewing_fuel".into(),
+            Tag::compound([
+                ("uses", Tag::Byte(-2)),
+                ("speed_multiplier", Tag::Double(1.25f64.to_bits())),
+                ("ignored", Tag::Int(7)),
+            ]),
+        )]
+        .into_iter()
+        .collect(),
+    )]));
+    let ingredient_json = |payload: Value| {
+        json!({
+            "type":"neoforge:components", "items":"minecraft:blaze_powder",
+            "components":{"minecraft:brewing_fuel":payload}
+        })
+    };
+    let numeric = ingredient_json(json!({"uses":-2.75,"speed_multiplier":1.25,"ignored":false}));
+    let reference =
+        ingredient_json(json!({"uses":"missing/provider","speed_multiplier":":missing/speed"}));
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipe = |ingredient: Value| {
+        json!({
+            "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+            "result":{"id":"minecraft:diamond","count":2}
+        })
+    };
+    let mut sources = vec![
+        ("fixture:numeric".into(), recipe(numeric.clone())),
+        ("fixture:reference".into(), recipe(reference.clone())),
+    ];
+    for (n, payload) in [
+        json!({}),
+        json!({"uses":1}),
+        json!({"speed_multiplier":1}),
+        json!({"uses":{},"speed_multiplier":1}),
+        json!({"uses":1,"speed_multiplier":[]}),
+        json!({"uses":"UPPER:key","speed_multiplier":1}),
+        json!({"uses":1,"speed_multiplier":"..:key"}),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let invalid = ingredient_json(payload);
+        assert!(Ingredient::parse(&invalid, &items).is_none());
+        sources.push((format!("fixture:invalid_{n}"), recipe(invalid)));
+    }
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        sources,
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 2);
+    let mut stack = ItemStack::new("minecraft:blaze_powder", 1);
+    let (id, result) = recipes.find(&context, &[Some(stack.clone())], 1).unwrap();
+    assert_eq!(id, "fixture:numeric");
+    assert_eq!(result.item.as_ref(), "minecraft:diamond");
+    assert_eq!(result.count, 2);
+    let ingredient = Ingredient::parse(&numeric, &items).unwrap();
+    assert!(ingredient.test_in(&context, &stack));
+    stack.data_mut().set_other(
+        "minecraft:brewing_fuel",
+        Some(Tag::compound([
+            ("uses", Tag::Long(4_294_967_294)),
+            ("speed_multiplier", Tag::Float(1.25f32.to_bits())),
+            ("ignored", Tag::String("different".into())),
+        ])),
+    );
+    assert_eq!(
+        recipes.find(&context, &[Some(stack.clone())], 1).unwrap().0,
+        "fixture:numeric"
+    );
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(std::hint::black_box(
+                ingredient.test_in(&context, std::hint::black_box(&stack))
+            ));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    stack.data_mut().set_other(
+        "minecraft:brewing_fuel",
+        Some(Tag::compound([
+            ("uses", Tag::String("minecraft:missing/provider".into())),
+            ("speed_multiplier", Tag::String("missing/speed".into())),
+        ])),
+    );
+    assert_eq!(
+        recipes.find(&context, &[Some(stack.clone())], 1).unwrap().0,
+        "fixture:reference"
+    );
+    let reference = Ingredient::parse(&reference, &items).unwrap();
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        assert!(reference.test_in(&context, &stack));
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    for malformed in [
+        Tag::compound([("uses", Tag::Int(-2))]),
+        Tag::compound([
+            ("uses", Tag::Int(-2)),
+            ("speed_multiplier", Tag::String(JavaString(vec![0xd800]))),
+        ]),
+        Tag::compound([
+            ("uses", Tag::Int(-2)),
+            ("speed_multiplier", Tag::String("UPPER".into())),
+        ]),
+    ] {
+        stack
+            .data_mut()
+            .set_other("minecraft:brewing_fuel", Some(malformed));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.find(&context, &[Some(stack.clone())], 1).is_none());
+    }
+    let decode = |uses, speed| {
+        horizon_command::item::decoded_component_value(
+            "minecraft:brewing_fuel",
+            &Tag::compound([("uses", uses), ("speed_multiplier", speed)]),
+            &items.component_registry,
+        )
+        .unwrap()
+    };
+    for (input, expected) in [
+        (Tag::Byte(-2), -2),
+        (Tag::Short(-2), -2),
+        (Tag::Int(-2), -2),
+        (Tag::Long(4_294_967_294), -2),
+        (Tag::Float((-2.75f32).to_bits()), -2),
+        (Tag::Double(f64::NAN.to_bits()), 0),
+        (Tag::Double(f64::INFINITY.to_bits()), i32::MAX),
+        (Tag::Double(f64::NEG_INFINITY.to_bits()), i32::MIN),
+    ] {
+        assert_eq!(
+            decode(input, Tag::Double(1.25f64.to_bits())),
+            Tag::compound([
+                ("uses", Tag::Int(expected)),
+                ("speed_multiplier", Tag::Float(1.25f32.to_bits())),
+            ])
+        );
+    }
+    for (input, expected) in [
+        (Tag::Byte(-1), (-1.0f32).to_bits()),
+        (Tag::Short(2), 2f32.to_bits()),
+        (Tag::Int(16_777_217), 16_777_216f32.to_bits()),
+        (Tag::Long(i64::MAX), (i64::MAX as f32).to_bits()),
+        (
+            Tag::Double(f64::INFINITY.to_bits()),
+            f32::INFINITY.to_bits(),
+        ),
+    ] {
+        assert_eq!(
+            decode(Tag::Int(1), input),
+            Tag::compound([
+                ("uses", Tag::Int(1)),
+                ("speed_multiplier", Tag::Float(expected)),
+            ])
+        );
+    }
+    let nan = decode(Tag::Int(1), Tag::Float(0x7f80_0001));
+    // NaN payload bits are not part of boxed-float equality.
+    assert!(matches!(
+        nan.get("speed_multiplier"),
+        Some(Tag::Float(value)) if f32::from_bits(*value).is_nan()
+    ));
+    for (expected, actual, matches) in [
+        (0f32.to_bits(), (-0f32).to_bits(), false),
+        (f32::NAN.to_bits(), 0xff80_0001, true),
+        (f32::INFINITY.to_bits(), f32::INFINITY.to_bits(), true),
+    ] {
+        let raw = Tag::compound([
+            ("uses", Tag::Int(1)),
+            ("speed_multiplier", Tag::Float(expected)),
+        ]);
+        let mut a = ItemStack::new("minecraft:blaze_powder", 1);
+        a.data_mut().set_other("minecraft:brewing_fuel", Some(raw));
+        stack.data_mut().set_other(
+            "minecraft:brewing_fuel",
+            Some(Tag::compound([
+                ("uses", Tag::Int(1)),
+                ("speed_multiplier", Tag::Float(actual)),
+            ])),
+        );
+        assert_eq!(
+            horizon_items::item_data::ingredient_components::component_equal(
+                "minecraft:brewing_fuel",
+                &a,
+                &stack,
+            ),
+            matches
+        );
+    }
+}
