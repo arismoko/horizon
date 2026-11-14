@@ -1768,10 +1768,9 @@ mod tests {
         banner.data_mut().custom_name = Some(Tag::String("Captain's Standard".into()));
         assert_eq!(name_line(&banner, &translate), "Captain's Standard");
         let mut custom_item = ItemStack::new("minecraft:diamond_sword", 1);
-        custom_item.data_mut().other.push((
-            "minecraft:item_name".into(),
-            Tag::String("Excalibur".into()),
-        ));
+        custom_item
+            .data_mut()
+            .set_other("minecraft:item_name", Some(Tag::String("Excalibur".into())));
         assert_eq!(name_line(&custom_item, &translate), "Excalibur");
         custom_item.data_mut().custom_name = Some(Tag::String("Custom Blade".into()));
         assert_eq!(name_line(&custom_item, &translate), "Custom Blade");
@@ -1789,16 +1788,14 @@ mod tests {
         let mut stick = ItemStack::new("minecraft:stick", 1);
         stick
             .data_mut()
-            .other
-            .push(("minecraft:rarity".into(), Tag::String("epic".into())));
+            .set_other("minecraft:rarity", Some(Tag::String("epic".into())));
         assert_eq!(rarity(&stick, "common"), "epic");
         stick.enchant("minecraft:aqua_affinity", 1);
         assert_eq!(rarity(&stick, "common"), "epic");
         let mut sword = ItemStack::new("minecraft:diamond_sword", 1);
         sword
             .data_mut()
-            .other
-            .push(("minecraft:rarity".into(), Tag::String("uncommon".into())));
+            .set_other("minecraft:rarity", Some(Tag::String("uncommon".into())));
         sword.enchant("minecraft:sharpness", 1);
         assert_eq!(rarity(&sword, "common"), "rare");
     }

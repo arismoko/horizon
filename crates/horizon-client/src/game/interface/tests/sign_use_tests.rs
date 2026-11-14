@@ -23,10 +23,13 @@ fn game<'a>(
 /// `stack` with a `can_place_on` component naming `block`.
 fn held(name: &str, count: u32, block: &str) -> ItemStack {
     let mut stack = ItemStack::new(name, count);
-    stack.data_mut().other.push((
-        "minecraft:can_place_on".into(),
-        Tag::compound([("blocks", Tag::List(vec![Tag::String(block.into())]))]),
-    ));
+    stack.data_mut().set_other(
+        "minecraft:can_place_on",
+        Some(Tag::compound([(
+            "blocks",
+            Tag::List(vec![Tag::String(block.into())]),
+        )])),
+    );
     stack
 }
 

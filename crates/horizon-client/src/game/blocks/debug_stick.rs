@@ -2,8 +2,8 @@
 //! cycling its value with the right button, as vanilla does.
 //!
 //! The selected property is the `minecraft:debug_stick_state` component, a
-//! compound of block id to property name. Horizon keeps unmodelled components
-//! in `StackData::other`, so the component travels through NBT unchanged.
+//! compound of block id to property name. Horizon preserves it through
+//! `StackData::set_other` and `StackData::other`, so it travels through NBT unchanged.
 use super::Game;
 use horizon_client::actions::Action;
 use horizon_client::{Result, items::ItemStack, text::Text};

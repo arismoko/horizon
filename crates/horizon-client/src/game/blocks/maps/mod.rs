@@ -833,7 +833,7 @@ type StaticDecoration = (JavaString, &'static str, f64, f64, f32);
 /// `minecraft:map_decorations` of a map item, in the component's order.
 fn static_decorations(stack: &ItemStack) -> Vec<StaticDecoration> {
     let Some(Tag::Compound(entries)) = stack.data().and_then(|d| {
-        d.other
+        d.preserved_components()
             .iter()
             .find(|(k, _)| k == "minecraft:map_decorations")
             .map(|(_, t)| t)
@@ -1069,11 +1069,10 @@ impl Game<'_> {
         self.render_biome_preview(id);
         let d = item.data_mut();
         d.map_id = Some(id);
-        d.other.retain(|(k, _)| k != "minecraft:map_decorations");
-        d.other.push((
-            "minecraft:map_decorations".into(),
-            target_decoration(&map.decoration, at),
-        ));
+        d.set_other(
+            "minecraft:map_decorations",
+            Some(target_decoration(&map.decoration, at)),
+        );
         true
     }
     /// The unsearched exploration maps of a container being opened
@@ -2118,10 +2117,10 @@ mod tests {
     fn target_decorations_read_back_with_vanilla_rotation() {
         let mut stack = ItemStack::new("minecraft:buried_treasure_map", 1);
         stack.data_mut().map_id = Some(3);
-        stack.data_mut().other.push((
-            "minecraft:map_decorations".into(),
-            target_decoration("minecraft:red_x", [120, 40, -300]),
-        ));
+        stack.data_mut().set_other(
+            "minecraft:map_decorations",
+            Some(target_decoration("minecraft:red_x", [120, 40, -300])),
+        );
         assert_eq!(map_id(&stack), Some(3));
         let found = static_decorations(&stack);
         assert_eq!(
@@ -2139,10 +2138,10 @@ mod tests {
         let mut map = MapData::fresh(0.0, 0.0, 0, "minecraft:overworld");
         let mut treasure = ItemStack::new("minecraft:filled_map", 1);
         treasure.data_mut().map_id = Some(7);
-        treasure.data_mut().other.push((
-            "minecraft:map_decorations".into(),
-            target_decoration("minecraft:red_x", [20, 40, 30]),
-        ));
+        treasure.data_mut().set_other(
+            "minecraft:map_decorations",
+            Some(target_decoration("minecraft:red_x", [20, 40, 30])),
+        );
         let mut copy = ItemStack::new("minecraft:filled_map", 1);
         copy.data_mut().map_id = Some(7);
         map.add_item_decorations(static_decorations(&treasure), 0);
@@ -2255,13 +2254,13 @@ mod tests {
         assert!(game.map(map_id).unwrap().banners.is_empty());
 
         // With can_place_on listing the banner block, the marker toggles.
-        stack.data_mut().other.push((
-            "minecraft:can_place_on".into(),
-            Tag::compound([(
+        stack.data_mut().set_other(
+            "minecraft:can_place_on",
+            Some(Tag::compound([(
                 "blocks",
                 Tag::List(vec![Tag::String("minecraft:red_banner".into())]),
-            )]),
-        ));
+            )])),
+        );
         *game.held_mut() = Some(stack.clone());
         assert!(game.use_map_on_banner(&hit, &stack, &stack));
         assert_eq!(game.map(map_id).unwrap().banners.len(), 1);

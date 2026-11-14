@@ -531,7 +531,7 @@ mod tests {
     fn with(id: &str, component: &str, tag: Tag) -> ItemStack {
         let mut stack = new(id);
         let component = format!("minecraft:{component}");
-        stack.data_mut().other.push((component, tag));
+        stack.data_mut().set_other(&component, Some(tag));
         stack
     }
 
@@ -739,7 +739,7 @@ mod tests {
             "minecraft:enchantment_glint_override".to_owned(),
             Tag::Byte(on.into()),
         );
-        stack.data_mut().other.push(flag);
+        stack.data_mut().set_other(&flag.0, Some(flag.1));
         stack
     }
 

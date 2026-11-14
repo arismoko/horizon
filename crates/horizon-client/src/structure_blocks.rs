@@ -39,8 +39,7 @@ fn loot_item(s: &horizon_world::loot::LootStack) -> ItemStack {
             ),
         ]);
         item.data_mut()
-            .other
-            .push((CUSTOM_DATA.into(), Tag::compound([(PENDING_MAP, search)])));
+            .set_other(CUSTOM_DATA, Some(Tag::compound([(PENDING_MAP, search)])));
     }
     item
 }
@@ -81,18 +80,14 @@ pub fn loot_item_with_components(s: &horizon_world::loot::LootStack) -> ItemStac
 /// The exploration map search an item still waits for, removed from it.
 pub fn take_pending_map(item: &mut ItemStack) -> Option<horizon_world::loot::ExplorationMap> {
     let data = item.extra.as_deref_mut()?;
-    let i = data
-        .other
-        .iter()
-        .position(|(k, t)| k == CUSTOM_DATA && t.get(PENDING_MAP).is_some())?;
-    let (_, mut custom) = data.other.remove(i);
-    let search = match &mut custom {
-        Tag::Compound(c) => c.remove(&JavaString::from(PENDING_MAP))?,
-        _ => return None,
+    let Tag::Compound(mut custom) = data.other(CUSTOM_DATA)?.clone() else {
+        return None;
     };
-    if matches!(&custom, Tag::Compound(c) if !c.is_empty()) {
-        data.other.insert(i, (CUSTOM_DATA.into(), custom));
-    }
+    let search = custom.remove(&JavaString::from(PENDING_MAP))?;
+    data.set_other(
+        CUSTOM_DATA,
+        (!custom.is_empty()).then_some(Tag::Compound(custom)),
+    );
     let text = |k: &str| match search.get(k) {
         Some(Tag::String(s)) => Some(s.to_string_lossy()),
         _ => None,
@@ -113,11 +108,9 @@ pub fn take_pending_map(item: &mut ItemStack) -> Option<horizon_world::loot::Exp
 
 /// Whether an item still waits for its exploration map search.
 pub fn has_pending_map(item: &ItemStack) -> bool {
-    item.data().is_some_and(|d| {
-        d.other
-            .iter()
-            .any(|(k, t)| k == CUSTOM_DATA && t.get(PENDING_MAP).is_some())
-    })
+    item.data()
+        .and_then(|d| d.other(CUSTOM_DATA))
+        .is_some_and(|custom| custom.get(PENDING_MAP).is_some())
 }
 
 /// The loot data and the [`loot_key`] it was loaded for; None until
@@ -536,14 +529,10 @@ mod tests {
         let mut item = loot_item(&stack);
         assert!(has_pending_map(&item));
         // The rest of custom_data stays.
-        if let Some(Tag::Compound(c)) = item
-            .data_mut()
-            .other
-            .iter_mut()
-            .find(|(k, _)| k == CUSTOM_DATA)
-            .map(|(_, t)| t)
-        {
-            c.insert("note".into(), Tag::Int(7));
+        if let Some(Tag::Compound(mut custom)) = item.data().unwrap().other(CUSTOM_DATA).cloned() {
+            custom.insert("note".into(), Tag::Int(7));
+            item.data_mut()
+                .set_other(CUSTOM_DATA, Some(Tag::Compound(custom)));
         }
         let map = take_pending_map(&mut item).unwrap();
         assert_eq!(
@@ -558,14 +547,14 @@ mod tests {
         );
         assert!(!has_pending_map(&item));
         assert!(take_pending_map(&mut item).is_none());
-        let custom = &item.data().unwrap().other;
+        let custom = item.data().unwrap().preserved_components();
         assert_eq!(custom.len(), 1);
         assert_eq!(custom[0].1.get("note"), Some(&Tag::Int(7)));
         // Only the search: the component goes away with it.
         stack.item = "minecraft:abandoned_camp_map".into();
         let mut item = loot_item(&stack);
         take_pending_map(&mut item).unwrap();
-        assert!(item.data().unwrap().other.is_empty());
+        assert!(item.data().unwrap().preserved_components().is_empty());
         // A plain item has nothing pending.
         stack.exploration = None;
         assert!(!has_pending_map(&loot_item(&stack)));

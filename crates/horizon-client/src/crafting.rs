@@ -952,9 +952,8 @@ impl Special {
                 let (banner_stack, shield) = (banner_stack?, shield?);
                 let mut out = result.over(shield, 0);
                 let data = out.data_mut();
-                data.other.retain(|(key, _)| {
-                    key != "!minecraft:base_color" && key != "!minecraft:banner_patterns"
-                });
+                data.set_other("!minecraft:base_color", None);
+                data.set_other("!minecraft:banner_patterns", None);
                 data.banner_patterns = banner::layers(banner_stack).to_vec();
                 data.base_color = banner::banner_color(&banner_stack.item).map(Arc::from);
                 out

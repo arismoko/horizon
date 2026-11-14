@@ -104,9 +104,9 @@ impl merchant::MapMaker for GameMaps<'_> {
         let mut out = stack;
         let d = out.data_mut();
         d.map_id = Some(id);
-        d.other.push((
-            "minecraft:map_decorations".into(),
-            horizon_core::nbt::Tag::compound([(
+        d.set_other(
+            "minecraft:map_decorations",
+            Some(horizon_core::nbt::Tag::compound([(
                 "+",
                 horizon_core::nbt::Tag::compound([
                     (
@@ -126,8 +126,8 @@ impl merchant::MapMaker for GameMaps<'_> {
                         horizon_core::nbt::Tag::Float(180.0f32.to_bits()),
                     ),
                 ]),
-            )]),
-        ));
+            )])),
+        );
         out
     }
 }

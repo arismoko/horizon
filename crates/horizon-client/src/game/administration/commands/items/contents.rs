@@ -320,10 +320,10 @@ mod tests {
     #[test]
     fn component_storage_keeps_sparse_positions_and_the_live_parent() {
         let mut parent = ItemStack::new("minecraft:stone", 1);
-        parent.data_mut().other.push((
-            "minecraft:custom_data".into(),
-            Tag::compound([("audit", Tag::Int(7))]),
-        ));
+        parent.data_mut().set_other(
+            "minecraft:custom_data",
+            Some(Tag::compound([("audit", Tag::Int(7))])),
+        );
         let mut slots = vec![None; 6];
         slots[0] = Some(ItemStack::new("minecraft:diamond", 1));
         slots[5] = Some(ItemStack::new("minecraft:dirt", 7));
@@ -349,10 +349,10 @@ mod tests {
         );
         let plain = ItemStack::new("minecraft:gold_ingot", 1);
         let mut marked = plain.clone();
-        marked.data_mut().other.push((
-            "minecraft:custom_data".into(),
-            Tag::compound([("audit", Tag::Int(7))]),
-        ));
+        marked.data_mut().set_other(
+            "minecraft:custom_data",
+            Some(Tag::compound([("audit", Tag::Int(7))])),
+        );
         Component::Bundle.store(&mut parent, vec![Some(plain.clone()), Some(marked.clone())]);
         assert_eq!(parent.data().unwrap().bundle_contents, vec![plain, marked]);
     }
