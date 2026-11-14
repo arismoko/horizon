@@ -54,10 +54,14 @@ Native registrations retain their persistent NBT validation contract.
 
 The shared decoder currently covers `damage`, `repair_cost`, `max_damage`,
 `max_stack_size`, `rarity`, `enchantments`, `stored_enchantments`, `custom_name`,
-`item_name`, `block_entity_data`, and `fox/variant` in the `minecraft` namespace.
-The `fox/variant` persistent codec accepts only the exact strings `"red"` and
-`"snow"`; numeric network ids, case variants and namespaced values are rejected.
-The other 111 registered built-ins use stored-value matching while their shared
+`item_name`, `block_entity_data`, `fox/variant`, and `tropical_fish/pattern` in the
+`minecraft` namespace. The `fox/variant` persistent codec accepts only the exact
+strings `"red"` and `"snow"`. The `tropical_fish/pattern` codec accepts only `"kob"`,
+`"sunstreak"`, `"snooper"`, `"dasher"`, `"brinely"`, `"spotty"`, `"flopper"`,
+`"stripey"`, `"glitter"`, `"blockfish"`, `"betty"`, and `"clayfish"`. Both reject
+numeric network ids, case variants and namespaced values. Tropical fish buckets
+have no pattern component by default; the mob's default pattern is not an item default.
+The other 110 registered built-ins use stored-value matching while their shared
 decoders are added incrementally in **#3875**. Their absence is not a load refusal.
 
 Component ingredient displays contain the patch, including removals. Difference
