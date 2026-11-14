@@ -6,7 +6,6 @@ use horizon_client_core::command::{
     parse_coord_int, parse_local, parse_world, read_double_bounds, read_identifier,
     read_int_bounds, selector, suggest_resources,
 };
-use horizon_client_core::identifier::parse_identifier;
 use horizon_client_core::text::Text;
 use std::{fmt, sync::Arc};
 

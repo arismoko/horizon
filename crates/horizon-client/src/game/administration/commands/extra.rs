@@ -749,7 +749,7 @@ impl Game<'_> {
                 .iter()
                 .filter(|g| g.participates_online() && lan.hub.singleplayer_owner != Some(g.uuid))
                 .filter(|g| match &s.player_name {
-                    Some(name) => g.name.eq_ignore_ascii_case(name),
+                    Some(name) => horizon_core::text::eq_ignore_ascii_case_utf16(&name.0, &g.name),
                     None => s.kind == 'a' || s.kind == 'e',
                 })
                 .map(|g| (g.conn, g.name.clone()))

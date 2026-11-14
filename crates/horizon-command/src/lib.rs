@@ -26,7 +26,6 @@ pub use args::{
     Arg, ArgType, CustomArgument, CustomArgumentKind, CustomCompletionAction, CustomSuggestion,
     Registries, modify_custom_completions,
 };
-use horizon_client_core::text::Text;
 
 /// The command id of a mod's command (`Dispatcher::with_mod_commands`).
 pub const MOD_COMMAND: &str = "mod";

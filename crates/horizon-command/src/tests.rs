@@ -1,5 +1,6 @@
 use super::{args::*, vanilla, *};
 use horizon_client_core::command::*;
+use horizon_client_core::text::Text;
 
 fn reg() -> Registries {
     let mut r = Registries {
@@ -1216,7 +1217,7 @@ fn a_dedicated_server_keeps_seed_and_version_for_game_masters() {
                 // Brigadier: a node the source can't use is no node at all.
                 let e = server.parse(line, &player).executable().unwrap_err();
                 assert_eq!(e.message.plain(), "command.unknown.command", "{line}");
-                assert_eq!(e.input.as_deref(), Some(line), "{line}");
+                assert_eq!(e.input.utf8(), Some(line), "{line}");
                 assert!(integrated.parse(line, &player).executable().is_ok());
                 let op = Registries {
                     permission: 2,

@@ -27,7 +27,7 @@ impl From<CommandError> for PathError {
     fn from(error: CommandError) -> Self {
         Self {
             key: error.key,
-            args: error.translation_args,
+            args: error.translation_args.into_vec(),
             cursor: error.cursor,
         }
     }

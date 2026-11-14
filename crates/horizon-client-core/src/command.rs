@@ -5,14 +5,35 @@ use horizon_core::nbt::{JavaString, Tag};
 
 pub mod selector;
 
+/// An owned syntax source. Its cursor is UTF-8 bytes or Java UTF-16 units.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum CommandInput {
+    #[default]
+    None,
+    Utf8(Box<str>),
+    Utf16(Box<[u16]>),
+}
+impl CommandInput {
+    pub fn utf8(&self) -> Option<&str> {
+        match self {
+            Self::Utf8(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn utf16(&self) -> Option<&[u16]> {
+        match self {
+            Self::Utf16(value) => Some(value),
+            _ => None,
+        }
+    }
+}
+
 /// A command error (CommandSyntaxException): the message and, for parse
 /// errors, the input and cursor it occurred at.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CommandError {
     pub message: Text,
-    pub input: Option<String>,
-    /// Exact input for persistent Java-string parsing; cursors count UTF-16 units.
-    pub utf16_input: Option<JavaString>,
+    pub input: CommandInput,
     pub cursor: usize,
     /// BuiltInExceptions.literalIncorrect (summarised specially by the chat UI).
     pub literal_incorrect: bool,
@@ -20,18 +41,17 @@ pub struct CommandError {
     /// exception "type" vanilla code compares against).
     pub key: String,
     /// Translation arguments retained for lower syntax adapters.
-    pub translation_args: Vec<String>,
+    pub translation_args: Box<[String]>,
 }
 impl CommandError {
     pub fn new(message: Text) -> Self {
         Self {
             message,
-            input: None,
-            utf16_input: None,
+            input: CommandInput::None,
             cursor: 0,
             literal_incorrect: false,
             key: String::new(),
-            translation_args: Vec::new(),
+            translation_args: Box::default(),
         }
     }
     pub fn tr(key: &str, args: &[&dyn std::fmt::Display]) -> Self {
@@ -43,12 +63,21 @@ impl CommandError {
     pub fn at<S: CommandString + ?Sized>(message: Text, reader: &Reader<S>) -> Self {
         Self {
             message,
-            input: reader.string.utf8().map(str::to_owned),
-            utf16_input: reader.string.utf16().map(|s| JavaString(s.to_vec())),
+            input: if let Some(input) = reader.string.utf8() {
+                CommandInput::Utf8(input.into())
+            } else {
+                CommandInput::Utf16(
+                    reader
+                        .string
+                        .utf16()
+                        .expect("sealed source encoding")
+                        .into(),
+                )
+            },
             cursor: reader.cursor,
             literal_incorrect: false,
             key: String::new(),
-            translation_args: Vec::new(),
+            translation_args: Box::default(),
         }
     }
     pub fn tr_at<S: CommandString + ?Sized>(
@@ -64,18 +93,18 @@ impl CommandError {
     /// CommandSyntaxException.getContext: up to ten characters before the
     /// cursor followed by "<--[HERE]".
     pub fn context(&self) -> Option<String> {
-        if let Some(input) = &self.utf16_input {
-            let cursor = self.cursor.min(input.0.len());
+        if let Some(input) = self.input.utf16() {
+            let cursor = self.cursor.min(input.len());
             let mut out = if cursor > 10 {
                 "...".to_owned()
             } else {
                 String::new()
             };
-            out.push_str(&display_java(&input.0[cursor.saturating_sub(10)..cursor]));
+            out.push_str(&display_java(&input[cursor.saturating_sub(10)..cursor]));
             out.push_str("<--[HERE]");
             return Some(out);
         }
-        let input = self.input.as_ref()?;
+        let input = self.input.utf8()?;
         let cursor = self.cursor.min(input.len());
         let start = (0..=cursor.saturating_sub(10))
             .rev()

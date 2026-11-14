@@ -79,31 +79,11 @@ impl Game<'_> {
     /// (`native_set_nickname`), a name no player has finds the player going
     /// by it, without its `~` or with it (quoted), so `/msg` and `/tell`
     /// reach a player by the name chat shows. No nickname, no change.
-    pub(super) fn player_named(&self, name: &str) -> Option<Target> {
-        self.player_named_matching(|candidate| name.eq_ignore_ascii_case(candidate))
-            .or_else(|| self.player_nicknamed(name))
-    }
-    /// Compare the compiled selector without transcoding each player candidate.
     pub(super) fn player_named_java(&self, name: &horizon_core::nbt::JavaString) -> Option<Target> {
-        let fold = |unit: u16| {
-            if (65..=90).contains(&unit) {
-                unit + 32
-            } else {
-                unit
-            }
-        };
         self.player_named_matching(|candidate| {
-            name.0
-                .iter()
-                .copied()
-                .map(fold)
-                .eq(candidate.encode_utf16().map(fold))
+            horizon_core::text::eq_ignore_ascii_case_utf16(&name.0, candidate)
         })
-        .or_else(|| {
-            name.to_string()
-                .ok()
-                .and_then(|name| self.player_nicknamed(&name))
-        })
+        .or_else(|| self.player_nicknamed(&name.0))
     }
     fn player_named_matching(&self, matches: impl Fn(&str) -> bool) -> Option<Target> {
         if !self.lan_acting_fake && self.player.is_some() && matches(self.acting_player_name()) {
@@ -116,14 +96,18 @@ impl Game<'_> {
 
     /// The player whose nickname is `name` (any case, a leading `~` either
     /// side ignored).
-    fn player_nicknamed(&self, name: &str) -> Option<Target> {
-        let bare = |s: &str| s.strip_prefix('~').unwrap_or(s).to_ascii_lowercase();
-        let wanted = bare(name);
+    fn player_nicknamed(&self, name: &[u16]) -> Option<Target> {
+        let wanted = name.strip_prefix(&[126]).unwrap_or(name);
         let hub = &self.lan.as_ref()?.hub;
         let uuid = hub
             .nicknames
             .iter()
-            .find(|(_, nick)| bare(nick) == wanted)?
+            .find(|(_, nick)| {
+                horizon_core::text::eq_ignore_ascii_case_utf16(
+                    wanted,
+                    nick.strip_prefix('~').unwrap_or(nick),
+                )
+            })?
             .0;
         self.target_by_uuid(*uuid)
     }
