@@ -94,6 +94,7 @@ impl EntitySelectorsRegistrar for PartRegistrar {
 /// Fixtures that tests of other crates use to install entity selector tokens.
 #[cfg(any(test, feature = "testing"))]
 pub mod tests {
+    #[cfg(test)]
     use mod_vocab::EntitySelectorsRegistrar;
 
     #[test]

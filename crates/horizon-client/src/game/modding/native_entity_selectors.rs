@@ -80,8 +80,8 @@ mod tests {
         ) -> bool {
             self.0.lock().unwrap().push((source.clone(), entity.id()));
             match entity.id() {
-                12 | 15 => true, // This mod's allied roster.
-                13 => panic!("fixture predicate failure"),
+                112 | 115 => true, // This mod's allied roster, distinct from player ids.
+                113 => panic!("fixture predicate failure"),
                 _ => false,
             }
         }
@@ -147,47 +147,44 @@ mod tests {
         .into();
         crate::game::api_values::install_parts(&mods).unwrap();
         mod_platform::testing::with_mods(mods, || {
-            super::super::native_entity_refs::tests::with_game(|game| {
-                game.level.player_uuid = Some([1, 2, 3, 4]);
-                game.player = Some(
-                    horizon_client::motion::PlayerMotion::new(game.motion, Vec3::ZERO).unwrap(),
-                );
+            crate::game::native_guest_turn_tests::with_guests(|game| {
                 game.build_registries();
-                let expected_source = game
-                    .native_command_origin(game.ui.registries.permission)
-                    .unwrap();
-                assert!(matches!(
-                    expected_source,
-                    mod_api::CommandSource::Player { .. }
-                ));
-                let kind = game.res.mob_types().get("minecraft:pig").unwrap().clone();
-                for (id, x) in [(11, 1.0), (12, 2.0), (13, 1.5), (14, 0.5), (15, 3.0)] {
-                    game.mobs.push(horizon_client::mobs::Mob::new(
-                        id,
-                        kind.clone(),
-                        Vec3::new(x, 0.0, 0.0),
-                        0.0,
-                    ));
-                }
-                let selector = Selector {
-                    kind: 'e',
-                    include_entities: true,
-                    token: Some("allies".into()),
-                    limit: 1,
-                    sort: horizon_client::command::args::Sort::Nearest,
-                    pos: [Some(0.0); 3],
-                    ..Default::default()
-                };
-                assert_eq!(game.select(&selector), [Target::Mob(12)]);
-                let calls = calls.lock().unwrap();
-                for id in [11, 12, 13, 14, 15] {
-                    assert!(
-                        calls
+                // A body and level UUID alone do not identify a server command
+                // source. Enter a real guest turn so its UUID/name/permission
+                // and entity identity are installed by the production path.
+                game.as_guest(12, |game| {
+                    let kind = game.res.mob_types().get("minecraft:pig").unwrap().clone();
+                    for (id, x) in [(111, 1.0), (112, 2.0), (113, 1.5), (114, 0.5), (115, 3.0)] {
+                        game.mobs.push(horizon_client::mobs::Mob::new(
+                            id,
+                            kind.clone(),
+                            Vec3::new(x, 0.0, 0.0),
+                            0.0,
+                        ));
+                    }
+                    let selector = Selector {
+                        kind: 'e',
+                        include_entities: true,
+                        token: Some("allies".into()),
+                        limit: 1,
+                        sort: horizon_client::command::args::Sort::Nearest,
+                        pos: [Some(0.0); 3],
+                        ..Default::default()
+                    };
+                    assert_eq!(game.select(&selector), [Target::Mob(112)]);
+                    let calls = calls.lock().unwrap();
+                    for id in [111, 112, 113, 114, 115] {
+                        let (source, _) = calls
                             .iter()
-                            .any(|(source, candidate)| *candidate == id
-                                && *source == expected_source)
-                    );
-                }
+                            .find(|(_, candidate)| *candidate == id)
+                            .expect("every mob must be filtered before limit");
+                        let mod_api::CommandSource::Player { player, .. } = source else {
+                            panic!("expected the acting player source");
+                        };
+                        assert_eq!(player.uuid(), 12);
+                        assert_eq!(player.entity().id(), 12);
+                    }
+                });
             });
         });
     }
