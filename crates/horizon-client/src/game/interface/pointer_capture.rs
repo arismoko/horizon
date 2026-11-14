@@ -28,6 +28,16 @@ impl Game<'_> {
             && self.screen == Screen::Playing
             && (self.player.is_some() || self.studio.flying());
         let active = self.focused || self.agent_pointer;
+        let (dx, dy) = self.mouse.accumulated();
+        let mut canceled = false;
+        if active
+            && grabbed
+            && (dx != 0.0 || dy != 0.0)
+            && mod_api::__private::listened(mod_api::HookId::MouseTurnPre)
+        {
+            self.native_mouse_turn_pre([dx, dy], &mut canceled);
+        }
+        let grabbed = grabbed && !canceled;
         if active
             && grabbed
             && mod_api::__private::listened(mod_api::HookId::CalculatePlayerTurn)
