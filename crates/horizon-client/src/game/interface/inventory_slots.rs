@@ -420,7 +420,7 @@ impl Game<'_> {
 
 impl Game<'_> {
     /// Slot ids: 0..36 player inventory, 100..109 crafting grid, 200 result.
-    pub(super) fn container_kind(&self) -> Option<&BlockEntity> {
+    pub(in crate::game) fn container_kind(&self) -> Option<&BlockEntity> {
         self.container
             .and_then(|k| self.world.block_entities.get(&k))
     }

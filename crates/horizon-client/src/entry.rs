@@ -244,9 +244,6 @@ pub(crate) fn install_client_hooks() {
         menu_still_valid_listens: |menu| {
             mod_api::__private::menu_listens(mod_api::HookId::MenuStillValid, menu)
         },
-        item_stacked_on_other: |context, event, canceled| {
-            game::api_values::stacked_on_other(context, event, canceled);
-        },
         living_heal: |context, entity, amount, cancel| {
             if !mod_api::__private::listened(mod_api::HookId::LivingHeal) {
                 return;

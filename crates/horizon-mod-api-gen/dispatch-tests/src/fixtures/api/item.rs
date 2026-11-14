@@ -10,6 +10,8 @@ pub mod item {
         pub struct AnvilUpdate;
         pub struct GrindstonePlace;
         pub struct GrindstoneTake;
+        pub struct StackedOnOther;
+        pub struct StackedOnOtherResult;
     }
     pub mod stations {
         pub struct EnchantmentRow<'a>(std::marker::PhantomData<&'a ()>);

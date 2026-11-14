@@ -403,6 +403,7 @@ pub fn main() -> horizon_client::Result<()> {
                     can_equip: None,
                     known_recipes: None,
                     slot_rules: None,
+                    stacked: None,
                 };
                 trade(&mut out, name, &kv, &mut world, &env, origin)?;
             }

@@ -112,6 +112,7 @@ pub fn main() -> horizon_client::Result<()> {
         can_equip: None,
         known_recipes: None,
         slot_rules: None,
+        stacked: None,
     };
     let mut out = String::new();
     for line in input.lines() {

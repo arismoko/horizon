@@ -127,6 +127,9 @@ impl Game<'_> {
         if let [(Some(slot), button, input)] = ops {
             self.crafter_slot_clicked(*slot, *button, *input);
         }
+        if let Some(done) = self.stacked_menu_ops(ops) {
+            return done;
+        }
         let ops = ops.to_vec();
         let done = self.menu_session(move |menu, env, to_menu| {
             let mut clicks = Vec::new();

@@ -324,7 +324,7 @@ pub(super) struct Station {
     pub(super) book: EnchantBook,
 }
 impl Station {
-    fn new(kind: Kind, pos: [i32; 3]) -> Self {
+    pub(in crate::game) fn new(kind: Kind, pos: [i32; 3]) -> Self {
         Self {
             kind,
             pos,

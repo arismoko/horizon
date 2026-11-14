@@ -170,6 +170,7 @@ impl Game<'_> {
             can_equip: None,
             known_recipes: Some(&self.level.recipe_book),
             slot_rules: Some(self),
+            stacked: None,
         }
     }
 
@@ -178,6 +179,19 @@ impl Game<'_> {
         &mut self,
         gi: usize,
         menu: &mut Menu,
+        op: impl FnOnce(&mut Menu, &Env) -> R,
+    ) -> Option<R> {
+        self.guest_menu_op_with(gi, menu, None, None, op)
+    }
+
+    /// `guest_menu_op` with the slot rules a decision kept (instead of asking the mods) and the
+    /// mods' answer to the pickup it decided, when there is one.
+    pub(super) fn guest_menu_op_with<R>(
+        &mut self,
+        gi: usize,
+        menu: &mut Menu,
+        rules: Option<&dyn horizon_client::menu::SlotRules>,
+        stacked: Option<&horizon_client::menu::StackedOutcome>,
         op: impl FnOnce(&mut Menu, &Env) -> R,
     ) -> Option<R> {
         self.lan.as_ref()?;
@@ -215,6 +229,11 @@ impl Game<'_> {
             can_equip: Some(&parts),
             known_recipes: Some(&host.hub.guests[gi].recipe_book),
             ..self.menu_env()
+        };
+        let env = Env {
+            slot_rules: rules.or(env.slot_rules),
+            stacked,
+            ..env
         };
         let limits = host.hub.guests[gi]
             .menu
@@ -352,17 +371,10 @@ impl Game<'_> {
             .take()
             .unwrap_or_else(|| Box::new(Menu::new(Kind::Inventory)));
         let grid = host.hub.guests[gi].craft_grid.clone();
-        let Some(changed) = self.guest_menu_op(gi, &mut menu, |menu, env| {
-            for (k, s) in grid.into_iter().enumerate() {
-                menu.set_slot(env, 1 + k, s);
+        let Some(changed) = self.guest_menu_click(gi, &mut menu, p, move |menu, env| {
+            for (k, s) in grid.iter().enumerate() {
+                menu.set_slot(env, 1 + k, s.clone());
             }
-            let before: Vec<_> = (0..menu.slot_count())
-                .map(|s| menu.slot(s).cloned())
-                .collect();
-            let _ = menu.click(env, i32::from(p.slot), i32::from(p.button), input(p.input));
-            (0..menu.slot_count())
-                .filter(|&s| menu.slot(s) != before[s].as_ref())
-                .collect::<Vec<_>>()
         }) else {
             return true;
         };
@@ -478,11 +490,12 @@ impl Game<'_> {
         // A crafting grid's result is what the guest was shown, the mods' say
         // included, while the grid is as it was then.
         let shown = Self::lan_mod_craft_shown(self.lan.as_ref().unwrap(), gi, &items);
-        let Some(mut changed) = self.guest_menu_op(gi, &mut menu, |menu, env| {
+        // What the click finds: the container's slots set in, as the guest was shown them.
+        let prepare = |menu: &mut Menu, env: &Env| {
             if matches!(kind, Kind::Mod(_)) {
                 menu.load_container(env, &items);
-                if let Some((slot, result)) = shown {
-                    menu.set_slot(env, slot, result);
+                if let Some((slot, result)) = &shown {
+                    menu.set_slot(env, *slot, result.clone());
                 }
             } else {
                 for (k, s) in items.iter().enumerate() {
@@ -496,14 +509,20 @@ impl Game<'_> {
                 }
                 menu.data[9] = i32::from(triggered);
             }
-            let before: Vec<_> = (0..menu.slot_count())
-                .map(|s| menu.slot(s).cloned())
-                .collect();
-            let _ = menu.click(env, i32::from(p.slot), i32::from(p.button), input(p.input));
-            (0..menu.slot_count())
-                .filter(|&s| menu.slot(s) != before[s].as_ref())
-                .collect::<Vec<_>>()
-        }) else {
+        };
+        let click = super::lan_pickup::click_of(p);
+        let Some(mut changed) =
+            self.guest_menu_op_decided(gi, &mut menu, Some(click), Some(&prepare), |menu, env| {
+                prepare(menu, env);
+                let before: Vec<_> = (0..menu.slot_count())
+                    .map(|s| menu.slot(s).cloned())
+                    .collect();
+                let _ = menu.click(env, click.0, click.1, click.2);
+                (0..menu.slot_count())
+                    .filter(|&s| menu.slot(s) != before[s].as_ref())
+                    .collect::<Vec<_>>()
+            })
+        else {
             return true;
         };
         let mut linked_after = Vec::new();
@@ -1023,15 +1042,18 @@ impl Game<'_> {
             && !host.hub.guests[gi].spectator()
             && self.lan_table_valid(&host.hub.guests[gi], pos)
         {
-            let Some(mut changed) = self.guest_menu_op(gi, &mut menu, |menu, env| {
-                let before: Vec<_> = (0..menu.slot_count())
-                    .map(|s| menu.slot(s).cloned())
-                    .collect();
-                let _ = menu.click(env, i32::from(p.slot), i32::from(p.button), input(p.input));
-                (0..menu.slot_count())
-                    .filter(|&s| menu.slot(s) != before[s].as_ref())
-                    .collect::<Vec<_>>()
-            }) else {
+            let click = super::lan_pickup::click_of(p);
+            let Some(mut changed) =
+                self.guest_menu_op_decided(gi, &mut menu, Some(click), None, |menu, env| {
+                    let before: Vec<_> = (0..menu.slot_count())
+                        .map(|s| menu.slot(s).cloned())
+                        .collect();
+                    let _ = menu.click(env, click.0, click.1, click.2);
+                    (0..menu.slot_count())
+                        .filter(|&s| menu.slot(s) != before[s].as_ref())
+                        .collect::<Vec<_>>()
+                })
+            else {
                 return true;
             };
             let Some(guest) = self.lan.as_ref().map(|host| &host.hub.guests[gi]) else {

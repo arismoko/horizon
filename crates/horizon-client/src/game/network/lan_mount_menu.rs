@@ -6,7 +6,7 @@
 //! (`Kind::Mount`) with the mount's saddle, body item and chest copied in and
 //! written back, and the slots go to the client after each change, as
 //! `broadcastChanges` does.
-use super::{Game, lan_crafting::input};
+use super::Game;
 use horizon_client::{
     items::ItemStack,
     menu::{Kind, Menu},
@@ -135,8 +135,9 @@ impl Game<'_> {
             && let Some(index) = self.mobs.iter().position(|m| m.id == mob)
         {
             let mut menu = self.mount_engine_menu(index, columns);
-            self.guest_menu_op(gi, &mut menu, |menu, env| {
-                let _ = menu.click(env, i32::from(p.slot), i32::from(p.button), input(p.input));
+            let click = super::lan_pickup::click_of(p);
+            self.guest_menu_op_decided(gi, &mut menu, Some(click), None, |menu, env| {
+                let _ = menu.click(env, click.0, click.1, click.2);
             });
             self.lan_mount_store(index, columns, &menu);
         }

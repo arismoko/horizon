@@ -24,6 +24,38 @@ impl Menu {
         self.state.quick_slots.clear();
     }
 
+    /// The pickup click `click` would run on `slot_index` with `button`, as `item_stacked_on_other`
+    /// is asked about it: the stacks it finds. `None` for a click that never asks (not a pickup
+    /// button, not a slot, a hidden slot, or a drag in progress, which the click only ends).
+    pub fn stacked_click(
+        &self,
+        env: &Env,
+        slot_index: i32,
+        button: i32,
+        input: Input,
+    ) -> Option<StackedClick> {
+        let s = usize::try_from(slot_index).ok()?;
+        if input != Input::Pickup
+            || !(0..=1).contains(&button)
+            || self.state.quick_status != 0
+            || s >= self.state.slots.len()
+            || self.state.slots[s].role == Role::Hidden
+        {
+            return None;
+        }
+        let slot = self.state.slots[s];
+        Some(StackedClick {
+            player: env.player,
+            player_entity_id: env.player_entity_id,
+            slot: s,
+            container: slot.container,
+            container_slot: slot.index,
+            primary: button == 0,
+            carried: self.state.carried.clone(),
+            clicked: self.slot(s).cloned(),
+        })
+    }
+
     /// `AbstractContainerMenu.clicked`: Err carries a vanilla exception name.
     pub fn click(
         &mut self,
@@ -222,30 +254,17 @@ impl Menu {
     /// plain click, ending with `slot.setChanged()`.
     pub(super) fn pickup(&mut self, env: &Env, s: usize, primary: bool) {
         self.touch();
-        let mut canceled = false;
-        let mut handled = false;
-        if crate::native_client_hooks::has_mods() {
-            let slot = self.state.slots[s];
-            let mut carried = self.state.carried.take();
-            let mut view = MenuSlotView {
-                menu: self,
-                env,
-                slot: s,
-            };
-            let mut event = StackedOnOther {
-                player: env.player,
-                player_entity_id: env.player_entity_id,
-                slot: s,
-                container: slot.container,
-                container_slot: slot.index,
-                primary,
-                carried: CarriedAccess(&mut carried),
-                clicked: &mut view,
-                cancellation_result: false,
-            };
-            native_item_stacked_on_other(env.loop_context, &mut event, &mut canceled);
-            handled = event.cancellation_result;
-            self.state.carried = carried;
+        let (mut canceled, mut handled) = (false, false);
+        if let Some(outcome) = env.stacked {
+            (canceled, handled) = (outcome.canceled, outcome.handled);
+            if canceled && handled {
+                if let Some(carried) = outcome.carried.clone() {
+                    self.state.carried = carried;
+                }
+                if let Some(clicked) = outcome.clicked.clone() {
+                    self.set_by_player(env, s, clicked);
+                }
+            }
         }
         let handled = if canceled {
             handled
