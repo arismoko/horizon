@@ -422,6 +422,7 @@ fn scan(root: &Path) -> Result<(Vec<Scanned>, Vec<(String, String)>), String> {
             crates.insert(krate.to_owned());
         }
     }
+    let mut workspace_manifest = None;
     for krate in &crates {
         let (package, _) = crate_root(root, krate)?;
         let manifest = crate::replace::manifest(&package)?;
@@ -438,10 +439,12 @@ fn scan(root: &Path) -> Result<(Vec<Scanned>, Vec<(String, String)>), String> {
             .filter_map(toml::Value::as_table)
             .flatten()
         {
-            let workspace;
             let dependency =
                 if dependency.get("workspace").and_then(toml::Value::as_bool) == Some(true) {
-                    workspace = crate::replace::manifest(root)?;
+                    let workspace = workspace_manifest
+                        .get_or_insert_with(|| crate::replace::manifest(root))
+                        .as_ref()
+                        .map_err(Clone::clone)?;
                     workspace
                         .get("workspace")
                         .and_then(|workspace| workspace.get("dependencies"))
