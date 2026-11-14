@@ -50,9 +50,14 @@ pub fn identifier(value: &Tag) -> Option<Identifier<'_>> {
     let Tag::String(value) = value else {
         return None;
     };
-    let (namespace, path) = match value.0.iter().position(|&value| value == u16::from(b':')) {
-        Some(colon) => (&value.0[..colon], &value.0[colon + 1..]),
-        None => (&[][..], value.0.as_slice()),
+    identifier_units(&value.0)
+}
+
+/// `Identifier.CODEC` for a borrowed UTF-16 slice, including a tag-key suffix.
+pub fn identifier_units(value: &[u16]) -> Option<Identifier<'_>> {
+    let (namespace, path) = match value.iter().position(|&value| value == u16::from(b':')) {
+        Some(colon) => (&value[..colon], &value[colon + 1..]),
+        None => (&[][..], value),
     };
     if namespace == [u16::from(b'.'); 2]
         || !namespace.iter().copied().all(namespace_char)
@@ -159,6 +164,15 @@ mod tests {
             assert_eq!(int(&a).unwrap(), int(&b).unwrap());
             assert_eq!(float(&a).unwrap(), float(&b).unwrap());
         }
+        let prefixed = [
+            u16::from(b'#'),
+            u16::from(b'a'),
+            u16::from(b':'),
+            u16::from(b'b'),
+        ];
+        let value = Tag::String("a:b".into());
+        assert_eq!(identifier_units(&prefixed[1..]), identifier(&value));
+        assert!(identifier_units(&[0xd800]).is_none());
         let zero = Tag::Float(0.0_f32.to_bits());
         let negative_zero = Tag::Double((-0.0_f64).to_bits());
         assert_ne!(float(&zero).unwrap(), float(&negative_zero).unwrap());
