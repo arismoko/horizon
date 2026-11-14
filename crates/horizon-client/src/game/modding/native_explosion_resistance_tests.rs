@@ -124,7 +124,12 @@ fn row(game: &mut Game<'_>) {
 }
 
 /// A sourceless block blast of radius 4 at the row, read through `via`.
-fn read(game: &mut Game<'_>, via: Via, pos: [i32; 3], source: Option<EntityRef>) -> Option<ExplosionResistance> {
+fn read(
+    game: &mut Game<'_>,
+    via: Via,
+    pos: [i32; 3],
+    source: Option<EntityRef>,
+) -> Option<ExplosionResistance> {
     let level = game.level("minecraft:overworld").unwrap();
     let (center, radius, fire, interaction) = blast();
     let native = level.explosion_resistance(game, pos, source, center, radius, fire, interaction);
@@ -147,7 +152,8 @@ fn reads(
 ) -> Result<Vec<ExplosionResistance>, ResistanceCellsError> {
     let level = game.level("minecraft:overworld").unwrap();
     let (center, radius, fire, interaction) = blast();
-    let native = level.explosion_resistances(game, cells, source, center, radius, fire, interaction);
+    let native =
+        level.explosion_resistances(game, cells, source, center, radius, fire, interaction);
     if let Via::Wasm = via {
         let mut input = Writer::new();
         input.put(&level);
@@ -270,7 +276,9 @@ fn each_target(test: impl Fn(&mut Game<'_>, Via, &Resisting) + Send + Sync + 'st
                 // One build at a time: the tests share the root's folder.
                 static BUILD: std::sync::Mutex<()> = std::sync::Mutex::new(());
                 let root = {
-                    let _build = BUILD.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                    let _build = BUILD
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     crate::game::mods::content_root(&base, &Default::default()).unwrap()
                 };
                 with_game_role(
@@ -307,7 +315,13 @@ fn a_block_state_reads_the_resistance_its_block_declares() {
             if let Via::Wasm = via {
                 let mut input = Writer::new();
                 input.put(&state);
-                wasm_answer(game, level, "block_state_explosion_resistance", input, &native);
+                wasm_answer(
+                    game,
+                    level,
+                    "block_state_explosion_resistance",
+                    input,
+                    &native,
+                );
             }
             native
         };
@@ -315,7 +329,14 @@ fn a_block_state_reads_the_resistance_its_block_declares() {
         // Dirt's part answers 5000 at one position; the state's own value stays 0.5.
         assert_eq!(
             got,
-            [Some(6.0), Some(1200.0), Some(3_600_000.0), Some(100.0), Some(0.5), Some(42.0)],
+            [
+                Some(6.0),
+                Some(1200.0),
+                Some(3_600_000.0),
+                Some(100.0),
+                Some(0.5),
+                Some(42.0)
+            ],
             "{via:?}"
         );
         // Stone has no state past its one: an ordinal no state has.
@@ -333,7 +354,9 @@ fn a_block_state_reads_the_resistance_its_block_declares() {
 fn a_cell_reads_what_a_blast_meets_there() {
     each_target(|game, via, parts| {
         let at = |x: i32| [x, 80, 1];
-        let got: Vec<_> = (1..=8).map(|x| read(game, via, at(x), None).unwrap()).collect();
+        let got: Vec<_> = (1..=8)
+            .map(|x| read(game, via, at(x), None).unwrap())
+            .collect();
         assert_eq!(
             got,
             [
@@ -354,7 +377,11 @@ fn a_cell_reads_what_a_blast_meets_there() {
             "{via:?}: each dirt asked once"
         );
         // A chunk that isn't loaded is never loaded for a read.
-        assert_eq!(read(game, via, [100, 80, 100], None), Some(Unavailable), "{via:?}");
+        assert_eq!(
+            read(game, via, [100, 80, 100], None),
+            Some(Unavailable),
+            "{via:?}"
+        );
         assert!(!game.world.chunks.contains_key(&(6, 6)));
         // A state the game doesn't know.
         game.world
@@ -362,7 +389,11 @@ fn a_cell_reads_what_a_blast_meets_there() {
             .unwrap();
         assert_eq!(read(game, via, at(9), None), Some(Unavailable), "{via:?}");
         // Above the level: void air.
-        assert_eq!(read(game, via, [1, 400, 1], None), Some(NoResistance), "{via:?}");
+        assert_eq!(
+            read(game, via, [1, 400, 1], None),
+            Some(NoResistance),
+            "{via:?}"
+        );
     });
 }
 
@@ -390,7 +421,11 @@ fn a_batched_read_answers_each_cell_in_order() {
         assert_eq!(got, expected, "{via:?}");
         // The pure planks part is asked once for its four cells; dirt's once a cell.
         assert_eq!(parts.pure.0.load(Ordering::Relaxed), via.reads(), "{via:?}");
-        assert_eq!(parts.spot.0.load(Ordering::Relaxed), 2 * via.reads(), "{via:?}");
+        assert_eq!(
+            parts.spot.0.load(Ordering::Relaxed),
+            2 * via.reads(),
+            "{via:?}"
+        );
         let columns = ResistanceCells::Columns {
             columns: vec![(3, 1), (100, 100), (3, 1)],
             min_y: 79,
@@ -469,7 +504,11 @@ fn read_and_blast(
 ) {
     let level = game.level("minecraft:overworld").unwrap();
     let block = game.world.block(at[0], at[1], at[2]);
-    let center = [f64::from(at[0]) + 0.5, f64::from(at[1]) + 0.5, f64::from(at[2]) + 1.5];
+    let center = [
+        f64::from(at[0]) + 0.5,
+        f64::from(at[1]) + 0.5,
+        f64::from(at[2]) + 1.5,
+    ];
     for (i, source) in [source, None].into_iter().enumerate() {
         let read = |game: &mut Game<'_>| {
             let native = level.explosion_resistance(
@@ -496,9 +535,33 @@ fn read_and_blast(
         };
         game.world.set(at[0], at[1], at[2], block).unwrap();
         assert_eq!(read(game), Some(expected[i]), "{via:?} {source:?}");
-        assert!(level.explode(game, source, center, 2.0, false, ExplosionInteraction::Block));
+        match via {
+            Via::Native => {
+                assert!(level.explode(
+                    game,
+                    source,
+                    center,
+                    2.0,
+                    false,
+                    ExplosionInteraction::Block
+                ));
+            }
+            Via::Wasm => {
+                let mut input = Writer::new();
+                input.put(&level);
+                input.put(&source);
+                input.put(&center);
+                input.put(&2.0f32);
+                input.put(&false);
+                input.put(&ExplosionInteraction::Block);
+                wasm_answer(game, level, "level_explode", input, &true);
+            }
+        }
         let survived = game.world.block(at[0], at[1], at[2]) == block;
-        assert_eq!(survived, kept[i], "{via:?} {source:?}: the rays did as read");
+        assert_eq!(
+            survived, kept[i],
+            "{via:?} {source:?}: the rays did as read"
+        );
     }
 }
 
