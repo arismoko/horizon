@@ -2150,17 +2150,7 @@ impl Game<'_> {
         let Some((_, alive, cart_step, player_step)) = result else {
             return true;
         };
-        section_steps::tell(self, id, cart_step);
-        section_steps::tell_player(self, player_step);
-        // AbstractMinecart.activateMinecart: a powered activator rail ejects
-        // the rider, and getDismountLocationForPassenger places it beside the
-        // cart instead of leaving it at the seat.
-        if alive
-            && self.riding.is_none()
-            && let Some(i) = cart_at(&self.carts, id, i)
-        {
-            self.dismount_cart(i);
-        }
+        section_steps::finish_riding_step(self, id, i, alive, cart_step, player_step);
         true
     }
     /// `getDismountLocationForPassenger`: beside the cart (across its facing), else on top.

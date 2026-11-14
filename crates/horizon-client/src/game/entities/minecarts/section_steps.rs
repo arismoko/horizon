@@ -68,6 +68,29 @@ pub(super) fn tell(game: &mut Game<'_>, id: u32, step: Option<(Vec3, Vec3)>) {
     }
 }
 
+// Keep callback delivery and identity-checked continuation together: either listener
+// can remove or move the cart, so the pre-delivery index is only a lookup hint.
+pub(super) fn finish_riding_step(
+    game: &mut Game<'_>,
+    id: u32,
+    hint: usize,
+    alive: bool,
+    cart_step: Option<(Vec3, Vec3)>,
+    player_step: Option<(Vec3, Vec3)>,
+) {
+    tell(game, id, cart_step);
+    tell_player(game, player_step);
+    // AbstractMinecart.activateMinecart: a powered activator rail ejects
+    // the rider, and getDismountLocationForPassenger places it beside the
+    // cart instead of leaving it at the seat.
+    if alive
+        && game.riding.is_none()
+        && let Some(i) = cart_at(&game.carts, id, hint)
+    {
+        game.dismount_cart(i);
+    }
+}
+
 pub(super) fn tell_player(game: &mut Game<'_>, step: Option<(Vec3, Vec3)>) {
     if let Some((from, to)) = step
         && let Ok(id) = u32::try_from(game.own_entity_id())
