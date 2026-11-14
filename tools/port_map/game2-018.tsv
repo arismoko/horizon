@@ -118,7 +118,7 @@ PistonMovingBlockEntity.getZOff	port	crates/horizon-world/src/piston_shape.rs::M
 PistonMovingBlockEntity.moveEntityByPiston	port	crates/horizon-client/src/game/blocks/piston_push.rs::Game::move_pushed	moves a body along the push with the piston no-clip rule
 PistonMovingBlockEntity.moveStuckEntities	port	crates/horizon-client/src/game/blocks/piston_push.rs::Game::push_for_piston	the honey branch selects sticky passengers after the collided ones
 PistonMovingBlockEntity.loadAdditional	port	crates/horizon-client/src/game/world/persist.rs::Game::moving_piston_from_nbt	a `minecraft:piston` entity whose block is still a moving piston: blockState, facing, progress, extending and source
-PistonMovingBlockEntity.saveAdditional	port	crates/horizon-client/src/game/world/persist.rs::Game::moving_piston_to_nbt	the moving piston of each moving_piston block as a `minecraft:piston` entity in attach_save_data
+PistonMovingBlockEntity.saveAdditional	port	crates/horizon-client/src/game/world/piston_nbt.rs::Game::moving_piston_to_nbt	the moving piston of each moving_piston block as a `minecraft:piston` entity in attach_save_data
 PistonMovingBlockEntity.setLevel	skip:data		on load an unknown moved block becomes air; Horizon resolves moved states from the block registry
 PistonStructureResolver.isSticky	port	crates/horizon-world/src/level/pistons.rs::Sim::is_sticky_piston
 PistonStructureResolver.canStickToEachOther	port	crates/horizon-world/src/level/pistons.rs::Sim::can_stick
