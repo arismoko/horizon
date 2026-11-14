@@ -69,13 +69,13 @@ impl EntitySelectorsRegistrar for PartRegistrar {
             + if base.limit.is_some() { 4 } else { 0 };
         let total = 1
             + varint_bytes(self.parts.entity_selectors.len() + 1)
-            + self.parts.entity_selector_bytes
+            + self.entity_selector_bytes
             + entry_bytes;
         if total > 256 * 1024 {
             self.refused.push(format!("{} registered selector token @{name}: encoded metadata would exceed Horizon's 256 KiB total limit", self.mod_id));
             return;
         }
-        self.parts.entity_selector_bytes += entry_bytes;
+        self.entity_selector_bytes += entry_bytes;
         let index = self
             .parts
             .entity_selectors
@@ -123,7 +123,7 @@ pub mod tests {
             registrar.add_entity_selector(&format!("t{n}"), std::sync::Arc::new(Large));
         }
         assert_eq!(registrar.parts.entity_selectors.len(), 7);
-        assert_eq!(registrar.parts.entity_selector_bytes, 229460);
+        assert_eq!(registrar.entity_selector_bytes, 229460);
         assert_eq!(registrar.refused.len(), 1);
         assert!(registrar.refused[0].contains("@t7") && registrar.refused[0].contains("256 KiB"));
         assert_eq!(
