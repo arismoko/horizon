@@ -74,6 +74,7 @@ LivingEntity.getKillCredit	port	crates/horizon-client/src/game/mobs/creatures/mo
 LivingEntity.getTicksSinceLastKineticHitFeedback	port	crates/horizon-client/src/game/items/spear.rs::Game::kinetic_hit_ticks
 LivingEntity.swapHandItems	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::handle_packet	entity event 55 swaps another player's hands; the arm is in `handle_packet`
 LivingEntity.getAttackRangeWith	inline	crates/horizon-client/src/game.rs::Game::reach	gap: minor: only the spear's range is item specific (spear.rs REACH); other items use the default reach
+LivingEntity.SwingState.getAnimation	port	crates/horizon-client/src/first_person.rs::SwingState::animation	partial-tick interpolation wraps a restarted animation forward through one
 LivingEntity.getActiveItem	inline	crates/horizon-client/src/game.rs::Game::held	the selected slot; the item in use is the `using` slot
 LivingEntity.getItemInHand	inline	crates/horizon-client/src/game.rs::Game::held	main hand; the off hand is the `offhand` field
 LivingEntity.setItemInHand	inline	crates/horizon-client/src/game.rs::Game::held_mut	main hand cell
