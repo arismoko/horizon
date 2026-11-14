@@ -89,7 +89,8 @@ impl Game<'_> {
             return;
         };
         let clock = default_clock(r, &r.dimension);
-        let kept = ViewedWorld::new(r.level.clone(), r.chunk_format.clone(), clock, world);
+        let mut kept = ViewedWorld::new(r.level.clone(), r.chunk_format.clone(), clock, world);
+        kept.nether_shading = self.streaming.nether_shading;
         r.viewed.insert(left, kept);
     }
 
