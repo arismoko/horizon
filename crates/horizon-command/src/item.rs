@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:custom_model_data",
     "minecraft:use_cooldown",
     "minecraft:tropical_fish/pattern_color",
     "minecraft:cooking_fuel",
@@ -157,6 +158,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
                     .expect("validated numeric nutrition") as i32,
             ),
         )]),
+        "minecraft:custom_model_data" => horizon_items::item_data::custom_model_data::decode(value).expect("validated custom model data"),
         "minecraft:enchantments" | "minecraft:stored_enchantments" => {
             let Tag::Compound(entries) = value else {
                 unreachable!("validated enchantment map")
@@ -182,6 +184,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
+        "minecraft:custom_model_data" => horizon_items::item_data::custom_model_data::valid(t).then_some(()).ok_or_else(|| "Expected custom model data record with floats, flags, strings and colors lists".into()),
         "minecraft:use_cooldown" => use_cooldown(t).map(|_| ()),
         "minecraft:cooking_fuel" => horizon_items::item_data::cooking_fuel::decode(t).map(|_| ()),
         "minecraft:brewing_fuel" => horizon_items::item_data::brewing_fuel::decode(t).map(|_| ()),

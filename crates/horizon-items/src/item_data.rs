@@ -3,6 +3,8 @@
 //! `trim`, with their NBT form in vanilla's `components` compound.
 #[path = "item_data/brewing_fuel.rs"]
 pub mod brewing_fuel;
+#[path = "item_data/custom_model_data.rs"]
+pub mod custom_model_data;
 #[path = "item_data/cooking_fuel.rs"]
 pub mod cooking_fuel;
 #[path = "item_data/ingredient_components.rs"]

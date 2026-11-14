@@ -106,6 +106,15 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
             a.data().map_or(0, |d| d.repair_cost) == b.data().map_or(0, |d| d.repair_cost)
         }
         "minecraft:dyed_color" => dyed_color(a).is_some_and(|color| Some(color) == dyed_color(b)),
+        "minecraft:custom_model_data" => {
+            match (
+                a.data().and_then(|data| data.other(id)),
+                b.data().and_then(|data| data.other(id)),
+            ) {
+                (Some(a), Some(b)) => custom_model_data::equal(a, b),
+                _ => false,
+            }
+        }
         "minecraft:enchantments" => levels_equal(
             a.data().map_or(&[], |d| d.enchantments.as_slice()),
             b.data().map_or(&[], |d| d.enchantments.as_slice()),
