@@ -193,6 +193,7 @@ impl Game<'_> {
         id: u32,
         state: TransferredEntityState,
     ) {
+        self.journal_arrival(id);
         if state.died {
             self.died.insert(id);
         }

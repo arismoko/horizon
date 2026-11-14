@@ -186,6 +186,28 @@ impl CommandInvocation {
     }
 }
 
+/// A command's outcome and the messages received by its source.
+///
+/// The default is an unsuccessful run with no feedback, including when a handle
+/// cannot resolve or its host has no backend.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct CommandResult {
+    /// Whether the command parsed and ran successfully, as `EntityRef::run_command` reports.
+    pub success: bool,
+    /// Success and failure messages received by the source, in order, as plain text.
+    /// Player chat delivery is preserved. Silent sources have no feedback lines.
+    pub feedback: Vec<String>,
+}
+
+impl CommandResult {
+    /// Build a result from the execution outcome and the source's feedback lines.
+    pub fn new(success: bool, feedback: Vec<String>) -> Self {
+        Self { success, feedback }
+    }
+}
+
 pub(crate) mod command_argument;
 pub(crate) mod entity_selector;
 pub(crate) mod suggestion;

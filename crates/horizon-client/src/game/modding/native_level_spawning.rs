@@ -19,6 +19,9 @@ impl Game<'_> {
         pos: [f64; 3],
         reason: mod_api::SpawnReason,
     ) -> Option<EntityRef> {
+        if self.entity_ids_exhausted() {
+            return None;
+        }
         if !self.level_in_place(level) || !pos.iter().all(|v| v.is_finite()) {
             return None;
         }

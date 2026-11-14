@@ -385,6 +385,9 @@ impl Game<'_> {
         tool: Option<&ItemStack>,
         entity: Option<EntityRef>,
     ) -> Option<Vec<ItemStack>> {
+        if self.entity_ids_exhausted() {
+            return None;
+        }
         if !self.native_level_write_allowed(level, pos) || self.dim.key() != level.dimension() {
             return None;
         }

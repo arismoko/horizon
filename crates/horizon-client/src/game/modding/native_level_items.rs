@@ -113,6 +113,9 @@ impl Game<'_> {
         motion: Option<[f64; 3]>,
         pickup_delay: u32,
     ) -> Option<EntityRef> {
+        if self.entity_ids_exhausted() {
+            return None;
+        }
         let finite = [x, y, z]
             .into_iter()
             .chain(motion.into_iter().flatten())

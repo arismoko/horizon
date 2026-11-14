@@ -695,6 +695,22 @@ pub trait EntitiesBackendMut {
     fn entity_run_command(&mut self, entity: EntityRef, line: &str, level: PermissionLevel)
     -> bool;
     /// Side: server.
+    /// Runs the command exactly as `EntityRef::run_command` does, at the supplied
+    /// `level`, returning whether it ran and the success and failure lines its
+    /// source received, in order, as plain text. The player's chat still receives
+    /// those lines and operators are notified under the same rules. Another
+    /// entity's silent source returns no lines. A stale, removed or unavailable
+    /// entity returns unsuccessful with no lines. Cross-level teleports retain
+    /// the same next-tick handling. Pass the player's permission level to run
+    /// with their own authority; the supplied level is not capped to it.
+    #[access(WorldOnly)]
+    fn entity_run_command_with_output(
+        &mut self,
+        entity: EntityRef,
+        line: &str,
+        level: PermissionLevel,
+    ) -> CommandResult;
+    /// Side: server.
     /// Turns the entity to `yaw` and `pitch` in degrees (`Entity.setYRot`,
     /// `setXRot`): the pitch wraps and is clamped to -90..90. False for kinds
     /// whose rotation Horizon does not fully store, or an unavailable player.

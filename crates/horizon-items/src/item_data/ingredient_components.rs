@@ -41,6 +41,11 @@ pub fn removed(stack: &ItemStack, id: &str) -> bool {
 /// Presence is checked by the caller, so empty decoded enchantment maps compare equal.
 pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
     match id {
+        "minecraft:waxed" | "minecraft:intangible_projectile" | "minecraft:glider" => {
+            matches!(a.data().and_then(|d| d.other(id)), Some(Tag::Compound(_)))
+                && matches!(b.data().and_then(|d| d.other(id)), Some(Tag::Compound(_)))
+        }
+
         "minecraft:cat/sound_variant"
         | "minecraft:cat/variant"
         | "minecraft:wolf/sound_variant"
@@ -248,7 +253,7 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
             b.data().and_then(|d| d.other(id)),
         ),
         "minecraft:item_name" => item_name_equal(a, b),
-        "minecraft:item_model" => identifier_equal(
+        "minecraft:item_model" | "minecraft:tooltip_style" => identifier_equal(
             a.data().and_then(|d| d.other(id)),
             b.data().and_then(|d| d.other(id)),
         ),
@@ -899,5 +904,22 @@ mod tests {
         assert!(!component_equal("minecraft:base_color", &a, &b));
         b.data_mut().base_color = None;
         assert!(!component_equal("minecraft:base_color", &a, &b));
+    }
+
+    #[test]
+    fn intangible_projectile_equality_borrows_unit_maps() {
+        let id = "minecraft:intangible_projectile";
+        let mut a = ItemStack::new("minecraft:arrow", 1);
+        let mut b = ItemStack::new("minecraft:arrow", 1);
+        a.data_mut()
+            .set_other(id, Some(Tag::Compound(Default::default())));
+        b.data_mut()
+            .set_other(id, Some(Tag::compound([("ignored", Tag::Int(42))])));
+        assert!(component_equal(id, &a, &b));
+        assert!(!stored_component_equal(id, &a, &b));
+        b.data_mut().set_other(id, Some(Tag::Byte(1)));
+        assert!(!component_equal(id, &a, &b));
+        b.data_mut().set_other(id, None);
+        assert!(!component_equal(id, &a, &b));
     }
 }
