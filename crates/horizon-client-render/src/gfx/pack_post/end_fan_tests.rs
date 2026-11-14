@@ -112,6 +112,7 @@ fn fan_height(column: usize, row: usize) -> Option<f64> {
 
 #[test]
 fn the_end_under_the_dragons_fog_has_the_packs_fan() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else { return };
     let pixels = picture(&gpu, true);
     let width = SIZE[0] as usize;
@@ -148,6 +149,7 @@ fn the_end_under_the_dragons_fog_has_the_packs_fan() {
 /// The End without the fog: vanilla's End sky, which no `gbuffers_skybasic` draws.
 #[test]
 fn the_end_without_the_fog_has_no_fan() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else { return };
     let pixels = picture(&gpu, false);
     let width = SIZE[0] as usize;

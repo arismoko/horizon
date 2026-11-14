@@ -116,6 +116,7 @@ fn attempt(game: &mut Game<'_>, tables: &LightTables, roof: Option<&str>) -> (i3
 }
 
 #[test]
+#[ignore = "daily"]
 fn phantoms_spawn_under_a_glass_roof() {
     let Some(root) = resources() else { return };
     let mut resources = None;
@@ -143,6 +144,7 @@ fn phantoms_spawn_under_a_glass_roof() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn no_phantoms_under_a_roof_the_sky_light_does_not_reach() {
     let Some(root) = resources() else { return };
     let mut resources = None;

@@ -8,8 +8,9 @@ use crate::game::api_values::TryIntoApi;
 use horizon_client::menu::SlotRules;
 
 impl SlotRules for Game<'_> {
-    fn listens(&self, _menu: &str) -> bool {
+    fn listens(&self, menu: &str) -> bool {
         mod_api::__private::has_part_hook(mod_api::HookId::MenuSlotRules)
+            && mod_api::__private::menu_listens(mod_api::HookId::MenuSlotRules, menu)
     }
 
     fn rule(

@@ -1,7 +1,10 @@
 """Ignored-test CI must distinguish completed targets from child fixture output."""
 import contextlib
 import io
+import json
 import os
+from pathlib import Path
+import tempfile
 import subprocess
 import unittest
 from unittest.mock import patch
@@ -44,6 +47,95 @@ class IgnoredTests(unittest.TestCase):
         with patch.object(ignored_tests, "known_failures", return_value={("example", "repaired"): None}), patch.object(ignored_tests, "run", return_value=result), contextlib.redirect_stdout(io.StringIO()) as log:
             self.assertEqual(ignored_tests.main(["example"]), 1)
         self.assertIn("repaired: passes now; take it off", log.getvalue())
+
+    def test_the_report_names_problems_and_passes_without_output(self):
+        def run(package, skip, number=None, count=None):
+            ignored_tests._panic_locations["new::broken"] = "crates/example/src/lib.rs:4:9"
+            return {"new::broken": False, "fine": True, "repaired": True, "accepted": False}
+
+        known = {("example", "repaired"): None, ("example", "accepted"): None, ("example", "gone"): None}
+        with tempfile.TemporaryDirectory() as folder, \
+                patch.object(ignored_tests, "known_failures", return_value=known), \
+                patch.object(ignored_tests, "run", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+            path = Path(folder) / "report.json"
+            self.assertEqual(ignored_tests.main(["example"], str(path)), 1)
+            report = json.loads(path.read_text())
+        kinds = {(item["test"], item["kind"], item["panic"]) for item in report["problems"]}
+        self.assertEqual(kinds, {("new::broken", "failed", "crates/example/src/lib.rs:4:9"),
+                                 ("repaired", "passes-now", None), ("gone", "no-longer-runs", None)})
+        self.assertIn({"package": "example", "test": "fine"}, report["passed"])
+        self.assertNotIn("accepted", json.dumps(report["problems"]))
+        self.assertEqual(report["shards"], ["example"])
+
+    def test_a_shard_that_did_not_complete_is_reported(self):
+        with tempfile.TemporaryDirectory() as folder, \
+                patch.object(ignored_tests, "known_failures", return_value={}), \
+                patch.object(ignored_tests, "run", return_value=None), contextlib.redirect_stdout(io.StringIO()):
+            path = Path(folder) / "report.json"
+            self.assertEqual(ignored_tests.main(["example"], str(path)), 1)
+            self.assertEqual(json.loads(path.read_text())["incomplete"], [{"shard": "example"}])
+
+    def test_a_test_process_killed_for_memory_reports_signal_memory_time_and_what_still_ran(self):
+        # The shape of the first daily's horizon-client#1of2 (run 43499359519): the library's test process killed by
+        # the out-of-memory killer with one test past 60 s; the later targets finished; cargo exits 101.
+        stuck = "game::native_datafix_tests::a_mods_host_upgrades_old_data_and_refuses_by_name"
+        output = ("     Running unittests src/lib.rs (target/debug/deps/horizon_client-0123)\nrunning 3 tests\n"
+                  "test game::a ... ok\ntest game::b ... ok\n"
+                  f"test {stuck} has been running for over 60 seconds\n"
+                  "error: test failed, to rerun pass `--lib`\n\nCaused by:\n  process didn't exit successfully: "
+                  "`/w/target/debug/deps/horizon_client-0123 --include-ignored --exact` (signal: 9, SIGKILL: kill)\n"
+                  + target(1, "test other::c ... ok\n", summary(passed=1)))
+        gib = 32 * 1024 ** 3
+        with tempfile.TemporaryDirectory() as cgroup:
+            Path(cgroup, "memory.peak").write_text(f"{gib}\n")
+            Path(cgroup, "memory.max").write_text(f"{gib}\n")
+            events = Path(cgroup, "memory.events")
+            events.write_text("low 0\nhigh 0\nmax 812\noom 1\noom_kill 2\n")
+
+            def execute(command, **_):
+                events.write_text("low 0\nhigh 0\nmax 990\noom 2\noom_kill 3\n")
+                return subprocess.CompletedProcess(command, 101, output)
+
+            with patch.object(ignored_tests, "CGROUP", Path(cgroup)), \
+                    patch.object(ignored_tests.subprocess, "run", side_effect=execute), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertIsNone(ignored_tests.run("horizon-client", []))
+        why = dict(ignored_tests._stopped)
+        self.assertGreaterEqual(why.pop("wall_seconds"), 0)
+        self.assertEqual(why, {
+            "reason": "a test process crashed", "ended_by": "signal 9 (SIGKILL)", "cargo_exit": 101,
+            "memory_peak_bytes": gib, "memory_max_bytes": gib, "oom_kills": 1,
+            "still_running": [stuck], "still_running_more": 0, "never_reported": None})
+
+    def test_an_identity_is_bounded_in_length(self):
+        self.assertEqual(ignored_tests.safe_identity("a::" + "b" * 297), "a::" + "b" * 297)
+        self.assertEqual(ignored_tests.safe_identity("a" * 100_000),
+                         f"identity withheld (longer than {ignored_tests.IDENTITY_CHARS} characters)")
+        # A long-running notice with a huge name never reaches the stopped run's report as it is.
+        output = (f"     Running unittests src/lib.rs (target/debug/deps/example)\nrunning 1 tests\n"
+                  f"test {'x' * 5000} has been running for over 60 seconds\n"
+                  "error: test failed, to rerun pass `--lib`\n\nCaused by:\n  process didn't exit successfully: "
+                  "`example` (signal: 9, SIGKILL: kill)\n")
+        with patch.object(ignored_tests.subprocess, "run", return_value=subprocess.CompletedProcess([], 101, output)), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertIsNone(ignored_tests.run("example", []))
+        self.assertEqual(ignored_tests._stopped["still_running"],
+                         [f"identity withheld (longer than {ignored_tests.IDENTITY_CHARS} characters)"])
+
+    def test_the_report_names_the_run_in_progress_before_it_ends(self):
+        # A job stopped at its time limit kills this script too: what it wrote before the run is what is uploaded.
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "report.json"
+
+            def run(package, skip, number=None, count=None):
+                pending = json.loads(path.read_text())["incomplete"]
+                self.assertEqual([(item["shard"], item["in_progress"]) for item in pending], [("example", True)])
+                return {"fine": True}
+
+            with patch.object(ignored_tests, "known_failures", return_value={}), \
+                    patch.object(ignored_tests, "run", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(ignored_tests.main(["example"], str(path)), 0)
+            self.assertEqual(json.loads(path.read_text())["incomplete"], [])
 
     def test_client_lib_halves_run_serially_and_preserve_failure_policy(self):
         package = "horizon-client-lib"
@@ -95,9 +187,117 @@ class IgnoredTests(unittest.TestCase):
             self.assertNotIn((package, test), ignored_tests.known_failures())
 
     def test_explicit_client_lib_selection_is_not_split_again(self):
-        with patch.object(ignored_tests, "known_failures", return_value={}), patch.object(ignored_tests, "run", return_value={}) as execute:
+        with patch.object(ignored_tests, "known_failures", return_value={}), \
+                patch.object(ignored_tests, "daily_rows", return_value=[]), \
+                patch.object(ignored_tests, "run", return_value={}) as execute:
             self.assertEqual(ignored_tests.main(["horizon-client-lib#2of3"]), 0)
         self.assertEqual(execute.call_args.args, ("horizon-client-lib", [], 2, 3))
+
+    def daily_main(self, shards, rows, run):
+        report = Path(tempfile.mkdtemp()) / "report.json"
+        with patch.object(ignored_tests, "known_failures", return_value={}), \
+                patch.object(ignored_tests, "harness_inputs", return_value={}), \
+                patch.object(ignored_tests, "listed_entries", return_value=rows), \
+                patch.object(ignored_tests, "run", side_effect=run) as execute, \
+                contextlib.redirect_stdout(io.StringIO()) as log:
+            code = ignored_tests.main(shards, str(report))
+        return code, execute, log.getvalue(), json.loads(report.read_text())
+
+    def test_daily_rows_of_a_shards_targets_must_run_and_pass_in_that_shard(self):
+        rows = [ignored_tests.Row("horizon-world", f"slow::{name}", "lib", "daily", "daily-horizon-world.txt", "slow")
+                for name in ("passes", "fails", "gone")]
+        rows.append(ignored_tests.Row("horizon-world", "it::slow", "test:integration", "daily", "daily-horizon-world.txt", "slow"))
+        code, execute, log, report = self.daily_main(
+            ["horizon-world"], rows, lambda *args, **kwargs: {"slow::passes": True, "slow::fails": False})
+        self.assertEqual(code, 1)
+        self.assertEqual(execute.call_args.args, ("horizon-world", []))
+        self.assertEqual(sorted((problem["test"], problem["kind"]) for problem in report["problems"]),
+                         [("slow::fails", "failed"), ("slow::gone", "no-longer-runs")])
+        self.assertNotIn("accepted failure", log)
+        # The integration test is not the shard's target: the daily-rows leg runs it, so the shard does not miss it.
+        self.assertNotIn("it::slow", log)
+
+    def test_the_daily_rows_leg_runs_every_other_daily_row_by_package_and_target(self):
+        rows = [
+            ignored_tests.Row("horizon-relay", "b", "test:tunnel", "daily", "daily-horizon-relay.txt", "slow"),
+            ignored_tests.Row("horizon-relay", "a", "test:tunnel", "daily", "daily-horizon-relay.txt", "slow"),
+            ignored_tests.Row("horizon-core", "c", "lib", "daily", "daily-horizon-core.txt", "slow"),
+            ignored_tests.Row("horizon-world", "d", "lib", "daily", "daily-horizon-world.txt", "slow"),
+            ignored_tests.Row("horizon-world", "e", "test:integration", "daily", "daily-horizon-world.txt", "slow"),
+        ]
+        results = {("horizon-relay", "test:tunnel"): {"a": True, "b": True}, ("horizon-core", "lib"): {},
+                   ("horizon-world", "test:integration"): {"e": False}}
+        code, execute, _, report = self.daily_main(
+            ["daily-rows"], rows, lambda package, skip, only: results[package, only[0]])
+        self.assertEqual(code, 1)
+        self.assertEqual([(call.args[0], call.kwargs["only"]) for call in execute.call_args_list], [
+            ("horizon-core", ("lib", ["c"])),
+            ("horizon-relay", ("test:tunnel", ["a", "b"])),
+            ("horizon-world", ("test:integration", ["e"])),
+        ])
+        self.assertEqual(sorted((problem["package"], problem["test"], problem["kind"]) for problem in report["problems"]),
+                         [("horizon-core", "c", "no-longer-runs"), ("horizon-world", "e", "failed")])
+        self.assertEqual(sorted(entry["test"] for entry in report["passed"]), ["a", "b"])
+
+    def test_a_daily_rows_run_selects_exactly_its_ignored_tests_of_one_target(self):
+        output = target(2, "test a ... ok\ntest b ... ok\n", summary(passed=2))
+        with patch.object(ignored_tests.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, output)) as execute, \
+                patch.object(ignored_tests, "workspace_features", return_value={"horizon-relay": ["fixture", "index"]}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(ignored_tests.run("horizon-relay", [], only=("test:tunnel", ["a", "b"])), {"a": True, "b": True})
+        command = execute.call_args.args[0]
+        # The features the workspace build turns on, as verify compiled the test.
+        self.assertEqual(command[:command.index("--")],
+                         ["cargo", "test", "-p", "horizon-relay", "--features", "fixture,index", "--test", "tunnel"])
+        self.assertEqual(command[command.index("--") + 1:], ["--ignored", "--exact", "--test-threads=4", "a", "b"])
+
+    def test_each_daily_rows_leg_runs_only_its_workspaces_groups(self):
+        rows = [ignored_tests.Row("horizon-relay", "a", "test:tunnel", "daily", "daily-horizon-relay.txt", "slow"),
+                ignored_tests.Row("horizon-launcher", "b", "lib", "daily", "daily-horizon-launcher.txt", "child-process")]
+        for leg, expected in (("daily-rows", [("horizon-relay", ("test:tunnel", ["a"]))]),
+                              ("daily-rows-launcher", [("horizon-launcher", ("lib", ["b"]))])):
+            _, execute, _, _ = self.daily_main([leg], rows, lambda package, skip, only: {only[1][0]: True})
+            self.assertEqual([(call.args[0], call.kwargs["only"]) for call in execute.call_args_list], expected)
+
+    def test_a_package_that_needs_something_built_gets_it_before_its_daily_tests(self):
+        output = target(1, "test holder::tests::slow ... ok\n", summary(passed=1))
+        prepare = ignored_tests.ignored_shards.PREPARE["horizon-mod-package"]
+        self.assertEqual(prepare[-2:], ["--example", "holder_actor"])
+        with patch.object(ignored_tests.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, output)) as execute, \
+                patch.object(ignored_tests, "workspace_features", return_value={}), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(ignored_tests.run("horizon-mod-package", [], only=("lib", ["holder::tests::slow"])),
+                             {"holder::tests::slow": True})
+        self.assertEqual(execute.call_args_list[0].args[0], prepare)
+        self.assertEqual(execute.call_args_list[1].args[0][:2], ["cargo", "test"])
+        # A failed build stops the run, saying why, before any test runs.
+        with patch.object(ignored_tests.subprocess, "run", return_value=subprocess.CompletedProcess([], 101, "error: x\n")) as execute, \
+                patch.object(ignored_tests, "workspace_features", return_value={}), contextlib.redirect_stdout(io.StringIO()):
+            self.assertIsNone(ignored_tests.run("horizon-mod-package", [], only=("lib", ["holder::tests::slow"])))
+        self.assertEqual(execute.call_count, 1)
+        self.assertEqual(ignored_tests._stopped["reason"], "what the tests need could not be built")
+        # verify and the launcher job build it with the same command.
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/dyna-ci.yml").read_text()
+        self.assertEqual(workflow.count("ignored_shards.py --prepare horizon-mod-package"), 2)
+        self.assertNotIn("--example holder_actor", workflow)
+
+    def test_a_launcher_daily_row_runs_from_the_launcher_workspace_against_its_lockfile(self):
+        output = target(1, "test logs::slow ... ok\n", summary(passed=1))
+        with patch.object(ignored_tests.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, output)) as execute, \
+                patch.object(ignored_tests, "workspace_features", return_value={"horizon-launcher": ["default"]}) as features, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(ignored_tests.run("horizon-launcher", [], only=("test:logs", ["logs::slow"])),
+                             {"logs::slow": True})
+        features.assert_called_once_with("launcher")
+        command = execute.call_args.args[0]
+        self.assertEqual(command[:command.index("--")],
+                         ["cargo", "test", "--locked", "-p", "horizon-launcher", "--features", "default", "--test", "logs"])
+        self.assertEqual(execute.call_args.kwargs["cwd"], ignored_tests.ROOT / "launcher")
+        # A game package still runs from the repository root.
+        with patch.object(ignored_tests.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, output)) as execute, \
+                patch.object(ignored_tests, "workspace_features", return_value={}), contextlib.redirect_stdout(io.StringIO()):
+            ignored_tests.run("horizon-relay", [], only=("test:tunnel", ["logs::slow"]))
+        self.assertEqual(execute.call_args.kwargs["cwd"], ignored_tests.ROOT / ".")
+        self.assertNotIn("--locked", execute.call_args.args[0])
 
     def test_a_parent_that_crashes_after_its_childs_same_count_summary_did_not_complete(self):
         # A fixture reruns its own test in a child, which reports FAILED and a one-test summary;

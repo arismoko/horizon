@@ -25,10 +25,10 @@ pub trait ScreensClientHost {
     /// Side: client.
     /// What the block's mod wrote for the mod screen that is open
     /// (`menu_extra_data` on the server), empty when it wrote nothing;
-    /// None when no mod screen is open. @API:menu_extra_data@.
-    /// Not on wasm: it returns a borrowed view of the screen's bytes, which crosses only as a resource.
+    /// None when no mod screen is open. The same for a menu `PlayerRef::open_mod_menu`
+    /// opened with its `extra`. A copy, so native and wasm read it alike. @API:menu_extra_data@.
     #[access(ClientSetup)]
-    fn screen_extra_data(&self) -> Option<&[u8]>;
+    fn screen_extra_data(&self) -> Option<Vec<u8>>;
     /// Side: client.
     /// Where the open screen draws outside its `rect`, and where mods draw
     /// over it: the recipe book's panel, the creative tab rows, the active

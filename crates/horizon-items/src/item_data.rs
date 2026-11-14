@@ -1,6 +1,8 @@
 //! Item stack components beyond count and damage: enchantments, stored
 //! (book) enchantments, `repair_cost`, `custom_name`, `potion_contents` and
 //! `trim`, with their NBT form in vanilla's `components` compound.
+#[path = "item_data/ingredient_components.rs"]
+pub mod ingredient_components;
 use crate::items::{ItemInfo, ItemStack};
 use horizon_core::nbt::{JavaString, Tag};
 
@@ -41,8 +43,8 @@ pub fn modifier_rows(tag: &Tag) -> Vec<ModifierRow> {
         .iter()
         .filter_map(|e| {
             Some(ModifierRow {
-                attribute: text(e.get("type"))?,
-                id: text(e.get("id"))?,
+                attribute: horizon_world::datafix::dynamic::namespaced(&text(e.get("type"))?),
+                id: horizon_world::datafix::dynamic::namespaced(&text(e.get("id"))?),
                 amount: float(e.get("amount"))?,
                 operation: text(e.get("operation"))?,
                 slot: text(e.get("slot")).unwrap_or_else(|| "any".to_owned()),
@@ -301,8 +303,15 @@ impl StackData {
             "minecraft:trim" => {
                 self.trim = tag.as_ref().and_then(trim::from_nbt);
             }
-            // The stack's damage is outside its data; a name keeps its own reading.
-            "minecraft:damage" | "minecraft:custom_name" => self.set_other(id, tag),
+            // The scalar lives on ItemStack; retain explicit zero presence here
+            // so a non-durable prototype can carry its own durability.
+            "minecraft:damage" => {
+                self.explicit_zero_damage = tag.as_ref().is_some_and(|value| {
+                    horizon_world::datafix::dynamic::as_int(Some(value), 0) == 0
+                });
+                self.set_other(id, tag);
+            }
+            "minecraft:custom_name" => self.set_other(id, tag),
             _ if MODELLED.contains(&id) => {
                 let mut saved = match components_tag(0, Some(self)) {
                     Some(Tag::Compound(c)) => c,
@@ -1074,10 +1083,16 @@ fn template_from(tag: &Tag) -> Option<ItemStack> {
         Tag::String(id) => Some(ItemStack::new(&id.to_string_lossy(), 1)),
         _ => {
             let id = tag.get("id").and_then(string)?;
+            // `ItemStackTemplate.CODEC`: `count` is `ExtraCodecs.intRange(1, 99)`, so a
+            // template outside it does not decode.
+            let count = tag.get("count").and_then(int).unwrap_or(1);
+            if !(1..=99).contains(&count) {
+                return None;
+            }
             let (damage, extra) = decode_components(tag.get("components"));
             Some(ItemStack {
                 item: Arc::from(id.as_str()),
-                count: tag.get("count").and_then(int).unwrap_or(1).max(1) as u32,
+                count: count as u32,
                 damage,
                 extra,
             })
@@ -1628,7 +1643,7 @@ pub fn decode_components(components: Option<&Tag>) -> (u32, Option<Box<StackData
             .get("minecraft:kinetic_weapon")
             .cloned()
             .map(crate::kinetic_weapon::KineticComponent::new),
-        map_id: c.get("minecraft:map_id").and_then(int).map(|v| v as i32),
+        map_id: seen.map_id.and_then(crate::properties::component_int),
         banner_patterns: crate::banner_layer::layers_from_nbt(c.get("minecraft:banner_patterns")),
         base_color: c
             .get("minecraft:base_color")
@@ -1655,7 +1670,9 @@ pub fn decode_components(components: Option<&Tag>) -> (u32, Option<Box<StackData
             })
             .filter(|(flight, explosions)| !(*flight == 1 && explosions.is_empty())),
         firework_explosion: seen.firework_explosion.map(explosion_from),
-        dyed_color: seen.dyed_color.and_then(int).map(|v| v as i32),
+        dyed_color: seen
+            .dyed_color
+            .and_then(horizon_core::color::rgb_color_from_tag),
         pot_decorations: seen
             .pot_decorations
             .map(|p| {
@@ -1712,7 +1729,11 @@ pub fn decode_components(components: Option<&Tag>) -> (u32, Option<Box<StackData
             && matches!(
                 seen.banner_patterns,
                 Some(Tag::List(layers)) if layers.len() == OMINOUS_LAYERS.len()),
-        ominous_amplifier: seen.amplifier.and_then(int).map(|v| v.clamp(0, 4) as u8),
+        ominous_amplifier: seen
+            .amplifier
+            .and_then(crate::properties::component_int)
+            .filter(|v| (0..=4).contains(v))
+            .map(|v| v as u8),
         trim: seen.trim.and_then(trim::from_nbt),
         bundle_selected: BundleSelected::default(),
         other: Vec::new(),
@@ -3013,8 +3034,7 @@ mod tests {
             firework_explosion: c.get("minecraft:firework_explosion").map(explosion_from),
             dyed_color: c
                 .get("minecraft:dyed_color")
-                .and_then(int)
-                .map(|v| v as i32),
+                .and_then(horizon_core::color::rgb_color_from_tag),
             pot_decorations: c
                 .get("minecraft:pot_decorations")
                 .map(|p| {
@@ -3542,5 +3562,24 @@ mod written_book_tests {
             ..book
         };
         assert_eq!(written_book_tag(&unresolved).get("resolved"), None);
+    }
+
+    /// `ItemStackTemplate.CODEC` reads `count` with `intRange(1, 99)`: outside it
+    /// the template is rejected, absent it is 1.
+    #[test]
+    fn a_template_count_outside_one_to_ninety_nine_is_rejected() {
+        let template = |count: Option<i32>| {
+            let mut fields = vec![("id", Tag::String("minecraft:stone".into()))];
+            if let Some(count) = count {
+                fields.push(("count", Tag::Int(count)));
+            }
+            template_from(&Tag::compound(fields)).map(|s| s.count)
+        };
+        assert_eq!(template(None), Some(1));
+        assert_eq!(template(Some(1)), Some(1));
+        assert_eq!(template(Some(99)), Some(99));
+        assert_eq!(template(Some(0)), None);
+        assert_eq!(template(Some(100)), None);
+        assert_eq!(template(Some(-1)), None);
     }
 }

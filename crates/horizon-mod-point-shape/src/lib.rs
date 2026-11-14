@@ -1,8 +1,7 @@
 //! The shape of an injection point (#589): what a `#[point]` function hands its listeners. Shared
 //! by the `#[point]` attribute (the check at the function's head) and the mod API generator (the
 //! records, `PointId` and `points.json`), so the two always agree.
-/// Filename of the versioned SDK tool catalog.
-pub const SDK_CATALOG_FILE: &str = "mod-catalog.json";
+pub mod build_data;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};

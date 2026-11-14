@@ -1845,6 +1845,9 @@ pub mod tests {
     pub(crate) struct HeldItem(pub(crate) ItemStack);
     #[cfg(test)]
     impl mod_api::prelude::ItemsBackend for HeldItem {
+        fn item_bundle_slots(&self, _: &ItemStack) -> Option<Vec<Option<ItemStack>>> {
+            None
+        }
         fn item_container_slots(&self, stack: &ItemStack) -> Option<Vec<Option<ItemStack>>> {
             (stack.damage() == 1).then(|| vec![None; 27])
         }

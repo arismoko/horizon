@@ -84,7 +84,7 @@ impl Hub {
     }
 
     /// `ChunkMap.sendToTrackingPlayers`: send to every placed guest that
-    /// tracks the entity `id`.
+    /// tracks the entity `id`, and wrapped to the clients viewing the level that do.
     pub fn send_to_tracking(&self, id: i32, packet: &C) {
         let body = packet.encode();
         for g in self
@@ -94,6 +94,7 @@ impl Hub {
         {
             g.sender.send(body.clone());
         }
+        self.send_view_trackers(id, packet);
     }
 
     /// `ServerChunkCache.sendToTrackingPlayersAndSelf`: send to every placed
@@ -107,6 +108,7 @@ impl Hub {
         {
             g.sender.send(body.clone());
         }
+        self.send_view_trackers(id, packet);
     }
 
     /// Send to every placed guest within `range` blocks of `at`
@@ -173,8 +175,19 @@ impl Hub {
             seed,
         );
         self.broadcast_near(sound.position, range, &packet, except);
+        // Wrapped for the level's viewers too: one bound to an entity for those tracking it.
+        let emitter = sound.entity.map(|id| id as i32);
+        self.send_viewed_sound(
+            &self.config.dimension,
+            sound.position,
+            range,
+            emitter,
+            || packet.encode(),
+        );
     }
 
+    /// `Level.playSound` at `at` for the players within range in the level in place, and wrapped
+    /// for the clients that view it there (`send_viewed_sound`).
     pub fn sound(
         &self,
         name: &str,
@@ -187,23 +200,23 @@ impl Hub {
         // Level.playSound: soundSeedGenerator.nextLong per call, not the tick.
         let seed = self.next_sound_seed();
         let packet = self.sound_packet(name, at, volume, pitch, source, seed);
-        self.broadcast_near(at, f64::from(volume.max(1.0)) * 16.0, &packet, except);
+        let range = f64::from(volume.max(1.0)) * 16.0;
+        self.broadcast_near(at, range, &packet, except);
+        self.send_viewed_sound(&self.config.dimension, at, range, None, || packet.encode());
     }
 
-    /// ClientboundLevelEventPacket (block break particles and sounds ...).
+    /// ClientboundLevelEventPacket (block break particles and sounds ...); wrapped, to the
+    /// clients that view the level and hold its chunk.
     pub fn level_event(&self, kind: i32, pos: [i32; 3], data: i32, except: Option<u32>) {
         let at = [f64::from(pos[0]), f64::from(pos[1]), f64::from(pos[2])];
-        self.broadcast_near(
-            at,
-            64.0,
-            &C::LevelEvent(play::LevelEvent {
-                kind,
-                pos,
-                data,
-                global: false,
-            }),
-            except,
-        );
+        let packet = C::LevelEvent(play::LevelEvent {
+            kind,
+            pos,
+            data,
+            global: false,
+        });
+        self.broadcast_near(at, 64.0, &packet, except);
+        self.send_viewers_of((pos[0] >> 4, pos[2] >> 4), &packet);
     }
 
     /// `ServerLevel.globalLevelEvent` for an event in level `level`: the packet
@@ -222,7 +235,8 @@ impl Hub {
         }
     }
 
-    /// ClientboundBlockEventPacket (`PlayerList.broadcast` within 64 blocks).
+    /// ClientboundBlockEventPacket (`PlayerList.broadcast` within 64 blocks); wrapped, to the
+    /// clients that view the level and hold its chunk.
     pub fn block_event(&self, pos: [i32; 3], b0: i32, b1: i32, state: u32) {
         let block = self
             .encoder
@@ -231,17 +245,14 @@ impl Hub {
             .copied()
             .unwrap_or(0);
         let at = [f64::from(pos[0]), f64::from(pos[1]), f64::from(pos[2])];
-        self.broadcast_near(
-            at,
-            64.0,
-            &C::BlockEvent(play::BlockEvent {
-                pos,
-                b0: b0 as u8,
-                b1: b1 as u8,
-                block,
-            }),
-            None,
-        );
+        let packet = C::BlockEvent(play::BlockEvent {
+            pos,
+            b0: b0 as u8,
+            b1: b1 as u8,
+            block,
+        });
+        self.broadcast_near(at, 64.0, &packet, None);
+        self.send_viewers_of((pos[0] >> 4, pos[2] >> 4), &packet);
     }
 
     /// `ServerLevel.broadcastEntityEvent`: send to the players tracking the
@@ -331,27 +342,49 @@ impl Hub {
         items: Vec<Option<ItemStack>>,
         extra: Option<Vec<u8>>,
     ) {
-        let Some(kind) = self
+        self.open_menu_window(conn, menu_kind, title, Some(pos), slots, items, extra);
+    }
+
+    /// Open menu type `menu_kind` for a guest, of a block at `pos` or of none:
+    /// its window id, None for an unknown type or guest. A [`Slots::Native`]
+    /// menu's items are the guest's `native_menu`, as `open_native_menu` keeps.
+    #[allow(clippy::too_many_arguments)]
+    pub fn open_menu_window(
+        &mut self,
+        conn: u32,
+        menu_kind: &str,
+        title: Tag,
+        pos: Option<(i32, i32, i32)>,
+        slots: Slots,
+        items: Vec<Option<ItemStack>>,
+        extra: Option<Vec<u8>>,
+    ) -> Option<i32> {
+        let kind = self
             .sync
             .builtin
             .get("minecraft:menu")
-            .and_then(|m| m.id(menu_kind))
-        else {
-            return;
-        };
-        let Some(i) = self.guests.iter().position(|g| g.conn == conn) else {
-            return;
-        };
+            .and_then(|m| m.id(menu_kind))?;
+        let i = self.guests.iter().position(|g| g.conn == conn)?;
         self.close_container_at(i);
-        self.guests.update(i, |g| {
+        let window = self.guests.update(i, |g| {
             let window = g.next_menu_window();
+            if slots == Slots::Native {
+                g.native_menu = items.clone();
+            }
             if let Some(data) = extra {
                 let message = horizon_protocol::menu_extra::Message {
                     window,
-                    pos: [pos.0, pos.1, pos.2],
+                    pos: pos.map(|p| [p.0, p.1, p.2]),
                     data,
                 };
-                match horizon_protocol::menu_extra::encode(&message) {
+                // A client that answered no revision query (an older Horizon build)
+                // reads the legacy layout, which has no way to say "no block".
+                let sent = if g.sender.menu_extra_rev >= 1 {
+                    horizon_protocol::menu_extra::encode(&message)
+                } else {
+                    horizon_protocol::menu_extra::encode_legacy(&message)
+                };
+                match sent {
                     Ok(data) => g.send(&C::CustomPayload(CustomPayload {
                         channel: horizon_protocol::menu_extra::CHANNEL.into(),
                         data,
@@ -369,7 +402,7 @@ impl Hub {
                 window,
                 kind,
                 registry_id: menu_kind.into(),
-                pos: Some(pos),
+                pos,
                 slots,
                 size: items.len(),
                 state: 0,
@@ -382,8 +415,10 @@ impl Hub {
                 links: Vec::new(),
                 asks_still_valid: super::menu::asks_still_valid(mod_type, menu_kind),
             });
+            window
         });
         self.send_menu_content(i, items);
+        Some(window)
     }
 
     /// The open menu of `conn` has no `hidden` container slots: a mod's screen
@@ -1061,7 +1096,7 @@ impl Hub {
                 Some(BlockEntity::Crafter(c)) => c
                     .disabled
                     .iter()
-                    .chain([&c.triggered])
+                    .chain([&c.is_triggered()])
                     .map(|&d| i32::from(d))
                     .collect(),
                 // A mod's menu: the data slots its tick set. A mod menu type's

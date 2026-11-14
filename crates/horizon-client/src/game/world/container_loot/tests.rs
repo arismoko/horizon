@@ -61,6 +61,7 @@ fn with_game(test: impl FnOnce(&mut Game<'_>)) {
             .insert((0, 0), Arc::new(horizon_client::chunk::Chunk::empty(0, 0)));
         let table = |item: &str, count: i32, bonus: i32| serde_json::json!({"pools":[{"rolls":1,"bonus_rolls":bonus,"entries":[{"type":"minecraft:item","name":item,"modifier":{"type":"minecraft:set_count","count":count}}]}]});
         let files = [
+            ("loot_table/test:sequence_position".into(), vec![serde_json::to_vec(&serde_json::json!({"random_sequence":"test:seq","pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"minecraft:diamond"}]}]})).unwrap()]),
             ("loot_table/test:first_access".into(), vec![serde_json::to_vec(&table("minecraft:diamond",1,1)).unwrap()]),
             ("loot_table/test:left".into(), vec![serde_json::to_vec(&table("minecraft:diamond",1,0)).unwrap()]),
             ("loot_table/test:right".into(), vec![serde_json::to_vec(&table("minecraft:emerald",2,0)).unwrap()]),
@@ -86,9 +87,12 @@ fn place(game: &mut Game<'_>, pos: (i32, i32, i32), table: &str, seed: i64) {
         "setblock {} {} {} minecraft:chest{{LootTable:\"{table}\",LootTableSeed:{seed}L}}",
         pos.0, pos.1, pos.2
     )));
-    pending(game, pos);
+    pending_seed(game, pos, &[seed]);
 }
 fn pending(game: &Game<'_>, pos: (i32, i32, i32)) {
+    pending_seed(game, pos, &[37, 91]);
+}
+fn pending_seed(game: &Game<'_>, pos: (i32, i32, i32), seeds: &[i64]) {
     let pending = game.world.chunks[&(pos.0 >> 4, pos.2 >> 4)]
         .saved
         .as_ref()
@@ -96,7 +100,11 @@ fn pending(game: &Game<'_>, pos: (i32, i32, i32)) {
         .pending_loot
         .get(&pos)
         .unwrap();
-    assert!(matches!(pending.seed, Some(Tag::Long(37 | 91))));
+    assert!(
+        matches!(pending.seed, Some(Tag::Long(seed)) if seeds.contains(&seed)),
+        "{:?}",
+        pending.seed
+    );
     assert!(
         game.world
             .block_entities
@@ -783,5 +791,432 @@ fn clone_selection_modes_match_pending_payloads() {
         let before = pending_bytes(g, (12, 64, 8));
         assert!(!g.run_command("clone 8 64 8 8 64 8 12 64 8 filtered minecraft:stone"));
         assert_eq!(pending_bytes(g, (12, 64, 8)), before);
+    });
+}
+
+#[test]
+#[ignore = "requires prepared resources"]
+fn random_selection_streams() {
+    use horizon_client::random_sequences::RandomSequences;
+    let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
+    let table = serde_json::json!({"pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"minecraft:diamond"}]}]});
+    let mut sequence_table = table.clone();
+    sequence_table["random_sequence"] = "test:seq".into();
+    let files = [
+        (
+            "loot_table/test:plain".into(),
+            vec![serde_json::to_vec(&table).unwrap()],
+        ),
+        (
+            "loot_table/test:sequence".into(),
+            vec![serde_json::to_vec(&sequence_table).unwrap()],
+        ),
+    ];
+    let loot = LootData::load(
+        &root,
+        &PackOverlay {
+            files: &files,
+            ..PackOverlay::NONE
+        },
+        &horizon_world::item_defaults::read(&root).unwrap(),
+    )
+    .unwrap();
+    let roll = |table: &str, seed, random: &mut LegacyRandom, sequences: &mut RandomSequences| {
+        let pending = PendingContainerLoot {
+            table: Tag::String(table.into()),
+            seed,
+        };
+        let mut slots = vec![None; 27];
+        fill_with_random(
+            &pending,
+            &mut slots,
+            &loot,
+            random,
+            sequences,
+            123,
+            Default::default(),
+            |_| {},
+        );
+        slots
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| s.as_ref().map(|s| (i, s.item.to_string(), s.count)))
+            .collect::<Vec<_>>()
+    };
+    let plain = |seed| {
+        roll(
+            "test:plain",
+            None,
+            &mut LegacyRandom::new(seed),
+            &mut RandomSequences::default(),
+        )
+    };
+    let first = plain(1);
+    assert_eq!(first, vec![(24, "minecraft:diamond".to_owned(), 1)]);
+    assert_eq!(first, plain(1));
+    assert_ne!(first, plain(2));
+    let mut level = LegacyRandom::new(1);
+    let mut unchanged = level.clone();
+    let mut sequences = RandomSequences::default();
+    let before = sequences.get("test:seq", 123).state_words();
+    let result = roll("test:sequence", None, &mut level, &mut sequences);
+    assert_ne!(before, sequences.get("test:seq", 123).state_words());
+    assert_eq!(level.next_int(), unchanged.next_int());
+    assert_eq!(
+        result,
+        roll(
+            "test:sequence",
+            Some(Tag::Long(0)),
+            &mut LegacyRandom::new(2),
+            &mut RandomSequences::default()
+        )
+    );
+    assert_eq!(
+        roll(
+            "test:sequence",
+            Some(Tag::Long(37)),
+            &mut LegacyRandom::new(1),
+            &mut sequences
+        ),
+        roll(
+            "test:sequence",
+            Some(Tag::Long(37)),
+            &mut LegacyRandom::new(2),
+            &mut RandomSequences::default()
+        )
+    );
+}
+
+#[test]
+#[ignore = "requires prepared resources"]
+fn explicit_seed_is_position_independent() {
+    if fresh("explicit_seed_is_position_independent") {
+        return;
+    }
+    with_game(|g| {
+        let other = (100, 70, -5);
+        g.world.chunks.insert(
+            (6, -1),
+            Arc::new(horizon_client::chunk::Chunk::empty(6, -1)),
+        );
+        let snapshot = |g: &Game<'_>, pos| g.world.block_entities[&pos].slots().to_vec();
+        let mut level_results = Vec::new();
+        for seed in [1, 2, 1] {
+            g.run_command("setblock 8 64 8 minecraft:air");
+            assert!(g.run_command("setblock 8 64 8 minecraft:chest{LootTable:\"test:left\"}"));
+            *g.world.random = LegacyRandom::new(seed);
+            g.unpack_loot(LootTarget::Block(POS), None);
+            level_results.push(snapshot(g, POS));
+        }
+        assert_eq!(
+            level_results[0]
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| s.as_ref().map(|s| (i, s.item.to_string(), s.count)))
+                .collect::<Vec<_>>(),
+            vec![(24, "minecraft:diamond".to_owned(), 1)]
+        );
+        assert_eq!(level_results[0], level_results[2]);
+        assert_ne!(level_results[0], level_results[1]);
+        for pos in [POS, other] {
+            g.run_command(&format!(
+                "setblock {} {} {} minecraft:air",
+                pos.0, pos.1, pos.2
+            ));
+            assert!(g.run_command(&format!(
+                "setblock {} {} {} minecraft:chest{{LootTable:\"test:sequence_position\"}}",
+                pos.0, pos.1, pos.2
+            )));
+            g.rand_sequences = Default::default();
+            g.unpack_loot(LootTarget::Block(pos), None);
+        }
+        assert_eq!(snapshot(g, POS), snapshot(g, other));
+        place(g, POS, TABLE, 37);
+        *g.world.random = LegacyRandom::new(1);
+        g.unpack_loot(LootTarget::Block(POS), None);
+        let contents = g.world.block_entities[&POS].slots().to_vec();
+        place(g, other, TABLE, 37);
+        *g.world.random = LegacyRandom::new(2);
+        g.unpack_loot(LootTarget::Block(other), None);
+        assert_eq!(contents, g.world.block_entities[&other].slots());
+    });
+}
+
+struct FillListener {
+    mode: u32,
+    seen: Arc<Mutex<Vec<(String, Option<u128>, [f64; 3], Vec<(String, u32)>)>>>,
+}
+#[mod_api::__subscriptions]
+impl mod_api::Hooks for FillListener {
+    fn container_loot_filled(
+        &self,
+        _: &dyn mod_api::LevelHost,
+        event: &mut mod_api::ContainerLootFilledEvent<'_>,
+    ) {
+        self.seen.lock().unwrap().push((
+            event.context.table.into(),
+            event.context.opener,
+            event.context.origin,
+            event
+                .drops
+                .iter()
+                .map(|s| {
+                    (
+                        mod_api::__private::item_key_id(s.item())
+                            .unwrap()
+                            .to_string(),
+                        s.count(),
+                    )
+                })
+                .collect(),
+        ));
+        if self.mode == 3 {
+            event.drops.clear();
+            let key = mod_api::__private::item_key("minecraft:diamond").unwrap();
+            event
+                .drops
+                .extend((0..30).map(|_| mod_api::ItemStack::new(key, 1).unwrap()));
+        } else if self.mode != 0 {
+            event.drops.clear();
+            let id = if self.mode == 1 {
+                "minecraft:emerald"
+            } else {
+                "minecraft:diamond"
+            };
+            let key = mod_api::__private::item_key(id).unwrap();
+            event
+                .drops
+                .push(mod_api::ItemStack::new(key, if self.mode == 1 { 3 } else { 100 }).unwrap());
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires prepared resources"]
+fn container_fill_listener_contract() {
+    if fresh("container_fill_listener_contract") {
+        return;
+    }
+    with_game(|g| {
+        g.options.dedicated = Some(Vec::new());
+        place(g, POS, TABLE, 37);
+        open(g, POS, 0.0);
+        let baseline = g.world.block_entities[&POS].slots().to_vec();
+        let baseline_random = g.world.random.state();
+        mod_platform::testing::with_mods(
+            vec![mod_api::ModEntry::new("empty", Box::new(EmptyFillMod))].into(),
+            || {
+                place(g, POS, TABLE, 37);
+                open(g, POS, 0.0);
+                assert_eq!(g.world.block_entities[&POS].slots(), baseline);
+                assert_eq!(g.world.random.state(), baseline_random);
+            },
+        );
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mods = |mode| {
+            vec![mod_api::ModEntry::new(
+                "fill",
+                Box::new(FillListener {
+                    mode,
+                    seen: seen.clone(),
+                }),
+            )]
+            .into()
+        };
+        // A subscribed observer must preserve both the seedless roll and RNG state.
+        *g.world.random = LegacyRandom::new(123);
+        place(g, POS, TABLE, 0);
+        open(g, POS, 0.0);
+        let seedless_slots = g.world.block_entities[&POS].slots().to_vec();
+        let seedless_random = g.world.random.state();
+        mod_platform::testing::with_mods(mods(0), || {
+            *g.world.random = LegacyRandom::new(123);
+            place(g, POS, TABLE, 0);
+            open(g, POS, 0.0);
+            assert_eq!(g.world.block_entities[&POS].slots(), seedless_slots);
+            assert_eq!(g.world.random.state(), seedless_random);
+        });
+        seen.lock().unwrap().clear();
+        mod_platform::testing::with_mods(mods(3), || {
+            place(g, POS, TABLE, 37);
+            open(g, POS, 0.0);
+            let slots = g.world.block_entities[&POS].slots();
+            assert_eq!(slots.len(), 27);
+            for slot in slots {
+                let stack = slot.as_ref().unwrap();
+                assert_eq!(&*stack.item, "minecraft:diamond");
+                assert_eq!(stack.count, 1);
+            }
+            assert_eq!(30 - count(g, POS, "minecraft:diamond"), 3);
+        });
+        seen.lock().unwrap().clear();
+        mod_platform::testing::with_mods(mods(1), || {
+            place(g, POS, TABLE, 37);
+            open(g, POS, 0.0);
+            assert_eq!(count(g, POS, "minecraft:emerald"), 3);
+            assert_eq!(
+                g.world.block_entities[&POS]
+                    .slots()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, s)| s.as_ref().map(|s| (i, s.count)))
+                    .collect::<Vec<_>>(),
+                vec![(5, 1), (17, 1), (25, 1)]
+            );
+            assert_eq!(count(g, POS, "minecraft:diamond"), 0);
+            open(g, POS, 0.0);
+            assert_eq!(seen.lock().unwrap().len(), 1);
+            assert!(g.run_command("setblock 12 64 8 minecraft:stone"));
+            assert!(g.run_command("setblock 12 64 8 minecraft:air destroy"));
+            assert_eq!(seen.lock().unwrap().len(), 1);
+        });
+        let first = seen.lock().unwrap().remove(0);
+        assert_eq!(first.0, TABLE);
+        assert_eq!(first.1, Some(12));
+        assert_eq!(first.2, [8.5, 64.5, 8.5]);
+        assert_eq!(first.3, vec![("minecraft:diamond".into(), 1)]);
+        mod_platform::testing::with_mods(mods(0), || {
+            assert!(g.run_command("setblock 8 63 8 minecraft:hopper"));
+            place(g, POS, TABLE, 37);
+            g.hopper_try_move_items((8, 63, 8));
+            assert_eq!(seen.lock().unwrap()[0].1, None);
+        });
+        seen.lock().unwrap().clear();
+        mod_platform::testing::with_mods(mods(0), || {
+            assert!(g.run_command("setblock 8 64 8 minecraft:chest[facing=north,type=left]{LootTable:\"test:left\",LootTableSeed:37L}"));
+            assert!(g.run_command("setblock 9 64 8 minecraft:chest[facing=north,type=right]{LootTable:\"test:right\",LootTableSeed:91L}"));
+            open(g, POS, 0.0);
+            let reads = seen.lock().unwrap();
+            assert_eq!(reads.len(), 2);
+            assert_eq!(reads[0].0, "test:left");
+            assert_eq!(reads[0].3, vec![("minecraft:diamond".into(), 1)]);
+            assert_eq!(reads[1].0, "test:right");
+            assert_eq!(reads[1].3, vec![("minecraft:emerald".into(), 2)]);
+        });
+        seen.lock().unwrap().clear();
+        mod_platform::testing::with_mods(mods(2), || {
+            place(g, POS, TABLE, 37);
+            open(g, POS, 0.0);
+            assert_eq!(count(g, POS, "minecraft:diamond"), 64);
+            assert_eq!(
+                g.world.block_entities[&POS]
+                    .slots()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, s)| s.as_ref().map(|s| (i, s.count)))
+                    .collect::<Vec<_>>(),
+                vec![(5, 1), (6, 1), (10, 4), (16, 27), (17, 12), (25, 19)]
+            );
+        });
+    });
+}
+
+struct EmptyFillMod;
+#[mod_api::__subscriptions]
+impl mod_api::Hooks for EmptyFillMod {}
+
+#[test]
+#[ignore = "requires prepared resources"]
+fn saved_carts_keep_a_loot_table_only_when_they_hold_a_container() {
+    with_game(|game| {
+        let keys: std::collections::HashSet<_> = [(0, 0)].into();
+        let cases = [
+            (
+                "minecraft:minecart",
+                "minecraft:chests/simple_dungeon",
+                None,
+            ),
+            (
+                "minecraft:tnt_minecart",
+                "minecraft:chests/simple_dungeon",
+                None,
+            ),
+            (
+                "minecraft:chest_minecart",
+                "minecraft:chests/simple_dungeon",
+                Some("minecraft:chests/simple_dungeon"),
+            ),
+            ("minecraft:hopper_minecart", "", Some("minecraft:")),
+            // readChestVehicleSaveData: a table that is not an identifier reads as none, so
+            // neither it nor the seed is saved.
+            ("minecraft:chest_minecart", "Bad Name!", None),
+        ];
+        for (i, (kind, table, kept)) in cases.into_iter().enumerate() {
+            let source =
+                format!(r#"{{Pos:[8.5d,64d,8.5d],LootTable:"{table}",LootTableSeed:73L}}"#);
+            let (tag, _) = horizon_core::nbt::parse_snbt(&source).unwrap();
+            game.load_cart(tag, Some([61, 0, 0, i as i32 + 1]), kind);
+            // The entity chunk's own writer, as a save writes it to disk.
+            let (_, saved) = game.save_cart(game.carts.len() - 1, &keys).unwrap();
+            assert_eq!(
+                (
+                    saved.get("LootTable").cloned(),
+                    saved.get("LootTableSeed").cloned()
+                ),
+                (
+                    kept.map(|table| Tag::String(table.into())),
+                    kept.map(|_| Tag::Long(73))
+                ),
+                "{kind}"
+            );
+        }
+    });
+}
+
+struct DurableStickListener;
+#[mod_api::__subscriptions]
+impl mod_api::Hooks for DurableStickListener {
+    fn container_loot_filled(
+        &self,
+        _: &dyn mod_api::LevelHost,
+        event: &mut mod_api::ContainerLootFilledEvent<'_>,
+    ) {
+        let key = mod_api::__private::item_key("minecraft:stick").unwrap();
+        let mut stick = mod_api::ItemStack::new(key, 1).unwrap();
+        stick
+            .set_components(
+                [
+                    ("minecraft:max_stack_size".into(), Tag::Int(1)),
+                    ("minecraft:max_damage".into(), Tag::Int(10)),
+                ]
+                .into(),
+            )
+            .unwrap();
+        stick.set_damage(0);
+        event.drops.clear();
+        event.drops.push(stick);
+    }
+}
+
+#[test]
+#[ignore = "requires prepared resources"]
+fn container_fill_preserves_explicit_zero_damage_on_custom_durable_item() {
+    if fresh("container_fill_preserves_explicit_zero_damage_on_custom_durable_item") {
+        return;
+    }
+    with_game(|game| {
+        game.options.dedicated = Some(Vec::new());
+        mod_platform::testing::with_mods(
+            vec![mod_api::ModEntry::new(
+                "durable_stick",
+                Box::new(DurableStickListener),
+            )]
+            .into(),
+            || {
+                place(game, POS, TABLE, 37);
+                open(game, POS, 0.0);
+                let stacks: Vec<_> = game.world.block_entities[&POS]
+                    .slots()
+                    .iter()
+                    .flatten()
+                    .collect();
+                assert_eq!(stacks.len(), 1);
+                let stick = stacks[0];
+                assert_eq!(&*stick.item, "minecraft:stick");
+                assert_eq!(stick.count, 1);
+                assert_eq!(stick.damage, 0);
+                assert_eq!(game.items().stack_max_damage(stick), 10);
+            },
+        );
     });
 }

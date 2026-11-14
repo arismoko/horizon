@@ -1,0 +1,4 @@
+# The daily tests of horizon-friends: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
+# where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
+horizon-friends direct::tests::the_race_connects_and_checks_the_session lib daily slow
+horizon-friends portmap::tests::nothing_answering_says_why lib daily slow

@@ -2,12 +2,30 @@ use super::*;
 
 impl Game<'_> {
     pub(super) fn guest_tick_death(&mut self, gi: usize) {
-        if self
-            .lan
-            .as_mut()
-            .is_some_and(|host| host.hub.guests.update(gi, |g| g.tick_death()))
-        {
-            self.guest_drop_carried(gi);
+        let removed = self.lan.as_mut().and_then(|host| {
+            host.hub.guests.update(gi, |guest| {
+                if !guest.tick_death() || guest.death_time != 20 {
+                    return None;
+                }
+                let dimensions = guest.dimensions();
+                Some((
+                    guest.entity_id,
+                    guest.position,
+                    dimensions,
+                    guest.death_canceled,
+                ))
+            })
+        });
+        if let Some((entity, position, dimensions, death_canceled)) = removed {
+            self.lan_entity_event(entity, 60, position);
+            self.death_poof(
+                position,
+                f64::from(dimensions.width),
+                f64::from(dimensions.height),
+            );
+            if !death_canceled {
+                self.guest_drop_carried(gi);
+            }
         }
     }
 

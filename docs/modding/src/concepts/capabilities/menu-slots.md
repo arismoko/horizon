@@ -40,6 +40,9 @@ The server reads its owning load; the client reads local preload sets before its
 generation, including an empty one. Closing a screen or changing dimension retains it;
 disconnecting discards it. Reads allocate nothing and do not rescan recipes or registries.
 
+Parts that read `context.setting(..)` or `side()` have no counterpart on the Host.
+Named injections for `menu_slot_rules` request `hook_version = 3`.
+
 ## Keeping a block menu open
 
 The server closes a player's block menu when `AbstractContainerMenu.stillValid` says no: by default when the
@@ -118,7 +121,7 @@ buttons don't take; the server's menu decides what it does, and the inventory me
 and the storage's rules hold: the player's inventory, armour and off hand by their
 [`ENTITY_ITEMS`](entity-items.md) index, a chest's or a furnace's slot through its `ITEMS` handler, a chest minecart's
 or a chested mount's through its `ENTITY_ITEMS`, and the player's ender chest, inventory crafting grid and a mod's chest
-menu (`open_menu`), kept by the game. The slot's own rules come first, as a click has them:
+menu (`open_menu`, reached with `host.menu(uuid, window)`), kept by the game. The slot's own rules come first, as a click has them:
 `menu.slot_holds(host, slot, &stack)` is how many of a stack it holds (`Slot.mayPlace`, then `Slot.getMaxStackSize`: a
 furnace's fuel slot one bucket, an armour slot one piece that fits it, a shulker box's slot no shulker box, a result
 slot none), and `menu.slot_gives(host, slot)` whether it gives up what it holds (`Slot.mayPickup`: bound armour stays
@@ -137,3 +140,30 @@ host.transaction(|host, tx| {
     if took == 4 && slot.insert(host, tx, &emerald, 4) == 4 { Ok(()) } else { Err(()) }
 })
 ```
+
+## A mod's chest menu
+
+`host.open_menu(uuid, rows, title, items, replace)` opens a chest menu (`generic_9x1` to `generic_9x6`) for a player
+in place of the menu they have open and returns its window id; `menu_clicked` and `menu_closed` name it too. Its items
+change in place: `host.menu(uuid, window)` is its `MenuRef` while the player still has that window open (None for
+another window, a closed menu or a player who left), and a write to `ItemPlace::MenuSlot { menu, slot }` in a
+transaction is sent with the next tick's container sync, one `ContainerSetSlot` per changed slot, as vanilla's
+`broadcastChanges` sends a menu a mod changed. Nothing reopens and the cursor stays where it is.
+
+```rust,ignore
+// In menu_clicked: show the next page's item in slot 4 of the same menu.
+if let Some(menu) = host.menu(uuid, window) {
+    let slot = ItemPlace::MenuSlot { menu, slot: 4 };
+    let _ = host.transaction(|host, tx| {
+        slot.extract(host, tx, &shown, 64);
+        if slot.insert(host, tx, &next, 1) == 1 { Ok(()) } else { Err(()) }
+    });
+}
+```
+
+A title or a row count changes only with a new menu, as in vanilla: `open_menu` again, with a new window id, the
+title and all the items. The old menu closes on the server as a close does, its cursor stack going back to the
+player's inventory, and packets for its window are ignored. `replace` is the choice a Java `MenuProvider` makes
+(`shouldTriggerClientSideContainerClosingOnOpen`): `MenuReplace::CloseFirst`, vanilla's default, first sends the
+client a close, which centres the mouse again; `MenuReplace::InPlace` sends none, so the new screen takes the old
+one's place and the mouse stays where it is. Opening from the player's inventory sends no close either way.

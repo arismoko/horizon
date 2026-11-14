@@ -319,7 +319,10 @@ fn routing_actor() {
             horizon_mod_package::selection::LaunchArguments::for_command(&command).unwrap();
         let _capture = horizon_mod_package::holder::acquire(&selection);
         assert!(_capture.is_some(), "game did not enter through the holder");
-        fs::write(root.join("routed-ready"), std::process::id().to_string()).unwrap();
+        // The parent may stop the game as soon as the readiness file exists.
+        let pending = root.join("routed-ready.tmp");
+        fs::write(&pending, std::process::id().to_string()).unwrap();
+        fs::rename(pending, root.join("routed-ready")).unwrap();
         let end = std::time::Instant::now() + std::time::Duration::from_secs(30);
         while !root.join("routed-stop").exists() {
             assert!(std::time::Instant::now() < end);

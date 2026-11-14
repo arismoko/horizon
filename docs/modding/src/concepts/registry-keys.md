@@ -79,6 +79,22 @@ registry and does not allocate, so a hook can call it. It returns `None` for a n
 not hold, and before the registry is complete, so a mod uses `r.block_key(id)` in `register`. These
 work on the client and the server, for native and wasm mods alike.
 
+```rust
+fn resolve(host: &dyn mod_api::Host) {
+    if let Some(block) = host.block_key("minecraft:stone") {
+        assert_eq!(block.id(host), "minecraft:stone");
+    }
+    if let Some(effect) = host.effect_key("minecraft:speed") {
+        assert_eq!(effect.id(host), "minecraft:speed");
+    }
+    assert!(host.block_key("test:missing_block").is_none());
+    assert!(host.effect_key("test:missing_effect").is_none());
+}
+```
+
+These calls are also available on `&dyn ServerHost` and `&dyn ClientHost`.
+Both lookups return `None` before their registry completes, including for vanilla names.
+
 ## Fluids and effects
 
 Declare a tank-only fluid in your own namespace with `r.declare_fluid("chocolate")`; the returned `FluidKey` identifies it for the mod load. Request vanilla or another mod's declared fluid with `r.fluid_key("minecraft:water")` or `r.fluid_key("other:chocolate")`. Requests resolve after all registrations, so declaration order does not matter; an unknown request stops the load and names the requesting mod. Tank-only fluids have no world simulation or world state. Fluid stacks and recipe ingredients use these keys.
@@ -163,6 +179,15 @@ Use API-owned values rather than importing engine or package-loader types.
 | `Block`, `Item` | Registration declarations. Component patches are `(String, Option<Tag>)` entries; `None` removes a component. Content-file admission checks apply. |
 | `BlockEntityTypeDecl` | Declaration snapshot produced by `r.block_entity_type(...).build()`. |
 | `GuiDraw` | GUI commands; `DrawContext::gui_paint` returns a typed text-conversion result. Handle refusal before drawing. HUD hooks reject invalid writeback as a whole. |
+
+`ServerHost::game_rule(id)` reads the one server-wide rule store without a
+`LevelRef`, including in `server_about_to_start` and `server_starting`.
+It returns `Result<GameRuleValue, GameRuleReadError>`; an unknown identifier gives
+`GameRuleReadError::UnknownRule`. `ServerHost::game_rules()` lists every available
+rule and its current value by namespaced id. Both native and wasm mods can use
+these reads. Saved values and a new world's create-screen choices are installed
+before the first server hook, without firing `game_rule_changed` for loading.
+Level reads use the same store once the requested level exists.
 
 `mod_api::GameRuleValue` owns the `Bool(bool)` and `Int(i32)` cases, in that order.
 `level.game_rule(host, id)` returns `Result<Option<GameRuleValue>, LevelReadError>`:

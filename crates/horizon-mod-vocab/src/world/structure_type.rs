@@ -84,12 +84,60 @@ pub trait StructureType: Send + Sync + 'static {
     }
 }
 
+/// The terrain-shaping rule around a structure piece.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, horizon_mod_api_macros::Wire)]
+// exhaustive: these are the five terrain rules supported by the density sampler.
+pub enum TerrainAdjustment {
+    /// Leave the surrounding terrain unchanged.
+    None,
+    /// Blend terrain around a buried piece.
+    Bury,
+    /// Shape terrain around the piece's ground plane.
+    BeardThin,
+    /// Shape terrain around the full piece box.
+    BeardBox,
+    /// Blend terrain around the box to enclose the piece.
+    Encapsulate,
+}
+
+/// A piece's terrain shape, independent of its placement box and structure's setting.
+#[derive(Clone, Copy, Debug, horizon_mod_api_macros::Wire)]
+#[non_exhaustive]
+pub struct PieceBeardifier {
+    /// Terrain-shaping box, independent of the piece's placement bounds.
+    pub bounds: BoundingBox,
+    /// Terrain adjustment used for this piece.
+    pub adjustment: TerrainAdjustment,
+    /// Ground-plane offset above the terrain box's minimum Y.
+    pub ground_level_delta: i32,
+}
+impl PieceBeardifier {
+    /// Construct the cached terrain metadata for one piece.
+    pub fn new(
+        bounds: BoundingBox,
+        adjustment: TerrainAdjustment,
+        ground_level_delta: i32,
+    ) -> Self {
+        Self {
+            bounds,
+            adjustment,
+            ground_level_delta,
+        }
+    }
+}
+
 /// One piece of a mod's structure: vanilla's `StructurePiece`. Its `save` is
 /// the engine's (`StructurePiece.createTag`: the type id, `BB`, `O`, `GD`)
 /// around [`add_additional_save_data`](StructurePiece::add_additional_save_data).
 pub trait StructurePiece: std::fmt::Debug + Send + Sync {
     /// `StructurePiece.getBoundingBox`: the piece's box, in world blocks.
     fn bounding_box(&self) -> BoundingBox;
+    /// Override terrain shaping, even when the structure's adjustment is `None`.
+    /// Queried once at generation or load, never per chunk. An answer whose adjustment
+    /// is `None` omits this piece; no answer preserves the structure's default.
+    fn beardifier(&self) -> Option<PieceBeardifier> {
+        None
+    }
     /// `StructurePiece.postProcess`: place the piece's blocks and entities
     /// that fall in the chunk `context` clips to. Writes outside it are
     /// dropped silently, as vanilla's `placeBlock` skips them.

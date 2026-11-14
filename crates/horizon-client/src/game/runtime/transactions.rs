@@ -10,7 +10,7 @@
 //! waiting work, which nothing outside had seen.
 //!
 //! Covered here: block entities (slots, saved compound, custom name, lock, loot roll, attachments), a hopper's cooldown and
-//! cauldron block states. The attachment map of every other holder (an entity, a player, a
+//! cauldron and composter block states. The attachment map of every other holder (an entity, a player, a
 //! chunk, the level) is kept on the first access to it through `attachment_map`. A block's tentative state is stored only (`World::set_stored`): the
 //! one real write, with its remesh, relight and logs, is at the root commit. A jukebox is
 //! told at the root commit from its record before and after, so a disc swapped in one
@@ -32,8 +32,12 @@ use std::collections::HashMap;
 
 #[path = "transactions/decision.rs"]
 pub(in crate::game) mod decision;
+#[path = "transactions/scratch.rs"]
+mod scratch;
 
 type Pos = (i32, i32, i32);
+type ComposterRandoms =
+    HashMap<(mod_api::DimensionKey, (i32, i32)), HashMap<Pos, horizon_core::random::LegacyRandom>>;
 
 /// The open transactions, innermost last, and which close is running, if any: what
 /// `transaction_lifecycle` reads.
@@ -45,6 +49,9 @@ pub(super) struct OpenTransactions {
     /// restore moves back. A decision that read a player's inventory or a container's slots
     /// compares it before and after its listeners ran; an equal rewrite counts as a write.
     writes: u64,
+    composter_epoch: Option<mod_api::WorldEpoch>,
+    /// Each composter port owns its transactional random stream, independently of Level.random.
+    composter_randoms: ComposterRandoms,
 }
 
 impl OpenTransactions {
@@ -91,12 +98,17 @@ pub(super) struct Level {
     dimension: Option<super::Dim>,
     /// Each block entity as it was before this transaction first wrote it.
     block_entities: HashMap<Pos, Kept>,
+    /// The block entities this transaction removed (`journal_remove_block_entity`): an abort
+    /// puts them back as `block_entities` keeps them.
+    removed_block_entities: std::collections::HashSet<Pos>,
     /// Each item slot (block entity, slot) a slot-only write changed, as it was before this
     /// transaction first wrote it, for a block entity not kept whole in `block_entities`: a
     /// move through a container keeps the slot it touches, not the entity's whole saved data.
     slots: HashMap<(Pos, usize), KeptSlot>,
     /// Each block's state before this transaction first wrote it.
     blocks: HashMap<Pos, BlockStateId>,
+    /// Composter-local random streams before this depth first evaluated their layers.
+    composter_randoms: ComposterRandoms,
     /// Each quart cell before this transaction first wrote it.
     biomes: HashMap<Pos, u16>,
     /// Each player's inventory before this transaction first wrote it, by UUID.
@@ -104,7 +116,7 @@ pub(super) struct Level {
     /// Synced player health and its unpublished update events before set_health.
     player_health: HashMap<u128, KeptPlayerHealth>,
     /// Mob health and synchronization dirtiness before set_health.
-    mob_health: HashMap<u32, (f32, bool)>,
+    mob_health: HashMap<u32, KeptMobHealth>,
     /// Each entity's inventory (`entity_slots`) before this transaction first wrote it.
     entities: HashMap<u32, Vec<Option<ItemStack>>>,
     /// Each mob's or armor stand's equipment before this transaction first
@@ -120,11 +132,23 @@ pub(super) struct Level {
     /// Each entity's, player's, chunk's and the level's attachment map before this transaction
     /// first reached it (a block entity's is kept with it).
     attachments: HashMap<Holder, KeptAttachments>,
+    /// Held once this transaction reaches an attachment map, until it closes: the save
+    /// admission gate (`passes_settled`) refuses a save while a map may hold tentative
+    /// values, which only the root commit makes saveable.
+    save_gate: Option<horizon_client::join_seq::visibility::PassLease>,
+    /// Each chunk's unsaved mark and save queue entry before this transaction first reached an
+    /// attachment map in it: an abort puts them back, so a chunk only a tentative write marked
+    /// is clean again.
+    chunk_marks: HashMap<(i32, i32), horizon_client::world::ChunkMark>,
     /// What the root commit does, in order.
     after: Vec<After>,
     /// Internal decide/fire/apply state. No menu route uses this yet.
     actions: decision::Journal,
     action: Option<decision::ActiveAction>,
+    /// The scratch stacks (`ItemPlace::Scratch`), live: kept by the outermost transaction only.
+    scratch: HashMap<u64, scratch::Scratch>,
+    /// Each scratch stack before this transaction first wrote it; none where it didn't exist.
+    scratch_kept: HashMap<u64, Option<scratch::Scratch>>,
 }
 
 /// A slot's stack before a transaction first wrote it, and the generation of the block entity
@@ -172,6 +196,17 @@ impl Kept {
 struct KeptPlayerHealth {
     data: horizon_world::synced_floats::SyncedFloats,
     events_len: usize,
+    dead: bool,
+    guest: Option<(u32, bool, u32)>,
+}
+
+struct KeptMobHealth {
+    absorption: f32,
+    health: f32,
+    needs_sync: bool,
+    death_time: i32,
+    death_canceled: bool,
+    processed: bool,
 }
 
 #[derive(Clone)]
@@ -205,6 +240,12 @@ pub(super) enum After {
     /// A mod's validated vanilla packet, bound to its physical protocol incarnation.
     Packet(horizon_client::net::PreparedPacket),
     Cauldron(super::cauldron_interactions::Effects),
+    Composter(super::composter::Effects),
+    /// A mod's world pickup or placement of fluid, its block already set: what is left of it
+    /// (`Game::commit_fluid_write`).
+    FluidWrite(Box<super::world_fluids::WrittenFluid>),
+    /// A bucket's sound and fluid game event (`level_play_fluid_effects`).
+    FluidEffects(Box<super::world_fluids::FluidEffects>),
     /// `BlockEntity.setChanged`.
     Changed(Pos),
     /// `BlockEntity.setChanged` and `Level.sendBlockUpdated` after its data was loaded.
@@ -289,6 +330,9 @@ impl Game<'_> {
             scope.open_transaction();
         }
         let (token, close_token) = (frame_token(), frame_token());
+        if self.transactions.is_empty() {
+            self.world.block_entities.defer_retirement();
+        }
         self.transactions.push(Level {
             token,
             close_token,
@@ -366,8 +410,14 @@ impl Game<'_> {
         // end the root's phase early. The guard puts it back on a panic too, so a listener
         // that panics leaves the phase as it was.
         let outer = self.transactions.closing.replace(closing);
+        // The root's own close, not one a root-commit listener opened: what the transactions
+        // removed is final now, so it retires (`defer_retirement`).
+        let root = self.transactions.is_empty() && outer.is_none();
         let guard = ClosingPhase { game: self, outer };
         guard.game.close_level(level, commit);
+        if root {
+            guard.game.world.block_entities.publish_retirement();
+        }
     }
     /// What closing `level` does, with the closing phase already set.
     fn close_level(&mut self, level: Level, commit: bool) {
@@ -396,8 +446,17 @@ impl Game<'_> {
                 for (pos, kept) in level.block_entities {
                     outer.block_entities.entry(pos).or_insert(kept);
                 }
+                outer
+                    .removed_block_entities
+                    .extend(level.removed_block_entities);
                 for (pos, state) in level.blocks {
                     outer.blocks.entry(pos).or_insert(state);
+                }
+                for (chunk, randoms) in level.composter_randoms {
+                    let kept = outer.composter_randoms.entry(chunk).or_default();
+                    for (pos, random) in randoms {
+                        kept.entry(pos).or_insert(random);
+                    }
                 }
                 for (pos, biome) in level.biomes {
                     outer.biomes.entry(pos).or_insert(biome);
@@ -429,6 +488,13 @@ impl Game<'_> {
                 for (holder, kept) in level.attachments {
                     outer.attachments.entry(holder).or_insert(kept);
                 }
+                for (id, kept) in level.scratch_kept {
+                    outer.scratch_kept.entry(id).or_insert(kept);
+                }
+                outer.save_gate = outer.save_gate.take().or(level.save_gate);
+                for (chunk, mark) in level.chunk_marks {
+                    outer.chunk_marks.entry(chunk).or_insert(mark);
+                }
                 outer.after.extend(level.after);
             }
             (true, None) => self.root_commit(level),
@@ -442,6 +508,71 @@ impl Game<'_> {
         while !self.transactions.is_empty() {
             self.close_storage_transaction(false);
         }
+        self.world.block_entities.publish_retirement();
+    }
+
+    /// `ComposterWrapper.transactionalRandom`: snapshot only the position's private owner,
+    /// including its initial state on a first access that later aborts.
+    pub(super) fn take_composter_random(
+        &mut self,
+        pos: [i32; 3],
+    ) -> horizon_core::random::LegacyRandom {
+        let epoch = self.native_lifecycle.epoch();
+        if self.transactions.composter_epoch != epoch {
+            self.clear_composter_randoms();
+            self.transactions.composter_epoch = epoch;
+        }
+        let chunk = (self.dim.key(), (pos[0] >> 4, pos[2] >> 4));
+        let key = (pos[0], pos[1], pos[2]);
+        let random = self
+            .transactions
+            .composter_randoms
+            .entry(chunk)
+            .or_default()
+            .remove(&key)
+            .unwrap_or_else(|| (*self.world.random).clone());
+        if let Some(level) = self.transactions.last_mut() {
+            level
+                .composter_randoms
+                .entry(chunk)
+                .or_default()
+                .entry(key)
+                .or_insert_with(|| random.clone());
+        }
+        random
+    }
+
+    pub(super) fn put_composter_random(
+        &mut self,
+        pos: [i32; 3],
+        random: horizon_core::random::LegacyRandom,
+    ) {
+        self.transactions
+            .composter_randoms
+            .entry((self.dim.key(), (pos[0] >> 4, pos[2] >> 4)))
+            .or_default()
+            .insert((pos[0], pos[1], pos[2]), random);
+    }
+
+    /// Retire only an unloading chunk's cached owners and their pending savepoints.
+    pub(super) fn forget_composter_chunk(
+        &mut self,
+        dimension: mod_api::DimensionKey,
+        chunk: [i32; 2],
+    ) {
+        let key = (dimension, (chunk[0], chunk[1]));
+        self.transactions.composter_randoms.remove(&key);
+        for level in &mut self.transactions.levels {
+            level.composter_randoms.remove(&key);
+        }
+    }
+
+    pub(super) fn clear_composter_randoms(&mut self) {
+        self.transactions.composter_epoch = None;
+        self.transactions.composter_randoms.clear();
+        for level in &mut self.transactions.levels {
+            level.composter_randoms.clear();
+        }
     }
     /// Keeps the block entity at `pos` as it is, with its attachments and a hopper's
     /// cooldown, if a transaction is open and hasn't yet.
@@ -454,6 +585,33 @@ impl Game<'_> {
             .block_entities
             .entry(pos)
             .or_insert_with(|| Kept::capture(&self.world, &self.hoppers, pos));
+    }
+    /// Puts back the block entity at `pos` that a transaction removed, as `kept` holds it, with
+    /// its generation, where none stands there now.
+    fn restore_removed_block_entity(&mut self, pos: Pos, kept: &Kept) {
+        let Some(entity) = &kept.entity else {
+            return;
+        };
+        if self.world.block_entities.get(&pos).is_some() {
+            return;
+        }
+        self.world.block_entities.insert(pos, entity.clone());
+        if let Some(generation) = kept.generation {
+            self.world
+                .block_entities
+                .restore_generation(pos, generation);
+            self.world.block_entities.reattach_retired(pos, generation);
+        }
+    }
+    /// Removes the block entity at `pos`, kept whole by the open transaction, which puts it back
+    /// if it aborts: a block write in the transaction that drops it, so later reads in it see
+    /// none. Outside a transaction, it just goes.
+    pub(super) fn journal_remove_block_entity(&mut self, pos: Pos) {
+        self.journal_block_entity(pos);
+        if let Some(level) = self.transactions.last_mut() {
+            level.removed_block_entities.insert(pos);
+        }
+        self.world.block_entities.remove(&pos);
     }
     /// How many block entities the open transactions keep whole, and how many single slots:
     /// what a test reads to tell a slot journal from a whole capture without timing it.
@@ -502,6 +660,24 @@ impl Game<'_> {
     /// Keeps `holder`'s attachment map as it is, if a transaction is open and hasn't yet: a
     /// block entity's with the rest of it, any other's alone.
     pub(super) fn journal_attachments(&mut self, holder: Holder) {
+        if let Some(level) = self.transactions.last_mut() {
+            level
+                .save_gate
+                .get_or_insert_with(horizon_client::join_seq::visibility::PassLease::enter);
+            // The chunk that a block entity's or chunk's map marks unsaved (`world_attachments`).
+            let chunk = match holder {
+                Holder::BlockEntity([x, _, z]) => Some((x >> 4, z >> 4)),
+                Holder::Chunk(chunk) => Some((chunk[0], chunk[1])),
+                _ => None,
+            };
+            if let Some(chunk) = chunk {
+                let modified = &self.world.modified;
+                level
+                    .chunk_marks
+                    .entry(chunk)
+                    .or_insert_with(|| modified.mark(chunk));
+            }
+        }
         if let Holder::BlockEntity([x, y, z]) = holder {
             return self.journal_block_entity((x, y, z));
         }
@@ -558,23 +734,40 @@ impl Game<'_> {
         let Some(player) = self.player.as_ref() else {
             return;
         };
-        level
-            .player_health
-            .entry(uuid)
-            .or_insert_with(|| KeptPlayerHealth {
-                data: player.health.data.clone(),
-                events_len: player.events.len(),
-            });
+        let std::collections::hash_map::Entry::Vacant(entry) = level.player_health.entry(uuid)
+        else {
+            return;
+        };
+        let guest = self.lan_acting.and_then(|conn| {
+            let guest = self
+                .lan
+                .as_ref()?
+                .hub
+                .guests
+                .iter()
+                .find(|guest| guest.conn == conn)?;
+            Some((conn, guest.death_canceled, guest.death_time))
+        });
+        entry.insert(KeptPlayerHealth {
+            data: player.health.data.clone(),
+            events_len: player.events.len(),
+            dead: player.health.dead,
+            guest,
+        });
     }
     pub(super) fn journal_mob_health(&mut self, id: u32) {
         let Some(level) = self.transactions.last_mut() else {
             return;
         };
         if let Some(mob) = self.mobs.iter().find(|m| m.id == id && !m.removed) {
-            level
-                .mob_health
-                .entry(id)
-                .or_insert((mob.health, mob.needs_sync));
+            level.mob_health.entry(id).or_insert(KeptMobHealth {
+                health: mob.health,
+                absorption: mob.absorption,
+                needs_sync: mob.needs_sync,
+                death_time: mob.death_time,
+                death_canceled: mob.death_canceled,
+                processed: self.died.contains(&id),
+            });
         }
     }
     /// Keeps `player`'s menu storage as it is, if a transaction is open and hasn't yet.
@@ -679,6 +872,9 @@ impl Game<'_> {
             After::Payload(payload) => payload.publish(),
             After::Packet(packet) => packet.publish(),
             After::Cauldron(effects) => self.commit_cauldron_effects(effects),
+            After::Composter(effects) => self.commit_composter_effects(effects),
+            After::FluidWrite(written) => self.commit_fluid_write(*written),
+            After::FluidEffects(effects) => self.commit_fluid_effects(*effects),
             After::Changed(pos) => self.container_changed(pos),
             After::Updated(pos) => self.block_entity_updated(pos),
             After::NotifyClients(pos) => self.notify_block_clients(pos),
@@ -752,6 +948,15 @@ impl Game<'_> {
                     }
                     let now = self.world.block(pos.0, pos.1, pos.2);
                     let was = level.blocks[&pos];
+                    // A block entity the transaction removed comes back where a later write
+                    // there put back a block of the kind that had it.
+                    let b = self.res.behaviours();
+                    if level.removed_block_entities.contains(&pos)
+                        && b.block(now) == b.block(was)
+                        && let Some(kept) = level.block_entities.get(&pos)
+                    {
+                        self.restore_removed_block_entity(pos, kept);
+                    }
                     if now != was {
                         // The stored state back, so the one real write sees the change.
                         self.world.set_stored(pos.0, pos.1, pos.2, was);
@@ -793,6 +998,7 @@ impl Game<'_> {
         }
     }
     fn roll_back(&mut self, mut level: Level) {
+        self.scratch_roll_back(std::mem::take(&mut level.scratch_kept));
         // Discard deferred effects before undoing tentative action storage.
         level.after.clear();
         // Each mob's equipment goes back as it was, and the attribute map is
@@ -823,17 +1029,22 @@ impl Game<'_> {
         }
 
         for (pos, kept) in level.block_entities {
-            if let (Some(entity), Some(now)) =
-                (kept.entity, self.world.block_entities.get_mut(&pos))
-            {
-                *now = entity;
-                self.world
-                    .block_entities
-                    .restore_generation(pos, kept.generation.unwrap());
+            match (&kept.entity, self.world.block_entities.get_mut(&pos)) {
+                (Some(entity), Some(now)) => {
+                    *now = entity.clone();
+                    self.world
+                        .block_entities
+                        .restore_generation(pos, kept.generation.unwrap());
+                }
+                // One this transaction removed comes back.
+                (Some(_), None) if level.removed_block_entities.contains(&pos) => {
+                    self.restore_removed_block_entity(pos, &kept);
+                }
+                _ => {}
             }
             self.world
                 .block_entities
-                .set_attachments(pos, kept.attachments);
+                .put_back_attachments(pos, kept.generation, kept.attachments);
             match kept.name {
                 Some(name) => self.world.block_names.insert(pos, name),
                 None => self.world.block_names.remove(&pos),
@@ -873,6 +1084,13 @@ impl Game<'_> {
         }
         for (pos, state) in level.blocks {
             self.world.set_stored(pos.0, pos.1, pos.2, state);
+        }
+        for (chunk, randoms) in level.composter_randoms {
+            self.transactions
+                .composter_randoms
+                .entry(chunk)
+                .or_default()
+                .extend(randoms);
         }
         for (id, kept) in level.entities {
             self.edit_entity_slots(id, |slots, _| {
@@ -916,10 +1134,22 @@ impl Game<'_> {
                 });
             }
         }
-        for (id, (health, needs_sync)) in level.mob_health {
+        // After the maps: putting a chunk's map back marks it again.
+        for (chunk, mark) in level.chunk_marks {
+            self.world.modified.restore(chunk, mark);
+        }
+        for (id, kept) in level.mob_health {
             if let Some(mob) = self.mobs.iter_mut().find(|m| m.id == id) {
-                mob.health = health;
-                mob.needs_sync = needs_sync;
+                mob.health = kept.health;
+                mob.absorption = kept.absorption;
+                mob.needs_sync = kept.needs_sync;
+                mob.death_time = kept.death_time;
+                mob.death_canceled = kept.death_canceled;
+                if kept.processed {
+                    self.died.insert(id);
+                } else {
+                    self.died.remove(&id);
+                }
             }
         }
         for (uuid, kept) in level.player_health {
@@ -938,6 +1168,17 @@ impl Game<'_> {
                     if let Some(player) = g.player.as_mut() {
                         player.health.data = kept.data;
                         player.events.truncate(kept.events_len);
+                        player.health.dead = kept.dead;
+                    }
+                    if let Some((conn, canceled, time)) = kept.guest
+                        && let Some(host) = g.lan.as_mut()
+                        && let Some(gi) =
+                            host.hub.guests.iter().position(|guest| guest.conn == conn)
+                    {
+                        host.hub.guests.update(gi, |guest| {
+                            guest.death_canceled = canceled;
+                            guest.death_time = time;
+                        });
                     }
                 });
             }
@@ -1001,7 +1242,7 @@ mod tests {
                 host: &mut dyn ServerHost,
                 event: &mut PlayerStatAwardEvent<'_>,
             ) -> Flow {
-                if event.stat != "minecraft:fill_cauldron" {
+                if event.stat.as_str() != "minecraft:fill_cauldron" {
                     return Flow::Continue;
                 }
                 let level = host.level("minecraft:overworld").unwrap();
@@ -1019,8 +1260,12 @@ mod tests {
                 ));
                 Flow::Cancel
             }
-            fn item_toss(&self, host: &mut dyn ServerHost, event: &mut ItemTossEvent<'_>) -> Flow {
-                if event.item == "minecraft:potion" {
+            fn item_toss(&self, host: &mut dyn ServerHost, event: &mut ItemTossEvent) -> Flow {
+                let potion = event.item.stack(host).is_some_and(|stack| {
+                    mod_api::__private::item_key_id(stack.item())
+                        .is_some_and(|id| id == "minecraft:potion")
+                });
+                if potion {
                     let level = host.level("minecraft:overworld").unwrap();
                     self.drops
                         .lock()
@@ -1727,15 +1972,30 @@ mod tests {
 
         // An attachment map a write made inside an aborted transaction is gone with it.
         let chest_holder = mod_api::Holder::BlockEntity([0, 64, 0]);
+        // So is the unsaved mark it put on a clean chunk, through a committed child too.
         assert!(game.world.block_entities.attachments((0, 64, 0)).is_none());
+        game.world.modified.clear();
+        game.open_storage_transaction();
         game.open_storage_transaction();
         assert!(
             game.attachment_map_quiet(chest_holder, mod_api::AttachmentAccess::Existing)
                 .is_ok()
         );
+        assert!(game.world.modified.contains(&(0, 0)));
+        game.close_storage_transaction(true);
         assert!(game.world.block_entities.attachments((0, 64, 0)).is_some());
         game.close_storage_transaction(false);
         assert!(game.world.block_entities.attachments((0, 64, 0)).is_none());
+        assert!(!game.world.modified.contains(&(0, 0)), "clean again");
+        // A committed one keeps it.
+        game.open_storage_transaction();
+        assert!(
+            game.attachment_map_quiet(chest_holder, mod_api::AttachmentAccess::Existing)
+                .is_ok()
+        );
+        game.close_storage_transaction(true);
+        assert!(game.world.modified.contains(&(0, 0)));
+        game.world.block_entities.set_attachments((0, 64, 0), None);
 
         // An aborted cauldron change leaves no write behind in the world's queues.
         assert_eq!(

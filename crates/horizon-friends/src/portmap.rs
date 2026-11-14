@@ -1091,6 +1091,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn nothing_answering_says_why() {
         let quiet = UdpSocket::bind("127.0.0.1:0").unwrap();
         let targets = Targets {

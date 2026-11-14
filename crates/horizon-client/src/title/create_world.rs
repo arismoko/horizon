@@ -56,6 +56,42 @@ pub struct WorldOptions {
     pub pack_dir: Option<std::path::PathBuf>,
     /// Additional repository sources retained for this creation configuration.
     pub additional_data_packs: std::sync::Arc<[std::sync::Arc<crate::datapack::DataPack>]>,
+    /// Alt is held (`CycleButton.DEFAULT_ALT_LIST_SELECTOR`): the world type
+    /// button cycles the extended list, with Debug Mode.
+    pub alt_down: bool,
+}
+impl crate::save::WorldPreset {
+    /// `WorldPresetTags.EXTENDED`: the list the button cycles while Alt is held.
+    pub const EXTENDED: [Self; 6] = [
+        Self::Normal,
+        Self::Flat,
+        Self::LargeBiomes,
+        Self::Amplified,
+        Self::SingleBiomeSurface,
+        Self::Debug,
+    ];
+    /// `CycleButton.cycleValue`: the preset `step` places on in the Alt
+    /// list (`EXTENDED`) or the normal one (`ALL`). The button's position
+    /// is the preset's place in the extended list, which the normal list
+    /// then wraps (`Mth.positiveModulo`).
+    pub fn step(self, step: i32, alt: bool) -> Self {
+        let index = Self::EXTENDED.iter().position(|p| *p == self).unwrap_or(0);
+        let list: &[Self] = if alt { &Self::EXTENDED } else { &Self::ALL };
+        list[(index as i32 + step).rem_euclid(list.len() as i32) as usize]
+    }
+}
+impl super::Title {
+    /// The live Alt state (`Minecraft.hasAltDown`) for an open Create New World screen
+    /// and the flat and buffet screens it returns from.
+    pub fn set_alt_down(&mut self, alt: bool) {
+        use super::Mode;
+        if let Mode::Create { options, .. }
+        | Mode::CreateFlat { options, .. }
+        | Mode::CreateBuffet { options, .. } = &mut self.mode
+        {
+            options.alt_down = alt;
+        }
+    }
 }
 impl Default for WorldOptions {
     fn default() -> Self {
@@ -80,6 +116,7 @@ impl Default for WorldOptions {
             data_packs: vec!["vanilla".into()],
             pack_dir: None,
             additional_data_packs: std::sync::Arc::from([]),
+            alt_down: false,
         }
     }
 }

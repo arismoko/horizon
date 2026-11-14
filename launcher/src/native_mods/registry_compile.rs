@@ -32,10 +32,14 @@ fn compiler_plan(
     }
 }
 
+/// `out` is the mods folder's staging folder, rewritten every build; `target_dir` is cargo's build
+/// folder, kept between builds of the same game build (see `prebuilt::compile`).
+#[allow(clippy::too_many_arguments)]
 pub(super) fn compile(
     rust: &Toolchain,
     game: &Path,
     out: &Path,
+    target_dir: &Path,
     projects: &[api::Project<'_>],
     declared: &[Vec<dependencies::Dependency>],
     resolution: &dependencies::Resolution,
@@ -78,8 +82,14 @@ pub(super) fn compile(
     let generated = catalog
         .prepare(projects.iter().map(|project| &project.bundle.manifest))
         .map_err(|e| e.to_string())?;
+    // The last build's staging, kept aside until this one's is written: a file whose bytes didn't
+    // change gets its old modified time back, so cargo's fingerprints reuse what it built from it.
+    let previous = out.with_extension("old");
+    if previous.exists() {
+        fs::remove_dir_all(&previous).map_err(|e| e.to_string())?;
+    }
     if out.exists() {
-        fs::remove_dir_all(out).map_err(|e| e.to_string())?;
+        fs::rename(out, &previous).map_err(|e| e.to_string())?;
     }
     fs::create_dir_all(out).map_err(|e| e.to_string())?;
     let mut bindings = BTreeMap::new();
@@ -379,7 +389,10 @@ pub(super) fn compile(
         out.to_path_buf(),
         registry_rustc::Bindings { externs, link_args },
     );
-    let target_dir = out.join("target");
+    if previous.exists() {
+        keep_unchanged_times(out, &previous).map_err(|e| e.to_string())?;
+        fs::remove_dir_all(&previous).map_err(|e| e.to_string())?;
+    }
     let mut command = super::cargo(rust, out, "build");
     command
         .args([
@@ -390,8 +403,13 @@ pub(super) fn compile(
             rust.host.target,
         ])
         .arg("--target-dir")
-        .arg(&target_dir)
+        .arg(target_dir)
         .arg("--message-format=json-render-diagnostics");
+    // Cargo's per-crate timings (`target/cargo-timings/`), for the check that measures where a
+    // registry build's time goes; a player's kept build folder doesn't collect them.
+    if std::env::var_os("HORIZON_NATIVE_CARGO_TIMINGS").is_some() {
+        command.arg("--timings");
+    }
     let wrapper = compiler_plan(rust, game, bindings);
     wrapper.configure(&mut command, &out.join("rustc-plan.json"), options.adapter)?;
     let messages = out.join("cargo-messages.jsonl");
@@ -422,7 +440,7 @@ pub(super) fn compile(
             "horizon-native-registry-game"
         });
     let mut runtime = prebuilt::runtime_libraries(rust, &game.join("deps"))?;
-    for library in outputs.runtime(&metadata.runtime_packages()?, &target_dir)? {
+    for library in outputs.runtime(&metadata.runtime_packages()?, target_dir)? {
         if let Some(existing) = runtime
             .iter()
             .find(|existing| existing.file_name() == library.file_name())
@@ -442,8 +460,67 @@ pub(super) fn compile(
     Ok((binary, runtime))
 }
 
+/// Gives each file under `staged` whose bytes equal the file at the same place under `previous`
+/// that file's modified time.
+fn keep_unchanged_times(staged: &Path, previous: &Path) -> std::io::Result<()> {
+    for entry in fs::read_dir(staged)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        let old = previous.join(entry.file_name());
+        if kind.is_dir() {
+            if old.is_dir() {
+                keep_unchanged_times(&entry.path(), &old)?;
+            }
+        } else if kind.is_file() {
+            let Ok(meta) = fs::symlink_metadata(&old) else {
+                continue;
+            };
+            if meta.is_file()
+                && meta.len() == entry.metadata()?.len()
+                && fs::read(&old)? == fs::read(entry.path())?
+            {
+                fs::File::options()
+                    .write(true)
+                    .open(entry.path())?
+                    .set_modified(meta.modified()?)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    /// A restaged file whose bytes didn't change keeps its old modified time, so cargo reuses
+    /// what it built from it; a changed or new file keeps its new one.
+    #[test]
+    fn only_unchanged_staged_files_keep_their_old_time() {
+        let root = tempfile::tempdir().unwrap();
+        let (old, new) = (root.path().join("stage.old"), root.path().join("stage"));
+        for dir in [&old, &new] {
+            fs::create_dir_all(dir.join("src")).unwrap();
+        }
+        let then = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000);
+        for (name, text) in [("src/lib.rs", "same"), ("Cargo.toml", "old")] {
+            let path = old.join(name);
+            fs::write(&path, text).unwrap();
+            fs::File::options()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_modified(then)
+                .unwrap();
+        }
+        fs::write(new.join("src/lib.rs"), "same").unwrap();
+        fs::write(new.join("Cargo.toml"), "new").unwrap();
+        fs::write(new.join("src/added.rs"), "added").unwrap();
+        keep_unchanged_times(&new, &old).unwrap();
+        let modified = |name: &str| fs::metadata(new.join(name)).unwrap().modified().unwrap();
+        assert_eq!(modified("src/lib.rs"), then);
+        assert_ne!(modified("Cargo.toml"), then);
+        assert_ne!(modified("src/added.rs"), then);
+    }
+
     use super::*;
 
     #[test]
@@ -698,6 +775,7 @@ mod tests {
             &rust,
             &game,
             &out,
+            &out.join("target"),
             &projects,
             &declared,
             &resolution,

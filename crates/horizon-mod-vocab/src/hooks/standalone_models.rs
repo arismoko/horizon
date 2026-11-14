@@ -33,20 +33,18 @@ pub trait Hooks {
         lines: &mut Vec<String>,
         cancel: &mut bool,
     );
-    /// Models no blockstate names that this client bakes beside the block
-    /// models (NeoForge's `ModelEvent.RegisterStandalone`): push their ids
-    /// (`mymod:block/shaft_half`, the model at
-    /// `assets/mymod/models/block/shaft_half.json`). Parts a block entity or
-    /// a mob draws, with `native_draw_model`, so that no block is registered
-    /// only to bake its model. Asked once at start, before the resources
-    /// load; every resource load, a pack reload included, bakes them again
-    /// from that pack's files. A model that doesn't read is logged and left
-    /// out; an id without a namespace is dropped. Only the client asks it,
-    /// as NeoForge's ModelEvent.RegisterStandalone is a client mod-bus event.
+    /// Models no blockstate names, registered once on the client before resources load.
+    /// `models` collects plain namespaced file ids, baked unturned. `forms` collects
+    /// rotated/UV-locked or combined dependencies under a namespaced result id.
+    /// Every resource load rebakes both from the active pack files. A missing dependency
+    /// drops the entire form and logs its registering mod. Resolve the results through
+    /// `RenderAssets::model` after `model_baking_completed`, just like plain ids.
     #[hook(
         side = "client",
         contract = "collect",
-        out = "models",
+        out = "forms",
+        answered_by = "mod",
+        version = 2,
         context = "registration",
         neoforge = "ModelEvent.RegisterStandalone"
     )]

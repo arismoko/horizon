@@ -11,3 +11,5 @@ pub mod block_definitions;
 pub mod block_entities;
 /// Immutable hook subscription bitsets, resolved once at installation.
 pub mod subscribers;
+/// Session-only watered-area indexes, shared by server gameplay and the mod disable boundary.
+pub mod water_tickets;

@@ -544,6 +544,21 @@ impl MobWorld<'_> {
         }
         Some(biome.temperature_at(BlockPos::new(x, y, z), self.sea_level) >= 0.15)
     }
+    /// `Entity.isInClouds`: a dimension whose `visual/cloud_color` is
+    /// transparent has no clouds, else the cloud band is the four blocks from
+    /// `visual/cloud_height` up, and a box that reaches it is in the clouds.
+    pub fn in_clouds(&self, y: f64, height: f64) -> bool {
+        let dimension = self.dimension_type;
+        if dimension.cloud_color_alpha == 0.0 {
+            return false;
+        }
+        let bottom = dimension.cloud_height;
+        if y + height < f64::from(bottom) {
+            return false;
+        }
+        // `cloudBottom + 4.0F`, added in f32 as vanilla does.
+        y <= f64::from(bottom + 4.0)
+    }
     /// Level.isRainingAt: the precipitation at the position is rain, not snow
     /// or none.
     pub fn raining_at(&self, x: i32, y: i32, z: i32) -> bool {
@@ -1024,6 +1039,7 @@ mod scaffolding_sight_tests {
 #[cfg(test)]
 mod missing_data_report_tests {
     #[test]
+    #[ignore = "daily"]
     fn missing_mob_data_reports_one_counted_skip_per_test() {
         const CHILD: &str = "HORIZON_MISSING_MOB_DATA_REPORT_CHILD";
         if std::env::var_os(CHILD).is_some() {
@@ -1057,7 +1073,7 @@ mod missing_data_report_tests {
         .unwrap()
         .1;
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", test]) // Deliberately keep libtest's default capture.
+            .args(["--include-ignored", "--exact", test]) // Deliberately keep libtest's default capture.
             .env(CHILD, "1")
             .output()
             .unwrap();

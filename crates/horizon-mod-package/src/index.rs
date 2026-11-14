@@ -8,9 +8,10 @@
 //! and hash are the ones the index lists, its signature verifies against the
 //! project's pinned key, and what its own manifest says matches the entry.
 use crate::{
-    Capability, Package, Side,
+    Capability, Package,
     modpack::{self, Modpack},
 };
+use mod_vocab::Side;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{io::Read, path::Path};

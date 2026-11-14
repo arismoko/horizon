@@ -6,6 +6,29 @@ The recommendation is contiguous same-type runs in the existing ticker order,
 with each entity committed before the next one starts. This reduces outer calls
 where runs exist; it does not promise one call per type across a whole level.
 
+**Implemented separately in #3669:** the existing individual tick now has
+`BlockEntityTickReply::{Changed, Unchanged}` on native and wasm. Set
+`*event.reply = BlockEntityTickReply::Unchanged` to omit that Part's reply snapshot
+entirely. Each Part starts with `Changed` and sees only preceding accepted edits;
+an `Unchanged` Part cannot leak its attempted edits or erase an earlier `Changed`.
+If all Parts answer `Unchanged`, there is no snapshot decode/application, revision
+increment, tick-only dirty mark or container/comparator notification. The original
+entity is restored only if its original placeholder remains. Independent Host writes
+keep their effects; aborted Host transactions stay aborted. Not choosing this form
+retains full checked `Changed` write-back. Input snapshots are still sent; runs,
+deltas, `NeedFull` and validity caches remain unimplemented.
+
+Audit inputs for this implemented subset (not evidence of batching performance):
+
+| Owner | Audited behavior / executable input |
+| --- | --- |
+| `crates/horizon-mod-vocab/src/block/types.rs`, `hooks/block_entity_tick.rs` | One reply model and the existing execution hook; default `Changed`. |
+| `crates/horizon-mod-api-gen/src/dispatch.rs`, `ModBlockEntityView` | Per-Part reply reset and acceptance; native payload rollback is captured lazily on the first actual mutation, not on an untouched Unchanged call. |
+| `crates/horizon-mod-api-gen/src/wire/calls.rs`, `wire/host.rs` | Reply discriminator precedes optional snapshot bytes; Unchanged omits both snapshot encode and decode/apply, with no legacy wire fallback. |
+| `crates/horizon-client/src/game/native_hooks/block_entity_tick.rs` | Original placeholder identity checked before unchanged restoration; no dirty/effect owner called. |
+| `crates/horizon-client/src/game/modding/block_entity_tick_reply.rs`, `block_entity_tick_items.rs` | Changed reuses checked write-back; independent dropped-item Host proposals retain their existing acceptance checks even on Unchanged. |
+| `crates/horizon-client/src/game/modding/block_entity_tick_reply_tests.rs` and `crates/horizon-mod-wasm/tests/fixture/src/tick_reply.rs` | Shared native/compiled-wasm Parts: repeated clean constant-revision ticks, Unchanged→Changed and Changed→Unchanged transitions, default reply reset, aborted item transactions with unnormalized original slots, accepted Host writes, replacement, and container/comparator callback counts. `wasm-mods.yml` owns its compiled-fixture prerequisites; ordinary prepared-data shards exclude it. |
+
 ## Existing moments and verified owners
 
 The existing plural `block_entity_ticks` is **not a batched execution hook**.
@@ -22,7 +45,7 @@ a second execution callback, or introduce a parallel batch moment.
 
 Extend the existing singular execution moment instead:
 `crates/horizon-mod-vocab/src/hooks/block_entity_tick.rs:4` and
-`crates/horizon-client/src/game/native_hooks/base.rs:1162`.
+`crates/horizon-client/src/game/native_hooks/block_entity_tick.rs`.
 Replace its individual event/dispatch shape with the approved run cursor shape
 in one clean break, updating all callers, generated catalog/coverage, examples
 and the machine sample together. No legacy individual callback or compatibility
@@ -35,8 +58,8 @@ It remains a `BlockEntityPart` listener with `&mut dyn ServerHost` on both targe
 | `crates/horizon-client-render/src/world.rs:502` | Supplies the ordered ticker snapshot. Do not regroup the level by type. |
 | `crates/horizon-client-render/src/block_entities.rs:750,787` | Pending additions enter the list at snapshot acquisition; validate each live slot immediately before use. Ticker slots are not durable holder identities. |
 | `crates/horizon-client/src/game/blocks/block_entity_ticks.rs:45,60,91` | Preserve chunk ticking, sleep, liveness and border checks; replace only the mod-entity dispatch branch. Built-in ticks remain at their existing positions. |
-| `crates/horizon-client/src/game/native_hooks/shared.rs:3285,3313` | Current take/placeholder/put-back route must become holder-safe per-entry processing. It currently marks a restored entity's chunk modified unconditionally. |
-| `crates/horizon-client/src/game/modding/api_values.rs:1934,1866,1899` | API conversion and checked write-back owners; reuse validation rather than adding an unchecked delta route. |
+| `crates/horizon-client/src/game/native_hooks/block_entity_tick.rs`, `native_hooks/shared.rs::put_back_mod_block_entity` | Individual take/placeholder/restore owner: Unchanged already avoids dirty/effect owners and checks original placeholder identity. Changed retains the existing restore/effect owner. Batched holder-safe per-entry processing remains future work. |
+| `crates/horizon-client/src/game/modding/block_entity_tick_reply.rs`, `modding/api_values.rs` | API conversion and checked write-back owners; reuse validation rather than adding an unchecked delta route. |
 | `crates/horizon-mod-api-gen/src/dispatch.rs:280,447` | Existing Part dispatch and generated Wire event machinery own the new shape for both targets. |
 | `crates/horizon-mod-api-gen/dispatch-tests/src/fixtures/stateful_block_entity.rs:1` | Existing factory/eligibility fixture is a model for dispatch ownership, not evidence of batched execution. Extend generated fixtures for the new execution shape. |
 | `crates/horizon-client/src/game/blocks/spill.rs:1303` | Direct tick invocation is in a regression test. Update it to execute a singleton run through the same owner. |
@@ -137,7 +160,7 @@ claims about the current singular callback.
 
 ## Write-back, caches and trust
 
-Results are `Unchanged`, a validated delta, or `NeedFull`. Deltas contain changed
+The individual `Unchanged` result is implemented above; batching's proposed results are `Unchanged`, a validated delta, or `NeedFull`. Deltas contain changed
 and removed saved keys plus checked item/data-slot updates; they cannot edit
 identity or type. Reject duplicate/conflicting keys, invalid slots/stacks,
 wrong holders, stale revisions and malformed Wire before any apply. Apply the
@@ -146,8 +169,8 @@ Deleting absent key K or setting V=5 when V is already 5 is unchanged: no dirty
 mark solely for ticking or receiving a delta. A real write marks the owning
 chunk and emits required container/comparator effects once through existing
 owners. A listener's independent Host write still has its own normal dirty
-effects. This overlaps [#1780](https://github.com/arismoko/horizon/issues/1780);
-this note specifies the desired result, not a general write-back implementation.
+effects. The individual Unchanged path implements the first piece of
+[#1780](https://github.com/arismoko/horizon/issues/1780); delta/caching semantics remain proposed.
 
 API-owned Wire records must represent cursor tokens, holder/revision metadata,
 full snapshots and results; no engine NBT types, guest pointers or native-only
@@ -241,7 +264,7 @@ executed for this documentation-only change.
 
 ## Proposed implementation stages
 
-No Rust, runtime promise or benchmark result is added by this note.
+The individual Unchanged subset is implemented; this note adds no batching runtime or benchmark claim.
 
 1. Approve ordered runs, cursor/per-entity commits and multi-listener scheduling;
    complete wrapper and public NeoForge 26.3 verification.

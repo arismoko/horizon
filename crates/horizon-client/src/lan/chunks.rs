@@ -132,6 +132,9 @@ struct SectionCoder {
     flags: Vec<u8>,
     /// Network biome id per internal biome index.
     biome_ids: Vec<i32>,
+    /// Plains' network id, sent for an index past `biome_ids`: a placeholder for a saved
+    /// biome the world lacks, which plays as plains.
+    biome_fallback: i32,
     biome_bits: u8,
 }
 
@@ -308,7 +311,7 @@ impl SectionCoder {
             self.biome_ids
                 .get(usize::from(v as u16))
                 .copied()
-                .unwrap_or(0)
+                .unwrap_or(self.biome_fallback)
         };
         if let Some(v) = section.biomes.uniform() {
             return Paletted {
@@ -614,6 +617,10 @@ impl ChunkEncoder {
             coder: Arc::new(SectionCoder {
                 flags,
                 biome_ids,
+                biome_fallback: biome_registry
+                    .iter()
+                    .position(|b| b == "minecraft:plains")
+                    .map_or(0, |i| i as i32),
                 biome_bits: ceil_log2(biome_registry.len()),
             }),
             entity_types,
@@ -2036,13 +2043,15 @@ mod tests {
                 data: Vec::new()
             }
         );
+        // An index past the table (a placeholder for a saved biome the world lacks) is sent as
+        // plains, network id 1 here, not as whichever biome sorts first.
         section.biomes =
             horizon_core::paletted::PalettedContainer::new(section.biomes.strategy(), 99);
         assert_eq!(
             encoder.coder.biomes(&section),
             Paletted {
                 bits: 0,
-                palette: vec![0],
+                palette: vec![1],
                 data: Vec::new()
             }
         );

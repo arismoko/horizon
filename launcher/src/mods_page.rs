@@ -116,6 +116,10 @@ pub(super) struct Mods {
     pub(super) native_state: std::cell::RefCell<Option<(String, native_status::State)>>,
     /// Native routes read by a worker for this instance's files, consent and game version.
     pub(super) native_routes: std::cell::RefCell<Option<crate::build_mode::RouteMemo>>,
+    /// What updating the native mods to a newer installed game would do, read in the background.
+    pub(super) native_update: std::cell::RefCell<Option<crate::build_mode::UpdateMemo>>,
+    /// The update the player chose to stay off (its memo key): its summary isn't shown again.
+    pub(super) update_stayed: std::cell::RefCell<Option<String>>,
     /// Installed wasm declarations, reread only when the instance's files or enable list change.
     /// The mod whose route menu is open.
     pub(super) route_open: Option<String>,
@@ -209,6 +213,8 @@ impl Mods {
             message: None,
             native_state: Default::default(),
             native_routes: Default::default(),
+            native_update: Default::default(),
+            update_stayed: Default::default(),
             route_open: None,
             native_files: Default::default(),
             updates: HashMap::new(),

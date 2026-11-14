@@ -392,13 +392,17 @@ pub(crate) fn isolated_test() -> bool {
         return false;
     }
     let test = std::thread::current().name().unwrap().to_owned();
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--include-ignored", "--exact", &test, "--nocapture"])
+        .env("RUNTIME_LEASE_TEST_ISOLATED", "1")
+        .output()
+        .unwrap();
+    // The child must run this one test: a success that ran nothing (an ignored or filtered name) checks nothing.
+    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", &test, "--nocapture"])
-            .env("RUNTIME_LEASE_TEST_ISOLATED", "1")
-            .status()
-            .unwrap()
-            .success()
+        output.status.success() && stdout.contains("test result: ok. 1 passed;"),
+        "the isolated rerun of {test} did not pass exactly one test:\n{stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
     );
     true
 }

@@ -93,7 +93,10 @@ fn validate(info: &PlacementInfo, resources: &dyn DisplayResources) -> Result<()
             return Err("unknown ingredient item".into());
         }
         let ordered: std::collections::HashSet<_> = ingredient.order.iter().cloned().collect();
-        if ordered != ingredient.items || ordered.len() != ingredient.order.len() {
+        if !ordered.is_subset(&ingredient.items)
+            || (simple_ingredient(ingredient) && ordered != ingredient.items)
+            || ordered.len() != ingredient.order.len()
+        {
             return Err("ingredient holder order disagrees with its items".into());
         }
         if let Some((kind, _)) = &ingredient.custom
@@ -166,9 +169,31 @@ fn convert(value: &mod_api::Ingredient) -> Ingredient {
         items: value.items.clone(),
         order: value.order.clone(),
         custom: value.custom.clone(),
+        rule: None,
+        compiled: None,
+        display: value.display.as_deref().cloned(),
+        component_defaults: Default::default(),
+        shown: None,
         children: value
             .children
             .as_ref()
             .map(|(shape, children)| (shape.clone(), children.iter().map(convert).collect())),
     }
+}
+
+// Bound the walk before consulting an untrusted native provider's recursive tree.
+fn simple_ingredient(ingredient: &mod_api::Ingredient) -> bool {
+    let mut pending = vec![(ingredient, 0usize)];
+    while let Some((ingredient, depth)) = pending.pop() {
+        if depth > usize::from(mod_api::wire::MAX_DEPTH)
+            || ingredient.rule.is_some()
+            || ingredient.custom.is_some()
+        {
+            return false;
+        }
+        if let Some((_, children)) = &ingredient.children {
+            pending.extend(children.iter().map(|child| (child, depth + 1)));
+        }
+    }
+    true
 }

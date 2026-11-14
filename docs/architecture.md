@@ -41,7 +41,7 @@ command above to inspect the selection rather than relying on historical counts.
 | 12 | Guests' actions on a server (98) | `G/network/lan_actions/` (`turns.rs`: `fn as_guest`, `tick.rs`: `fn tick_guests`), `G/lan_{attributes,pvp,chat,crafting,stations,trading,mount_menu,waypoints}.rs` | server_player_combat, server_player_damage, server_player_targets, lan_e2e (all) |
 | 13 | Modpack porting, mod content (97) | `crates/horizon-port-pack/`, `L/mod_content.rs`, `tools/port_*.py` | `cargo test -p horizon-port-pack`; `python3 tools/mod_port_harness.py` |
 | 14 | Mob AI (96) | `L/mobs/ai.rs`, `goals.rs`, `brain.rs`, `*_brain.rs`, `nav.rs`, `path.rs`, `control.rs` | mob_ai (probe `examples/mob_ai_probe.rs`; known failure on main: drowned_*, #290) |
-| 15 | Items and item use (96) | `I/items.rs`, `I/item_data.rs`, `G/hand.rs`, `G/consume.rs`, `G/using_item.rs`, `G/potions.rs`, `R/effects.rs`, `G/items/item_actions.rs` (`fn use_item`); game.rs `fn use_hand` | use_item_on, item_use, item_use_lifecycle, consumable, consume_effect, status_effect |
+| 15 | Items and item use (96) | `I/items.rs`, `I/item_data.rs`, `G/hand.rs`, `G/consume.rs`, `G/using_item.rs`, `G/potions.rs`, `R/effects.rs`, `G/items/item_actions.rs` (`fn use_item`), `G/items/use_hand.rs` (`fn use_hand`) | use_item_on, item_use, item_use_lifecycle, consumable, consume_effect, status_effect |
 | 16 | Options and settings screens (93) | `R/options_ui.rs`, `G/options.rs`, `R/settings.rs`, `R/options_file.rs`, `R/graphics_ui.rs`, `R/graphics.rs` | options, toggle_keys |
 | 17 | HUD, chat, tab list (93) | `R/hud.rs`, `R/hud_layout.rs`, `R/hud_overlays.rs`, `R/chat.rs`, `G/chat.rs`, `R/tab_list.rs`, `L/locator_bar.rs`, `G/locator_bar.rs`; Horizon's overlays around them: `R/hud_kit/` + `G/hud_room.rs` ([ui-kit.md](ui-kit.md)) | hud, tab_list, locator_bar, chat_screen, secure_chat |
 | 18 | Command execution (88) | `G/commands.rs`, `G/commands/*.rs`, `L/scoreboard_cmd.rs`, `L/data_cmd.rs`, `K/scoreboard.rs`, `G/functions.rs` | command_exec (corpus `tools/command_exec_corpus.py`), scoreboard, server_ops_feedback, lan_e2e commands |
@@ -66,7 +66,21 @@ command above to inspect the selection rather than relying on historical counts.
 | 37 | Integrated server and levels (34) | `G/integrated.rs`, `G/levels.rs`, `G/server_travel.rs` | server_dimension_players, server_dimension_item, `lan_e2e` (server-thread by default; portals, levels, distance, lava) |
 | 38 | Command parsing (34) | `C/` (`args.rs`, `selector.rs`, `tree_*.rs`, `vanilla.rs`); `cargo test -p horizon-command` | command_parse (corpus `tools/command_parse_corpus.py`) |
 | 39 | Benchmarks (34) | `L/benchmark.rs`, `tools/perf_bench.py`, `crates/horizon-system/`, `crates/horizon-bench/` | `python3 -m unittest tests.test_perf_bench`; [benchmark.md](benchmark.md) |
-| 40 | Explosions and TNT (31) | `G/explosion.rs`, `G/tnt.rs` | lan_e2e blast; no dedicated harness yet |
+| 40 | Explosions and TNT (31) | `G/entities/explosion.rs`, `G/entities/tnt.rs`, `G/blocks/nether_portal.rs`, `G/entities/vehicle_teleport.rs` | sulfur_portal_blast (calculator oracle; actual portal, `/tp` and mod cross-level arrivals, immediate item merges, transient TNT portal protection and disk reset); lan_e2e blast |
+
+Portal arrival regressions run with `python3 tools/test_sulfur_portal_blast_parity.py`
+and prepared 26.3 resources in `HORIZON_TEST_RESOURCES`. The harness supplies private
+game/XDG/launcher homes and serializes the gameplay tests. To use an already built
+gameplay test binary in an equivalently isolated directory, select
+`portal_arrival_effects_ --include-ignored --test-threads 1` (seven tests).
+`ItemEntity.teleport` merges once immediately after recreation on both arrival
+paths, using the existing item-cell index and preserving the surviving entity's
+identity and age. `PrimedTnt.teleport` sets a live-only flag: its explosion ignores
+Nether portal resistance and does not destroy those blocks. Fresh TNT and TNT
+recreated from a chunk save use the ordinary calculator; `/data` updates of the
+same live TNT do not clear the flag, as in 26.3.
+Construction/join callback regressions also cover nested spawns and logically
+removed incoming or neighbouring items, before the native removal sweep.
 
 Controller glyphs (`R/pad_glyph.rs`, drawn by the gameplay guide, notices, splitscreen prompts and declared
 buttons) are part of the same kit: [ui-kit.md](ui-kit.md) says how to ask for one and how to test it.

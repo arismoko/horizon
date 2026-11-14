@@ -15,6 +15,7 @@ pub mod enchant;
 pub mod equipment;
 pub mod firework;
 pub mod flowers;
+pub mod item_abilities;
 pub mod item_data;
 pub mod item_nbt;
 pub mod items;

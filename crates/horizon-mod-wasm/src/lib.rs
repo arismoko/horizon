@@ -2,6 +2,9 @@
 //! (the same model as native mods: required and optional, semver on `horizon-mod.toml`
 //! versions, one library copy shared by its dependents). Every refusal names its reason for the
 //! Mods page.
+pub mod compile_budget;
+#[cfg(all(test, unix))]
+mod compile_budget_tests;
 mod compile_child;
 #[cfg(feature = "test-copy-probe")]
 pub mod copy_probe;
@@ -69,7 +72,7 @@ pub(crate) fn native_only_hook(name: &str) -> Option<&'static str> {
 use horizon_mod_package::dependencies;
 use horizon_mod_package::manifest::Manifest;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::OnceLock;
 
 /// One wasm mod as installed: its manifest and its checked `mod.wasm`.
@@ -97,6 +100,19 @@ pub enum Refusal {
     Package(String),
     /// The group could not instantiate, initialize or run.
     Runtime(String),
+    /// The configured compilation setting or its file could not be applied.
+    CompileSetting(compile_budget::SettingError),
+    /// A module exceeded the compilation budget, without poisoning its cache.
+    CompileTimeout {
+        member: String,
+        budget: compile_budget::CompileBudget,
+    },
+    /// Compilation could not run with its required deadline.
+    CompileUnavailable {
+        member: String,
+        budget: compile_budget::CompileBudget,
+        why: String,
+    },
     /// The mod was compiled against another generated boundary.
     Layout { built: u64, game: u64 },
     /// The mod's generated point records differ from this game's.
@@ -137,6 +153,18 @@ impl std::fmt::Display for Refusal {
             Self::Internals => write!(f, "internals access is native-only"),
             Self::Package(why) => write!(f, "{why}"),
             Self::Runtime(why) => write!(f, "{why}"),
+            Self::CompileSetting(why) => write!(f, "{why}"),
+            Self::CompileTimeout { member, budget } => {
+                write!(f, "{member}: compilation time limit exceeded: {budget}")
+            }
+            Self::CompileUnavailable {
+                member,
+                budget,
+                why,
+            } => write!(
+                f,
+                "{member}: cannot enforce compilation budget {budget}: {why}; restore a private writable .horizon-cache/wasm directory and a working compiler executable"
+            ),
             Self::Layout { .. } => write!(
                 f,
                 "built for another version of the mod API (including the prepared can_equip ABI)"
@@ -158,6 +186,37 @@ impl std::fmt::Display for Refusal {
             ),
             Self::Stopped => write!(f, "stopped after a trap or resource limit"),
             Self::Busy => write!(f, "its wasm group is busy"),
+        }
+    }
+}
+
+impl Refusal {
+    pub(crate) fn from_link(error: link::LinkError) -> Self {
+        let module_file = |member: String| {
+            member
+                .strip_prefix("lib")
+                .and_then(|name| name.strip_suffix(".so"))
+                .filter(|name| *name != "std")
+                .map_or_else(
+                    || "horizon-wasm-std.wasm".to_owned(),
+                    |id| format!("{id}:mod.wasm"),
+                )
+        };
+        match error {
+            link::LinkError::CompileTimeout { member, budget } => Self::CompileTimeout {
+                member: module_file(member),
+                budget,
+            },
+            link::LinkError::CompileUnavailable {
+                member,
+                budget,
+                why,
+            } => Self::CompileUnavailable {
+                member: module_file(member),
+                budget,
+                why,
+            },
+            other => Self::Runtime(other.to_string()),
         }
     }
 }
@@ -390,11 +449,21 @@ pub fn refusal(id: &str) -> Option<Refusal> {
         })
 }
 
-/// Loads the wasm mods the player turned on in `game_dir` (and every `dev` package), once at
-/// startup: the same selection as content mods (`horizon_mod_package::selection`), so a wasm mod's
-/// `assets/` and `data/` load as content beside its code. Refusals are kept for [`refused`].
-pub fn load_installed(game_dir: &Path, dev: &[PathBuf]) -> Loaded {
-    let cache = module_cache::ModuleCache::new(game_dir.join(module_cache::CACHE_DIR));
+/// Loads the wasm mods selected by the actual startup arguments, once at startup.
+/// `player_dir` is the client's already resolved options directory, not the shared game/cache
+/// directory. Dedicated startup reads properties in its game directory instead.
+/// Refusals are reported and published for the Mods page and content filtering.
+pub fn load_installed(
+    launch: &horizon_mod_package::selection::LaunchArguments,
+    player_dir: &Path,
+) -> Loaded {
+    let game_dir = &launch.context.game_dir;
+    let dev = &launch.context.dev_mods;
+    let budget = compile_budget::CompileBudget::read(launch, player_dir);
+    let mut cache = module_cache::ModuleCache::new(game_dir.join(module_cache::CACHE_DIR));
+    if let Ok(budget) = budget.as_ref() {
+        cache.budget = *budget;
+    }
     let mod_list = horizon_mod_package::mod_list::ModList::load(game_dir);
     let memory_cap_mib = mod_list.wasm_memory_cap();
     let enabled = mod_list.enabled;
@@ -447,10 +516,21 @@ pub fn load_installed(game_dir: &Path, dev: &[PathBuf]) -> Loaded {
                 }
             })
             .collect();
-    let std = std::env::current_exe()
-        .ok()
-        .and_then(|exe| std::fs::read(exe.with_file_name("horizon-wasm-std.wasm")).ok());
-    let mut loaded = load_available_std(std.as_deref(), packages, Some(&cache), memory_cap_mib);
+    let mut loaded = match budget {
+        Err(why) => Loaded {
+            refused: packages
+                .into_iter()
+                .map(|package| (package.manifest.id, Refusal::CompileSetting(why.clone())))
+                .collect(),
+            ..Loaded::default()
+        },
+        Ok(_) => {
+            let std = std::env::current_exe()
+                .ok()
+                .and_then(|exe| std::fs::read(exe.with_file_name("horizon-wasm-std.wasm")).ok());
+            load_available_std(std.as_deref(), packages, Some(&cache), memory_cap_mib)
+        }
+    };
     refused.append(&mut loaded.refused);
     report_refusals(&refused, &mut std::io::stdout().lock());
     let _ = REFUSED.set(refused.clone());
@@ -698,7 +778,7 @@ fn load_with_cache(
                     loaded.modules.push(module.clone());
                     loaded
                         .mods
-                        .push(mod_api::ModEntry::new(id, Box::new(module)));
+                        .push(mod_api::ModEntry::wasm(id, Box::new(module)));
                     loaded.manifests.push(manifest);
                 }
             }
@@ -781,7 +861,14 @@ mod tests {
         std::fs::write(package.join("horizon-mod.toml"), format!(
             "id = 'bad_mixin'\nname = 'Bad mixin'\nversion = '1.0.0'\napi = '0.2'\ncapabilities = ['registries']\n[wasm]\nsha512 = '{}'\ntoolchain = 'test'\nbuilt_with = 'test'\n[[native.mixin]]\nid = 'patch'\ntarget = 'game::tick'\nkind = 'HEAD'\nhelper = 'src/patch.rs'\n", "a".repeat(128)
         )).unwrap();
-        let loaded = load_installed(&root, &[package]);
+        let launch = horizon_mod_package::selection::LaunchArguments::parse(
+            ["--dev-mod".to_owned(), package.to_str().unwrap().to_owned()].into_iter(),
+            &root,
+            &root,
+            None,
+        )
+        .unwrap();
+        let loaded = load_installed(&launch, &root);
         assert!(
             loaded.refused.iter().any(|(id, reason)| id == "bad_mixin"
                 && reason
@@ -1118,7 +1205,20 @@ mod mixed_install_tests {
             std::fs::write(addon.join("layouts.json"), b"{").unwrap();
             std::fs::write(library.join("layouts.json"), b"{}").unwrap();
         }
-        let loaded = load_installed(&root, &[addon, library]);
+        let launch = horizon_mod_package::selection::LaunchArguments::parse(
+            [
+                "--dev-mod".to_owned(),
+                addon.to_str().unwrap().to_owned(),
+                "--dev-mod".to_owned(),
+                library.to_str().unwrap().to_owned(),
+            ]
+            .into_iter(),
+            &root,
+            &root,
+            None,
+        )
+        .unwrap();
+        let loaded = load_installed(&launch, &root);
         std::fs::remove_dir_all(root).unwrap();
         assert!(loaded.mods.is_empty());
         assert_eq!(loaded.refused.len(), 1);

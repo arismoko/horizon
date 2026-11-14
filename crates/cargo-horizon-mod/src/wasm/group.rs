@@ -549,7 +549,8 @@ pub(super) fn build(
             .map_err(|e| e.to_string())?;
     }
     for member in &members {
-        crate::pack_into(&member.root, &target)?;
+        // A group member packs no uses table yet, so it counts as made for its build only.
+        crate::pack_into(&member.root, &target, None)?;
     }
     Ok(())
 }

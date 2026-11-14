@@ -45,7 +45,7 @@ fn resources() -> &'static std::path::Path {
         let package = horizon_mod_package::Package::read(&dir).unwrap();
         let content = horizon_mod_package::Content::read(&dir, &package.manifest).unwrap();
         let out = scratch.join("resources");
-        crate::mod_content::build(&base, std::path::Path::new(""), &[ContentMod { id: "fieldtest".into(), content, jars: Vec::new() }], &out, &horizon_mod_package::enabled::EnabledMods::new([("fieldtest".into(), horizon_mod_package::Side::Both)]))
+        crate::mod_content::build(&base, std::path::Path::new(""), &[ContentMod { id: "fieldtest".into(), content, jars: Vec::new() }], &out, &horizon_mod_package::enabled::EnabledMods::new([("fieldtest".into(), mod_api::Side::Both)]))
             .unwrap();
         out
     })

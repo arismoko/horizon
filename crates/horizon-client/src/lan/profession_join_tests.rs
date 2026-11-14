@@ -1,9 +1,11 @@
 #[test]
+#[ignore = "daily"]
 fn profession_mod_missing_refused_before_pairing() {
     const CHILD: &str = "HORIZON_PROFESSION_JOIN_TEST_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let result = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
+                "--include-ignored",
                 "--exact",
                 "lan::conn::tests::profession_mod_missing_refused_before_pairing",
                 "--nocapture",

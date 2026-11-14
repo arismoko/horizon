@@ -7,13 +7,30 @@ use crate::*;
 pub struct ModEntry {
     pub(crate) id: &'static str,
     pub(crate) hooks: Box<dyn Hooks>,
+    /// Whether the game loaded it as a wasm module: what its registrations are checked against,
+    /// whatever the module says of itself.
+    pub(crate) wasm: bool,
 }
 
 impl ModEntry {
     /// Bind a hook implementation to its nonempty bundle id.
     pub fn new(id: &'static str, hooks: Box<dyn Hooks>) -> Self {
         assert!(!id.is_empty(), "native mod id must not be empty");
-        Self { id, hooks }
+        Self {
+            id,
+            hooks,
+            wasm: false,
+        }
+    }
+
+    /// Bind a loaded wasm module's hook proxy to its bundle id.
+    // hidden: the wasm runtime's side, not part of the mod surface
+    #[doc(hidden)]
+    pub fn wasm(id: &'static str, hooks: Box<dyn Hooks>) -> Self {
+        Self {
+            wasm: true,
+            ..Self::new(id, hooks)
+        }
     }
 
     /// Marks the thread as inside this mod's `hook` until the guard drops, so a panic in it
@@ -132,6 +149,9 @@ pub(crate) fn set_mod_enabled(id: &str, on: bool) -> bool {
         if entry.id == id {
             if disabled.swap(!on, std::sync::atomic::Ordering::Relaxed) == on {
                 MODS_SWITCHED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if !on {
+                    horizon_mod_runtime::water_tickets::remove_owner(id);
+                }
             }
             found = true;
         }

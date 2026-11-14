@@ -35,7 +35,14 @@ nothing in it.
   doesn't know (as a chunk keeps one) and data the fixes can't read. Version 0 is a valid source.
 - The fixes that need a whole chunk don't run: those that look at the blocks around a block entity, and the one that
   removes bed block entities.
-- `Err` names a refusal, made before any fix runs and leaving nothing changed: a negative version; a version newer
-  than the game's (the fixes only go forward); a list or compound nested 512 levels deep or more, the depth cap of
-  every NBT read; more than 1 GiB as NBT, the chunk loader's cap on saved data. There is no node cap, as saved
-  chunks have none, so nothing a saved chunk could carry is refused.
+- `Err` is an `NbtUpgradeError`, the same on native and wasm mods. Depth counts as the data is encoded: the root
+  compound is at 0, and the compound the NBT writer puts around each element of a mixed list is a level of its
+  own, so that element sits two levels below its list.
+  - Refused before any fix runs, on the data you gave: `NegativeVersion`; `FutureVersion`, a version newer than the
+    game's (the fixes only go forward); `TooDeep`, a list or compound 512 levels deep or more, the depth cap of
+    every NBT read.
+  - Refused after the fixes, on the upgraded data: `UpgradedTooDeep`. The data you gave was within the cap, but a
+    fix made it deeper (1.9's `Riding` to `Passengers` doubles a chain's depth) past what any NBT read, the game's
+    own included, could take back. Nothing is returned, so split or trim the data at its source.
+- There is no size limit and no node cap, as saved data has none: nothing a world the game accepts could carry is
+  refused for its size.

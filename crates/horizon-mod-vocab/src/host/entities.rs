@@ -14,8 +14,19 @@ pub trait EntitiesHost {
     fn entity(&self, id: u32) -> Option<EntityRef>;
     /// Side: both.
     /// The level `dimension` (`minecraft:the_nether`) as a handle: on a client,
-    /// the level it shows, whatever the server calls it. None with no world
-    /// open, or for a dimension the server hasn't loaded. API 373.
+    /// the level it shows, whatever the server calls it, and each level the
+    /// server opened for viewing (`horizon:levels`) while that view is open. A
+    /// viewed level's handle answers its block reads from its own world:
+    /// `block_state`, `block`, `block_property`, `clip`, `collision_boxes`,
+    /// `has_collisions`, and the fluid reads built on `block_state`
+    /// (`fluid_shape`, `fluid_height`, `fluid_height_for_camera`,
+    /// `fluid_can_be_replaced_with`). Its other reads, its entity reads and
+    /// every write refuse it. It answers None while the server has the level
+    /// closed; a close and a later open within the same client level make the
+    /// old handle read again. A login, a reconfiguration or a respawn into
+    /// another level replaces the client level: the old handle stays stale and
+    /// the mod asks `host.level` again. None with no world open, or for a
+    /// dimension the server hasn't loaded. API 373.
     #[access(WorldOnly)]
     fn level(&self, dimension: &str) -> Option<LevelRef>;
 }
@@ -416,6 +427,23 @@ pub trait EntitiesBackend {
     #[access(WorldOnly)]
     fn entity_is_sprinting(&self, entity: EntityRef) -> Option<bool>;
     /// Side: server.
+    /// The fluids the entity touched at its last fluid update, each with how deep its box is in
+    /// it (NeoForge's `IEntityExtension.getFluidTypeHeight`), highest first; empty in no fluid.
+    /// The one read behind `isInFluidType` in all its forms (any fluid, one type, a predicate
+    /// over this list) and `getMaxHeightFluidType` (the first entry). Fluids are named
+    /// `minecraft:water` and `minecraft:lava`, the ones the entity update tracks. Players and
+    /// mobs; None for other kinds and stale handles. Server only: a client keeps no fluid
+    /// state for the entities it shows, so the client half of #3341 is still to come.
+    #[access(WorldOnly)]
+    fn entity_fluid_heights(&self, entity: EntityRef) -> Option<Vec<(String, f64)>>;
+    /// Side: server.
+    /// The fluid at the entity's eyes from its last fluid update (NeoForge's
+    /// `IEntityExtension.getFirstEyeInFluidType`; `isEyeInFluidType` compares it):
+    /// `Some(None)` in air. Players and mobs; None for other kinds and stale handles. Server
+    /// only, as `entity_fluid_heights`.
+    #[access(WorldOnly)]
+    fn entity_eye_fluid(&self, entity: EntityRef) -> Option<Option<String>>;
+    /// Side: server.
     /// Whether the entity touched water at its last fluid update
     /// (`Entity.isInWater`): players and mobs.
     #[access(WorldOnly)]
@@ -683,6 +711,24 @@ pub trait EntitiesBackendMut {
     #[access(WorldOnly)]
     fn entity_push(&mut self, entity: EntityRef, delta: [f64; 3]) -> bool;
     /// Side: server.
+    /// Sets the player's collision exclusions, boxes of its own level
+    /// (`[min_x, min_y, min_z, max_x, max_y, max_z]`) in which that level's blocks don't stop it:
+    /// the part of a block's collision shape inside a box doesn't collide, a block sharing volume
+    /// with one is no wall to suffocate in and doesn't act on the player inside it (cobwebs, powder
+    /// snow, damaging blocks), and the server's check of the player's moves reads
+    /// the same boxes. Entity colliders and the world border still stop it. Each call replaces
+    /// the last set; an empty slice clears it, and so do a change of level, a respawn and
+    /// leaving. Nothing is saved, and nothing reaches the player's client: its own half sets the
+    /// same boxes with `ClientHost::set_collision_exclusions`. Refused, keeping the set there
+    /// was: more than 64 boxes, a value that isn't finite, a minimum above its maximum, an
+    /// entity that isn't a player, a stale handle.
+    #[access(WorldOnly)]
+    fn entity_set_collision_exclusions(
+        &mut self,
+        entity: EntityRef,
+        boxes: &[[f64; 6]],
+    ) -> Result<(), CollisionExclusionsError>;
+    /// Side: server.
     /// Removes the entity with no death and no loot (`Entity.discard`): a
     /// chest boat or a minecart with a chest still drops what it holds, and
     /// a boat its lead, as vanilla's `remove` does. False for a player, a dragon
@@ -857,6 +903,22 @@ pub trait EntitiesBackendMut {
     /// Sets the entity's frozen ticks (`Entity.setTicksFrozen`).
     #[access(WorldOnly)]
     fn entity_set_ticks_frozen(&mut self, entity: EntityRef, ticks: i32) -> bool;
+    /// Side: server.
+    /// Sets the entity's portal cooldown (`Entity.setPortalCooldown`), the
+    /// value `entity_portal_cooldown` reads, where that read keeps it: the
+    /// level's portal state for the kinds its portal walk carries (mobs,
+    /// items, experience orbs, boats, minecarts, primed TNT, fireworks,
+    /// tridents, arrows and the thrown items and fireballs a chunk saves).
+    /// Server-only; a negative value or a client-side write is refused. Takes
+    /// effect on the next tick: a positive value blocks portal entry (and is
+    /// refilled while the entity stands in a portal), and 0 lets it enter at
+    /// once. Not synced except in the spawn information at login, respawn and
+    /// dimension change. Refused by name for a player, an acting guest, a
+    /// falling block and an ender pearl, whose cooldown lives in a store of
+    /// its own that this write does not own. False for a kind the read
+    /// refuses, a stale handle, or on a client.
+    #[access(WorldOnly)]
+    fn entity_set_portal_cooldown(&mut self, entity: EntityRef, ticks: i32) -> bool;
     /// Side: server.
     /// Sets the entity's shared invisibility flag (`Entity.setInvisible`). Returns false for players and guests.
     #[access(WorldOnly)]

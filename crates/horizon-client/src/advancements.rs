@@ -20,7 +20,8 @@ pub enum Frame {
 }
 #[derive(Clone, Debug)]
 pub struct Display {
-    pub icon: String,
+    /// `DisplayInfo.icon`, an `ItemStackTemplate`: the item with its count and components.
+    pub icon: crate::items::ItemStack,
     pub title: Value,
     pub description: Value,
     pub frame: Frame,
@@ -461,10 +462,8 @@ fn parse(id: &str, v: &Value) -> Option<Advancement> {
     };
     let d = &v["display"];
     let display = d.is_object().then(|| Display {
-        icon: d["icon"]["id"]
-            .as_str()
-            .unwrap_or("minecraft:air")
-            .to_owned(),
+        icon: crate::crafting::recipe_result(&d["icon"])
+            .unwrap_or_else(|| crate::items::ItemStack::new("minecraft:air", 1)),
         title: d["title"].clone(),
         description: d["description"].clone(),
         frame: frame(&d["frame"]),
@@ -1522,15 +1521,23 @@ fn predicate_references(
                 .unwrap_or("");
             match &*full(kind) {
                 "minecraft:inverted" => predicate_references(&v["term"], w, active),
-                "minecraft:all_of" | "minecraft:any_of" => v["terms"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
+                "minecraft:all_of" | "minecraft:any_of" => terms(v)
+                    .iter()
                     .try_for_each(|v| predicate_references(v, w, active)),
                 _ => Ok(()),
             }
         }
         _ => Ok(()),
+    }
+}
+
+/// `terms` as `HolderSetCodec` reads it: a list, or one holder alone; a `#tag` is not expanded.
+fn terms(v: &Value) -> &[Value] {
+    match &v["terms"] {
+        Value::Array(list) => list,
+        Value::Null => &[],
+        Value::String(tag) if tag.starts_with('#') => &[],
+        one => std::slice::from_ref(one),
     }
 }
 
@@ -1552,16 +1559,8 @@ pub fn conditions_with(
                 .unwrap_or("");
             match &*full(ty) {
                 "minecraft:inverted" => !conditions_with(&v["term"], ctx, test),
-                "minecraft:all_of" => v["terms"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .all(|t| conditions_with(t, ctx, test)),
-                "minecraft:any_of" => v["terms"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .any(|t| conditions_with(t, ctx, test)),
+                "minecraft:all_of" => terms(v).iter().all(|t| conditions_with(t, ctx, test)),
+                "minecraft:any_of" => terms(v).iter().any(|t| conditions_with(t, ctx, test)),
                 _ => test(v, ctx),
             }
         }
@@ -2950,6 +2949,28 @@ mod tests {
         p.grant("minecraft:t", "b", "now");
         assert!(p.done(&a));
     }
+    /// `DisplayInfo.icon` is an `ItemStackTemplate`: the loaded icon keeps its components.
+    #[test]
+    fn a_display_icon_keeps_its_components() {
+        let a = parse(
+            "minecraft:t",
+            &serde_json::json!({
+                "display": {
+                    "icon": {
+                        "id": "minecraft:wooden_pickaxe",
+                        "components": {"minecraft:enchantment_glint_override": true}
+                    },
+                    "title": "t",
+                    "description": "d"
+                },
+                "criteria": {"a": {"trigger": "minecraft:tick"}}
+            }),
+        )
+        .unwrap();
+        let icon = a.display.unwrap().icon;
+        assert_eq!(&*icon.item, "minecraft:wooden_pickaxe");
+        assert!(icon.has_foil(None), "the glint override survives the load");
+    }
     /// `AdvancementRequirements.test` answers false with no requirement groups, so an advancement
     /// without criteria is never done by `isDone`; `PlayerAdvancements.checkForAutomaticTriggers`
     /// still grants its rewards as progress loads, and `Tree::automatic` is the list it walks.
@@ -2976,7 +2997,7 @@ mod tests {
     fn layout_spreads_children_like_tree_node_position() {
         let mut tree = Tree::default();
         let shown = Display {
-            icon: String::new(),
+            icon: crate::items::ItemStack::new("minecraft:air", 1),
             title: Value::Null,
             description: Value::Null,
             frame: Frame::Task,

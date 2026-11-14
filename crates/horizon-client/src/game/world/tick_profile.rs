@@ -1,7 +1,8 @@
 //! What each kind of mob costs the server tick, for `horizon-report` (dedicated/report.rs): while
 //! a report records, one tick in [`SAMPLE_EVERY`] times every mob's own tick and adds it up by
-//! level and mob type. Off, a mob costs one thread-local read; sampled, two clock reads and a
-//! map update. A mob's riders tick inside its own tick, so they count for it.
+//! level and mob type. Off, a mob costs one thread-local read; sampled, two clock reads and
+//! a map update. A mob's riders tick inside its own tick, so they count for it. The server
+//! tick's spans stay enabled while a report or the slow-tick ring needs them ([`want_spans`]).
 use horizon_client::{fast_hash::FxHashMap, mobs::MobType};
 use std::{
     cell::{Cell, RefCell},
@@ -20,7 +21,9 @@ struct Cost {
 }
 
 thread_local! {
+    /// Whether the report samples this thread's mob ticks.
     static SAMPLING: Cell<bool> = const { Cell::new(false) };
+    /// The report's sums.
     static COSTS: RefCell<FxHashMap<(&'static str, usize), Cost>> = RefCell::default();
 }
 
@@ -79,6 +82,9 @@ pub(super) fn end_mob(dim: &'static str, sampled: Option<(Instant, MobType)>) {
 /// [`add`] for the type at address `key` named `id`.
 fn add_kind(dim: &'static str, key: usize, id: &str, started: Instant) {
     let nanos = started.elapsed().as_nanos() as u64;
+    if !SAMPLING.with(Cell::get) {
+        return;
+    }
     COSTS.with(|c| {
         let mut costs = c.borrow_mut();
         let cost = costs.entry((dim, key)).or_insert_with(|| Cost {
@@ -100,7 +106,7 @@ pub(super) struct MobCost {
     pub mob_ticks: u64,
 }
 
-/// The costs sampled since the last call, costliest first; clears them.
+/// The report's costs sampled since the last call, costliest first; clears them.
 pub(super) fn take() -> Vec<MobCost> {
     let costs = COSTS.with(|c| std::mem::take(&mut *c.borrow_mut()));
     let mut out: Vec<MobCost> = costs
@@ -121,7 +127,7 @@ pub(super) fn sample_cost_nanos() -> f64 {
     const N: u32 = 20_000;
     let was = SAMPLING.with(Cell::get);
     let kept = COSTS.with(|c| std::mem::take(&mut *c.borrow_mut()));
-    set_sampling(true);
+    SAMPLING.with(|s| s.set(true));
     let timer = Instant::now();
     for _ in 0..N {
         if let Some(started) = start() {
@@ -129,7 +135,7 @@ pub(super) fn sample_cost_nanos() -> f64 {
         }
     }
     let per = timer.elapsed().as_nanos() as f64 / f64::from(N);
-    set_sampling(was);
+    SAMPLING.with(|s| s.set(was));
     COSTS.with(|c| *c.borrow_mut() = kept);
     per
 }
@@ -173,6 +179,18 @@ mod tests {
             ("minecraft:zombie", 1)
         );
         assert!(take().is_empty());
+    }
+
+    /// Spans stay on while anyone wants them.
+    #[test]
+    fn spans_stay_on_while_anyone_wants_them() {
+        // An isolated owner bit: other tests may want spans as the report meanwhile.
+        const TEST_OWNER: u8 = 4;
+        want_spans(TEST_OWNER, true);
+        assert!(horizon_client::spans::enabled());
+        assert_ne!(SPAN_USERS.load(Ordering::Relaxed) & TEST_OWNER, 0);
+        want_spans(TEST_OWNER, false);
+        assert_eq!(SPAN_USERS.load(Ordering::Relaxed) & TEST_OWNER, 0);
     }
 
     /// Calibrating leaves what was sampled, and the switch, as they were.

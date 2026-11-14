@@ -39,6 +39,7 @@ const WHEEL_STEP: f64 = 18.0;
 const ROWS: usize = 1000;
 const WHITE_TEXT: u32 = 0xFFFFFF;
 const RED: u32 = 0xFF5555;
+const GOLD: u32 = 0xFFAA00;
 
 /// What a click on the screen asks the game to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -271,7 +272,11 @@ impl ModsScreen {
             } else if !mods.is_on(index) {
                 Some(tr("horizon.mods.screen.off").with_color(d::GRAY))
             } else {
-                None
+                // A loading warning: the mod runs, so its row isn't marked failed.
+                info.and_then(|i| i.warnings.first()).map(|(key, args)| {
+                    let args: Vec<_> = args.iter().map(|a| Text::literal(a.clone())).collect();
+                    Text::translate(key, &args).with_color(GOLD)
+                })
             };
             entries.push(Entry {
                 id: installed.id.clone(),
@@ -639,7 +644,7 @@ impl ModsScreen {
         if hit(g.search, x, y) {
             self.search.focused = true;
             self.list_focused = false;
-            self.search.click(m, x, false);
+            self.search.click(m, x, false, false);
             return (Action::None, false);
         }
         self.search.focused = false;
@@ -1319,6 +1324,32 @@ mod tests {
         let screen = ModsScreen::new(427, 240, false, &mods(&[(idle, info)]));
         let idle = screen.entries.iter().find(|e| e.id == "idle").unwrap();
         assert!(idle.note.is_some());
+    }
+
+    #[test]
+    fn a_loading_warning_shows_in_the_players_language_without_failing_the_row() {
+        let (mut row, mut info) = installed("warns", "Warns", None);
+        row.dev = true;
+        info.warnings = vec![("test.warn.optional".into(), vec!["jei".into()])];
+        let note = |language| {
+            crate::lang::scoped(language, || {
+                let screen =
+                    ModsScreen::new(427, 240, false, &mods(&[(row.clone(), info.clone())]));
+                let entry = screen.entries.iter().find(|e| e.id == "warns").unwrap();
+                entry.note.as_ref().map(Text::plain)
+            })
+            .0
+        };
+        let english = crate::lang::Language::of(
+            "en_us",
+            [(
+                "test.warn.optional".to_owned(),
+                "No %s: recipes hidden".to_owned(),
+            )],
+        );
+        assert_eq!(note(english).as_deref(), Some("No jei: recipes hidden"));
+        let missing = crate::lang::Language::of("en_us", Vec::<(String, String)>::new());
+        assert_eq!(note(missing).as_deref(), Some("test.warn.optional"));
     }
 
     /// `BackgroundWithPipingWidget`: the info panel is framed like the list, 2 px beyond its

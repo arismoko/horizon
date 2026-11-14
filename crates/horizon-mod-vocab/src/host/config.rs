@@ -102,6 +102,17 @@ pub trait ConfigServerHost {
     #[access(WorldOnly)]
     fn world_dir(&self) -> Option<PathBuf>;
     /// Side: server.
+    /// Every current rule in the one server-wide store, by namespaced id.
+    /// Readable from `server_about_to_start`, before any level exists.
+    /// Level game-rule reads use this same store once their level exists.
+    #[access(WorldOnly)]
+    fn game_rules(&self) -> Vec<(String, GameRuleValue)>;
+    /// Side: server.
+    /// Read the server-wide rule from the first server hook onward.
+    /// Returns `UnknownRule` for an unknown id; level reads use the same store.
+    #[access(WorldOnly)]
+    fn game_rule(&self, id: &str) -> Result<GameRuleValue, GameRuleReadError>;
+    /// Side: server.
     /// The retained server reload listeners of the last successful reload.
     #[access(WorldOnly)]
     fn reload_resources(&self) -> &dyn ServerReloadResources;

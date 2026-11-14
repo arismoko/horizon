@@ -77,12 +77,22 @@ impl<T: ?Sized + 'static> CapabilityKey<T> {
             handler: PhantomData,
         }
     }
+    /// Whether this key's published metadata marks unilateral forwarding to another block safe.
+    /// Unmarked and unknown capabilities are not proxyable.
+    pub fn is_proxyable(&self, host: &dyn crate::Host) -> bool {
+        crate::block_capability_proxyable(host, self.name)
+    }
 }
 
-/// Item slots, as NeoForge 26.3's `Capabilities.Item.BLOCK`: a block entity's slots as one side
-/// reaches them. The game answers it for every block entity with slots: chests (a double chest's
-/// two halves as one), furnaces, hoppers and the other vanilla containers, by their
-/// `WorldlyContainer` sides, and a mod block entity's `block_entity_container`.
+/// Item slots, as NeoForge 26.3's `Capabilities.Item.BLOCK`: container slots as one side
+/// reaches them. The game answers for block entities with slots by their `WorldlyContainer`
+/// sides, including double chests as one container and a mod block's `Registrar::block_container`,
+/// plus composters without block entities. A composter has one input slot from above or without
+/// a side, and one output slot from below; horizontal faces give no game handler. Its input
+/// consumes one compostable item per insertion below level seven, its output holds one bone
+/// meal only at level eight, and feedback waits for the root commit. Its position-local random
+/// stream is also journaled, so aborted retries keep their chance outcome without rewinding
+/// the level's unrelated random draws.
 pub const ITEMS: CapabilityKey<dyn ResourceHandler<ItemResource>> = CapabilityKey {
     name: "horizon:items",
     default: Some(|host, at| {
@@ -93,8 +103,8 @@ pub const ITEMS: CapabilityKey<dyn ResourceHandler<ItemResource>> = CapabilityKe
     handler: PhantomData,
 };
 
-/// The game's own [`ITEMS`]: the block entity's slots `.side` reaches, by the rules hoppers
-/// follow.
+/// The game's own [`ITEMS`]: the container slots or composter port `.side` reaches, by the
+/// rules hoppers follow.
 struct GameItems(BlockSide);
 impl ResourceHandler<ItemResource> for GameItems {
     fn set_max_stack_size(&self, host: &mut dyn ServerHost, tx: &Transaction, limit: u32) -> bool {

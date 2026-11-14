@@ -253,9 +253,11 @@ impl Game<'_> {
         // columns a second with two workers, the workers idle most of the
         // time. Not while a respawn search waits for a chunk: its area is
         // only asked for by the tick's own `update_world`.
+        // A viewed area's chunks (#3716) as the forced ones.
         let players = !paused && self.spawn_wait.is_empty();
+        let viewed = self.viewed_level(self.dim).is_some();
         while self.pregen_runs_here()
-            || ((players || !self.streaming.forced.is_empty()) && self.streaming.busy())
+            || ((players || viewed || !self.streaming.forced.is_empty()) && self.streaming.busy())
         {
             let now = Instant::now();
             if now >= until {

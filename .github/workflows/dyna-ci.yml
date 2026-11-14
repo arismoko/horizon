@@ -1,11 +1,13 @@
 name: dyna-checks
-run-name: ${{ github.event.pull_request.title || github.event.head_commit.message || github.workflow }}
+# What the run tests, readable in the run list: a dispatch with `pr` runs on ref main but tests that pull request's head,
+# so it is named for it and never read as main's CI; the prepared-output dispatch likewise.
+run-name: "${{ inputs.pr && format('PR #{0} gate', inputs.pr) || inputs.prepare-output-check && 'prepared output check' || github.event.pull_request.title || github.event.head_commit.message || github.workflow }}"
 # A contributor's pull request (its head in a fork) gets the cheap checks (verify-static, format); the heavy ones
-# (everything that compiles) run on main's pushes, dispatches, and pull requests from this repository's own branches
+# (everything that compiles) run on main's pushes, dispatches, and same-repository rollup or sync pull requests
 # (tools/ci/pr_gate.py, docs/ci-runners.md).
 # Keep upstream's workflows byte-identical; disable checks (ci.yml) in the fork's Actions
 # settings after this workflow's verify passes on main.
-# Scheduled events run only the hosted dispatcher; the dispatched run uses Dyna.
+# Scheduled events run only the hosted dispatcher and the churn report; the dispatched run uses Dyna.
 on:
   push:
     branches: [main]
@@ -30,9 +32,10 @@ on:
 permissions:
   contents: read
 concurrency:
-  # A new push to a pull request replaces its running checks. Main runs are never cancelled: a run in
-  # progress finishes, and only the newest waiting push runs next, so main is always checked.
-  group: dyna-checks-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main') || github.sha }}
+  # A new push to a pull request replaces its running checks. Each main push runs at once, beside any
+  # other: none of its jobs publishes or writes shared state, so a main run never waits behind another.
+  # A dispatch for a pull request (`pr`) is grouped by that pull request, never by main's head.
+  group: dyna-checks-${{ github.event.pull_request.number || inputs.pr && format('pr-{0}', inputs.pr) || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
   # Test runs never reach the telemetry server: no live-count ping, no uploads (docs/telemetry.md).
@@ -71,12 +74,7 @@ jobs:
       rust_required: ${{ steps.selection.outputs.rust_required || 'true' }}
       launcher_required: ${{ steps.selection.outputs.launcher_required || 'true' }}
       tooling_required: ${{ steps.selection.outputs.tooling_required || 'true' }}
-      # The sample was PR-selected before centralization; keep main/dispatch behavior unchanged.
-      sample_required: ${{ steps.selection.outputs.sample_required || 'false' }}
       self_hosted: ${{ !inputs.github-fallback && steps.hosted.outputs.forced_github != 'true' && steps.runner.outputs.self_hosted || 'false' }}
-      routing_reason: ${{ steps.runner.outputs.routing_reason }}
-      # Every ignored-tests shard on main pushes and dispatches; empty on pull requests.
-      ignored_matrix: ${{ steps.matrix.outputs.matrix || '{"shard":[]}' }}
       # Where lint and verify run when they don't go to Dyna's pool: boat-large for listed outside contributors
       # while vars.BOAT_CI is on (boat refuses a public repository's run unless both its author and the user who
       # started it are on boat's own list, so the same list lives in vars.BOAT_CI_USERS), else GitHub's runner.
@@ -91,6 +89,8 @@ jobs:
           EVENT: ${{ github.event_name }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           PR: ${{ inputs.pr }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: python3 tools/ci/pr_gate.py >> "$GITHUB_OUTPUT"
       - name: Fetch this commit's history for selection
         if: github.event_name == 'pull_request'
@@ -166,10 +166,6 @@ jobs:
           AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
           ACTOR: ${{ github.triggering_actor }}
         run: python3 tools/ci/boat_health.py
-      - name: The ignored-tests shard matrix
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !inputs.pr
-        id: matrix
-        run: python3 tools/ci/ignored_shards.py --matrix --all >> "$GITHUB_OUTPUT"
 
   # Fork PR tokens cannot dispatch or cancel runs. The trusted default-branch
   # boat-recovery workflow cancels/reruns outages; changes reads the previous attempt.
@@ -202,6 +198,56 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/ci/dyna_ci_pool_watch.py
+
+  # The conflict-hotspot churn report (tools/hotspots/README.md), on the nightly schedule only, on GitHub's runner:
+  # replays the last 3 days of merges with `git merge-tree` (git 2.38 or newer) and rewrites one issue. No build.
+  # Never a gate: the job and each step continue on error, so a failure or a timeout never fails the run.
+  churn-report:
+    if: github.repository == 'arismoko/horizon' && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch the pull request heads and upstream's main
+        id: fetch
+        continue-on-error: true
+        run: |
+          git fetch -q --no-tags origin '+refs/pull/*/head:refs/pull/*/head'
+          git fetch -q --no-tags https://github.com/horizon-rust/horizon.git main:refs/remotes/upstream/main
+      - name: Update the churn report issue
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: 'Conflict hotspots: churn report'
+          FETCHED: ${{ steps.fetch.outcome }}
+        run: |
+          git --version
+          python3 tools/hotspots/measure.py --days 3 --report > "$RUNNER_TEMP/report.md"
+          {
+            echo "> 🤖 Filed by Aria's agent swarm, Dyna, not by Aria."
+            echo
+            if [ "$FETCHED" != success ]; then
+              echo "Fetching the PR heads or upstream's main failed: some PRs show as a commit, and syncs may count as PRs."
+              echo
+            fi
+            head -c 60000 "$RUNNER_TEMP/report.md"
+          } > "$RUNNER_TEMP/body.md"
+          cat "$RUNNER_TEMP/body.md" >> "$GITHUB_STEP_SUMMARY"
+          number=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" \
+            --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -1)
+          if [ -n "$number" ]; then
+            gh issue edit "$number" -R "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
+          fi
 
   # Lint and verify use separate Dyna slots when the pool is available; each slot's build folder persists.
   # Outside contributors and pool-down runs stay on GitHub's runners with snapshot caches.
@@ -314,7 +360,7 @@ jobs:
       # Only byte-identical Git objects regain their cached mtimes; changed inputs stay new.
       - name: Restore unchanged source timestamps
         if: needs.changes.outputs.rust_required != 'false'
-        run: python3 tools/ci/source_mtimes.py target/ci-source-mtimes.json | tee -a "$GITHUB_STEP_SUMMARY"
+        run: python3 tools/ci/source_mtimes.py target/ci-source-mtimes-v2.json | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Check formatting
         if: needs.changes.outputs.rust_required != 'false'
         id: formatting
@@ -323,7 +369,11 @@ jobs:
           cargo fmt --all -- --check
           find crates/horizon-mod-api/src crates/horizon-mod-vocab/src -name '*.rs' -print0 | xargs -0 rustfmt --edition 2024 --check --config skip_children=true
           find crates/horizon-client/src/game -name '*.rs' -print0 | xargs -0 rustfmt --edition 2024 --config skip_children=true --check
-          rustfmt --edition 2024 --check crates/horizon-mod-api-gen/dispatch-tests/src/fixtures/*.rs
+          rustfmt --edition 2024 --check crates/horizon-mod-api-gen/dispatch-tests/src/fixtures/*.rs crates/horizon-mod-api-gen/dispatch-tests/src/fixtures/*/*.rs
+          rustfmt --edition 2024 --check crates/horizon-mod-wasm/wire-loopback/tests/wire_loopback/*.rs
+      # Every build and test in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py).
+      - name: Cap build parallelism to the runner
+        run: python3 tools/ci/cargo_jobs.py --job-mib 3072 --cap
       - name: Lint native targets
         if: needs.changes.outputs.rust_required != 'false'
         id: native-lint
@@ -332,12 +382,35 @@ jobs:
         if: needs.changes.outputs.rust_required != 'false'
         id: server-lint
         run: cargo clippy $JOBS --keep-going -p horizon-client -p horizon-game -p horizon-mod-host --all-targets --no-default-features -- -D warnings
-      - name: The machine sample builds against this API
-        if: needs.changes.outputs.sample_required == 'true'
-        run: python3 tools/ci/check_machine_sample.py
       - name: The mod API builds for wasm32
         if: needs.changes.outputs.rust_required != 'false'
         run: cargo check $JOBS -p horizon-mod-api --target wasm32-unknown-unknown --locked
+      # The prebuilt SDK's own feature graph: a release --lib build with prefer-dynamic and warnings denied, as
+      # tools/prebuilt_game.py builds it, for the host and for the Windows archive (system-allocator there,
+      # cargo_features). The checks above unify test and dev features (test-support) into one host build, which hid
+      # an unused import (Linux) and a unix-only binding (Windows) from everything but the SDK builds on main. Its own
+      # target folder: these flags would otherwise invalidate the workspace's artifacts for the other steps.
+      - name: The prebuilt SDK's library builds without warnings
+        if: needs.changes.outputs.rust_required != 'false'
+        run: |
+          host=$(rustc -vV | awk '/^host:/ {print $2}')
+          check() {
+            local start=$SECONDS
+            env -u CARGO_ENCODED_RUSTFLAGS RUSTFLAGS='-C prefer-dynamic -D warnings' \
+              cargo check $JOBS --locked -p horizon-mod-host --lib --profile release --target-dir target/sdk-check "$@"
+            echo "SDK library check $*: $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
+          }
+          check --target "$host"
+          # hidapi and libmimalloc-sys compile C for the target in their build scripts.
+          if ! command -v x86_64-w64-mingw32-gcc > /dev/null; then
+            echo "::error::x86_64-w64-mingw32-gcc is missing: the Windows SDK check needs MinGW (gcc-mingw-w64-x86-64 in the ci-runner image)"
+            exit 1
+          fi
+          rustup target add x86_64-pc-windows-gnu
+          # The real build is a dylib, which Cargo never LTOs; a --lib check under the release profile's thin LTO
+          # builds the dependencies for linker-plugin LTO, which rustc refuses with prefer-dynamic on Windows.
+          # A check generates no code, so LTO changes no warning or cfg it reports.
+          check --target x86_64-pc-windows-gnu --features system-allocator --config profile.release.lto=false
       - name: Propagate formatting failure
         if: ${{ always() && steps.formatting.outcome == 'failure' }}
         run: |
@@ -471,7 +544,10 @@ jobs:
       # only byte-identical Git objects regain their previous source timestamps.
       - name: Restore unchanged source timestamps
         if: needs.changes.outputs.rust_required != 'false'
-        run: python3 tools/ci/source_mtimes.py target/ci-source-mtimes.json | tee -a "$GITHUB_STEP_SUMMARY"
+        run: python3 tools/ci/source_mtimes.py target/ci-source-mtimes-v2.json | tee -a "$GITHUB_STEP_SUMMARY"
+      # Every build and test in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py).
+      - name: Cap build parallelism to the runner
+        run: python3 tools/ci/cargo_jobs.py --job-mib 3072 --cap
       # horizon-client rustc processes take several GB each; $JOBS (chosen above) fits them in the runner's
       # memory. Formatting and lint run in parallel (the lint job), so this job only tests.
       # Libraries, binaries and integration tests, then doc tests: not the ~275 examples, which the lint job already
@@ -480,7 +556,8 @@ jobs:
       # these 4-core runners it was no faster (#4978).
       - name: Build the runtime holder test actor
         if: needs.changes.outputs.rust_required != 'false'
-        run: cargo build $JOBS --profile test -p horizon-mod-package --features runtime-process --example holder_actor
+        # The command lives in tools/ci/ignored_shards.py PREPARE, which the daily run uses too.
+        run: python3 tools/ci/ignored_shards.py --prepare horizon-mod-package $JOBS
       # Compile first, apart from running: the build's time and its slowest units show on their own.
       - name: Build Rust core test binaries
         if: needs.changes.outputs.rust_required != 'false'
@@ -508,7 +585,7 @@ jobs:
       # step ends with the failing binaries and test names.
       - name: Test Rust core and voxel kernel correctness
         if: needs.changes.outputs.rust_required != 'false'
-        run: python3 tools/ci/run_test_binaries.py --jobs 3 -- cargo test $JOBS --profile test --workspace --lib --bins --tests
+        run: python3 tools/ci/run_test_binaries.py --jobs 3 --time-limits 2,5 -- cargo test $JOBS --profile test --workspace --lib --bins --tests
       # Prepared-data content-root tests stay in the existing client-lib data leg.
       # Running them again here without the data only rebuilds targets before they return early.
       # One genuine pinned export also validates source staging and listed slots.
@@ -539,6 +616,17 @@ jobs:
           with open(os.environ["GITHUB_ENV"], "a") as environment:
               environment.write(f"HORIZON_STAGE_TOOL={executable}\n")
           PY
+      - name: Report the mod API surface change
+        # What this pull request changes in what mods can name, in the job summary: the head's horizon-stage exports
+        # the merge base and this tree, then classifies the diff (tools/ci/surface_report.py). A report, not a gate:
+        # it fails only when this tree cannot be exported, for a stale or unreadable new change note, or, with
+        # tools/ci/surface.toml's gate on, for a breaking change no note declares.
+        if: needs.changes.outputs.rust_required != 'false' && (github.event_name == 'pull_request' || inputs.pr != '')
+        env:
+          EVENT: ${{ github.event_name }}
+          PR: ${{ inputs.pr }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/ci/surface_report.py
       - name: Validate prebuilt source stage and listed slots
         if: needs.changes.outputs.rust_required != 'false'
         run: python3 tools/ci/test_stage_catalog.py -v
@@ -578,7 +666,8 @@ jobs:
           cargo fmt --all -- --check
           find crates/horizon-mod-api/src crates/horizon-mod-vocab/src -name '*.rs' -print0 | xargs -0 rustfmt --edition 2024 --check --config skip_children=true
           find crates/horizon-client/src/game -name '*.rs' -print0 | xargs -0 rustfmt --edition 2024 --config skip_children=true --check
-          rustfmt --edition 2024 --check crates/horizon-mod-api-gen/dispatch-tests/src/fixtures/*.rs
+          rustfmt --edition 2024 --check crates/horizon-mod-api-gen/dispatch-tests/src/fixtures/*.rs crates/horizon-mod-api-gen/dispatch-tests/src/fixtures/*/*.rs
+          rustfmt --edition 2024 --check crates/horizon-mod-wasm/wire-loopback/tests/wire_loopback/*.rs
           (cd launcher && cargo fmt --check)
 
   verify-static:
@@ -644,6 +733,20 @@ jobs:
         # The checkout is the pull request merged into main as it is now: measure the merge against that main, so
         # main's own growth since the branch's base (a sync's) is never charged to the pull request.
         run: python3 tools/check_file_size.py ${BASE_SHA:+--base "$BASE_SHA" --pull-request-merge}
+      # Fixed conflict hotspots stay fixed: no SUMMARY.md line for a discovered book page, at most 5 launcher
+      # language files outside a rollup or sync, no growth of hooks/notes.rs. Measured against the base as above.
+      # The branch name counts only from this repository: a fork could name its branch like a rollup.
+      - name: Fixed hotspots stay fixed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BRANCH: ${{ needs.changes.outputs.trusted == 'true' && github.head_ref || '' }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: python3 tools/hotspots/check_guards.py ${BASE_SHA:+--base "$BASE_SHA" --pull-request-merge} --branch "$BRANCH" --labels "$LABELS"
+      # horizon-mod-wasm-wire-loopback's build.rs declares tests/wire_loopback/*.rs: its root gains no module line and no test.
+      - name: wire_loopback root does not grow
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 tools/hotspots/check_wire_loopback.py ${BASE_SHA:+--base "$BASE_SHA" --pull-request-merge}
       # Offline tooling compiles tiny standalone fixtures even when no game Rust changed.
       # Install their tools explicitly rather than making missing compilers turn cases into skips.
       - name: Install Rust tools for isolated tooling fixtures
@@ -661,15 +764,36 @@ jobs:
           bash tools/ci/rustup_install.sh --profile minimal --component rustfmt --component clippy
       - name: Vocabulary state has explicit ownership
         run: python3 tools/check_mod_vocabulary_state.py
+      # One file per topic in tools/ci/ignored-tests/: well-formed rows, each test in one file, nothing else in the
+      # folder, no file at the retired single-list path.
+      - name: Ignored-test policy files read cleanly
+        run: python3 tools/ci/check_ignored_test_rows.py
+      # The unit tier: a test that boots the game is #[ignore = "daily"]; the fixtures are in tools/ci/game-boot-fixtures.txt.
+      - name: Game-boot tests are daily tests
+        run: python3 tools/ci/check_game_boot_tests.py
+      # The unit tier: a test that starts a child process is #[ignore = "daily"]; helpers in tools/ci/process-spawns.txt.
+      - name: Process-starting tests are daily tests
+        run: python3 tools/ci/check_process_tests.py
+      # A test that reruns its own test executable by --exact must select it ignored or not, or a daily one checks nothing.
+      - name: Test reruns select ignored tests too
+        run: python3 tools/ci/reexec_include_ignored.py --check
       # docs/layers.md: a crate depends only on its own layer or a lower one; today's exceptions only shrink.
       - name: Crates follow the layers
         if: needs.changes.outputs.rust_required != 'false'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: python3 tools/check_layers.py ${BASE_SHA:+--base "$BASE_SHA" --pull-request-merge}
+      # tools/hotspots/README.md: a `pub use` brace list under the vocabulary's exports/ names at most 12 items, so two
+      # PRs adding names don't conflict on rustfmt's re-wrap; today's longer lists only shrink.
+      - name: Export lists stay short
+        run: python3 tools/hotspots/check_lists.py
+      # tools/hotspots/check_stand_ins.py: hand-written stand-ins of the dispatch tests and the wire loopback keep up
+      # with the hooks and vocabulary traits they mirror, on the member PR itself instead of in a rollup's build.
+      - name: Test stand-ins keep up with the API
+        run: python3 tools/hotspots/check_stand_ins.py
       # Independent of the Rust job. Only after earlier static setup/checks succeeded:
       # compiler fixtures after failed setup would add a second, misleading failure.
-      - name: Test offline research tooling
+      - name: Python tests of the repository's tools
         if: ${{ success() && needs.changes.result == 'success' && needs.changes.outputs.tooling_required != 'false' }}
         run: |
           python3 -m unittest discover -s tests -v --durations=25
@@ -695,132 +819,6 @@ jobs:
           echo '::warning::Optional mod-host-map artifact upload failed; inspect the upload step for details.'
           echo '### Optional mod-host-map artifact unavailable' >> "$GITHUB_STEP_SUMMARY"
           echo 'The upload failed. Map generation remains a required step; the optional download is unavailable.' >> "$GITHUB_STEP_SUMMARY"
-  # The #[ignore]d library tests that need the prepared vanilla data, which verify doesn't have. Main pushes and
-  # dispatches only, on Dyna's large runner where that data lives. Every shard runs, with one package per shard
-  # (the plan lives in tools/ci/ignored_shards.py). tools/ci/ignored_tests.py fails on a new failure and on a known
-  # one that passes, and prints only test names and results: the data is Mojang's.
-  ignored-tests-shards:
-    needs: changes
-    # Skip an empty matrix instead of expanding to nothing, which GitHub refuses.
-    if: >-
-      needs.changes.outputs.self_hosted == 'true' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !inputs.pr &&
-      fromJSON(needs.changes.outputs.ignored_matrix).shard[0] != null
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.changes.outputs.ignored_matrix) }}
-    # Owner-approved stopgap: #2944 removes this when the legs run under 15 minutes.
-    runs-on: ${{ (matrix.shard == 'horizon-client#1of2' || matrix.shard == 'horizon-client#2of2') && 'dyna-xlarge' || 'dyna-large' }}
-    # Temporary: #2944 brings client data legs under 15 minutes and restores the 60-minute cap.
-    timeout-minutes: ${{ (matrix.shard == 'horizon-client#1of2' || matrix.shard == 'horizon-client#2of2') && 90 || 60 }}
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Check Dyna dependencies (install fallback without root)
-        run: bash tools/ci/dyna_ci_deps.sh
-      - name: Install Rust toolchain
-        run: |
-          if [ ! -x "$CARGO_HOME/bin/rustup" ]; then
-            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
-          fi
-          bash tools/ci/rustup_install.sh --profile minimal
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-      - name: Record data-leg start and compiler cache
-        run: |
-          date -u '+data-leg start utc=%Y-%m-%dT%H:%M:%SZ'
-          sccache --show-stats || echo 'data-leg compiler-cache statistics unavailable'
-      # Missing data must fail on both main pushes and nightly dispatches.
-      - name: Prepare checkout-keyed vanilla data
-        id: data
-        env:
-          EVENT: ${{ github.event_name }}
-        run: |
-          for dir in minecraft datagen horizon-client tools; do
-            if [ ! -d "/cache/horizon-local/$dir" ]; then
-              echo "prepared data unavailable on this runner"
-              echo "Prepared data unavailable: $dir ($EVENT)" >> "$GITHUB_STEP_SUMMARY"
-              exit 1
-            fi
-          done
-          HORIZON_DYNA_CACHE=true HORIZON_PREPARED_CACHE="$DYNA_CI_BUILD/vanilla" HORIZON_SHARED_SOURCE=/cache/horizon-local bash tools/ci/vanilla-data.sh
-      - name: Retain typed preparation diagnostics only
-        if: failure() && steps.data.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: preparation-diagnostic-${{ strategy.job-index }}
-          path: |
-            ${{ runner.temp }}/prepare-build.diagnostic.json
-            ${{ runner.temp }}/prepare.diagnostic.json
-            ${{ runner.temp }}/seed-extras.diagnostic.json
-          if-no-files-found: ignore
-          retention-days: 3
-      - name: Generate the fishing test's vanilla reference inputs
-        if: steps.data.outputs.present != 'false' && (matrix.shard == 'horizon-client' || startsWith(matrix.shard, 'horizon-client#'))
-        run: |
-          reference=$(mktemp -d "$RUNNER_TEMP/fishing-reference.XXXXXX")
-          python3 tools/test_fishing_rng_parity.py --prepare-reference "$reference" --env-file "$GITHUB_ENV"
-      - name: Run the ignored tests that need prepared data
-        if: steps.data.outputs.present != 'false'
-        env:
-          SHARD: ${{ matrix.shard }}
-          HORIZON_DATA_LEG_TIMING: '1'
-        run: |
-          export HORIZON_TEST_RESOURCES="$PWD/.local/horizon-client/26.3"
-          python3 tools/ci/with_xvfb.py python3 tools/ci/ignored_tests.py "$SHARD"
-      - name: Record data-leg end and compiler cache
-        if: always()
-        run: |
-          date -u '+data-leg end utc=%Y-%m-%dT%H:%M:%SZ'
-          # Whole-job cgroup high-water: compilation, tests and file cache, not per-test RSS
-          # or an isolated test-execution peak. Fixed kernel files only; telemetry is best effort.
-          echo 'data-leg memory_scope=whole_job_cgroup_including_compilation_tests_file_cache'
-          for metric in memory.peak memory.max memory.swap.peak memory.swap.max; do
-            field="${metric//./_}_bytes"
-            value=unavailable
-            if IFS= read -r sample 2>/dev/null < "/sys/fs/cgroup/$metric"; then
-              if [[ "$sample" =~ ^[0-9]+$ || "$sample" == max ]]; then
-                value="$sample"
-              fi
-            fi
-            echo "data-leg $field=$value"
-          done
-          sccache --show-stats || echo 'data-leg compiler-cache statistics unavailable'
-  # Never turn missing prepared-data coverage into a green main/nightly run.
-  ignored-tests:
-    needs: [changes, ignored-tests-shards]
-    if: >-
-      always() && !cancelled() &&
-      !inputs.prepare-output-check && !inputs.pr &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Require prepared-data coverage
-        env:
-          RESULT: ${{ needs.ignored-tests-shards.result }}
-          ROUTE: ${{ needs.changes.outputs.self_hosted }}
-          REASON: ${{ needs.changes.outputs.routing_reason }}
-          CHANGES: ${{ needs.changes.result }}
-          FORCED_GITHUB: ${{ needs.changes.outputs.forced_github }}
-        run: |
-          {
-            echo "## Prepared-data coverage"
-            echo "Shard result: $RESULT; changes: $CHANGES; self-hosted: $ROUTE; forced GitHub: $FORCED_GITHUB"
-            echo "Routing: $REASON"
-            if [ "$RESULT" = skipped ]; then
-              echo "Missing coverage: pool routing was disabled/unavailable or the shard matrix was empty. Restore the pool lease/switch if expired; do not treat this run as tested."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$RESULT" != success ]; then
-            echo "::error::Prepared-data coverage required; shard result: $RESULT; self-hosted: $ROUTE; $REASON"
-            exit 1
-          fi
   # The launcher is its own workspace (launcher/Cargo.toml), so verify's cargo runs never build it. A pull request that
   # changes it or a crate it builds is checked here, and so is every push to main: two pull requests can each pass
   # alone and break it together (#2059 and the registry ratings did, 2026-10-26).
@@ -859,6 +857,14 @@ jobs:
           workspaces: launcher
           shared-key: launcher
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # Every job that builds in this runner's persistent target keeps its source snapshot true: a
+      # build of another tree without it left artifacts that a later job judged fresh (stale generated
+      # sources, 2026-11-13). Only byte-identical Git objects regain their previous timestamps.
+      - name: Restore unchanged source timestamps
+        run: python3 tools/ci/source_mtimes.py "${CARGO_TARGET_DIR:-target}/ci-source-mtimes-v2.json"
+      # Every build and test in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py).
+      - name: Cap build parallelism to the runner
+        run: python3 tools/ci/cargo_jobs.py --job-mib 3072 --cap
       - name: Check the launcher's formatting, lint and tests
         if: needs.changes.outputs.launcher_required != 'false'
         working-directory: launcher
@@ -869,7 +875,7 @@ jobs:
           cargo clippy $JOBS --all-targets --locked -- -D warnings
           cargo test $JOBS --no-fail-fast --locked --lib --bins
           cargo test $JOBS --no-fail-fast --locked --test storage
-          cargo build $JOBS --manifest-path ../Cargo.toml --locked -p horizon-mod-package --features runtime-process --example holder_actor
+          python3 ../tools/ci/ignored_shards.py --prepare horizon-mod-package $JOBS
           cargo test $JOBS --no-fail-fast --manifest-path ../Cargo.toml --locked -p horizon-mod-package --features runtime-process --lib
   # A dispatch with `pr`: posts the heavy jobs' results on that pull request's head. It runs none of its code, so it
   # alone holds the write permission, and only for commit statuses.
@@ -921,6 +927,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+      # Every job that builds in this runner's persistent target keeps its source snapshot true: a
+      # build of another tree without it left artifacts that a later job judged fresh (stale generated
+      # sources, 2026-11-13). Only byte-identical Git objects regain their previous timestamps.
+      - name: Restore unchanged source timestamps
+        run: python3 tools/ci/source_mtimes.py "${CARGO_TARGET_DIR:-target}/ci-source-mtimes-v2.json"
+      # Every build and test in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py).
+      - name: Cap build parallelism to the runner
+        run: python3 tools/ci/cargo_jobs.py --job-mib 3072 --cap
       - name: Check prepared output digest
         run: |
           # Never reuse a completed preparation for this diagnostic, including a retry.
@@ -966,6 +980,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+      # Every job that builds in this runner's persistent target keeps its source snapshot true: a
+      # build of another tree without it left artifacts that a later job judged fresh (stale generated
+      # sources, 2026-11-13). Only byte-identical Git objects regain their previous timestamps.
+      - name: Restore unchanged source timestamps
+        run: python3 tools/ci/source_mtimes.py "${CARGO_TARGET_DIR:-target}/ci-source-mtimes-v2.json"
+      # Every build and test in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py).
+      - name: Cap build parallelism to the runner
+        run: python3 tools/ci/cargo_jobs.py --job-mib 3072 --cap
       - name: Set up disk-backed parity scratch and prepared vanilla data
         run: |
           rm -rf "$DYNA_CI_BUILD/parity-out" "$DYNA_CI_BUILD/parity-tmp"

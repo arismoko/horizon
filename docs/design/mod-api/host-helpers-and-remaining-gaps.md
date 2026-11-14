@@ -40,9 +40,17 @@ The following documented `Game` helpers are not in the trait yet:
   `server_block_in_tag`, `server_item_in_tag`, `server_block`,
   `set_display`, `sidebar`, `experience_orbs`,
   `item_entities`, `player`, `panel_recipes`, `recipes`, `component`,
-  `set_component`, `remove_component`, `spawn_falling_block`, `explode`,
+  `spawn_falling_block`, `explode`,
   `container_slots` uses gameplay-private types.
 - `with_mod_block_entity` is generic, so its signature cannot be called through `dyn Host`.
+
+Component writes live on `ItemPlace::edit(host, tx, |stack| { ... })`, not on
+`Host::set_component` or `remove_component`. The editor can use `ItemStack::set`,
+`remove`, `apply_components` and `copy_component_from`; `get` followed by `set`
+covers `update`. A successful edit exchanges the whole stack, preserving the slot's
+count rather than splitting off one item. Changing the item or count refuses the
+edit without changing the place. The write is server-side and journaled in the
+caller's transaction, so a parent abort restores it like other item-place writes.
 
 Experience-orb values use vanilla's signed `i32` representation in
 `ExperienceOrb`, `ServerHost::set_experience_orb`, and the pickup and merge hooks.
@@ -97,7 +105,7 @@ The following catalog hooks are not in the trait:
   `living_entity_use_item_start`, `living_entity_use_item_finish`, `render_hand`, `shader_params`
   and `block_highlight`.
 - `biome_colors`, `camera_distance`, `compute_fog_color`, `compute_fov`,
-  `data_pack_files`, `mob_submit`, `mouse_button_pre`, `mouse_button_post`, `player_respawned`
+  `data_pack_files`, `render_living_pre`, `mouse_button_pre`, `mouse_button_post`, `player_respawned`
   and `tags_updated`.
 
 The client `render_tooltip_texture` hook (NeoForge's `RenderTooltipEvent.Texture`) picks a tooltip box's look. Setting `texture` to a tooltip style `<namespace>:<name>` draws the GUI sprites `<namespace>:tooltip/<name>_background` and `_frame` from the resource packs, nine-sliced by their `gui.scaling` metadata or stretched without it, as vanilla draws an item's `tooltip_style`; the atlas a resource reload restitches is the one drawn. Left `None`, the box keeps Horizon's solid fills, whose background and top and bottom border gradient colours it changes as mutable ARGB `u32` values; it does not change text colours. It covers solid-fill item tooltips (including creative, recipe book, chat, trading and bundle-selected item names), screen text boxes, and native panel tooltips. The stack is `None` for text-only boxes, including recipe-book item lines where the stack is discarded before drawing. Sprite-based screen tooltips (including options and title screens) use a separate renderer and are not covered.

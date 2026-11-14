@@ -1,5 +1,8 @@
 //! Explicit account-free Play for persisted unsigned checkout lineage.
-use crate::{developer_install, i18n::tr};
+use crate::{
+    developer_install,
+    i18n::{tr, trf},
+};
 use std::process::Command;
 
 pub const ENV: &str = "HORIZON_LAUNCHER_DEVELOPER_OFFLINE";
@@ -31,16 +34,43 @@ fn eligible(base: &str, directory: &std::path::Path, native_revision: Option<&st
 }
 
 pub const REBUILD: &str = "This game cannot enforce offline developer single-player. Rebuild and reinstall the developer game and its native mods.";
+const START_FAILED: &str = "The game failed to start while checking support for offline developer play. Repeat your horizon-launcher developer-install command, rebuild this build’s native mods with native-build, then try Play again. If it still fails, report this message on the Horizon Discord (linked in the launcher).\nDetails: {reason}";
 pub fn require_capability(tag: &str) -> Result<(), String> {
-    let output = Command::new(crate::backend::client_program(tag))
+    let program = crate::backend::client_program(tag);
+    let output = Command::new(&program)
         .arg("--launch-api")
         .output()
-        .map_err(|_| tr(REBUILD).to_string())?;
-    if output.status.success() && supports_restriction(&output.stdout) {
+        .map_err(|e| startup_failure(&format!("{}: {e}", program.display())))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let reason = stderr
+            .lines()
+            .map(str::trim)
+            .find(|s| !s.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| {
+                trf(
+                    "The game stopped without an error message ({status}).",
+                    &[("status", &output.status.to_string())],
+                )
+            });
+        return Err(startup_failure(&reason));
+    }
+    if supports_restriction(&output.stdout) {
         Ok(())
     } else {
         Err(tr(REBUILD).into())
     }
+}
+
+// Both spawn failures and child diagnostics cross this user-visible boundary.
+fn startup_failure(reason: &str) -> String {
+    let mut chars = reason.chars();
+    let mut reason: String = chars.by_ref().take(500).collect();
+    if chars.next().is_some() {
+        reason.push('…');
+    }
+    trf(START_FAILED, &[("reason", &reason)])
 }
 
 fn supports_restriction(bytes: &[u8]) -> bool {
@@ -109,6 +139,18 @@ pub fn selected() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn startup_failure_bounds_unicode_details_without_changing_short_diagnostics() {
+        let short = "dyld[4321]: Library not loaded: @rpath/libhorizon_mod_host.dylib";
+        assert!(startup_failure(short).ends_with(short));
+        let long = "界".repeat(501);
+        let message = startup_failure(&long);
+        let details = message.split_once("Details: ").unwrap().1;
+        assert_eq!(details.chars().count(), 501);
+        assert!(details.ends_with('…'));
+        assert!(!startup_failure(&"界".repeat(500)).ends_with('…'));
+    }
+
     #[test]
     fn account_gate_is_preserved_without_opt_in_and_for_signed_lineage() {
         if let Ok(tag) = std::env::var("OFFLINE_GATE_TEST_TAG") {

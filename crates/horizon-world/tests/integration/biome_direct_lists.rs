@@ -110,6 +110,7 @@ fn direct_biome_tag_and_preset_catalogs_have_no_size_ceiling() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn inline_multi_noise_biome_list_has_no_size_ceiling() {
     let catalog = BiomeSourceCatalog::new(
         &BTreeSet::from(["test:biome".into()]),

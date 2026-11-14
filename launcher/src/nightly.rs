@@ -2,7 +2,7 @@
 //! requests the trusted reviewers picked, published as the `nightly` pre-release a few times a day.
 //! Every launcher installs it as its update (`backend::horizon_update`), as its own version
 //! `nightly-<date>-<commit>`, beside the player's worlds, which it never touches. Its checksums must
-//! be signed for the nightly channel (`signed::nightly_digest`).
+//! be signed for the nightly channel (`signed::build_digest`).
 //!
 //! Before that it was opt-in and played in its own "Nightly" instance (`instances/nightly/`):
 //! that instance, and its worlds, stay, and keep following the Nightly.

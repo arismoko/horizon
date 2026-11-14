@@ -345,11 +345,12 @@ fn pick_for_assets(
     // version, so an older Nightly can't be served as a newer one.
     let (tag, sha256) = if horizon_release_sign::is_nightly(tag) {
         let title = release["name"].as_str().unwrap_or_default();
-        let version = horizon_release_sign::nightly_title_version(title).ok_or_else(|| {
+        let version = horizon_release_sign::build_title_version(horizon_release_sign::Channel::Nightly, title).ok_or_else(|| {
             format!("the Nightly's title {title:?} doesn't name its date and commit, so it can't be checked")
         })?;
         let signature = attached(horizon_release_sign::SIGNATURE_V2)?.map(text);
-        let sha256 = horizon_release_sign::nightly_digest(
+        let sha256 = horizon_release_sign::build_digest(
+            horizon_release_sign::Channel::Nightly,
             &version,
             name,
             sums.as_deref(),
@@ -1081,6 +1082,14 @@ mod tests {
         let mut release = nightly.clone();
         release["tag_name"] = json!("v0.2.95");
         assert!(pick(&release, serving(TONIGHT, TONIGHT), &[key.public()]).is_err());
+        // A genuine snapshot (its title, its own valid signatures) served as the Nightly, or under
+        // its own tag: refused, so no server updates to a snapshot.
+        const SNAPSHOT: &str = "snapshot-2026-10-28-0c02067";
+        let mut snapshot = nightly.clone();
+        snapshot["name"] = json!("Snapshot 2026-10-28 · 0c02067");
+        assert!(pick(&snapshot, serving("snapshot", SNAPSHOT), &[key.public()]).is_err());
+        snapshot["tag_name"] = json!(SNAPSHOT);
+        assert!(pick(&snapshot, serving("snapshot", SNAPSHOT), &[key.public()]).is_err());
     }
 
     #[test]
@@ -1277,6 +1286,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[ignore = "daily"]
     fn an_archive_unpacks_beside_the_others_with_the_game_files_linked() {
         let install = installed("unpack", &["v1"]);
         let source = scratch("unpack-source");

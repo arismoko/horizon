@@ -4,7 +4,7 @@ use horizon_client::join_seq::JoinList;
 use horizon_core::random::RandomSource;
 
 impl Game<'_> {
-    /// `player` touches `count` of `item` on the ground
+    /// `player` touches the ground item entity `item`
     /// (`ItemEntity.playerTouch`), before its pickup delay and target are
     /// checked: it is asked on every tick the two touch, even while the item
     /// can't be taken. Leave `can_pickup` at `Default` for vanilla's rule,
@@ -12,19 +12,21 @@ impl Game<'_> {
     /// (a full inventory still leaves it), or `False` to leave it there: the
     /// fork sets a vanilla eligibility delay of at least 10 ticks. The hook
     /// still runs on each touch, and a later `True` overrides that delay. The last mod to set it
-    /// decides. Server-side.
+    /// decides. The handle reads the whole stack on the ground; for the
+    /// window's own player of a world it ticks itself, whose pickup pass
+    /// lifts the items out of the level, it reads as unavailable. Server-side.
     pub(in crate::game) fn native_item_picked_up(
         &mut self,
         player: u128,
-        item: &str,
-        count: u32,
+        item: ItemEntityRef,
         can_pickup: &mut TriState,
     ) {
-        self.fire_item_picked_up(player, item, count, can_pickup);
+        self.fire_item_picked_up(player, item, can_pickup);
     }
 
-    /// `player` picked up a whole ground stack (`ItemEntity.playerTouch`,
-    /// right after `Inventory.add` took all of it). `original` is a copy of
+    /// `player` picked up the whole stack of the ground item entity `item`
+    /// (`ItemEntity.playerTouch`, right after `Inventory.add` took all of
+    /// it), the entity `item_picked_up` named. `original` is a copy of
     /// the stack as it lay before the pickup: changing it does nothing.
     /// `remaining` is what the item entity still holds, so it starts as
     /// `None` (empty). Set a stack there to leave the entity on the ground
@@ -41,10 +43,11 @@ impl Game<'_> {
     pub(in crate::game) fn native_item_picked_up_post(
         &mut self,
         player: u128,
+        item: ItemEntityRef,
         original: &ItemStack,
         remaining: &mut Option<ItemStack>,
     ) {
-        self.fire_item_picked_up_post(player, original, remaining);
+        self.fire_item_picked_up_post(player, item, original, remaining);
     }
 
     /// `player` picked up part of a ground stack (`ItemEntity.playerTouch`,
@@ -78,16 +81,19 @@ impl Game<'_> {
     }
 
     /// `item_picked_up_post` for the acting player, who took all of
-    /// `original`: the stack a mod left on the item entity, `None` when none
-    /// did or no mod listens.
+    /// `original` from the item entity `item`: the stack a mod left on it,
+    /// `None` when none did or no mod listens.
     pub(in crate::game) fn native_pickup_post(
         &mut self,
+        item: u32,
         original: &ItemStack,
     ) -> Option<ItemStack> {
         let mut remaining = None;
-        if mod_api::__private::listened(mod_api::HookId::ItemPickedUpPost) {
+        if mod_api::__private::listened(mod_api::HookId::ItemPickedUpPost)
+            && let Some(item) = self.native_item_handle(item)
+        {
             let player = self.native_acting_id();
-            self.native_item_picked_up_post(player, original, &mut remaining);
+            self.native_item_picked_up_post(player, item, original, &mut remaining);
         }
         remaining
     }
@@ -151,10 +157,11 @@ impl Game<'_> {
                     })
                 }
                 None if listened(mod_api::HookId::ItemPickedUpPost) => {
+                    let id = items[i].id;
                     let mut during = items[i].stack.clone();
                     during.count = 0;
                     self.native_pickup_lent(items, i, during, |game, original| {
-                        game.native_pickup_post(original)
+                        game.native_pickup_post(id, original)
                     })
                 }
                 left => (left, None),
@@ -232,15 +239,25 @@ impl Game<'_> {
         (answer, Some(original))
     }
 
-    /// `item_picked_up` for the acting player touching the ground `stack`:
-    /// the mods' answer, `Default` when no mod listens.
-    pub(in crate::game) fn native_pickup_answer(&mut self, stack: &ItemStack) -> TriState {
+    /// `item_picked_up` for the acting player touching the item entity
+    /// `item`: the mods' answer, `Default` when no mod listens.
+    pub(in crate::game) fn native_pickup_answer(&mut self, item: u32) -> TriState {
         let mut can_pickup = TriState::Default;
-        if mod_api::__private::listened(mod_api::HookId::ItemPickedUp) {
+        if mod_api::__private::listened(mod_api::HookId::ItemPickedUp)
+            && let Some(item) = self.native_item_handle(item)
+        {
             let player = self.native_acting_id();
-            self.native_item_picked_up(player, &stack.item, stack.count, &mut can_pickup);
+            self.native_item_picked_up(player, item, &mut can_pickup);
         }
         can_pickup
+    }
+
+    /// The item entity `id` as the hooks name it. It need not be in the
+    /// level: a canceled toss and the host player's pickup hand out one the
+    /// handle reads cannot find.
+    pub(in crate::game) fn native_item_handle(&self, id: u32) -> Option<ItemEntityRef> {
+        let epoch = self.native_lifecycle.epoch()?;
+        Some(ItemEntityRef::new(EntityRef::new(epoch, id)))
     }
 
     /// Whether the acting player, `player`, takes the ground `item` they
@@ -250,7 +267,7 @@ impl Game<'_> {
         item: &mut ItemEntity,
         player: [i32; 4],
     ) -> bool {
-        let answer = self.native_pickup_answer(&item.stack);
+        let answer = self.native_pickup_answer(item.id);
         Self::pickup_decision(&mut item.pickup_delay, item.target, player, answer)
     }
 

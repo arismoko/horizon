@@ -67,10 +67,6 @@ pub trait ServerDamageEnvironment<A: HealthAttributes = EntityAttributes>:
     fn damage_pre(&mut self, _container: &mut DamageContainer) -> Result<(), EnvError<Self>> {
         Ok(())
     }
-    /// `DamageWorld::damage_post`. The default does nothing.
-    fn damage_post(&mut self, _container: &DamageContainer) -> Result<(), EnvError<Self>> {
-        Ok(())
-    }
 }
 pub struct ServerPlayerDamage<'a, E, A: HealthAttributes = EntityAttributes> {
     attributes: &'a mut A,
@@ -325,11 +321,6 @@ impl<A: HealthAttributes, E: ServerDamageEnvironment<A>> DamageWorld
     fn damage_pre(&mut self, container: &mut DamageContainer) -> Result<(), Self::Error> {
         self.environment
             .damage_pre(container)
-            .map_err(ServerDamageError::Environment)
-    }
-    fn damage_post(&mut self, container: &DamageContainer) -> Result<(), Self::Error> {
-        self.environment
-            .damage_post(container)
             .map_err(ServerDamageError::Environment)
     }
 }

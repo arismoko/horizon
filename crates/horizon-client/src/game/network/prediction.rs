@@ -116,9 +116,9 @@ impl Game<'_> {
                     return None;
                 }
                 let replay = g.replay.as_deref_mut()?;
-                // Ticks no longer kept (a server that stalled for seconds): wait for the next teleport.
+                // Rebase missing or unplayable history, excused until the moves agree.
                 let Some(over) = replay.catch_up(record, server, tolerance, &mut run) else {
-                    g.replay = None;
+                    g.replay = Some(Box::new(Replay::rebased(server, g.position, record)));
                     return None;
                 };
                 if over.ticks == 0 || waiting {

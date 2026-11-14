@@ -122,6 +122,29 @@ jobs:
           tool/bin/horizon-mixins apply --workspace source/fixtures/game --mods source/fixtures/mods \
             --out "$RUNNER_TEMP/staged" > /dev/null
           test -f "$RUNNER_TEMP/staged/Cargo.toml"
+      # A player has no MinGW: the launcher unpacks the archive and runs the tool, so every DLL it imports
+      # must be in the archive beside it or be part of Windows.
+      - name: The tool imports only DLLs it ships or Windows has
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          imports=$(objdump -p tool/bin/horizon-mixins.exe | sed -n 's/^[[:space:]]*DLL Name: //p' | tr -d '\r' | sort -fu)
+          test -n "$imports"
+          echo "$imports"
+          missing=
+          for dll in $imports; do
+            name=$(tr '[:upper:]' '[:lower:]' <<< "$dll")
+            case "$name" in
+              api-ms-win-*.dll|kernel32.dll|kernelbase.dll|ntdll.dll|advapi32.dll|bcrypt.dll|bcryptprimitives.dll|\
+              userenv.dll|ws2_32.dll|msvcrt.dll|ucrtbase.dll|shell32.dll|ole32.dll|oleaut32.dll|user32.dll|\
+              crypt32.dll|secur32.dll|synchronization.dll) ;;
+              *) [ -n "$(find tool/bin -maxdepth 1 -iname "$dll")" ] || missing="$missing $dll" ;;
+            esac
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::horizon-mixins.exe imports$missing: neither in the archive beside it nor a Windows system DLL"
+            exit 1
+          fi
       # The archive's flags are GNU tar's; macOS's own tar is BSD.
       - name: GNU tar on macOS
         if: runner.os == 'macOS'

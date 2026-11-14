@@ -1059,7 +1059,11 @@ fn tick_advancement_notice_precedes_recipe_reward() {
         sync.advancements = horizon_client::lan::ServerAdvancements::load(
             &scratch,
             &horizon_world::loot::PackOverlay::NONE,
-            Default::default(),
+            // Rewards must name a recipe registered in the server's index.
+            std::collections::BTreeMap::from([(
+                "testmod:reward".into(),
+                r#"{"type":"minecraft:crafting_shapeless","ingredients":["minecraft:stone"],"result":{"id":"minecraft:diamond","count":1}}"#.into(),
+            )]),
             Default::default(),
         );
         let reload = std::env::var("HORIZON_ADVANCEMENT_ORDER_CHILD").as_deref() == Ok("reload");
@@ -1136,7 +1140,7 @@ fn a_vetoed_drop_gives_the_stack_back() {
     struct Veto;
     #[mod_api::__subscriptions]
     impl Hooks for Veto {
-        fn item_toss(&self, _: &mut dyn ServerHost, _: &mut ItemTossEvent<'_>) -> Flow {
+        fn item_toss(&self, _: &mut dyn ServerHost, _: &mut ItemTossEvent) -> Flow {
             Flow::Cancel
         }
     }
@@ -1589,5 +1593,48 @@ fn run_command_refuses_a_player_whose_level_is_parked() {
         assert!(!has_stick(game));
         assert!(b.run_command(game, "give @s minecraft:stick 1", Owners));
         assert!(has_stick(game));
+    });
+}
+
+/// `ServerPlayer.createCommandSourceStack`: a player's source is their own position and
+/// rotation, also when the mod calls from inside an outer command run from elsewhere
+/// (`execute positioned 50 80 50 rotated 90 30 run <a mod's command>`), for a player entered
+/// for it and for the acting player in their own turn. From the outer source, `~1 ~ ~ ~10 ~`
+/// would put them at (51, 80, 50) facing yaw 100, pitch 30.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn run_command_runs_from_the_players_own_place_inside_an_outer_command() {
+    use super::commands::execute::Source;
+    use mod_api::PermissionLevel::Gamemasters;
+
+    with_guests(|game| {
+        game.build_registries();
+        let a = game.player(12).unwrap().entity();
+        let b = game.player(13).unwrap().entity();
+        let place = |game: &super::Game<'_>, conn: u32| {
+            let g = game.lan.as_ref().unwrap().hub.guest(conn).unwrap();
+            (g.position, [g.yaw, g.pitch])
+        };
+        let (start, [yaw, pitch]) = place(game, 12);
+        assert_eq!(place(game, 13), (start, [yaw, pitch]));
+        let outer = Source {
+            pos: [50.0, 80.0, 50.0],
+            rot: [90.0, 30.0],
+            ..game.server_source()
+        };
+        game.with_source(outer, |game| {
+            assert!(b.run_command(game, "tp @s ~1 ~ ~ ~10 ~", Gamemasters));
+            game.as_guest(12, |game| {
+                assert!(a.run_command(game, "tp @s ~1 ~ ~ ~10 ~", Gamemasters));
+            })
+            .unwrap();
+        });
+        for conn in [12, 13] {
+            assert_eq!(
+                place(game, conn),
+                ([start[0] + 1.0, start[1], start[2]], [yaw + 10.0, pitch]),
+                "guest {conn}"
+            );
+        }
     });
 }

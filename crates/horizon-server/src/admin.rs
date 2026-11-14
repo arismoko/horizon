@@ -348,9 +348,7 @@ fn uuid(id: u128) -> String {
 fn whitelist_on(dir: &Path) -> bool {
     std::fs::read(dir.join(config::PROPERTIES))
         .ok()
-        .and_then(|b| {
-            horizon_platform::server_files::java_properties::Properties::load_file(&b).ok()
-        })
+        .and_then(|b| horizon_platform::java_properties::Properties::load_file(&b).ok())
         .and_then(|p| p.get("white-list").map(|v| v == "true"))
         .or_else(|| config::Config::load(dir).ok().map(|c| c.server.whitelist))
         .unwrap_or(false)

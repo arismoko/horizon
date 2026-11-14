@@ -10,6 +10,7 @@ pub trait Hooks {
     /// authoritative merged tags. No enumeration or full Host is exposed.
     #[hook(
         side = "server",
+        version = 2,
         contract = "collect",
         out = "holds",
         target = "mod_api::loot_callbacks::native_loot_condition",

@@ -895,6 +895,30 @@ impl NoBackend for PierceLevelError {
     }
 }
 
+/// Why a player's collision exclusions were not set (`EntityRef::set_collision_exclusions`,
+/// `ClientHost::set_collision_exclusions`). The boxes the player had stay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum CollisionExclusionsError {
+    /// The handle is stale, or a client has no player of its own.
+    Stale,
+    /// The entity is not a player: only players keep collision exclusions.
+    NotAPlayer,
+    /// More than 64 boxes.
+    TooMany,
+    /// A coordinate that is NaN or infinite.
+    NotFinite,
+    /// A box whose minimum is above its maximum on an axis.
+    Inverted,
+}
+
+impl NoBackend for CollisionExclusionsError {
+    fn no_backend() -> Self {
+        Self::Stale
+    }
+}
+
 /// A vanilla `AbstractMinecart`, narrowed from an entity with `host.minecart(entity)`.
 #[derive(horizon_mod_api_macros::Wire)]
 #[wire(internal_field_layouts)]
@@ -1063,6 +1087,83 @@ pub struct PlayerFood {
     pub saturation: f32,
     /// The exhaustion; the game takes a saturation or food point at 4.
     pub exhaustion: f32,
+}
+
+/// A player's game profile (authlib's `GameProfile`): the UUID, the name and the signed
+/// properties the server received at login, such as `textures` (the skin).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct GameProfile {
+    /// The player's UUID.
+    pub uuid: u128,
+    /// The player's name.
+    pub name: String,
+    /// The profile's properties in login order; empty for an offline-mode player.
+    pub properties: Vec<ProfileProperty>,
+}
+
+impl GameProfile {
+    /// A profile from its UUID, name and properties.
+    pub fn new(uuid: u128, name: String, properties: Vec<ProfileProperty>) -> Self {
+        Self {
+            uuid,
+            name,
+            properties,
+        }
+    }
+}
+
+/// One property of a [`GameProfile`] (authlib's `Property`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct ProfileProperty {
+    /// The property's name, such as `textures`.
+    pub name: String,
+    /// Its value, as the session server sent it (base64 for `textures`).
+    pub value: String,
+    /// The session server's signature, when the value is signed.
+    pub signature: Option<String>,
+}
+
+impl ProfileProperty {
+    /// A property from its name, value and optional signature.
+    pub fn new(name: String, value: String, signature: Option<String>) -> Self {
+        Self {
+            name,
+            value,
+            signature,
+        }
+    }
+}
+
+/// Why [`PlayerRef::open_mod_menu`] opened nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum OpenMenuError {
+    /// The menu type is not a content mod's (`data/<id>/horizon/menu/`).
+    NotModMenu,
+    /// The player is stale, not connected (a fake player), or their client lacks Horizon's
+    /// menu types (a vanilla client); also a host without a game.
+    PlayerUnavailable,
+    /// The extra data is past the 32 KiB a menu may carry.
+    TooLarge,
+    /// The title could not cross to the game.
+    Title(crate::text::TextFormError),
+}
+
+impl From<crate::text::TextFormError> for OpenMenuError {
+    fn from(error: crate::text::TextFormError) -> Self {
+        Self::Title(error)
+    }
+}
+
+impl NoBackend for OpenMenuError {
+    fn no_backend() -> Self {
+        Self::PlayerUnavailable
+    }
 }
 
 /// A player's experience (`Player.experienceLevel`, `experienceProgress`,
@@ -1240,4 +1341,34 @@ pub enum Sentiment {
     Negative,
     /// Changes are neutral.
     Neutral,
+}
+
+/// How a declared attribute's modifier lines read on item tooltips: NeoForge's
+/// `RangedAttribute`, `PercentageAttribute` and `BooleanAttribute`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// exhaustive: NeoForge's three display kinds, and the tooltip matches them all
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum AttributeDisplay {
+    /// Added values as numbers, multiplied ones as percentages: vanilla's.
+    #[default]
+    Ranged,
+    /// Added values as percentages too: `+0.05` reads `+5%`.
+    Percentage,
+    /// On or off: an added value above zero reads enabled, any other disabled.
+    Boolean,
+}
+
+/// How a declared attribute's tooltip lines read beyond their colour (NeoForge's
+/// `IAttributeExtension`). The default reads as vanilla's attributes do.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+// exhaustive: mods build it with `..Default::default()`, and the game reads every field
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct AttributeTooltip {
+    /// How its modifier amounts read.
+    pub display: AttributeDisplay,
+    /// The namespaced id of the attribute's base modifier (`getBaseId`): a modifier with this
+    /// id reads as the green total of the player's base value and its amount, as
+    /// `minecraft:base_attack_damage` does for attack damage. Without a player (recipe search)
+    /// it reads as a plain line.
+    pub base_modifier: Option<String>,
 }

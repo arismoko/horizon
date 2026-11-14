@@ -307,6 +307,7 @@ mod tests {
     #[test]
     #[ignore = "requires a host GPU"]
     fn a_finished_frame_s_depth_is_taken_alone_never_an_older_one() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, raw)) = test_device() else {
             return;
         };
@@ -378,6 +379,7 @@ mod tests {
     /// follows the frames instead of keeping the first ones' depth.
     #[test]
     fn the_centre_depth_follows_frames_submitted_on_the_submit_thread() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = test_device() else {
             return;
         };
@@ -428,6 +430,7 @@ mod tests {
     /// later, without the frame waiting for it.
     #[test]
     fn the_centre_depth_comes_back() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = test_device() else {
             return;
         };

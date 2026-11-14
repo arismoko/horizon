@@ -204,6 +204,8 @@ mod powder_snow_move_tests;
 
 #[derive(Clone, Debug)]
 pub struct MobType {
+    /// Resolved content renderer shadow; vanilla uses its normal table.
+    pub shadow: Option<(f32, f32)>,
     pub id: String,
     pub species: Species,
     pub width: f64,
@@ -274,18 +276,6 @@ impl MobType {
 
     pub fn layer(&self, key: &str) -> Option<&Arc<Part>> {
         self.layers.get(key)
-    }
-
-    /// The vanilla entity type whose class this type's mobs are: the type
-    /// itself, or the template a content mod's living type copies. What a
-    /// class saves and syncs of its own (`Zombie.addAdditionalSaveData`, its
-    /// entity data) follows it; the saved and sent id stays [`Self::id`].
-    pub fn class_id(&self) -> &str {
-        if self.id.starts_with("minecraft:") {
-            &self.id
-        } else {
-            species::vanilla_id(self.species)
-        }
     }
 }
 /// Each type's default attribute values, parsed exactly (serde_json's
@@ -503,6 +493,7 @@ impl MobTypes {
             out.insert(
                 id.clone(),
                 MobType {
+                    shadow: crate::shadows::content_shadow(t),
                     species: def.species,
                     item_stack_limits: item_stack_limits.clone(),
                     attribute_bounds,
@@ -1573,8 +1564,8 @@ pub struct Mob {
     /// `Stats.DAMAGE_DEALT_ABSORBED` to the player whose turn it is (see [`Mob::soak_hit`]).
     pub dealt_absorbed: i32,
     pub last_damage: Option<(Damage, i64)>,
-    /// Whether the most recent projectile damage call committed its source.
-    pub projectile_damage_committed: bool,
+    pub accepted_hit: Option<std::sync::Arc<crate::health::AcceptedHit>>,
+    pub death_canceled: bool,
     /// `DamageSource.getDirectEntity` of `last_damage` when [`Damage`] cannot name it (a
     /// thrown potion, an area effect cloud): its entity type.
     pub last_direct: Option<&'static str>,
@@ -1693,11 +1684,11 @@ pub enum MobEvent {
         mob: u32,
         at: [f64; 3],
     },
-    /// `LivingEntity.baseTick`'s drowning damage: entity event 67, the
-    /// clients' `makeDrownParticles`.
+    /// `LivingEntity.baseTick`'s drowning: entity event 67 for 8 `bubbles`, else that many particles.
     Drown {
         mob: u32,
         at: [f64; 3],
+        bubbles: i32,
     },
     /// PowderSnowBlock.entityInside's snowflake with vanilla's sampled velocity.
     PowderSnowParticle {
@@ -1820,7 +1811,7 @@ pub enum MobEvent {
     ArmorHurt {
         mob: u32,
         amount: f32,
-        kind: DamageKind,
+        source: crate::health::HurtSource<'static>,
     },
     /// `LivingEntity.updateFallFlying`: every 20 glide ticks the glider in
     /// `slot` (the one `Util.getRandom` picked) takes one point of wear,
@@ -3185,6 +3176,7 @@ pub fn apply_brain_events(
                     direct: None,
                     held: [held, None],
                     player_uuid: None,
+                    ..Default::default()
                 };
                 let (aim, fish_pos, fish_silent) = fish
                     .map(|m| {
@@ -3459,36 +3451,8 @@ pub trait ModEffectTicks {
     /// effect stays at no ticks and asks again next tick.
     fn effect_expired(&self, mob: u32, effect: usize, amplifier: i32, cancel: &mut bool);
 }
-/// Native mod hooks the mob AI asks while it decides.
-pub trait MobHooks {
-    /// `EnderManAngerEvent`: whether a mod keeps enderman `enderman` calm
-    /// though `player` stares at it.
-    fn enderman_anger_suppressed(&self, enderman: u32, player: &PlayerView) -> bool;
-    /// `EntityMobGriefingEvent`: whether mob `mob` may grief, `rule` (the
-    /// `mob_griefing` game rule) unless a mod says otherwise.
-    fn can_grief(&self, mob: u32, rule: bool) -> bool;
-    /// Whether `can_grief` may differ from the rule (a mod listens), so a
-    /// scan that griefing off would skip still has to run.
-    fn grief_hooked(&self) -> bool;
-    /// `LivingVisibilityEvent`: `visibility`, the player's visibility
-    /// percent as mob `looking` targets it, as mods scale it.
-    fn living_visibility(&self, player: &PlayerView, looking: u32, visibility: f64) -> f64;
-    /// `LivingVisibilityEvent` for a mob target `target`: its visibility
-    /// percent as mob `looking` targets it, as mods scale it.
-    fn living_visibility_mob(&self, _target: u32, _looking: u32, visibility: f64) -> f64 {
-        visibility
-    }
-    /// A proposed target change. A listener may cancel or substitute a target.
-    fn living_change_target(
-        &self,
-        _mob: &mut Mob,
-        _world: &MobWorld<'_>,
-        _is_brain: bool,
-        target: Option<Who>,
-    ) -> TargetChange {
-        TargetChange::Set(target)
-    }
-}
+mod mob_hooks;
+pub use mob_hooks::MobHooks;
 /// Outcome of a target-change event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetChange {
@@ -3791,7 +3755,8 @@ impl Mob {
             absorption: 0.0,
             dealt_absorbed: 0,
             last_damage: None,
-            projectile_damage_committed: false,
+            accepted_hit: None,
+            death_canceled: false,
             last_direct: None,
             combat: combat::Tracker::default(),
             removed: false,
@@ -4078,7 +4043,7 @@ impl Mob {
             return false;
         }
         if !self.attacker_allows_damage(&source)
-            || !ai::accepts_damage(self, &source, amount, level.attack().player_uuid)
+            || !ai::accepts_damage(self, &source, amount, level.attack())
         {
             return false;
         }
@@ -4293,10 +4258,7 @@ impl Mob {
         if !absorbed && dealt != 0.0 {
             self.record_damage(source, dealt);
         }
-        if through != 0.0 {
-            container.record_health_damage(through);
-            level.damage_post(crate::health::Hurting::Mob(self, &source), &container);
-        }
+        container.record_health_damage(through);
         // LivingEntity.hurtArmor: `Horse` is the only mob that overrides it, and
         // it hands `doHurtEquipment` the body slot alone. A wolf's armour has
         // its own rule (`Wolf.actuallyHurt`, `hurt_wolf_armor`) and a player's
@@ -4309,7 +4271,7 @@ impl Mob {
             self.outbox.push(MobEvent::ArmorHurt {
                 mob: self.id,
                 amount: damage,
-                kind: source.kind,
+                source: crate::health::mob_source(&source, level.attack()),
             });
         }
         // Animal.actuallyHurt: damage taken ends love mode (`resetLove`).
@@ -4321,9 +4283,6 @@ impl Mob {
         let success = blocked <= 0.0 || amount > 0.0;
         if success {
             self.last_damage = Some((source, i64::from(self.age)));
-            if self.projectile_motion.is_some() {
-                self.projectile_damage_committed = true;
-            }
         }
         self.last_direct = None;
         if let Some(who) = source.attacker {
@@ -4353,6 +4312,7 @@ impl Mob {
             // `death_protection` item in either hand instead of dying.
             self.use_death_protection(level, &source);
         }
+        self.remember_accepted_hit(level, &source, success);
         if knock {
             // playHurtSound (Mob: also resets the ambient sound clock) or the
             // death sound: makeSound draws the voice pitch whenever there is a sound.
@@ -4407,6 +4367,8 @@ impl Mob {
                 self.outbox.push(MobEvent::Infested { at, velocities });
             }
         }
+        // The last of `LivingEntity.hurtServer`: `LivingDamageEvent.Post`, health taken or not.
+        level.damage_post(crate::health::Hurting::Mob(self, &source), &container);
         // Shulker.hurtServer: the low-health teleport roll after `super.hurtServer`.
         if success && self.species() == Species::Shulker {
             shulker::after_hurt(self);
@@ -4998,9 +4960,10 @@ impl Mob {
             self.position.z,
         ]
     }
+    /// `Entity.playSound(event, 1.0, 1.0)`: at the feet, and nothing while silent.
     pub fn sound(&self, event: &'static str, events: &mut Vec<MobEvent>) {
-        let at = [self.position.x, self.eye_y(), self.position.z];
-        events.push(MobEvent::Sound(event, at, 1.0, 1.0));
+        let at = [self.position.x, self.position.y, self.position.z];
+        events.extend((!self.silent).then_some(MobEvent::Sound(event, at, 1.0, 1.0)));
     }
     /// `Mob.getAmbientSoundInterval`; `HappyGhast` waits six times as long
     /// while it carries a passenger.
@@ -5039,9 +5002,8 @@ impl Mob {
     }
     /// Mob.playSound with LivingEntity.getVoicePitch.
     pub fn voice(&mut self, event: &'static str, events: &mut Vec<MobEvent>) {
-        // Java evaluates the arguments of `playSound(event, getSoundVolume(),
-        // getVoicePitch())` before the call, so the pitch is drawn even for a
-        // silent entity, whose `Entity.playSound` then plays nothing.
+        // Java draws the pitch before `Entity.playSound` looks at isSilent, so a
+        // silent entity draws it and then plays nothing.
         let pitch = self.voice_pitch();
         if self.silent {
             return;
@@ -5437,6 +5399,7 @@ pub(crate) mod sensor_scan_tests {
 
     pub(crate) fn kind() -> Arc<MobType> {
         Arc::new(MobType {
+            shadow: None,
             id: "minecraft:cow".into(),
             species: Species::Cow,
             width: 0.9,

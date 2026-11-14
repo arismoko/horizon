@@ -37,6 +37,11 @@ impl Game {
         assert_eq!(self.physical_buttons.contains(&button), pressed);
         self.calls.push("post");
     }
+    fn mod_mappings_button(&mut self, button: i32, pressed: bool) {
+        assert_eq!(button, 2);
+        assert_eq!(self.physical_buttons.contains(&button), pressed);
+        self.calls.push("mappings");
+    }
     fn settle_title_mode(&mut self) {}
     fn notify_window_resize(&mut self) {}
     fn handle_window_event_inner(&mut self, _: (), _: WindowEvent) {
@@ -52,9 +57,9 @@ DISPATCH
 fn dispatch_order_and_bookkeeping() {
     for state in [ElementState::Pressed, ElementState::Released] {
         for (cancel, synthetic, early, expected) in [
-            (false, false, false, vec!["pre", "handle", "finish", "post"]),
+            (false, false, false, vec!["pre", "mappings", "handle", "finish", "post"]),
             (true, false, false, vec!["pre"]),
-            (false, false, true, vec!["pre", "handle", "post"]),
+            (false, false, true, vec!["pre", "mappings", "handle", "post"]),
             (true, true, false, vec!["handle", "finish"])] {
             let mut game = Game { physical_buttons: HashSet::from([2]), modifiers: 5,
                 synthetic, cancel, early, calls: vec![] };

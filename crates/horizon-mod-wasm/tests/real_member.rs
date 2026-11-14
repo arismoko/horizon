@@ -217,14 +217,28 @@ fn real_member() {
             );
             let mut entity =
                 mod_api::ModBlockEntity::new("wasm_fixture:counter".into(), Default::default());
-            mod_api::dispatch_block_entity_tick(&mut Quiet, [0, 64, 0], &mut entity);
+            mod_api::dispatch_block_entity_tick(
+                &mut Quiet,
+                &mut mod_api::BlockEntityTickReply::Changed,
+                [0, 64, 0],
+                &mut entity,
+            );
             assert_eq!(entity.data, [23]);
-            mod_api::__private::resolve_items(["minecraft:snowball"]).unwrap();
+            mod_api::__private::resolve_items(["minecraft:snowball", "minecraft:bow"]).unwrap();
+            lending::check_death(
+                &mut Quiet,
+                mod_api::__private::item_key("minecraft:bow").unwrap(),
+            );
             let mut launch = mod_api::ModBlockEntity::new(
                 "wasm_fixture:owner_launch".into(),
                 Default::default(),
             );
-            mod_api::dispatch_block_entity_tick(&mut Quiet, [0, 64, 0], &mut launch);
+            mod_api::dispatch_block_entity_tick(
+                &mut Quiet,
+                &mut mod_api::BlockEntityTickReply::Changed,
+                [0, 64, 0],
+                &mut launch,
+            );
             assert_eq!(
                 launch.data,
                 [2],
@@ -268,6 +282,40 @@ fn real_member() {
                     "wasm_fixture"
                 )]
             );
+            // Both standalone outputs cross the real wasm boundary, with host-owned
+            // attribution even when source/result namespaces do not match the mod.
+            {
+                use mod_api::__private::game::RegistrationContextNew;
+                let mut models = vec!["native:kept".to_owned()];
+                let mut forms = Vec::new();
+                mod_api::dispatch_standalone_models(
+                    &mod_api::RegistrationContext::new(),
+                    &mut models,
+                    &mut forms,
+                );
+                assert_eq!(models, ["native:kept", "wasm_fixture:block/plain"]);
+                assert_eq!(forms.len(), 2);
+                assert!(forms.iter().all(|entry| entry.mod_id == "wasm_fixture"));
+                assert_eq!(
+                    forms[0].answer,
+                    mod_api::StandaloneModelForm::Rotated {
+                        id: "another_namespace:east".into(),
+                        model: "dependency:block/arrow".into(),
+                        turns: [2, 1, 3],
+                        uvlock: true,
+                    }
+                );
+                assert_eq!(
+                    forms[1].answer,
+                    mod_api::StandaloneModelForm::Combined {
+                        id: "wasm_fixture:assembly".into(),
+                        parts: vec![
+                            "dependency:block/base".into(),
+                            "dependency:block/overlay".into()
+                        ],
+                    }
+                );
+            }
         });
         if !mod_points::STAGED {
             return;

@@ -5,6 +5,7 @@ use wgpu::util::DeviceExt;
 #[test]
 #[ignore = "requires a host GPU; missing adapter is a failure"]
 fn terrain_material_samplers_preserve_surface_and_encoded_bytes() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let instance = crate::gfx::test_gpu::instance();
     let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
     eprintln!("Material transport GPU: {:?}", adapter.get_info());

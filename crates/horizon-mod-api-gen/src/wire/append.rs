@@ -267,6 +267,7 @@ fn equal_cases(path: &str, cases: &[Case]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     #[test]
+    #[ignore = "daily"]
     fn append_shape_requires_public_untransformed_typed_pushes() {
         let run = || {
             let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

@@ -49,6 +49,10 @@ pub use horizon_prepare as prepare;
 #[cfg(feature = "server-files")]
 pub use horizon_server_files as server_files;
 
+/// `java.util.Properties` and the JDK's date text, for the files a server keeps in that format.
+#[cfg(feature = "server-files")]
+pub use horizon_java_properties as java_properties;
+
 /// Plugging into the game (`horizon-hooks`): implement [`hooks::Hooks`] and
 /// [`hooks::register`] it before the game starts (docs/layers.md, "How a Horizon crate plugs
 /// in"). The engine's dispatch side is not part of the API.

@@ -77,6 +77,10 @@ struct Controls {
     clicks: usize,
     click_hands: Vec<Hand>,
     use_item_packets: usize,
+    /// The click is the host's own, not the fixture guest's: skip the guest identity asserts.
+    host_click: bool,
+    /// Each `use_item` event: side, hand, `player` and `player_entity_id`.
+    item_users: Vec<(LogicalSide, Hand, u128, i32)>,
     /// How many `set_creative_mode_slot` packets the client sent.
     creative_slot_packets: usize,
     expect_empty_item_phase: bool,
@@ -156,7 +160,7 @@ impl Hooks for Observer {
         assert_eq!(side(&host), event.click.side);
         assert_eq!(event.click.pos, [0, 64, 0]);
         assert_eq!(event.click.hit.face, [0, 1, 0]);
-        if event.click.side == LogicalSide::Server {
+        if event.click.side == LogicalSide::Server && !self.0.lock().unwrap().host_click {
             assert_eq!(event.click.player, 12);
             assert_eq!(event.click.player_entity_id, 12);
         }
@@ -203,7 +207,7 @@ impl Hooks for Observer {
     fn right_click_item(&self, host: HostSide<'_>, event: &mut RightClickItemEvent<'_>) -> Flow {
         assert_eq!(side(&host), event.click.side);
         assert_eq!(event.click.pos, [0, 64, 3]);
-        if event.click.side == LogicalSide::Server {
+        if event.click.side == LogicalSide::Server && !self.0.lock().unwrap().host_click {
             assert_eq!(event.click.player, 12);
             assert_eq!(event.click.player_entity_id, 12);
         }
@@ -247,11 +251,17 @@ impl ItemPart for Observer {
         self.0.lock().unwrap().steps.push(Step::UseOnPart);
         Flow::Cancel
     }
-    fn use_item(&self, _: HostSide<'_>, event: &mut UseItemEvent<'_>) -> Option<Answer> {
+    fn use_item(&self, host: HostSide<'_>, event: &mut UseItemEvent<'_>) -> Option<Answer> {
         if let Some(hand) = self.0.lock().unwrap().expected_hand {
             assert_eq!(event.hand, hand);
         }
         let mut state = self.0.lock().unwrap();
+        state.item_users.push((
+            side(&host),
+            event.hand,
+            event.player,
+            event.player_entity_id,
+        ));
         state.steps.push(Step::ItemPart);
         if state.part_pass {
             None

@@ -945,17 +945,8 @@ pub(crate) fn marked(root: &Path) -> Result<Vec<(String, String)>, String> {
     Ok(out)
 }
 
-/// Why `target` has no replacement slot when it names a function below the game crate that the
-/// marker is absent; none for a game-crate target or a marked one.
-pub fn refusal(root: &Path, target: &str) -> Result<Option<String>, String> {
-    let target = source::plain_path(target);
-    if target.split("::").next() == Some("horizon_client")
-        || marked(root)?.iter().any(|(_, path)| *path == target)
-    {
-        return Ok(None);
-    }
-    Ok(Some("a function below the game crate takes a replacement only when it carries #[horizon_mod_api_macros::replaceable]; ask for it in an issue or pull request on the game".to_owned()))
-}
+/// The refusal of a target below the game crate without the marker.
+pub const UNMARKED: &str = "a function below the game crate takes a replacement only when it carries #[horizon_mod_api_macros::replaceable]; ask for it in an issue or pull request on the game";
 
 /// What [`stage`] did.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -966,6 +957,8 @@ pub struct Staged {
     pub files: usize,
     /// Crates given a slot array.
     pub crates: usize,
+    /// The functions given a slot, by their key in the function index.
+    pub slots: BTreeSet<String>,
 }
 
 /// The library name of the package at `package`: its `[lib]` name, or its own with underscores.
@@ -1075,6 +1068,11 @@ pub fn stage(root: &Path) -> Result<Staged, String> {
                         .is_some()
                 });
             }
+            staged.slots.extend(
+                found
+                    .iter()
+                    .map(|function| crate::functions::key(&function.target())),
+            );
             trait_methods += found
                 .iter()
                 .filter(|function| function.trait_name.is_some())
@@ -1666,6 +1664,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn trait_installers_compile_with_warnings_denied() {
         let source = "pub struct Example; pub trait GameTrait { fn value(&self) -> u32; } impl GameTrait for Example { fn value(&self) -> u32 { 7 } }";
         let file = syn::parse_file(source).unwrap();
@@ -1775,25 +1774,6 @@ mod tests {
             "{out}"
         );
         syn::parse_file(&out).unwrap();
-    }
-
-    #[test]
-    fn an_unmarked_function_below_the_game_crate_is_refused_naming_the_marker() {
-        let root = tempfile::tempdir().unwrap();
-        fs::create_dir_all(root.path().join("crates/horizon-low/src")).unwrap();
-        fs::write(
-            root.path().join("crates/horizon-low/Cargo.toml"),
-            "[package]\nname = \"horizon-low\"\n",
-        )
-        .unwrap();
-        fs::write(root.path().join("crates/horizon-low/src/lib.rs"), "struct Clock; impl Clock { #[horizon_mod_api_macros::replaceable] fn advance(&self) {} }").unwrap();
-        let refusal = |target| refusal(root.path(), target).unwrap();
-        assert_eq!(refusal("horizon_client::game::Game<'_>::tick"), None);
-        assert_eq!(refusal("horizon_low::Clock::advance"), None);
-        assert_eq!(
-            refusal("horizon_low::chunk::Chunk::get").unwrap(),
-            "a function below the game crate takes a replacement only when it carries #[horizon_mod_api_macros::replaceable]; ask for it in an issue or pull request on the game"
-        );
     }
 
     #[test]
@@ -2133,7 +2113,12 @@ mod tests {
             Staged {
                 functions: 3,
                 files: 2,
-                crates: 2
+                crates: 2,
+                slots: BTreeSet::from([
+                    "horizon_client::game::Game::native_tick".to_owned(),
+                    "horizon_client::game::free".to_owned(),
+                    "horizon_low::drawn".to_owned(),
+                ]),
             }
         );
         let lib = fs::read_to_string(root.path().join("crates/horizon-client/src/lib.rs")).unwrap();

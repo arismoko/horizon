@@ -91,6 +91,10 @@ Horizon server settings (docs/server.md). The server writes them into server.pro
 | `view_distance` | `10` | `view-distance` | chunks sent around each player |
 | `simulation_distance` | `10` | `simulation-distance` | chunks around each player where mobs, crops and redstone tick |
 | `max_view_distance` | `0` | `horizon-max-view-distance` | past view_distance, saved chunks only, up to this (never generated; 0: off) |
+| `max_viewed_loaded_chunks` | `2048` | `horizon-max-viewed-loaded-chunks` | chunks a mod may keep loaded for one player in another level (0: none; at most 2048 for now) |
+| `max_viewed_ticking_chunks` | `441` | `horizon-max-viewed-ticking-chunks` | of them, ticking (one player's simulation area at distance 10) |
+| `max_viewed_loaded_chunks_per_level` | `16384` | `horizon-max-viewed-loaded-chunks-per-level` | the same for all players together, per level |
+| `max_viewed_ticking_chunks_per_level` | `3528` | `horizon-max-viewed-ticking-chunks-per-level` | ticking, all players together, per level |
 | `admin_feedback_to_ops` | `true` | `horizon-admin-feedback-to-ops` | operators see each other's commands ([name: ...], vanilla); false: only the log |
 | `accept_older_clients` | `false` | `horizon-accept-older-clients` | true: 26.2 clients join too, their packets translated (docs/hosting.md) |
 

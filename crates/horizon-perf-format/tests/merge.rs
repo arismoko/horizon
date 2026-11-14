@@ -219,6 +219,7 @@ fn server_mark_of(padding: usize) -> Vec<u8> {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_part_that_inflates_past_the_cap_is_refused() {
     let field = server_mark_of(1 << 20);
     let mut inflated = vec![0x08, 0x01];

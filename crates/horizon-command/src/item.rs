@@ -8,6 +8,7 @@ use super::codec::{either, is_number, not_map, snbt};
 use super::packrat::{Grammar, Reason, State, Sugg, Term, Value, alt, ch, opt, seq};
 use super::{CmdResult, CommandError, Reader, SuggestionsBuilder};
 use horizon_core::nbt::{Compound, Tag};
+use horizon_world::datafix::dynamic::as_number;
 use std::rc::Rc;
 
 fn int_of(t: &Tag) -> Option<i64> {
@@ -21,9 +22,108 @@ fn int_of(t: &Tag) -> Option<i64> {
         _ => return None,
     })
 }
+/// Built-ins with an implemented shared component payload decoder.
+pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:damage",
+    "minecraft:repair_cost",
+    "minecraft:max_damage",
+    "minecraft:max_stack_size",
+    "minecraft:map_id",
+    "minecraft:rarity",
+    "minecraft:enchantments",
+    "minecraft:stored_enchantments",
+    "minecraft:enchantment_glint_override",
+    "minecraft:custom_name",
+    "minecraft:item_name",
+    "minecraft:item_model",
+    "minecraft:block_entity_data",
+    "minecraft:enchantable",
+    "minecraft:ominous_bottle_amplifier",
+    "minecraft:potion_duration_scale",
+    "minecraft:minimum_attack_charge",
+    "minecraft:dyed_color",
+];
+
+/// Validate and decode a component into the value representation shared with stacks.
+/// Registered components without a shared decoder retain their exact stored value.
+/// Registration is checked by the caller; this helper only rejects failed decodes.
+pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Result<Tag, String> {
+    if !DECODED_COMPONENTS.contains(&id) {
+        return Ok(value.clone());
+    }
+    if id == "minecraft:potion_duration_scale" {
+        return potion_duration_scale(value).map(|value| Tag::Float(value.to_bits()));
+    }
+    if id == "minecraft:item_model" {
+        return item_model(value);
+    }
+    decode_component(id, value, reg)?;
+    if id == "minecraft:block_entity_data" {
+        let Tag::Compound(_) = value else {
+            return Err(not_map(value));
+        };
+        if !matches!(value.get("id"), Some(Tag::String(_))) {
+            return Err("block entity id is not a string".into());
+        }
+    }
+    Ok(match id {
+        "minecraft:damage"
+        | "minecraft:repair_cost"
+        | "minecraft:max_damage"
+        | "minecraft:max_stack_size"
+        | "minecraft:map_id"
+        | "minecraft:ominous_bottle_amplifier" => {
+            Tag::Int(int_of(value).expect("validated numeric component") as i32)
+        }
+        "minecraft:enchantable" => {
+            let value = value.get("value").expect("validated enchantable value");
+            Tag::compound([(
+                "value",
+                Tag::Int(int_of(value).expect("validated numeric enchantable value") as i32),
+            )])
+        }
+        "minecraft:minimum_attack_charge" => Tag::Float(
+            as_number(value)
+                .expect("validated numeric component")
+                .float_value()
+                .to_bits(),
+        ),
+        "minecraft:enchantment_glint_override" => Tag::Byte(i8::from(
+            horizon_items::item_data::component_bool(value).expect("validated boolean component"),
+        )),
+        "minecraft:dyed_color" => {
+            Tag::Int(horizon_core::color::rgb_color_from_tag(value).expect("validated RGB color"))
+        }
+        "minecraft:enchantments" | "minecraft:stored_enchantments" => {
+            let Tag::Compound(entries) = value else {
+                unreachable!("validated enchantment map")
+            };
+            Tag::Compound(
+                entries
+                    .iter()
+                    .map(|(id, level)| {
+                        let id = parse_identifier(&id.to_string_lossy())
+                            .expect("validated enchantment id");
+                        (
+                            id.as_str().into(),
+                            Tag::Int(int_of(level).expect("validated level") as i32),
+                        )
+                    })
+                    .collect(),
+            )
+        }
+        _ => value.clone(),
+    })
+}
+
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
+        // MapId.CODEC is Codec.INT, without a non-negative constraint.
+        "minecraft:map_id" => int_of(t).map(|_| ()).ok_or_else(|| "Not a number".into()),
+        "minecraft:dyed_color" => horizon_core::color::rgb_color_from_tag(t)
+            .map(|_| ())
+            .ok_or_else(|| "Expected a number or a list of three numeric RGB channels".into()),
         "minecraft:damage" | "minecraft:repair_cost" => {
             let v = int_of(t).ok_or("Not a number")?;
             if v < 0 {
@@ -45,6 +145,41 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             }
             Ok(())
         }
+        // Enchantable.CODEC: a record with one required positive integer.
+        "minecraft:enchantable" => {
+            let Tag::Compound(_) = t else {
+                return Err(not_map(t));
+            };
+            let value = t
+                .get("value")
+                .ok_or_else(|| format!("No key value in {}", snbt(t)))?;
+            let v = int_of(value).ok_or("Not a number")?;
+            if v <= 0 {
+                return Err(format!("Value must be positive: {v}"));
+            }
+            Ok(())
+        }
+        // The amplifier integer codec accepts only 0 through 4, without clamping.
+        "minecraft:ominous_bottle_amplifier" => {
+            let v = int_of(t).ok_or("Not a number")?;
+            if !(0..=4).contains(&v) {
+                return Err(format!("Value must be within range [0;4]: {v}"));
+            }
+            Ok(())
+        }
+        "minecraft:potion_duration_scale" => potion_duration_scale(t).map(|_| ()),
+        // DataComponents.MINIMUM_ATTACK_CHARGE / ExtraCodecs.floatRange:
+        // validate Number.floatValue with Float.compareTo, which rejects -0.0 and NaN.
+        "minecraft:minimum_attack_charge" => {
+            let value = as_number(t).ok_or("Not a number")?.float_value();
+            if value.is_sign_negative() || !(0.0..=1.0).contains(&value) {
+                return Err(format!(
+                    "Value must be within range [0.0;1.0]: {}",
+                    horizon_core::java_number::java_float(value)
+                ));
+            }
+            Ok(())
+        }
         "minecraft:rarity" => match t {
             Tag::String(s) => {
                 let s = s.to_string_lossy();
@@ -57,7 +192,12 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             _ => Err("Not a string".into()),
         },
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
+        // DataComponents.ENCHANTMENT_GLINT_OVERRIDE: Codec.BOOL through NbtOps.
+        "minecraft:enchantment_glint_override" => horizon_items::item_data::component_bool(t)
+            .map(|_| ())
+            .ok_or_else(|| "Not a number".into()),
         "minecraft:custom_name" | "minecraft:item_name" => super::component::decode(t),
+        "minecraft:item_model" => item_model(t).map(|_| ()),
         // TypedEntityData.codec: the type is the compound's id.
         "minecraft:block_entity_data" => match t {
             Tag::Compound(c) => match c.get(&"id".into()) {
@@ -83,6 +223,36 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         },
         _ => Ok(()),
     }
+}
+
+/// `ExtraCodecs.NON_NEGATIVE_FLOAT`: boxed `Number.floatValue`, then `Float.compareTo`.
+/// The inclusive bounds reject negative zero, NaN, and both infinities.
+fn potion_duration_scale(t: &Tag) -> Result<f32, String> {
+    let value = match t {
+        Tag::Byte(value) => f32::from(*value),
+        Tag::Short(value) => f32::from(*value),
+        Tag::Int(value) => *value as f32,
+        Tag::Long(value) => *value as f32,
+        Tag::Float(value) => f32::from_bits(*value),
+        Tag::Double(value) => f64::from_bits(*value) as f32,
+        _ => return Err("Not a number".into()),
+    };
+    if value.is_finite() && !value.is_sign_negative() {
+        Ok(value)
+    } else {
+        Err(format!("Value must be non-negative: {value}"))
+    }
+}
+/// `DataComponents.ITEM_MODEL`: `Identifier.CODEC`, without a resource lookup.
+fn item_model(value: &Tag) -> Result<Tag, String> {
+    let Tag::String(value) = value else {
+        return Err("Not a string".into());
+    };
+    let text =
+        String::from_utf16(&value.0).map_err(|_| "Not a valid resource location".to_owned())?;
+    let id = horizon_core::identifier::Identifier::parse(&text)
+        .map_err(|error| format!("Not a valid resource location: {text} {error}"))?;
+    Ok(Tag::String(id.to_string().as_str().into()))
 }
 /// `ItemEnchantments.CODEC`: registry keys and boxed-number levels in 1..=255.
 /// `UnboundedMapCodec` reports failed entries; commands do not retain its partial map.
@@ -672,6 +842,55 @@ mod tests {
     use super::decode_component;
 
     #[test]
+    fn decoded_component_values_use_codec_numbers_and_retain_stored_values() {
+        use super::{Registries, Tag, decoded_component_value};
+        let registry = Registries::default();
+        assert_eq!(
+            decoded_component_value(
+                "minecraft:damage",
+                &Tag::Double(5.0f64.to_bits()),
+                &registry
+            )
+            .unwrap(),
+            Tag::Int(5)
+        );
+        assert_eq!(
+            decoded_component_value(
+                "minecraft:repair_cost",
+                &Tag::Float(2.0f32.to_bits()),
+                &registry
+            )
+            .unwrap(),
+            Tag::Int(2)
+        );
+        assert!(
+            decoded_component_value(
+                "minecraft:damage",
+                &Tag::String("not a number".into()),
+                &registry
+            )
+            .is_err()
+        );
+        assert_eq!(
+            decoded_component_value(
+                "minecraft:unbreakable",
+                &Tag::compound([] as [(&str, Tag); 0]),
+                &registry
+            )
+            .unwrap(),
+            Tag::compound([] as [(&str, Tag); 0])
+        );
+        assert!(
+            decoded_component_value(
+                "minecraft:block_entity_data",
+                &Tag::String("invalid".into()),
+                &registry
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn enchantment_maps_validate_entries_against_the_supplied_registry() {
         use super::{Reader, Registries, parse_predicate, parse_stack};
         use crate::args::RegistryIds;
@@ -759,6 +978,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn block_entity_data_takes_a_type_a_mod_declared() {
         // The declared types are frozen once per process: install them in a fresh one.
         const CHILD: &str = "HORIZON_TEST_DECLARED_BLOCK_ENTITY_DATA";
@@ -766,6 +986,7 @@ mod tests {
             assert!(
                 std::process::Command::new(std::env::current_exe().unwrap())
                     .args([
+                        "--include-ignored",
                         "--exact",
                         "item::tests::block_entity_data_takes_a_type_a_mod_declared",
                         "--nocapture"

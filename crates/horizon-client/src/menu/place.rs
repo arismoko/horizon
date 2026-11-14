@@ -115,6 +115,9 @@ impl Stacked {
         result
     }
     /// `tryPick` (`canCraft(recipe, amount, output)`).
+    /// When `output` is `None` this is a non-destructive check: `self` is not
+    /// mutated. When `output` is `Some`, the matched items are deducted from
+    /// `self` and recorded in `output`.
     pub fn try_pick(
         &mut self,
         ingredients: &[&Ingredient],

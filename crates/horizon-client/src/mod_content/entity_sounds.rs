@@ -33,6 +33,14 @@ pub(super) fn mod_entity_row(
         let raw = to_raw_value(&t.passenger_attachments).map_err(fail)?;
         fields.insert("passenger_attachments".into(), raw);
     }
+    for (key, value) in [
+        ("shadow_radius", t.shadow_radius),
+        ("shadow_strength", t.shadow_strength),
+    ] {
+        if let Some(value) = value {
+            fields.insert(key.into(), to_raw_value(&value).map_err(fail)?);
+        }
+    }
     fields.insert("template".into(), to_raw_value(&t.template).map_err(fail)?);
     if t.sounds != Default::default() {
         fields.insert("sounds".into(), to_raw_value(&t.sounds).map_err(fail)?);

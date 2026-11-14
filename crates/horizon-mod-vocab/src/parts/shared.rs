@@ -79,6 +79,16 @@ pub struct Parts {
     /// Block capability providers by capability name, then by block, in registration order:
     /// those asked of a block whatever block entity it has, or none.
     pub(crate) block_capabilities: Capabilities<BlockProviderOf>,
+    /// Canonical block capability metadata, retained independently of provider availability.
+    pub(crate) block_capability_metadata: HashMap<&'static str, (Arc<str>, Option<bool>)>,
+    /// Built-in declaration order followed by the order mods first mention a capability.
+    pub(crate) block_capability_order: Vec<&'static str>,
+    /// Explicit domains and declarations of the game's default providers.
+    pub(crate) default_block_containers: HashMap<Box<str>, Vec<(usize, crate::ModContainer)>>,
+    pub(crate) default_block_fluids: HashMap<Box<str>, Vec<(usize, crate::ModFluidTanks)>>,
+    pub(crate) default_block_energy: HashMap<Box<str>, Vec<(usize, crate::ModEnergyBuffer)>>,
+    pub(crate) default_item_containers:
+        HashMap<Box<str>, Vec<(usize, Arc<dyn crate::ItemContainerProvider>)>>,
     /// Item capability providers by capability name, then by item, in registration order.
     pub(crate) item_capabilities: Capabilities<ItemProviderOf>,
     /// Entity capability providers by capability name, then by entity type, in registration

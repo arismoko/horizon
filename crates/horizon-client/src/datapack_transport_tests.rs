@@ -32,6 +32,7 @@ fn snapshot(generation: u64, text: String) -> DatapackSnapshot {
 }
 
 #[test]
+#[ignore = "daily"]
 fn incompressible_large_registry_snapshot_fits_each_frame_and_activates_only_when_complete() {
     // The real receiver is process-wide, as is a real client's connection. Keep this
     // fixture away from parallel Session tests that legitimately clear that receiver.
@@ -39,7 +40,7 @@ fn incompressible_large_registry_snapshot_fits_each_frame_and_activates_only_whe
         let full_name = std::any::type_name_of_val(&incompressible_large_registry_snapshot_fits_each_frame_and_activates_only_when_complete);
         let name = full_name.split_once("::").unwrap().1;
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", name, "--nocapture"])
+            .args(["--include-ignored", "--exact", name, "--nocapture"])
             .env("HORIZON_REGISTRY_TRANSPORT_CHILD", "1")
             .output()
             .unwrap();

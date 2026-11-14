@@ -15,31 +15,37 @@ enum Change {
 
 #[test]
 fn replacing_only_world_colour_at_the_same_size_reads_the_new_view() {
+    let _gpu = crate::gfx::test_gpu::lock();
     replacement(Change::Colour, true);
 }
 
 #[test]
 fn replacing_only_world_depth_at_the_same_size_reads_the_new_view() {
+    let _gpu = crate::gfx::test_gpu::lock();
     replacement(Change::Depth, true);
 }
 
 #[test]
 fn replacing_both_world_views_at_the_same_size_matches_fresh_bindings() {
+    let _gpu = crate::gfx::test_gpu::lock();
     replacement(Change::Both, true);
 }
 
 #[test]
 fn retained_world_views_read_updated_contents() {
+    let _gpu = crate::gfx::test_gpu::lock();
     replacement(Change::Contents, true);
 }
 
 #[test]
 fn resized_world_views_match_fresh_bindings() {
+    let _gpu = crate::gfx::test_gpu::lock();
     replacement(Change::Resize, true);
 }
 
 #[test]
 fn a_pack_without_final_reads_the_replaced_world_colour() {
+    let _gpu = crate::gfx::test_gpu::lock();
     replacement(Change::Colour, false);
 }
 
@@ -48,6 +54,7 @@ fn a_pack_without_final_reads_the_replaced_world_colour() {
 /// its pixel by `gl_FragCoord` (as Photon's does) covers every pixel, not a quarter of them.
 #[test]
 fn a_scaled_picture_fills_the_whole_window() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let instance = crate::gfx::test_gpu::instance();
     let Ok(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
         return;

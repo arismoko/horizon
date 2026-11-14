@@ -39,6 +39,9 @@ pub struct GamePoint {
     pub return_ty: String,
     /// Whether its API listeners run at the return: not when the value returned borrows.
     pub at_return: bool,
+    /// [`mod_surface::contract_hash`] of everything above but the name: equal hashes on
+    /// two builds, the same point for a mod's `[[inject]]` row.
+    pub signature_hash: String,
     #[serde(skip)]
     record_item: String,
     /// Its typed function constructors, place ids and dispatch functions
@@ -65,6 +68,7 @@ impl GamePoint {
     pub(crate) fn new(shape: point_shape::Shape, found: &Found<'_>, target: String) -> Self {
         let api = shape.api_items(&target);
         GamePoint {
+            signature_hash: String::new(),
             record_item: if shape.api() {
                 shape.record_item(&target).to_string()
             } else {
@@ -107,6 +111,23 @@ impl GamePoint {
             },
             name: shape.name,
         }
+        .hashed()
+    }
+
+    /// The point with its [`GamePoint::signature_hash`] filled in.
+    fn hashed(mut self) -> Self {
+        self.signature_hash = mod_surface::contract_hash(&(
+            &self.target,
+            self.side,
+            self.host,
+            &self.record,
+            &self.args,
+            self.returns,
+            &self.return_ty,
+            self.at_return,
+            &self.api_refusal,
+        ));
+        self
     }
 }
 
@@ -1106,6 +1127,33 @@ mod tests {
     }
 
     #[test]
+    fn a_points_signature_hash_follows_its_signature_not_its_name() {
+        let point = |name: &str, ty: &str| {
+            GamePoint {
+                api_refusal: None,
+                name: name.into(),
+                target: "game::tick".into(),
+                side: "server",
+                host: "server",
+                record: "TickRecord".into(),
+                args: vec![("count".into(), ty.into())],
+                returns: "cancel",
+                return_ty: "()".into(),
+                at_return: false,
+                signature_hash: String::new(),
+                record_item: String::new(),
+                api: Default::default(),
+            }
+            .hashed()
+            .signature_hash
+        };
+        let base = point("tick", "u32");
+        assert_eq!(base.len(), 32);
+        assert_eq!(point("renamed", "u32"), base);
+        assert_ne!(point("tick", "u64"), base);
+    }
+
+    #[test]
     fn selected_guest_exports_keep_the_full_layout() {
         let make = |name: &str| {
             let sig: syn::Signature = syn::parse_str(&format!("fn {name}()")).unwrap();
@@ -1122,6 +1170,7 @@ mod tests {
                 returns: "cancel",
                 return_ty: "()".into(),
                 at_return: true,
+                signature_hash: String::new(),
                 record_item: shape.record_item(name).to_string(),
                 api: [
                     api.listeners.to_string(),
@@ -1160,6 +1209,7 @@ mod tests {
     /// The census: how many points have an API record, and why the others refuse.
     /// `POINT_INVENTORY=path` writes every point's name, target and refusal.
     #[test]
+    #[ignore = "daily"]
     fn point_inventory() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let points = game_points(&root).unwrap();
@@ -1196,6 +1246,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn no_wire_public_values_refuse_before_point_record_emission() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let wire = crate::build::wire_types(&root).unwrap();

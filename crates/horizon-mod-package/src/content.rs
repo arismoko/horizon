@@ -725,10 +725,13 @@ pub const DYE_COLORS: [&str; 16] = [
 /// the vanilla entity types a mod's type may copy: thrown item
 /// projectiles (`ThrowableItemProjectile`), then living mobs
 /// ([`LIVING_TEMPLATES`]).
-pub const ENTITY_TEMPLATES: [&str; 4] = [
+pub const ENTITY_TEMPLATES: [&str; 7] = [
     "minecraft:snowball",
+    "minecraft:cat",
+    "minecraft:parrot",
     "minecraft:villager",
     "minecraft:wandering_trader",
+    "minecraft:wolf",
     "minecraft:zombie",
 ];
 
@@ -737,10 +740,14 @@ pub const ENTITY_TEMPLATES: [&str; 4] = [
 /// ...)`), with its own default attributes (`EntityAttributeCreationEvent`).
 /// The wandering trader is the neutral one whose behaviour is all goals,
 /// which a native mod can replace (`register_goals`); a villager's is its
-/// brain.
-pub const LIVING_TEMPLATES: [&str; 3] = [
+/// brain. The cat, the parrot and the wolf are the tameable ones
+/// (`TamableAnimal`): a type copying one tames, sits and follows its owner.
+pub const LIVING_TEMPLATES: [&str; 6] = [
+    "minecraft:cat",
+    "minecraft:parrot",
     "minecraft:villager",
     "minecraft:wandering_trader",
+    "minecraft:wolf",
     "minecraft:zombie",
 ];
 
@@ -2573,6 +2580,19 @@ capabilities = ["registries"]
                 "data/ruby/horizon/entity_type/merchant.json",
                 br#"{"template": "minecraft:wandering_trader"}"#,
             ),
+            // The tameable ones (#4031).
+            (
+                "data/ruby/horizon/entity_type/hound.json",
+                br#"{"template": "minecraft:wolf", "attributes": {"minecraft:max_health": 20}}"#,
+            ),
+            (
+                "data/ruby/horizon/entity_type/macaw.json",
+                br#"{"template": "minecraft:parrot"}"#,
+            ),
+            (
+                "data/ruby/horizon/entity_type/tabby.json",
+                br#"{"template": "minecraft:cat"}"#,
+            ),
         ];
         let content = hmod("living", MANIFEST_TEXT, files).unwrap();
         let types: Vec<_> = content
@@ -2601,8 +2621,16 @@ capabilities = ["registries"]
                         ("minecraft:movement_speed", 0.3)
                     ]
                 ),
+                (
+                    "ruby:hound",
+                    "minecraft:wolf",
+                    true,
+                    vec![("minecraft:max_health", 20.0)]
+                ),
+                ("ruby:macaw", "minecraft:parrot", true, vec![]),
                 ("ruby:merchant", "minecraft:wandering_trader", true, vec![]),
                 ("ruby:settler", "minecraft:villager", true, vec![]),
+                ("ruby:tabby", "minecraft:cat", true, vec![]),
             ]
         );
         let zombie = |rest: &str| format!(r#"{{"template": "minecraft:zombie"{rest}}}"#);

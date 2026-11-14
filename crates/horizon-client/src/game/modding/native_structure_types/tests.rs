@@ -736,3 +736,179 @@ fn compiled_book_piece_resolves_on_worker_load_and_refuses_bad_saved_values() {
     .join()
     .unwrap();
 }
+
+/// Exercise the actual terrain consumer with generated and saved mod pieces.
+#[test]
+fn piece_beardifier_shapes_terrain_and_is_resolved_once() {
+    use horizon_core::density::{DensitySampler, SamplerContext, TerrainAdjustment as Engine};
+    use horizon_world::worldgen::structure::start::{
+        Piece, StructureRegistry, StructureStart, beardifier,
+    };
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct TerrainType(Arc<AtomicUsize>);
+    #[derive(Debug)]
+    struct TerrainPiece {
+        mode: i32,
+        calls: Arc<AtomicUsize>,
+    }
+    impl StructurePiece for TerrainPiece {
+        fn bounding_box(&self) -> BoundingBox {
+            let x = self.mode * 40;
+            BoundingBox::new([x, 64, 0], [x + 8, 73, 8])
+        }
+        fn beardifier(&self) -> Option<mod_api::PieceBeardifier> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            match self.mode {
+                0 => Some(mod_api::PieceBeardifier::new(
+                    BoundingBox::new([0, 67, 0], [8, 73, 8]),
+                    mod_api::TerrainAdjustment::BeardThin,
+                    2,
+                )),
+                1 => None,
+                _ => Some(mod_api::PieceBeardifier::new(
+                    self.bounding_box(),
+                    mod_api::TerrainAdjustment::None,
+                    0,
+                )),
+            }
+        }
+        fn post_process(&self, _: &mut dyn PieceContext) -> Result<(), StructureError> {
+            Ok(())
+        }
+        fn add_additional_save_data(&self, tag: &mut Compound) {
+            tag.insert("Mode".into(), Tag::Int(self.mode));
+        }
+    }
+    impl StructureType for TerrainType {
+        fn find_generation_point(&self, _: &mut dyn GenerationContext) -> Option<FoundStructure> {
+            Some(FoundStructure {
+                position: [0, 64, 0],
+                pieces: (0..3)
+                    .map(|mode| {
+                        Arc::new(TerrainPiece {
+                            mode,
+                            calls: self.0.clone(),
+                        }) as Arc<dyn StructurePiece>
+                    })
+                    .collect(),
+            })
+        }
+        fn load_piece(
+            &self,
+            _: &dyn BlockMetadata,
+            tag: &Compound,
+        ) -> Result<Arc<dyn StructurePiece>, StructureError> {
+            let Some(Tag::Int(mode)) = tag.get(&"Mode".into()) else {
+                return Err(StructureError("missing fixture mode".into()));
+            };
+            Ok(Arc::new(TerrainPiece {
+                mode: *mode,
+                calls: self.0.clone(),
+            }))
+        }
+    }
+    let calls = Arc::new(AtomicUsize::new(0));
+    let adapter = Adapter::new("probe:terrain", Arc::new(TerrainType(calls.clone())));
+    let resources = test_resources();
+    let (_, generated) = adapter
+        .find_generation_point(
+            &mut StubContext,
+            resources,
+            ChunkPos::new(0, 0),
+            &Arc::new(Tag::Compound(Compound::new())),
+            &mut WorldgenRandom::new(LegacyRandom::new(0)),
+        )
+        .unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    let loaded: Vec<_> = generated
+        .iter()
+        .map(|piece| {
+            adapter
+                .load_piece(resources.registry, &piece.save().unwrap())
+                .unwrap()
+        })
+        .collect();
+    assert_eq!(calls.load(Ordering::SeqCst), 6);
+    let mut registry = StructureRegistry::new(
+        &BTreeMap::from([(
+            "probe:terrain".into(),
+            serde_json::json!({"type":"probe:terrain", "biomes":[],
+                "terrain_adaptation":"none"})
+            .to_string(),
+        )]),
+        &BTreeMap::new(),
+        BTreeMap::new(),
+        &|_| Ok(BTreeSet::new()),
+        &BTreeMap::new(),
+    )
+    .unwrap();
+    for pieces in [generated, loaded] {
+        let start = Arc::new(StructureStart::new(
+            0,
+            &registry.structures[0],
+            ChunkPos::new(0, 0),
+            pieces.into_iter().map(Piece::Legacy).collect(),
+        ));
+        assert!(start.bounding_box.is_inside([-12, 69, 0]));
+        for default in [Engine::None, Engine::Bury] {
+            registry.structures[0].terrain = default;
+            for _ in 0..2 {
+                let density =
+                    beardifier(&registry, std::slice::from_ref(&start), ChunkPos::new(0, 0))
+                        .unwrap();
+                let sample = |position| {
+                    density
+                        .sample_value(&mut SamplerContext::default(), position)
+                        .unwrap()
+                };
+                // Vanilla Beardifier: dy = y - (67 + 2), kernel exp(-r²/16),
+                // -dyOffset / sqrt(r²/2) / 2 * kernel * .8. Allow the
+                // vanilla fast inverse-square-root approximation, not a second
+                // call to Horizon's density helpers.
+                for y in [64, 68, 69, 73] {
+                    let offset = f64::from(y - 69) + 0.5;
+                    let expected = -offset / (offset * offset / 2.0).sqrt() / 2.0
+                        * (-offset * offset / 16.0).exp()
+                        * 0.8;
+                    assert!((f64::from(sample([4, y, 4])) - expected).abs() < 0.002);
+                }
+                assert_eq!(sample([4, 81, 4]), 0.0);
+                let second =
+                    beardifier(&registry, std::slice::from_ref(&start), ChunkPos::new(2, 0));
+                let second = second.map_or(0.0, |d| {
+                    d.sample_value(&mut SamplerContext::default(), [44, 64, 4])
+                        .unwrap()
+                });
+                assert_eq!(second, if default == Engine::None { 0.0 } else { 1.0 });
+                assert!(
+                    beardifier(&registry, std::slice::from_ref(&start), ChunkPos::new(5, 0))
+                        .is_none()
+                );
+            }
+        }
+        registry.structures[0].terrain = Engine::None;
+    }
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        6,
+        "terrain chunks must use cached answers"
+    );
+}
+
+#[test]
+fn unordered_beardifier_bounds_add_no_terrain_adjustment() {
+    let unordered = mod_api::PieceBeardifier::new(
+        BoundingBox::new([1, 0, 0], [0, 0, 0]),
+        mod_api::TerrainAdjustment::BeardThin,
+        0,
+    );
+    assert!(engine_beardifier(unordered).is_none());
+    let ordered = mod_api::PieceBeardifier::new(
+        BoundingBox::new([0, 0, 0], [1, 1, 1]),
+        mod_api::TerrainAdjustment::BeardThin,
+        2,
+    );
+    assert_eq!(engine_beardifier(ordered).unwrap().ground_level_delta, 2);
+}

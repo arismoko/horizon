@@ -13,6 +13,7 @@ use std::{
 
 fn kind(eye_height: f64) -> Arc<MobType> {
     Arc::new(MobType {
+        shadow: None,
         id: "minecraft:zombie_villager".into(),
         species: Species::ZombieVillager,
         width: 0.6,

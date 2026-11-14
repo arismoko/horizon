@@ -42,7 +42,7 @@ jobs:
             lint-workspace-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.hash }}-
       - name: Restore unchanged source timestamps
         if: steps.lint-cache.outputs.cache-hit != 'true'
-        run: python3 tools/ci/source_mtimes.py target/ci-source-mtimes.json
+        run: python3 tools/ci/source_mtimes.py target/ci-source-mtimes-v2.json
       # The same commands as dyna-ci.yml's lint, so the artifacts match. A lint failure still leaves reusable
       # artifacts, so the snapshot is saved either way.
       - name: Build the lint graphs

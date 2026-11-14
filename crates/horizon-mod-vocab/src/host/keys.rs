@@ -6,6 +6,19 @@ use crate::*;
 #[horizon_mod_api_macros::host_area]
 pub trait KeysHost {
     /// Side: both.
+    /// The key of the block named `id`, for a name that only arrives at run time (data, config,
+    /// a command, a network message). `id` is the full registry name, `minecraft:stone` or
+    /// `mymod:machine`. None for a name the registry does not hold, and before the registry is
+    /// complete (during registration, use `Registrar::block_key`). Does not allocate.
+    #[access(Metadata)]
+    fn block_key(&self, id: &str) -> Option<BlockKey>;
+    /// Side: both.
+    /// The key of the effect named `id`: the full registry name, `minecraft:speed` or
+    /// `mymod:rage`. None for a name the registry does not hold, and before the registry is
+    /// complete (during registration, use `Registrar::effect_key`). Does not allocate.
+    #[access(Metadata)]
+    fn effect_key(&self, id: &str) -> Option<EffectKey>;
+    /// Side: both.
     /// Every block key in the registry's registration order: vanilla's first, then
     /// mod blocks in the order they registered. A block registry lists a name once
     /// per state; this yields it once. Empty before the block table completes.
@@ -70,19 +83,6 @@ pub trait KeysBackend {
     /// invalid slot is a boundary error, including when a wasm guest supplies it.
     #[access(Metadata)]
     fn fluid_key_id(&self, key: FluidKey) -> String;
-    /// Side: both.
-    /// The key of the block named `id`, for a name that only arrives at run time (data, config,
-    /// a command, a network message). `id` is the full registry name, `minecraft:stone` or
-    /// `mymod:machine`. None for a name the registry does not hold, and before the registry is
-    /// complete (during registration, use `Registrar::block_key`). Does not allocate.
-    #[access(Metadata)]
-    fn block_key(&self, id: &str) -> Option<BlockKey>;
-    /// Side: both.
-    /// The key of the effect named `id`: the full registry name, `minecraft:speed` or
-    /// `mymod:rage`. None for a name the registry does not hold, and before the registry is
-    /// complete (during registration, use `Registrar::effect_key`). Does not allocate.
-    #[access(Metadata)]
-    fn effect_key(&self, id: &str) -> Option<EffectKey>;
     /// Side: both.
     /// The canonical block entity type id retained by the load-owned slot.
     #[access(WorldOnly)]

@@ -56,12 +56,13 @@ impl ServerAdvancements {
         let tree = Tree::shared(&resources.join("data"), overlay);
         let kids = tree.children();
         let layout = tree.layout();
+        let displays = RecipeIndex::from_serialized(&recipes);
         Self {
             tree,
             kids,
             layout,
             recipes,
-            displays: RecipeIndex::load(resources, overlay),
+            displays,
             groups,
         }
     }
@@ -414,7 +415,7 @@ impl ServerAdvancements {
         if let Some(d) = &a.display {
             w.nbt(&json_to_nbt(&d.title));
             w.nbt(&json_to_nbt(&d.description));
-            w.varint(sync.id("minecraft:item", &d.icon).unwrap_or(0));
+            w.varint(sync.id("minecraft:item", &d.icon.item).unwrap_or(0));
             w.varint(1);
             w.varint(0);
             w.varint(0);
@@ -996,6 +997,14 @@ mod tests {
         for (id, json) in recipes {
             std::fs::write(dir.join(format!("{id}.json")), json).unwrap();
         }
+        // The recipes name `#minecraft:dyes`; an ingredient whose tag is missing is no recipe.
+        let tags = root.join("data/minecraft/tags/item");
+        std::fs::create_dir_all(&tags).unwrap();
+        std::fs::write(
+            tags.join("dyes.json"),
+            r#"{"values":["minecraft:redstone"]}"#,
+        )
+        .unwrap();
         root
     }
 
@@ -1028,7 +1037,7 @@ mod tests {
             id: "test:tick".into(),
             parent: None,
             display: Some(Display {
-                icon: "minecraft:air".into(),
+                icon: crate::items::ItemStack::new("minecraft:air", 1),
                 title: serde_json::json!("Title"),
                 description: serde_json::json!("Description"),
                 frame: Frame::Task,
@@ -1055,6 +1064,12 @@ mod tests {
         sync.advancements.kids = tree.children();
         sync.advancements.layout = tree.layout();
         sync.advancements.tree = std::sync::Arc::new(tree);
+        // A reward names a recipe the server knows: an unknown id is never added to the book.
+        sync.advancements.displays =
+            crate::recipe_book::RecipeIndex::from_serialized(&BTreeMap::from([(
+                "test:reward".to_owned(),
+                r#"{"type":"minecraft:crafting_shapeless"}"#.into(),
+            )]));
         let advancement = &sync.advancements;
         let mut progress = Progress::default();
         let mut book = Settings::default();

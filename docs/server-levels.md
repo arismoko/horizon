@@ -13,6 +13,7 @@ dimensions at the same time.
 - [Saving](#saving)
 - [What's checked](#whats-checked)
 - [A data pack's levels](#a-data-packs-levels)
+- [Viewed levels](#viewed-levels)
 - [Not done yet](#not-done-yet)
 
 ## How the single-level `Game` maps onto vanilla's levels
@@ -106,9 +107,33 @@ client takes the level's build height from it. The generator reads the stem as i
 level's, so only `minecraft:noise` generators and those a native mod registered work. The sky and
 the fog are the Overworld's.
 
+## Viewed levels
+
+A viewed level is a level besides its own that a player's client keeps, so that the server can send it
+that level's chunks and updates: what Immersive Portals needs to show other dimensions through its
+portals. The spec is #3716. Built so far: the channel, the client's capability answer, the client's worlds, the server's areas and their entities, the travel into a viewed level, and the levels' sounds (#3983).
+
+| Side | Where | What it does |
+|---|---|---|
+| Both | `horizon-protocol/src/viewed_levels.rs` | The codec of `horizon:levels`, an engine channel mods cannot register (`is_reserved_channel`). Configuration: the query and the answer. Play, clientbound only: `open`, `run` (packets of one level, each of a level-scoped kind, or from revision 3 a sound) and `close`; below revision 3 a sound is a protocol error. |
+| Server | `lan/viewed_levels/capability.rs`, called from `lan/conn.rs` | Asks a client whose brand is Horizon's, in configuration, how many other levels it can view, and keeps the answer, its revision and level count, in `PlayerSender::viewed_levels`. The server asks with revision 3 and serves revisions 1 to 3; no answer, or another revision, is 0 levels. Revision 2 adds the travel into a viewed level (`switch.rs`), revision 3 the levels' sounds (`sounds.rs`), which a client of revision 1 or 2 is not sent. A second answer, or one it did not ask for, closes the connection. |
+| Client | `viewed_levels_net.rs`, called from `net.rs` | Answers the query before acknowledging `FinishConfiguration`, with revision 3: 2 levels, the other two of vanilla's three dimensions. |
+| Client | `game/network/viewed_worlds/` | On `open`, a world for the level, built from the dimension type the server synced for it. A `run`'s packets change that world: its chunks, light, biomes, blocks, time (an update with no clocks moves its clock on by the game time since, at its rate), weather and entities (`entities.rs`, apart from the player's own). `close` drops it. An `open` past the client's 2, a `run` or `close` of a level not open, a new column past 2048 in one world (the server's default `Loaded` cap per player and level), a new entity past 8192 (`viewed_levels::MAX_ENTITIES`) or an entity's effect or attribute past 256 closes the connection. A travel's Respawn (keep 3) into one of them swaps it with the player's world (`switch.rs`): its columns, light and block entities become the player's, the player's world becomes the viewed world of the level left, and no loading screen starts. A Login, any other Respawn (a death's, an End exit's) or a new configuration drops them all. The player's own level (`host.level`) is never one of them, and nothing is drawn yet. |
+| Server | `lan/viewed_levels/{areas,view,send}.rs` | A mod's areas for one player (`Hub::set_viewed_areas`), each `Loaded` or `Ticking`, within the caps (`max_viewed_*`, [hosting](hosting.md)), with centres at most 1,875,000 chunks (the world border's limit) from (0, 0). A client that can view the level is sent `open`, its chunks in runs inside a plain batch, its block, light and block-entity changes, block and level events, its time every 20 ticks, its clocks when they jump or change rate (`time set`, `time add`, `advance_time`) and its weather; chunks no area covers are forgotten 52 ticks later, then `close`. A view holds at most 2048 columns, fixed for this protocol revision (#3894 tracks sending the cap in `open`). |
+| Server | `game/modding/native_chunk_areas.rs` | The mod API, `PlayerRef::set_chunk_areas` ([book](modding/src/how-to/entities/chunk-areas.md)): each mod's areas, kept apart by its id, through `Hub::set_viewed_areas`, whose refusals come back typed with their values. The same on native and wasm mods. |
+
+| Server | `ticket_levels.rs` (`Sources::viewed`), `game/network/lan/viewed_areas.rs` | The areas' own tickets and `Streaming.extra` squares, never forced chunks or mod chunk tickets. A `Ticking` area puts its level in the tick list, for its chunks only. |
+| Server | `game/world/view_pass.rs` | A level that only `Loaded` areas name is not ticked: after the ticked levels a view pass streams it and sends it, and nothing in it ticks. |
+| Server | `lan/viewed_levels/entities.rs` | A viewing client is one more viewer of the level's tracking pass, with its view's own tracker: it tracks an entity whose chunk it was sent while an area holds it within the entity's tracking range (Immersive Portals' `distance * 16 + 8 <= range`, from the area's centre), at most 8192, and gets its packets wrapped, the entity events too. Bundle delimiters, minecart track steps and projectile power are not level-scoped and are not sent. A `Loaded` area's entities are sent and stand still. No mod hears of them. |
+| Server | `lan/viewed_levels/switch.rs`, called from `Hub::change_level` | A travel into a level the player's client views swaps the two, for a client that answered revision 2: that view's sent chunks are the player's own, and its own sent chunks become the view of the level left, lingering 52 ticks unless an area covers them. Nothing is sent again but both levels' entities. No marker: both sides decide from the views they share. A revision-1 client's travel, any other travel, and `Hub::respawn` drop every view; the areas open them again. |
+| Server | `lan/viewed_levels/sounds.rs`, called from `Hub::sound`, `Hub::captured_sound` and the mods' level sounds | A sound at a position goes wrapped, besides its plain broadcast, to each client of revision 3 that views its level, holds its chunk and has an area there whose centre chunk is within the sound's broadcast distance plus 16 blocks of it (the Chebyshev distance between the chunks, times 16). With no such client nothing is built. A sound bound to an entity goes, by the same rule, only to a view that tracks the entity. `/playsound` keeps its own path. |
+| Client | `game/network/viewed_worlds/sounds.rs` | A wrapped sound asks the client-only `viewed_level_sound` hook, which says where in the player's level it plays (`play_at`) and with which volume and pitch; with no listener it is dropped after one check. |
+
+An area is not a player: it stays out of `Guest::placed_in` and `Guest::watches_level`, so spawning,
+sleeping, raids, spawners and the dragon fight count real players only. A vanilla client is never asked,
+and an older Horizon client ignores the query, so both view none and are sent nothing.
+
 ## Not done yet
 
 - **Entities through portals between levels.** Mobs, items and minecarts that enter a portal on a
   server, and portal tickets (`TeleportTransition.PLACE_PORTAL_TICKET`), are not handled.
-- **Unlimited selectors.** `@e` without a distance or volume reads only the source's level. Vanilla's
-  reads every level.

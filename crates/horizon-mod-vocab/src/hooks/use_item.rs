@@ -43,13 +43,25 @@ pub trait Hooks {
     /// `hand` is the interaction hand of THIS click, including an instantaneous
     /// air use. Unlike this field, `living_used_item_hand` answers only during
     /// active item use. This is `PlayerInteractEvent.RightClickItem.getHand`.
+    /// `player` is the clicking player's UUID and `player_entity_id` that
+    /// player's entity id on this logical side: the acting player's on a server
+    /// (a guest's own, never the host's), this client's own player on a client.
+    /// They name who clicked from the event alone, unlike `players().acting_player()`,
+    /// which only answers while the host has set the acting player.
     #[hook(
         side = "both",
+        version = 2,
         contract = "replace",
         out = "result",
         scope = "item",
         key = "stack",
         neoforge = "PlayerInteractEvent.RightClickItem"
     )]
-    fn use_item(stack: &ItemStack, hand: Hand, result: &mut Option<InteractionResult>);
+    fn use_item(
+        stack: &ItemStack,
+        hand: Hand,
+        player: u128,
+        player_entity_id: i32,
+        result: &mut Option<InteractionResult>,
+    );
 }

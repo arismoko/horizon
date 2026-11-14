@@ -72,7 +72,24 @@ pub fn main() -> Result<()> {
         root.to_path_buf(),
     ))?;
     let collision = collisions::load(root, assets.registry)?;
+    let defaults = horizon_world::item_defaults::read(root)?;
+    let items = horizon_client::items::Items::tags_only(
+        root,
+        &horizon_world::loot::PackOverlay::NONE,
+        &defaults,
+    )?;
     let tables = AnimateTables::load(root, assets.registry)?;
+    let enchant_power = horizon_client::animate_tick::EnchantPower::default();
+    enchant_power.rebuild(
+        assets.registry.len(),
+        |state| items.default_enchant_power(&facts.get(state).name),
+        |state| {
+            items.block_in_tag(
+                "minecraft:enchantment_power_transmitter",
+                &facts.get(state).name,
+            )
+        },
+    );
     let mut world = World::new(facts.air, 0);
     let barrier = assets
         .registry
@@ -147,6 +164,7 @@ pub fn main() -> Result<()> {
                 jitter.then(|| column_offset(x, z))
             };
             let ctx = AnimateContext {
+                enchant_power: &enchant_power,
                 world,
                 facts: &facts,
                 collision: &collision,
@@ -196,6 +214,7 @@ pub fn main() -> Result<()> {
         if kind == "campfire" || kind == "make" {
             let seed = case["seed"].as_i64().ok_or("seed")?;
             let ctx = AnimateContext {
+                enchant_power: &enchant_power,
                 world: &world,
                 facts: &facts,
                 collision: &collision,
@@ -267,6 +286,7 @@ pub fn main() -> Result<()> {
             ParticleOptions::block(ParticleType::BlockMarker, "item/barrier".into(), 0xFFFFFF);
         let options = |_| Some(options.clone());
         let ctx = AnimateContext {
+            enchant_power: &enchant_power,
             world: &world,
             facts: &facts,
             collision: &collision,

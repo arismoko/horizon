@@ -98,22 +98,8 @@ pub(super) fn rewrite_dependencies(
         for (key, dep) in deps.iter_mut() {
             let get = |field| dep.get(field).and_then(toml::Value::as_str);
             let package = get("package").unwrap_or(key);
-            if api::PACKAGES.iter().any(|(name, _)| *name == package) {
-                if get("git") != Some(horizon_addresses::NATIVE_MOD_SDK_SOURCE)
-                    || get("rev") != Some(bundle.native().horizon.as_str())
-                    || [
-                        "branch",
-                        "tag",
-                        "path",
-                        "registry",
-                        "registry-index",
-                        "workspace",
-                    ]
-                    .iter()
-                    .any(|key| dep.get(*key).is_some())
-                {
-                    return Err(format!("{key}: SDK dependency must name the exact pinned Horizon repository and revision"));
-                }
+            if let Some(&(name, _)) = api::PACKAGES.iter().find(|(name, _)| *name == package) {
+                api::sdk_source(key, name, dep)?;
                 sdk.push(key.clone());
                 continue;
             }
@@ -179,11 +165,11 @@ mod tests {
             "registry_fixture",
             "compile_error!(\"must never compile\");",
         );
-        fs::write(root.join("Cargo.toml"), format!("[package]\nname='fixture'\nversion='0.1.0'\n[dependencies]\nhorizon-mod-api={{ git='https://github.com/arismoko/horizon', rev='{}' }}\nitoa='1'\n", "a".repeat(40))).unwrap();
+        fs::write(root.join("Cargo.toml"), "[package]\nname='fixture'\nversion='0.1.0'\n[dependencies]\nhorizon-mod-api={ path='.horizon/sdk/api/crates/horizon-mod-api' }\nitoa='1'\n").unwrap();
         super::super::bundle_in(root).unwrap().unwrap()
     }
     #[test]
-    fn starter_sdk_is_removed_only_at_the_exact_pin_and_sources_are_inert() {
+    fn the_sdk_is_removed_only_in_its_path_form_and_sources_are_inert() {
         let input = tempfile::tempdir().unwrap();
         let output = tempfile::tempdir().unwrap();
         let bundle = fixture(input.path());
@@ -196,20 +182,31 @@ mod tests {
         assert!(!output.path().join("build.rs").exists());
         assert!(!output.path().join("src").exists());
         assert_eq!(fs::read(input.path().join("Cargo.toml")).unwrap(), before);
-        for replacement in [
-            "https://example.invalid/horizon",
-            "https://github.com/arismoko/horizon.git",
+        let original = String::from_utf8(before).unwrap();
+        for (form, refusal) in [
+            (
+                format!(
+                    "{{ git='https://github.com/arismoko/horizon', rev='{}' }}",
+                    "a".repeat(40)
+                ),
+                "E_SDK_SOURCE: horizon-mod-api: the SDK is no longer named by git",
+            ),
+            (
+                "'0.1'".to_owned(),
+                "E_SDK_SOURCE: horizon-mod-api: a version names no source",
+            ),
+            (
+                "{ path='../horizon/crates/horizon-mod-api' }".to_owned(),
+                "E_SDK_SOURCE: horizon-mod-api: the path must be \".horizon/sdk/api/crates/horizon-mod-api\"",
+            ),
         ] {
             fs::write(
                 input.path().join("Cargo.toml"),
-                String::from_utf8(before.clone())
-                    .unwrap()
-                    .replace("https://github.com/arismoko/horizon", replacement),
+                original.replace("{ path='.horizon/sdk/api/crates/horizon-mod-api' }", &form),
             )
             .unwrap();
-            assert!(stage(&bundle, output.path())
-                .unwrap_err()
-                .contains("exact pinned"));
+            let error = stage(&bundle, output.path()).unwrap_err();
+            assert!(error.starts_with(refusal), "{error}");
         }
     }
     #[test]

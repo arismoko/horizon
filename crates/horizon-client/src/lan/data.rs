@@ -50,6 +50,26 @@ pub const SYNCHRONIZED: &[&str] = &[
     "minecraft:block_transformer",
     "minecraft:worldgen/block_state_provider",
 ];
+
+/// Append validated load declarations after vanilla, preserving its numeric IDs.
+/// Both the LAN server and a client's prepared built-ins use this same ordering.
+pub fn with_custom_stats(mut builtin: Builtin) -> Builtin {
+    let custom = mod_api::__private::custom_stat_declarations();
+    if !custom.is_empty() {
+        let ids = builtin
+            .registries
+            .entry("minecraft:custom_stat".into())
+            .or_default();
+        let mut names = std::mem::take(&mut ids.names);
+        for id in custom {
+            if !names.contains(id) {
+                names.push(id.clone());
+            }
+        }
+        *ids = horizon_protocol::registry::Ids::from_names(names);
+    }
+    builtin
+}
 pub const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
 /// The table a client plays a server with: `known`, the biomes of the
 /// server's biome registry that it lacks built from their data, and the ones
@@ -136,6 +156,8 @@ pub struct SyncData {
     /// ClientboundUpdateRecipesPacket's payload.
     pub recipes: Vec<u8>,
     pub advancements: super::advancements::ServerAdvancements,
+    /// The registry ids of the particle types effects show, looked up once (`effect_meta`).
+    effect_particle_ids: std::sync::Mutex<super::effect_meta::ParticleTypeIds>,
 }
 
 use crate::crafting::qualified;
@@ -264,6 +286,7 @@ impl SyncData {
     /// No registries, tags or recipes: enough for tests of the login phase.
     pub fn empty() -> Self {
         Self {
+            effect_particle_ids: Default::default(),
             builtin: Builtin::default(),
             dynamic: Dynamic::default(),
             registries: Vec::new(),
@@ -390,9 +413,11 @@ impl SyncData {
             horizon_world::json_folder::read(&resources.join("data/minecraft/recipe"))
         });
         let registries_step = startup::step("sync.registries");
-        let builtin = Builtin::find(resources)
-            .and_then(|p| Builtin::load(&p).ok())
-            .ok_or("registries.json not found next to the resources")?;
+        let builtin = with_custom_stats(
+            Builtin::find(resources)
+                .and_then(|p| Builtin::load(&p).ok())
+                .ok_or("registries.json not found next to the resources")?,
+        );
         let root: PathBuf = resources.join("data/minecraft");
         let mut registries = Vec::new();
         let mut dynamic = Dynamic {
@@ -555,7 +580,7 @@ impl SyncData {
         Self::merge_damage_tags(&mut tags, resources, overlay, &builtin, &dynamic)?;
         drop(tags_step);
         let content_identity = if resources.join(crate::content_identity::MARKER).exists()
-            || horizon_protocol::item::custom::entries().next().is_some()
+            || crate::content_identity::requires_horizon()
         {
             Some(
                 startup::time("sync.content_identity", || {
@@ -567,6 +592,7 @@ impl SyncData {
             None
         };
         let mut sync = Self {
+            effect_particle_ids: Default::default(),
             content_identity,
             builtin,
             dynamic,
@@ -582,7 +608,8 @@ impl SyncData {
                 None => {
                     let (recipes, groups) = startup::time("sync.network_recipes", || {
                         super::recipes::network_recipes(resources, overlay, defaults, sources)
-                    });
+                    })
+                    .map_err(|error| error.to_string())?;
                     startup::time("sync.advancements", || {
                         super::advancements::ServerAdvancements::load(
                             resources, overlay, recipes, groups,
@@ -634,30 +661,21 @@ impl SyncData {
         &self,
         effects: impl IntoIterator<Item = (&'a str, bool)>,
     ) -> Vec<(u8, i32, entity_data::Value)> {
+        let mut ids = self
+            .effect_particle_ids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let mut particles = Vec::new();
         let mut all_ambient = true;
         for (effect, ambient) in effects {
             let effect = effect.trim_start_matches("minecraft:");
-            // MobEffect.particleFactory: the omens have their own particles,
-            // the others an entity effect in their colour (faint if ambient).
-            let (name, data) = match effect {
-                "trial_omen" | "raid_omen" => (effect, None),
-                _ => {
-                    let Some(def) = crate::brewing::effect(effect) else {
-                        continue;
-                    };
-                    let alpha = if ambient { 38 } else { 255 };
-                    let argb = (alpha << 24) | def.shown_color() as i32;
-                    (
-                        "entity_effect",
-                        Some(entity_data::ParticleData::Color(argb)),
-                    )
-                }
-            };
-            let Some(id) = self.id("minecraft:particle_type", &format!("minecraft:{name}")) else {
+            let particle = super::effect_meta::particle_of(effect, ambient, |name| {
+                ids.get_or_insert_with(name, || self.id("minecraft:particle_type", name))
+            });
+            let Some(particle) = particle else {
                 continue;
             };
-            particles.push(entity_data::Particle { id, data });
+            particles.push(particle);
             all_ambient &= ambient;
         }
         if particles.is_empty() {

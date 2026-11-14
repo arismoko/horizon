@@ -448,6 +448,19 @@ impl<T: Clone + Send + Sync + 'static> AttachmentType<T> {
         }
         Ok(Some(value))
     }
+    /// Read the decoded value through `read` without cloning it: what a read of one part of a
+    /// large value costs. A saved value that has not decoded yet is not decoded, so `read` sees
+    /// none where `get_existing` would decode one.
+    pub fn with_decoded<S: AttachmentStore + ?Sized, R>(
+        &self,
+        store: &mut S,
+        holder: Holder,
+        read: impl FnOnce(Option<&T>) -> R,
+    ) -> Result<R, AttachmentError> {
+        self.validate_policy()?;
+        let value = store.decoded(holder, self.namespace, self.name)?;
+        Ok(read(value.as_ref().and_then(|v| v.downcast_ref::<T>())))
+    }
     /// Replace a value on an existing holder. A key already decoded as a different type is
     /// rejected.
     pub fn set<S: AttachmentStore + ?Sized>(

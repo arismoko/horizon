@@ -239,7 +239,9 @@ mod tests {
     /// the swapchain, with no validation error (the copy used to need the
     /// swapchain's missing `COPY_SRC`), and the swapchain shows the frame.
     #[test]
+    #[ignore = "daily"]
     fn screenshot_of_a_surface_without_copy_src() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             return;
         };
@@ -292,7 +294,9 @@ mod tests {
     /// A surface that can be copied from, or a frame nobody reads back,
     /// draws straight into the swapchain image.
     #[test]
+    #[ignore = "daily"]
     fn frames_draw_straight_to_a_readable_surface() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, _)) = device() else {
             return;
         };
@@ -341,7 +345,9 @@ mod tests {
     /// `Rgba16Unorm`, the frame HDR output draws into where the device can
     /// (`Renderer::frame_format`).
     #[test]
+    #[ignore = "daily"]
     fn a_16_bit_unorm_frame_reaches_an_8_bit_swapchain() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let instance = crate::gfx::test_gpu::instance();
         let Ok(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
             return;
@@ -372,7 +378,9 @@ mod tests {
     /// `HORIZON_HDR_FRAME=float` (`Renderer::frame_format`): what is left over 1 is clipped on
     /// the way.
     #[test]
+    #[ignore = "daily"]
     fn a_float_frame_reaches_an_8_bit_swapchain() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let instance = crate::gfx::test_gpu::instance();
         let Ok(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
             return;
@@ -395,7 +403,9 @@ mod tests {
     /// itself, which `present` then leaves alone, or, for a screenshot of an image that can't
     /// be copied from, on a texture of its own that the screenshot reads and `present` draws.
     #[test]
+    #[ignore = "daily"]
     fn a_float_frame_finishes_on_8_bits_before_the_overlays() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             return;
         };

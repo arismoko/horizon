@@ -34,6 +34,38 @@ pub trait PlayersClientHost {
     /// clamped to -4..4; a spectator, or a value that is not a number, is left alone.
     #[access(WorldOnly)]
     fn push_player(&mut self, kick: [f32; 3]);
+    /// Side: client.
+    /// For a client mod: the local player's collision exclusions, the client half of
+    /// `EntityRef::set_collision_exclusions`, with the same boxes, rules and refusals (a client
+    /// with no player of its own answers `Stale`). The client moves its player itself, so a mod
+    /// sets the same boxes on both sides: the engine sends neither set to the other.
+    #[access(WorldOnly)]
+    fn set_collision_exclusions(
+        &mut self,
+        boxes: &[[f64; 6]],
+    ) -> Result<(), CollisionExclusionsError>;
+    /// Moves the window's player through `passage` (#3775), one its server told it of, as
+    /// Immersive Portals' client does: its feet, where it was a tick ago (so the frames
+    /// between two ticks do not jump), its velocity and its look come out at the far side,
+    /// turned with the passage, and the server is told the passage and where the feet were.
+    /// Nothing else of the player changes: on ground, fall distance, sprinting, what it
+    /// uses. The server checks the move to there as any move, then answers with a position
+    /// packet that changes nothing (all relative and zero), so the player keeps its velocity;
+    /// as any position packet does, it stops mining (a passage crossed while mining aborts
+    /// the dig). A refused crossing puts the player back where the server has it
+    /// ([`Self::last_passage_refusal`] says why). One crossing at a time: the next waits
+    /// for the server's answer. Refused, with nothing moved or sent, when not connected to
+    /// a server, with no player, while riding, for a passage the window does not hold, when
+    /// the feet are more than 20 blocks from the opening, and when a mod's
+    /// `client_packet_send` cancels the crossing's payload.
+    #[access(WorldOnly)]
+    fn cross_passage(&mut self, passage: PassageId) -> Result<(), PassageCrossError>;
+    /// Side: client.
+    /// The server's refusal of the window's last crossing ([`Self::cross_passage`]) and the
+    /// passage it named, until the next crossing; None when it was not refused or no answer
+    /// came yet.
+    #[access(WorldOnly)]
+    fn last_passage_refusal(&self) -> Option<(PassageId, PassageCrossRefusal)>;
 }
 /// The handles' reads of the `players` area, implemented by the game and reached through [`Backend`].
 // hidden: a handle's backend, reached through `Backend`; mods call the handle, never this trait
@@ -105,6 +137,12 @@ pub trait PlayersBackend {
     /// unavailable player; displaced online players retain their identity.
     #[access(WorldOnly)]
     fn player_name(&self, player: PlayerRef) -> Option<String>;
+    /// Side: server.
+    /// `ServerPlayer.getGameProfile`: the UUID, name and login properties (skin
+    /// `textures` included) of a connected or acting player. An offline-mode
+    /// player has no properties. None for a stale or unavailable player.
+    #[access(WorldOnly)]
+    fn player_profile(&self, player: PlayerRef) -> Option<GameProfile>;
     /// Side: both.
     /// The level the online player is in (`ServerPlayer.level`): on an integrated
     /// server or dedicated server, the player's current dimension; on a client,
@@ -423,6 +461,20 @@ pub trait PlayersBackendMut {
         footer: &Text,
     ) -> Result<bool, TextFormError>;
     /// Side: server.
+    /// Disconnects that player with `reason`, as `/kick` does
+    /// (`ServerGamePacketListenerImpl.disconnect`): their client shows it, the log's "lost
+    /// connection" line names it, `player_kicked` hears it and a dedicated server records a
+    /// `kick` event. The connection closes when the server next polls it, so the calling hook
+    /// finishes first; works for the acting player inside their own hook, and without the
+    /// world published. False for a stale or unavailable player, a fake player, the
+    /// single-player owner (`/kick` refuses the owner) and a player whose disconnect is already
+    /// pending (a second call, also from `player_kicked`: the first reason stands).
+    /// A second disconnect on a guest already leaving is a no-op and keeps the first reason.
+    #[access(WorldOnly)]
+    /// Refuses text deeper than 512 component nodes before applying any changes.
+    fn player_disconnect(&mut self, player: PlayerRef, reason: Text)
+    -> Result<bool, TextFormError>;
+    /// Side: server.
     /// Whether that player counts for `players_sleeping_percentage`: an
     /// ignored player who isn't in bed is left out of the players the night
     /// needs asleep, as a spectator is (an away-from-keyboard mod). Kept
@@ -484,6 +536,24 @@ pub trait PlayersBackendMut {
         player: PlayerRef,
         entity: BlockEntityRef,
     ) -> Result<bool, BlockEntityError>;
+    /// Side: server.
+    /// Opens content mod menu type `menu` for a connected player from anywhere, with no
+    /// block (`ServerPlayer.openMenu(provider, extraDataWriter)`): an item's use, an entity,
+    /// a command. The menu replaces the one they had open. Its container slots show empty
+    /// and their clicks go to the mods (`native_menu_clicked`), as `open_menu`'s do. `extra`
+    /// (at most 32 KiB) is what the client's `screen_extra_data` reads, and `pos`, when
+    /// given, its `screen_pos`. The window id, or Ok(None) when a mod cancelled the open.
+    /// Errors: `NotModMenu`, `PlayerUnavailable` (stale, fake or vanilla client), `TooLarge`,
+    /// or `Title` for a title that could not cross.
+    #[access(WorldOnly)]
+    fn player_open_mod_menu(
+        &mut self,
+        player: PlayerRef,
+        menu: MenuKey,
+        title: Text,
+        extra: Vec<u8>,
+        pos: Option<[i32; 3]>,
+    ) -> Result<Option<i32>, OpenMenuError>;
     /// Side: server.
     /// Sends the player `uuid` the whole picture of map `map_id`: 128 x 128
     /// colours (`MapColor` ids times 4 plus the shade, row by row), scale 0,
@@ -697,7 +767,7 @@ pub trait PlayersBackendMut {
     fn player_remove_fake(&mut self, player: PlayerRef) -> bool;
     /// Side: server.
     /// `Player.awardStat(stat, amount)`: adds `amount`, as the game does
-    /// for its own counts, so `player_stat_award` hears it and may cancel
+    /// for its own counts, so `player_stat_award` hears it and may rewrite or cancel
     /// it, and scoreboard criteria follow. False for a player it can't
     /// reach.
     #[access(WorldOnly)]
@@ -766,6 +836,20 @@ pub trait PlayersBackendMut {
         volume: f32,
         pitch: f32,
     ) -> bool;
+    /// Side: server.
+    /// The calling mod's chunk areas for this player, in place of the ones it asked before; an
+    /// empty slice withdraws them, and other mods' areas stay. The engine keeps each area's
+    /// chunks loaded with a ticket of its own (`Loaded`, or `Ticking` as a player's simulation
+    /// ticket), generates what is missing, and sends a level besides the player's own to a client
+    /// that can view it. A chunk no area covers any more is forgotten 52 ticks later. An area
+    /// counts as no player for spawning, sleeping, raids or any other rule. Areas are never saved
+    /// and end when the player leaves. A call that breaks a limit changes nothing and names it.
+    #[access(WorldOnly)]
+    fn player_set_chunk_areas(
+        &mut self,
+        player: PlayerRef,
+        areas: &[ChunkArea],
+    ) -> Result<(), ChunkAreaRefusal>;
     /// Side: both.
     /// Simulate one client movement tick for this server player without changing the player. Refuses stale, absent, dead, spectator or riding players and invalid input.
     #[access(WorldOnly)]

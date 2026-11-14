@@ -1,6 +1,6 @@
 use super::*;
 
-fn fixture() -> (BlockRegistry, Biomes) {
+pub(super) fn fixture() -> (BlockRegistry, Biomes) {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let root = std::env::temp_dir().join(format!(
         "horizon-opened-loot-{}-{}",
@@ -423,4 +423,47 @@ fn generated_structure_chest_stays_pending_after_save_and_reload() {
     drop(reopened);
     drop(save);
     fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn a_loot_table_that_is_not_an_identifier_is_dropped_with_its_seed() {
+    // RandomizableContainer.tryLoadLootTable reads LootTable with the identifier codec: a string
+    // that does not parse leaves no table, and with no table the seed is not saved either.
+    let (registry, biomes) = fixture();
+    let pos = (1, 64, 2);
+    let mut chunk = Chunk::empty(0, 0);
+    chunk.set(pos.0, pos.1, pos.2, 1);
+    chunk
+        .block_entities
+        .push((pos, crate::containers::BlockEntity::Chest(vec![None; 27])));
+    let mut encoded = encode(&chunk, &registry, &biomes);
+    let Tag::Compound(root) = &mut encoded.tag else {
+        panic!("chunk root");
+    };
+    let Some(Tag::List(entities)) = root.get_mut(&"block_entities".into()) else {
+        panic!("no block entities");
+    };
+    let Tag::Compound(chest) = &mut entities[0] else {
+        panic!("chest");
+    };
+    chest.insert("LootTable".into(), string("Bad Name!"));
+    chest.insert("LootTableSeed".into(), Tag::Long(73));
+    let loaded = decode(&encoded, &registry, &biomes).unwrap();
+    assert!(
+        loaded
+            .saved
+            .as_ref()
+            .is_none_or(|extras| extras.pending_loot.is_empty())
+    );
+    let saved = encode(&loaded, &registry, &biomes);
+    let Some(Tag::List(entities)) = saved.tag.get("block_entities") else {
+        panic!("no block entities");
+    };
+    assert_eq!(
+        (
+            entities[0].get("LootTable"),
+            entities[0].get("LootTableSeed")
+        ),
+        (None, None)
+    );
 }

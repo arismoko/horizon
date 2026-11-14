@@ -138,7 +138,7 @@ impl Game<'_> {
             "spear" => DamageKind::Spear,
             "mob_attack" | "mob_attack_no_aggro" => DamageKind::MobAttack,
             "arrow" => DamageKind::Arrow,
-            "thrown" | "trident" | "mob_projectile" => DamageKind::Thrown,
+            "thrown" | "mob_projectile" => DamageKind::Thrown,
             "fireball" | "unattributed_fireball" => DamageKind::Fireball,
             "wither_skull" => DamageKind::WitherSkull,
             "explosion" | "player_explosion" | "bad_respawn_point" => DamageKind::Explosion,
@@ -243,11 +243,40 @@ impl Game<'_> {
             return false;
         }
         let attacker = cause.or(by).and_then(|t| self.network_entity_id(t));
-        let mut attack = self.attack_of(attacker.unwrap_or(0));
-        attack.direct = Some(by.and_then(|t| self.network_entity_id(t)).unwrap_or(0));
+        let attack = self.command_attack(attacker.unwrap_or(0), by);
         self.with_attack(attack, |g| {
             g.hurt_target_from_source(target, amount, ty, by, cause, from)
         })
+    }
+
+    /// `DamageCommand.damage`: an explicit direct entity keeps its actual class and weapon.
+    fn command_attack(
+        &self,
+        attacker: i32,
+        direct: Option<Target>,
+    ) -> horizon_client::health::Attack {
+        let mut attack = self.attack_of(attacker);
+        attack.direct = Some(
+            direct
+                .and_then(|target| self.network_entity_id(target))
+                .unwrap_or(0),
+        );
+        match direct {
+            Some(Target::Projectile(id)) => {
+                if let Some(shot) = self.creatures.projectiles.iter().find(|shot| shot.id == id) {
+                    Self::set_projectile_attack(&mut attack, shot);
+                }
+            }
+            Some(Target::Trident(id)) => {
+                if let Some(shot) = self.tridents.iter().find(|shot| shot.id == id) {
+                    attack.projectile = Some(id as i32);
+                    attack.projectile_is_arrow = true;
+                    Self::set_projectile_weapon(&mut attack, Some(&shot.stack));
+                }
+            }
+            _ => {}
+        }
+        attack
     }
 
     fn hurt_target_from_source(
@@ -263,7 +292,7 @@ impl Game<'_> {
             // The causing mob is the one the hit is credited to and thorns
             // answer; the source position gives the knockback its direction.
             Target::Player | Target::Guest(_) => {
-                // `DamageSource(type, cause, by)`: the death message names the
+                // `DamageSource(type, by, cause)`: the death message names the
                 // causing entity, else the direct one. A mob is noted by
                 // `hurt_player_from`, a player here.
                 let named = match cause.or(by) {
@@ -443,15 +472,14 @@ impl Game<'_> {
     /// `Zombie.hurtServer`'s reinforcement requests before the command returns.
     /// Health-changing hits also raise their damage vibration before return.
     fn command_damage_mob(&mut self, id: u32, amount: f32, damage: Damage) -> bool {
-        let mut attack = self.attack_of_who(damage.attacker);
-        attack.direct = self.combat.attack().direct;
+        let attack = self.combat.attack();
         let mut reinforcements = Vec::new();
         let mut health_changed = false;
         let hurt = self.mobs.iter_mut().find(|m| m.id == id).is_some_and(|m| {
             let queued = m.outbox.len();
             let old_health = m.health;
             let hurt = m.damage(
-                crate::game::entity::damage_level_of!(self, &attack),
+                crate::game::entity::damage_level_of!(self, attack),
                 amount,
                 damage,
             );
@@ -2194,6 +2222,7 @@ mod allay_owner_damage_tests {
     use horizon_core::geometry::Vec3;
 
     #[test]
+    #[ignore = "daily"]
     fn allay_owner_adapters_compare_the_actual_player_uuid() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../.local/horizon-client")
@@ -2239,7 +2268,9 @@ mod allay_owner_damage_tests {
                     let accepted = if melee {
                         game.hurt_by_player(0, 2.0, source)
                     } else {
-                        game.command_damage_mob(1, 2.0, source)
+                        // The command entry point lends its resolved attacker to the damage path.
+                        let attack = game.attack_of_who(source.attacker);
+                        game.with_attack(attack, |g| g.command_damage_mob(1, 2.0, source))
                     };
                     let expected = liked != Some(actual);
                     assert_eq!(accepted, expected, "melee={melee}, liked={liked:?}");

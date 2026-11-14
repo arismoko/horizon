@@ -440,7 +440,8 @@ pub fn load(dir: &Path, revision: &str) -> Result<Vec<ListedInternal>, String> {
         .map_err(|e| format!("{}: {e}", path.display()))?
     {
         let text = crate::bounded::read(&path, crate::bounded::MAX_CATALOG)?;
-        return serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()));
+        return horizon_mod_package::internals::parse(&text)
+            .map_err(|e| format!("{}: {e}", path.display()));
     }
     let host = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => "x86_64-unknown-linux-gnu",
@@ -641,8 +642,10 @@ mod tests {
 
     #[test]
     fn tools_and_launcher_share_the_freshness_check() {
-        let entries: Vec<ListedInternal> =
-            serde_json::from_str(include_str!("../tests/fixtures/internals-new.json")).unwrap();
+        let entries: Vec<ListedInternal> = horizon_mod_package::internals::parse(include_str!(
+            "../tests/fixtures/internals-new.json"
+        ))
+        .unwrap();
         let mut declared = horizon_mod_package::manifest::Internal {
             path: "horizon_client::game::Game<'_>::reach".into(),
             kind: None,

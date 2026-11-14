@@ -319,6 +319,7 @@ impl StartupMenu {
         match event.physical_key {
             PhysicalKey::Code(KeyCode::Escape) => title.escape(),
             PhysicalKey::Code(KeyCode::F5) => title.refresh_servers(),
+            PhysicalKey::Code(key) if title.page_missing_mods(key, viewport) => {}
             PhysicalKey::Code(KeyCode::Tab) => {
                 title.tab_dir(self.modifiers.shift_key(), viewport);
             }
@@ -919,6 +920,16 @@ impl Loading {
     /// pointer sits on the focus; a step past a list's visible rows doesn't
     /// scroll it here). Whether the key was used.
     fn menu_key_focus(&mut self, event_loop: &dyn EventLoopCtl, key: KeyCode) -> bool {
+        // This safety prompt owns its default and spatial navigation in Title.
+        if !self.menu.options_open
+            && self
+                .menu
+                .title
+                .as_ref()
+                .is_some_and(|t| matches!(t.mode, horizon_client::title::Mode::MissingMods { .. }))
+        {
+            return false;
+        }
         let Some(nav) = key_focus::nav_of(key, self.menu.modifiers.shift_key()) else {
             return false;
         };
@@ -1341,7 +1352,9 @@ impl Loading {
         let screen = self.menu.key_screen();
         if super::pad_menu::another_screen_is_front(&mut self.menu.focus_screen, screen) {
             self.menu.options.clear_click_focus();
-            if let Some(title) = self.menu.title.as_mut() {
+            if let Some(title) = self.menu.title.as_mut()
+                && !matches!(title.mode, horizon_client::title::Mode::MissingMods { .. })
+            {
                 title.focused_button = None;
             }
         }

@@ -993,7 +993,7 @@ fn mod_namespace_loaded(namespace: &str) -> bool {
 
 /// Whether a kind is a namespaced non-`minecraft` one — the shape a
 /// quarantined (missing-mod) record's kind has.
-fn quarantined_kind(kind: &str) -> bool {
+pub(in crate::game) fn quarantined_kind(kind: &str) -> bool {
     kind.split_once(':')
         .is_some_and(|(namespace, _)| namespace != "minecraft")
 }

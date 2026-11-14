@@ -11,6 +11,10 @@ macro_rules! arc_handler {
         impl Wire for Arc<$handler> {
             const LAYOUT_SEED: u64 = crate::wire::layout_name(concat!("Arc<dyn ", $name, ">"));
             const MIN: usize = 8;
+            fn layout(_: &mut Vec<&'static str>) -> u64 {
+                crate::wire::reached_resource();
+                Self::LAYOUT_SEED
+            }
             fn put(&self, out: &mut Writer) {
                 out.put_resource(Box::new(self.clone()));
             }
@@ -26,6 +30,10 @@ macro_rules! handler {
         impl Wire for Box<$handler> {
             const LAYOUT_SEED: u64 = crate::wire::layout_name(concat!("Box<dyn ", $name, ">"));
             const MIN: usize = 8;
+            fn layout(_: &mut Vec<&'static str>) -> u64 {
+                crate::wire::reached_resource();
+                Self::LAYOUT_SEED
+            }
             fn put(&self, out: &mut Writer) {
                 out.fail(WireError::Invalid("boxed handler needs owned encoding"));
             }

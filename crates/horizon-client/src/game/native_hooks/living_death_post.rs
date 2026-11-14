@@ -209,8 +209,8 @@ mod tests {
                 assert_eq!(*heard.lock().unwrap(), ["death"]);
                 assert_eq!(
                     game.mobs.last().unwrap().health,
-                    1.0,
-                    "the cancelled death left it alive"
+                    0.0,
+                    "cancellation alone does not heal the body"
                 );
             });
         });

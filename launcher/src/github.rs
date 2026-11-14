@@ -19,7 +19,7 @@ use sha2::Digest;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const API: &str = "https://api.github.com";
+pub(crate) const API: &str = "https://api.github.com";
 /// Kira's read-only mirror of Horizon's release reads. `HORIZON_GITHUB_MIRROR` replaces it (an
 /// empty value turns it off).
 pub const MIRROR: &str = "https://mcp.playhorizon.dev/github/public";

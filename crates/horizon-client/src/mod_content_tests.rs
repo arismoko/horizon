@@ -2870,10 +2870,10 @@ fn conditional_tag_layers_replace_only_when_server_inventory_accepts_them() {
             )
         })
         .collect();
-    let inventory = |side: Option<horizon_mod_package::Side>| {
+    let inventory = |side: Option<mod_api::Side>| {
         horizon_mod_package::enabled::EnabledMods::new(
             mods.iter()
-                .map(|m| (m.id.clone(), horizon_mod_package::Side::Both))
+                .map(|m| (m.id.clone(), mod_api::Side::Both))
                 .chain(side.map(|side| ("code_only".into(), side))),
         )
     };
@@ -2891,7 +2891,7 @@ fn conditional_tag_layers_replace_only_when_server_inventory_accepts_them() {
         Path::new(""),
         &mods,
         &cache,
-        &inventory(Some(horizon_mod_package::Side::Both)),
+        &inventory(Some(mod_api::Side::Both)),
     )
     .unwrap();
     assert_ne!(on, off, "code-only IDs invalidate the flattened tag cache");
@@ -2905,7 +2905,7 @@ fn conditional_tag_layers_replace_only_when_server_inventory_accepts_them() {
         Path::new(""),
         &mods,
         &cache,
-        &inventory(Some(horizon_mod_package::Side::Client)),
+        &inventory(Some(mod_api::Side::Client)),
     )
     .unwrap();
     assert_eq!(read(&client)["values"], read(&off)["values"]);
@@ -6816,7 +6816,7 @@ fn roots_unused_for_a_day_are_removed() {
 fn fixture_inventory(mods: &[ContentMod]) -> horizon_mod_package::enabled::EnabledMods {
     horizon_mod_package::enabled::EnabledMods::new(
         mods.iter()
-            .map(|package| (package.id.clone(), horizon_mod_package::Side::Both)),
+            .map(|package| (package.id.clone(), mod_api::Side::Both)),
     )
 }
 fn build_fixture(base: &Path, jars: &Path, mods: &[ContentMod], out: &Path) -> Result<Vec<String>> {

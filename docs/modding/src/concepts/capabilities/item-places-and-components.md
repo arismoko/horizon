@@ -11,7 +11,18 @@ Register an item's capability with
 `r.item_capability(&ITEM_ITEMS, "mymod:backpack", |host, place| Some(Box::new(Backpack)))`.
 Your provider returns a `ResourceHandler<ItemResource>` for that place. Use
 `r.item_capability_before_game` to answer ahead of the game's provider, which handles
-`item_container` slots. `place.capability(host, &ITEM_ITEMS)` queries these providers in order.
+slots declared with `r.item_container(&item, provider)`, then items carrying
+`minecraft:bundle_contents`. Bundle handlers use the shared vanilla weight rules and insert
+at slot 0, moving the inserted stack to the front. Only slot 0 can be extracted; reads expose
+all contents in front-first order. An empty bundle exposes one empty insertion slot.
+A mod can return `Some(Box::new(BundleItems::new(place.clone())))` from its own
+`ITEM_ITEMS` provider for an item carrying `minecraft:bundle_contents`. All writes exchange
+one item through the place and roll back with the caller's transaction. `place.capability(host, &ITEM_ITEMS)` queries these providers in order.
+The registered `ItemContainerProvider::slots(&dyn Host)` callback returns `Option<u32>` dynamically;
+it is not called by registration-time coverage queries. `ITEM_ITEMS` covers the declared item type
+even when that callback currently returns `None`. A closure `|host: &dyn Host| …` can be the provider.
+Declarations may target vanilla or mod items. Enabled callbacks run in registration order;
+`None` falls through to the next provider, and the first `Some` supplies the slot count.
 
 Keep the contents in the stack and use these methods to access it:
 
@@ -45,9 +56,43 @@ place's rules:
 An exchange inside a stack of two backpacks changes one backpack and splits it off. The other
 backpack keeps its contents.
 
+## Scratch stacks and wrapped places
+
+These correspond to NeoForge's other `ItemAccess` factories:
+
+- `host.scratch_stack(tx, stack)` (`forStack`) holds a stack outside the world, such as a
+  crafting result or a preview, and returns its `ItemPlace::Scratch`. Take it back with
+  `host.scratch_take(tx, &place)`. It lives until the outermost transaction closes. Aborting the
+  transaction that made it drops it, and aborting a later one puts it back as it was. As in
+  `StackItemAccess`, a write never changes its item, only its count and components: a bucket in
+  one can't become a water bucket.
+- `ItemPlace::Strict(place)` (`forHandlerIndexStrict`) refuses what a block entity's, entity's
+  or nested item's slot doesn't take, where the plain place would spread it to the other slots.
+- `ItemPlace::OneByOne(place)` (`oneByOne`) reads at most one item and extracts at most one, so a
+  handler that acts on the whole stack acts on one.
+- `ItemPlace::InfiniteMaterials { player, inner }` (`forInfiniteMaterials`) reaches `inner` as a
+  creative player does while `player` has infinite materials. Extracts give without taking.
+  Inserts are taken whole, and one item goes to the player only if they have none: into their
+  inventory, or dropped at the root commit when it is full. Inserting nothing gives nothing.
+
+Wrappers may nest to any depth in a native mod's own code. A place sent across the wasm
+boundary may nest at most 15 wrappers deep, and a deeper one is refused there.
+
+## Editing the whole stack
+
+To change components on the **whole stack**, use `place.edit(host, tx, |stack| { ... })`
+with a server host. It reads the stack, applies the closure and exchanges the entire
+count in the same transaction. Missing stacks and edits that change the item or count
+return `false` without changing the place; successful writes return `true` and a parent
+abort restores them. `stack.set` and `stack.remove` edit typed overrides; `get` then
+`set` covers `update`. `stack.apply_components(&patch)` merges values and `!id`
+removals without losing unrelated components, refusing malformed damage atomically.
+`stack.copy_component_from(&other, id)` copies an own value or removal; when `other`
+inherits that component, it clears the target's override rather than recording removal.
+
 ## Component patches
 
-Name a component with `ComponentId::new("minecraft:damage")`. This returns `None` for an invalid
+To change **one item** of a stack instead (NeoForge's `ItemResource.with` and `without`), use a resource and exchange it as below. Name a component with `ComponentId::new("minecraft:damage")`. This returns `None` for an invalid
 namespaced ID, such as `Damage` or `!minecraft:food`.
 
 | Method | Behaviour |

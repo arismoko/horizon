@@ -6,10 +6,14 @@ use super::Game;
 use horizon_client::collisions::SceneCollisions;
 use horizon_client::motion::{MotionWorld, PlayerMotion};
 use horizon_client::sprint::Keys;
-use horizon_core::geometry::{Aabb, Vec3};
-use horizon_world::block_collision_scan::BlockCollisionScan;
+use horizon_core::geometry::{Aabb, Vec3, VoxelShape};
+use horizon_core::position::{BlockPos, ChunkPos};
+use horizon_world::block_collision_scan::{
+    BlockCollisionScan, BlockCollisionWorld, CollisionBlock,
+};
 use horizon_world::collision_context::CollisionContext;
 use mod_api::{PlayerInput, SimulatedMove};
+use std::io;
 use std::ops::ControlFlow;
 
 /// The most block cells `native_collision_boxes` looks at: a box of about 100 blocks a side.
@@ -156,8 +160,9 @@ impl Game<'_> {
     /// collision shape that shares volume with the box, as world-space boxes (a stair gives two,
     /// a fence its post), under the empty collision context (no entity: scaffolding and powder
     /// snow as for nothing standing on them). Entities and the world border are not in it. For a
-    /// bot's own collision checks and pathfinding. Empty off a server, for another level than the
-    /// one in place, a box that isn't a box (not numbers, or min past max), and one over about a
+    /// bot's own collision checks and pathfinding. None as for `scan_block_collisions`: on a
+    /// server another level than the one in place, on a client a level it neither shows nor
+    /// views, a box that isn't a box (not numbers, or min past max), and one over about a
     /// million blocks. API @API:player_bots@.
     pub(super) fn level_collision_boxes(
         &self,
@@ -193,8 +198,10 @@ impl Game<'_> {
     }
 
     /// `Level.getBlockCollisions(null, aabb)`'s walk, each block's world-space boxes to `visit`
-    /// until it breaks. None for another level than the one in place, a box that isn't one,
-    /// one over `COLLISION_CELLS` and a read error.
+    /// until it breaks. None for a box that isn't one, one over `COLLISION_CELLS` and a read
+    /// error; on a server for another level than the one in place, on a client for a level
+    /// `client_view_world` doesn't name and a walk that reaches a column the client doesn't
+    /// hold (vanilla's walk passes a missing chunk as empty).
     fn scan_block_collisions(
         &self,
         level: mod_api::LevelRef,
@@ -202,13 +209,18 @@ impl Game<'_> {
         mut visit: impl FnMut(&[Aabb]) -> ControlFlow<()>,
     ) -> Option<()> {
         let bounds = aabb_of(aabb)?;
-        if !self.level_in_place(level) {
-            return None;
-        }
-        let mut scene = SceneCollisions {
-            world: &self.world,
-            binding: self.collision,
-            subject: None,
+        let (world, refuse_missing) = if self.is_logical_server() {
+            (self.level_in_place(level).then_some(&self.world)?, false)
+        } else {
+            (self.client_view_world(level)?, true)
+        };
+        let mut scene = ScanColumns {
+            scene: SceneCollisions {
+                world,
+                binding: self.collision,
+                subject: None,
+            },
+            refuse_missing,
         };
         let Ok(scan) = BlockCollisionScan::new(
             &mut scene,
@@ -228,6 +240,54 @@ impl Game<'_> {
             }
         }
         Some(())
+    }
+}
+
+/// The world a collision scan walks: a client's columns refuse the walk where one is missing,
+/// since the client cannot know what the server holds there.
+struct ScanColumns<'w, 'r> {
+    scene: SceneCollisions<'w, 'r>,
+    refuse_missing: bool,
+}
+
+impl<'w> BlockCollisionWorld for ScanColumns<'w, '_> {
+    type Error = io::Error;
+    type Chunk = &'w horizon_client::chunk::Chunk;
+    fn collision_chunk(&mut self, p: ChunkPos) -> io::Result<Option<Self::Chunk>> {
+        match self.scene.collision_chunk(p)? {
+            None if self.refuse_missing => Err(io::Error::other(
+                "collision scan reached a column the client does not hold",
+            )),
+            chunk => Ok(chunk),
+        }
+    }
+    fn collision_block(&mut self, chunk: Self::Chunk, p: BlockPos) -> io::Result<CollisionBlock> {
+        self.scene.collision_block(chunk, p)
+    }
+    fn is_suffocating(
+        &mut self,
+        chunk: Self::Chunk,
+        block: CollisionBlock,
+        p: BlockPos,
+    ) -> io::Result<bool> {
+        self.scene.is_suffocating(chunk, block, p)
+    }
+    fn context_shape(
+        &mut self,
+        block: CollisionBlock,
+        p: BlockPos,
+        context: &CollisionContext<'_>,
+    ) -> io::Result<VoxelShape> {
+        self.scene.context_shape(block, p, context)
+    }
+    fn may_reach_out(&mut self, chunk: Self::Chunk, section_y: i32) -> io::Result<bool> {
+        self.scene.may_reach_out(chunk, section_y)
+    }
+    fn section_is_empty(&mut self, chunk: Self::Chunk, section_y: i32) -> io::Result<bool> {
+        self.scene.section_is_empty(chunk, section_y)
+    }
+    fn missing_chunks_stay_missing(&self) -> bool {
+        self.scene.missing_chunks_stay_missing()
     }
 }
 

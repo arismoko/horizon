@@ -307,6 +307,7 @@ mod tests {
     /// every other cargo command runs for real.
     #[cfg(unix)]
     #[test]
+    #[ignore = "daily"]
     fn the_probe_builds_dependencies_with_their_resolved_features() {
         use std::os::unix::fs::PermissionsExt;
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(

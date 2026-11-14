@@ -3,7 +3,7 @@ use super::*;
 /// The hook points. Each does nothing in Horizon.
 impl Game<'_> {
     /// `IItemExtension.canPerformAction`: can `stack` perform the item ability
-    /// `ability` (`minecraft:shield_block`, `minecraft:shears_harvest`...)?
+    /// `ability` (`shield_block`, `shears_harvest`...)?
     /// `can_perform` arrives with vanilla's answer; the parts of the stack's
     /// item may set it. Both sides.
     #[inline(never)]

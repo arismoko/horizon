@@ -1,5 +1,6 @@
 //! Validated flat packages and launcher-owned horizon-mixins input.
 use super::{Bundle, MANIFEST};
+use horizon_mod_package::mod_surface::uses::USES_FILE;
 use horizon_mod_package::{manifest, Package};
 use std::{fs, path::Path};
 
@@ -95,8 +96,14 @@ pub(super) fn files(bundle: &Bundle) -> Result<Vec<(String, std::path::PathBuf)>
         .collect())
 }
 
+/// The package's files and its uses table, which is no source file: a copy is judged against
+/// another game build as the package was.
 pub(super) fn copy(bundle: &Bundle, to: &Path) -> Result<(), String> {
-    copy_files(to, checked_files(bundle)?)
+    let mut files = checked_files(bundle)?;
+    if let Ok(table) = fs::read(bundle.dir.join(USES_FILE)) {
+        files.insert(USES_FILE.to_owned(), table);
+    }
+    copy_files(to, files)
 }
 
 /// Only code enters the tool; runtime resource packs stay with the package.

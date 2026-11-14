@@ -621,6 +621,9 @@ mod tests {
                     honey: r.declare_fluid("honey"),
                     water: r.fluid_key("minecraft:water"),
                 };
+                // Its provider is declared only in the later cauldron-content event below.
+                // Coverage queries must not execute that future callback early.
+                assert!(!r.is_block_capability_registered(&FLUIDS, &keys.snow_cauldron));
                 record_key(&self.0, keys);
             }
             fn register_cauldron_fluid_content(

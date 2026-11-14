@@ -991,21 +991,14 @@ impl Game<'_> {
     ) {
         Self::fire_items(context, items);
     }
-    /// Models no blockstate names that this client bakes beside the block
-    /// models (NeoForge's `ModelEvent.RegisterStandalone`): push their ids
-    /// (`mymod:block/shaft_half`, the model at
-    /// `assets/mymod/models/block/shaft_half.json`). Parts a block entity or
-    /// a mob draws, with `native_draw_model`, so that no block is registered
-    /// only to bake its model. Asked once at start, before the resources
-    /// load; every resource load, a pack reload included, bakes them again
-    /// from that pack's files. A model that doesn't read is logged and left
-    /// out; an id without a namespace is dropped. Only the client asks it,
-    /// as NeoForge's ModelEvent.RegisterStandalone is a client mod-bus event.
+    /// File-backed standalone models and bake-time forms, registered before resource loading.
+    /// Every resource load rebakes them; dispatch attributes each form to its owning mod.
     pub(in crate::game) fn native_standalone_models(
         context: &mod_api::RegistrationContext,
         models: &mut Vec<String>,
+        forms: &mut Vec<mod_api::Answered<mod_api::StandaloneModelForm>>,
     ) {
-        Self::fire_standalone_models(context, models);
+        Self::fire_standalone_models(context, models, forms);
     }
     /// The player changed setting `key` of mod `mod_id` on its page in Options > Mods; the new
     /// value is kept already.
@@ -1043,10 +1036,10 @@ impl Game<'_> {
     ) {
         self.fire_enchant_effect(enchantment, kind, data, level, victim);
     }
-    /// Block `block`'s block entity has item slots (a `WorldlyContainer`):
-    /// set `container` when the block is yours. Asked once for each mod
-    /// block when the ticking table is built; at most 256 slots, and slot
-    /// numbers past the count are left out. Its `menu`, one of
+    /// Block `block`'s registered item slots (`WorldlyContainer`), read from
+    /// its per-block declaration when the ticking table is built.
+    /// At most 256 slots, with slot numbers past the count left out.
+    /// Its menu must be one of the supported menus:
     /// `containers::MOD_MENUS` or a content mod's menu type
     /// (`data/<id>/horizon/menu/`) with as many
     /// slots, opens when the block is used (its template must open a menu, as
@@ -1057,12 +1050,11 @@ impl Game<'_> {
         block: &str,
         container: &mut Option<ModContainer>,
     ) {
-        self.fire_block_entity_container(block, container);
+        *container = mod_api::__private::parts_installation::block_container(block);
     }
-    /// Block `block`'s block entity has fluid tanks: set `fluids` when the
-    /// block is yours, in the container's shape — each tank's capacity in
+    /// Block `block`'s registered fluid tanks: each tank's capacity in
     /// millibuckets, the tanks each face reaches, and the tanks a fill may
-    /// reach and a drain may take. Asked once for each mod block when the
+    /// reach and a drain may take. Read from its per-block declaration when the
     /// ticking table is built; at most 16 tanks, capacities clamped to
     /// 1..=1 000 000, and tank numbers past the count are left out. The tanks'
     /// contents are kept in the entity's saved compound, under `fluids`, and
@@ -1072,13 +1064,12 @@ impl Game<'_> {
         block: &str,
         fluids: &mut Option<ModFluidTanks>,
     ) {
-        self.fire_block_entity_fluids(block, fluids);
+        *fluids = mod_api::__private::parts_installation::block_fluids(block);
     }
-    /// Block `block`'s block entity has an energy buffer
-    /// (`Capabilities.Energy.BLOCK`): set `energy` when the block is yours,
-    /// as `SimpleEnergyHandler` is built: its capacity, the most one insert
-    /// and one extract moves, and the faces a fill may come through and a
-    /// drain may leave by. Asked once for each mod block when the ticking
+    /// Block `block`'s registered energy buffer (`Capabilities.Energy.BLOCK`):
+    /// its capacity, the most one insert and one extract moves, and the faces
+    /// a fill may come through and a drain may leave by.
+    /// Read from its per-block declaration when the ticking
     /// table is built; a capacity under 1 leaves the buffer out, and the
     /// limits are clamped to 0..=capacity. The amount is kept in the entity's
     /// saved compound, as the int `energy`, and the energy helpers below read
@@ -1088,24 +1079,7 @@ impl Game<'_> {
         block: &str,
         energy: &mut Option<ModEnergyBuffer>,
     ) {
-        self.fire_block_entity_energy(block, energy);
-    }
-    /// A server tick of the block entity at `pos`, in vanilla's order among
-    /// the others (`Level.tickBlockEntities`), when its `id` is yours: read
-    /// and change its saved compound `nbt`, its item slots `items` (keep
-    /// their count: as many as its container has, none without one) and the
-    /// data slots its menu shows (`data`). It is out of the world during the
-    /// call (the block entity at `pos` reads as a `Mod` with an empty id, and
-    /// a save leaves it out); if the call removes or replaces it, `entity` is
-    /// dropped. Clients, the window's own in single player included, get
-    /// what `native_block_entity_update_tag` gives when its chunk is sent or
-    /// its block changes.
-    pub(in crate::game) fn native_block_entity_tick(
-        &mut self,
-        pos: [i32; 3],
-        entity: &mut ModBlockEntity,
-    ) {
-        self.fire_block_entity_tick(pos, entity);
+        *energy = mod_api::__private::parts_installation::block_energy(block);
     }
     /// A consumable's effect of a mod's own kind: the item's `on_consume_effects`
     /// entry is of a type in a namespace of its own, and the loader kept it
@@ -1174,74 +1148,6 @@ impl Game<'_> {
         bounds: &mut [f32; 6],
     ) {
         self.fire_block_entity_render_bounding_box(pos, block, state, entity, bounds);
-    }
-    /// Draw the mob `mob` (its id, kind, custom name and the frame's body and head turns and walk
-    /// cycle, `LivingEntityRenderState`) on this client with a model of your own, once a frame
-    /// while it is in view (vanilla's `EntityRenderer.submit`), and set `drawn` to leave out its
-    /// vanilla model, armour and held items (NeoForge's `RenderLivingEvent.Pre`, cancelled). Add
-    /// geometry with `native_draw_cube`, `native_draw_quad`, `native_draw_block` and
-    /// `native_draw_item` under `draw`'s pose stack, which starts at the mob's feet turned with its
-    /// body: +z is the way it faces, +x its left, +y up, in blocks. `draw` also has the partial
-    /// tick, the game time and the mob's light. Its name tag, shadow, flames and glowing outline
-    /// draw as for any mob. Asked for every mob in view but players; a mob your server half spawned
-    /// (`native_spawn_mob`) is told apart by its id, sent with mod messages, or by its custom name.
-    /// A mob is drawn afresh each frame: `draw.keep()` does nothing here. `hidden.hide_named(name)`
-    /// leaves only the part of that name out of the vanilla model this frame (a villager's `nose`):
-    /// its children go with it, while its armour, held items and other layers keep every part.
-    pub(in crate::game) fn native_mob_submit(
-        &self,
-        mob: &MobRender<'_>,
-        draw: &mut BlockEntityDraw,
-        hidden: &mut HiddenParts,
-        drawn: &mut bool,
-    ) {
-        self.fire_mob_submit(mob, draw, hidden, drawn);
-    }
-    /// Whether a mod listens to `native_player_submit` or `native_mob_layer`: a
-    /// mod that hooks either hooks this one too and sets `listened` (HEAD,
-    /// `*listened = true`). Without it the game poses no player or mob for
-    /// them, each frame. Client-side.
-    pub(in crate::game) fn native_player_render_listened(&self, listened: &mut bool) {
-        self.fire_player_render_listened(listened);
-    }
-    /// Draw the player `player` (`who`: its profile name, and whether it is
-    /// this window's own player) with a model of your own, once a frame while
-    /// it is in view (`RenderPlayerEvent.Pre`), and set `drawn` to leave out its
-    /// vanilla model, armour, held items, cape and the other layers. This
-    /// window's player is drawn only in third person (and F5 front view); an
-    /// invisible player is not asked. `draw` is the frame of `native_mob_submit`:
-    /// at the player's feet, turned with the body. The name tag, shadow,
-    /// flames and glowing outline draw as before. `hidden.hide(part)` (or `hidden.hide_named(name)`) leaves only that part out of
-    /// the vanilla model this frame (after Skin Customization; its children go with it, its
-    /// armour, held items and other layers, the cape among them, keep theirs).
-    pub(in crate::game) fn native_player_submit(
-        &self,
-        player: &MobRender<'_>,
-        who: &PlayerRender<'_>,
-        draw: &mut BlockEntityDraw,
-        hidden: &mut HiddenParts,
-        drawn: &mut bool,
-    ) {
-        self.fire_player_submit(player, who, draw, hidden, drawn);
-    }
-    /// A layer on every mob and player in view, once a frame after its
-    /// vanilla model and layers (`EntityRenderersEvent.AddLayers`, with
-    /// `RenderLivingEvent.Post` and `RenderPlayerEvent.Post`): add geometry
-    /// in the entity's frame, which starts at its feet turned with the body
-    /// (`mob.head_yaw`, `mob.pitch` and the walk cycle place a part, the eyes
-    /// being at the entity type's eye height). `who` is set for a player.
-    /// `parts` is a humanoid model's parts as its draw posed them this frame (a part
-    /// `native_player_submit` hid is not visible), None for a model that isn't humanoid.
-    /// Not asked for what a mod drew itself (`native_mob_submit`,
-    /// `native_player_submit`) nor for a mob that isn't drawn at all.
-    pub(in crate::game) fn native_mob_layer(
-        &self,
-        mob: &MobRender<'_>,
-        who: Option<&PlayerRender<'_>>,
-        parts: Option<&PosedParts>,
-        draw: &mut BlockEntityDraw,
-    ) {
-        self.fire_mob_layer(mob, who, parts, draw);
     }
     /// Icons a mod puts on map `map` each time it is drawn: held, in an
     /// item frame or on the cartography table's screen (a map's pixels are
@@ -2104,14 +2010,14 @@ impl Game<'_> {
     }
     /// A statistic is about to be awarded to a server player, before its count and scoreboard criteria
     /// change. `stat_type` and `stat` are ids such as `minecraft:mined` and `minecraft:stone`, and
-    /// `value` the amount. Set `cancel` to award nothing. Server-side.
+    /// `value` the amount; all three are writable. Invalid rewrites retain the original. Set `cancel` to award nothing.
     pub(in crate::game) fn native_player_stat_award(
         &mut self,
         player: u128,
         name: &str,
-        stat_type: &str,
-        stat: &str,
-        value: i32,
+        stat_type: &mut String,
+        stat: &mut String,
+        value: &mut i32,
         cancel: &mut bool,
     ) {
         self.fire_player_stat_award(player, name, stat_type, stat, value, cancel);
@@ -3728,15 +3634,6 @@ impl Game<'_> {
     ) {
         self.fire_chunk_load(dimension, chunk, new);
     }
-    /// Chunk `chunk` of `dimension` left the world (NeoForge's
-    /// `ChunkEvent.Unload`), with a level that closes for being empty too. Don't
-    /// read its blocks. Its block entities are still there, but changes made in
-    /// this hook aren't saved: as in vanilla, the chunk is saved before it unloads.
-    /// Not told when the world closes, which `native_world_lifecycle` tells.
-    /// Server-side.
-    pub(in crate::game) fn native_chunk_unload(&mut self, dimension: &str, chunk: [i32; 2]) {
-        self.fire_chunk_unload(dimension, chunk);
-    }
     /// `player` (`name`) joined the game (NeoForge's
     /// `PlayerLoggedInEvent`): placed in the world and listed in
     /// `host.players().server_players()`, so `PlayerRef::send_payload` can reach them.
@@ -3837,24 +3734,6 @@ impl Game<'_> {
         previous: u32,
     ) {
         self.fire_mod_container_viewers(dimension, pos, viewers, previous);
-    }
-    /// `player` (`name`) pressed the swap-hands key: heard before the main and
-    /// off hand items swap (the `SWAP_ITEM_WITH_OFFHAND` player action that
-    /// `ServerGamePacketListenerImpl.handlePlayerAction` answers; Bukkit's
-    /// `PlayerSwapHandItemsEvent`), not for a spectator. Set `cancel` to keep
-    /// the items where they are: the player's client, which swapped them at
-    /// once, gets its slots back. The player's state is swapped in, so
-    /// `native_acting_player`, `native_tell` and the item helpers reach them.
-    /// Once for each press, on a server. Not heard: the same swap made in an
-    /// open inventory (hovering a slot and pressing the key, a menu click) and
-    /// the host of a LAN world.
-    pub(in crate::game) fn native_player_swap_hands(
-        &mut self,
-        player: u128,
-        name: &str,
-        cancel: &mut bool,
-    ) {
-        self.fire_player_swap_hands(player, name, cancel);
     }
     /// `player` (`name`) opened a menu (NeoForge's `PlayerContainerEvent.Open`,
     /// posted when `ServerPlayer.openMenu` sets the new `containerMenu`): any
@@ -4163,7 +4042,9 @@ impl Game<'_> {
     /// `native_loot_table_load`'s changes), and for a mob what it wore, held or
     /// carried (a fox's mouth item, an allay's, piglin's or horse's inventory),
     /// but not an enderman's carried block or a copper golem's preserved
-    /// equipment, which drop after. A charged creeper's head and a fox's mouth
+    /// equipment, or custom drops carrying item-entity state such as an initial
+    /// age, which join the later living-drops collection instead.
+    /// A charged creeper's head and a fox's mouth
     /// item come before the mob's own table. A block's stacks get its block
     /// entity's data (a shulker box's items) after this. Add, change or take out
     /// stacks; empty ones don't drop (NeoForge's global loot modifiers, Fabric's
@@ -4948,8 +4829,8 @@ impl Game<'_> {
     /// An ingredient as a recipe's JSON names it: an item, a `#tag`, or a list
     /// of them, a bare id as `minecraft:` (as vanilla reads it); `test` says
     /// whether a stack fits. Items the game doesn't know are left out; None
-    /// when nothing is left (an unknown or empty tag, for one) and outside a
-    /// world.
+    /// for missing tags, invalid inputs or when no named item is known, and
+    /// outside a world. Existing-empty tags retain an empty ingredient.
     pub(in crate::game) fn recipe_ingredient(
         &self,
         json: &str,
@@ -4982,7 +4863,7 @@ impl Game<'_> {
             .into_iter()
             .filter(|item| items.get(item).is_some())
             .collect();
-        Ok((!known.is_empty()).then(|| Ingredient::of(known)))
+        Ok((ingredient.items.is_empty() || !known.is_empty()).then(|| Ingredient::of(known)))
     }
     /// A stack as a recipe's `result` names it: `id` (a bare one as
     /// `minecraft:`), `count` (1 by default, up to 99) and `components`. None

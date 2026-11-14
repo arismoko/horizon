@@ -13,8 +13,10 @@ impl Game<'_> {
     /// parents still rest and lose their love (their ages were already set
     /// to 6000), but there is no baby, no experience, no `animals_bred`
     /// statistic, no advancement and no heart particles. Not fired for
-    /// turtles, frogs and sniffers (an egg, no baby), villagers or
-    /// armadillos' own paths. On the server. API 395.
+    /// turtles, frogs and sniffers (an egg, no baby) or armadillos' own paths.
+    /// Villagers do not post this animal-only event, matching NeoForge's
+    /// documented `Animal.spawnChildFromBreeding` posting site; a rejected
+    /// villager join instead leaves the child's bed free. On the server. API 395.
     pub(in crate::game) fn native_baby_entity_spawn(
         &mut self,
         parent: u32,

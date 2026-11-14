@@ -151,7 +151,7 @@ paths, `lan_e2e`, a screenshot for anything visible) before it merges. Risky mea
 - world generation (`worldgen/`): seeds must keep generating the same terrain;
 - the launcher's installs and updates, or the mod runtime;
 - the harnesses themselves (`tools/test_*_parity.py`, the Java oracles): a wrong harness hides regressions;
-- over ~500 lines, or `parity` failed, was skipped or ran no harness for gameplay code.
+- over ~500 lines of code ([what counts](../CONTRIBUTING.md#pull-requests)), or `parity` failed, was skipped or ran no harness for gameplay code.
 
 Unsure? Add `needs-proof`: it costs a few hours, a broken release costs more.
 
@@ -198,8 +198,74 @@ A pull request still runs its own parity job when it changes a harness script, a
 
 `.github/workflows/release.yml` is the batch train: it decides when a new Nightly goes out and starts
 `nightly build` (`.github/workflows/nightly-build.yml`, [Nightly channel](#nightly-channel)) on the commit it
-decided, which builds, signs and publishes it. It starts after every green `checks` or `parity-main` run of a push to
-main, every 10 minutes (so a batch waiting for merges to settle goes out without another merge), and by hand.
+decided, which builds, signs and publishes it. On the fork it runs only when the [daily run](#daily-run) calls it
+with a fully green commit, or by hand (`kind`: `nightly` or `snapshot`); it has no schedule and no `workflow_run`
+trigger since 2026-11-13.
+
+Three kinds of game build (CI tiers, owner 2026-11-13):
+
+| Build | Who starts it | What it needs | Published as |
+|---|---|---|---|
+| [Snapshot](#snapshot) | root, by dispatching `release.yml -f kind=snapshot -f dry_run=false` on main | the gate (`lint`, `verify`, `verify-static`, `launcher`) green on that commit | pre-release `snapshot-<date>-<short>`; no launcher offers it |
+| Nightly | the [daily run](#daily-run), when every leg is green | `daily-green` on that commit, with its SDK | pre-release `nightly`, every launcher's update |
+| Release (`v*`) | by hand, from a Nightly | | the release |
+
+### Snapshot
+
+A snapshot is how a change to packages or platform legs is tested after it merges: none of those jobs runs on a pull
+request. Root dispatches `release.yml` with `kind=snapshot` on main, for main's head or `-f commit=<sha>` of a
+commit on main. In order:
+
+1. `decide` (`tools/release_train.py decide --channel snapshot`) refuses a commit that is not on main, or whose
+   newest dyna-checks main-push run did not pass every gate job (a pending job is not passed). Nothing else holds
+   it: no daily tests, no `daily-green`, no batch rules, no daily cap, no pause, no release-blocker.
+2. `snapshot-sdk` builds the commit's prebuilt SDK on every OS (`prebuilt-game-build.yml`; skipped when
+   `sdk-<sha>` already exists) and `snapshot-sdk-publish` signs and publishes it as `sdk-<sha>` from this run's
+   artifacts through `sdk-publish.yml`, the one workflow that publishes an SDK (the daily run and `prebuilt-game.yml` call it too).
+3. `snapshot` starts `nightly build` with `kind=snapshot` and that commit. It re-checks the gate and the SDK, builds
+   the commit alone (no picked pull requests, no build branch, no nightly-state), as `HORIZON_VERSION`
+   `snapshot-<date>` so the game calls itself "Snapshot <date> · <short>", signs it for the `snapshot` channel and
+   for `snapshot-<date>-<short>` (`SHA256SUMS.sig`, `SHA256SUMS.v2.sig`, the Nightly's key), checks the smoke test
+   and publishes the pre-release `snapshot-<date>-<short>` titled "Snapshot <date> · <short>". A snapshot of a
+   commit already published that day is skipped. Snapshots older than 7 days are deleted, never the newest one,
+   and never an `sdk-<sha>` SDK. The snapshot carries its SDK's `sdk.json` in its signed sums, as the Nightly does,
+   so the launcher reads its build id from it and builds native mods against `sdk-<sha>`.
+
+It never touches the `nightly` tag or channel, its rotation, its `nightly-source/` tags or `daily-green`. A dry run
+(the default for a dispatch, and any run off main) builds, indexes and signs the SDK with a throwaway key
+(`sdk-publish.yml` with `publish: false`, run only when `sdk-<sha>` does not exist yet), builds the game (a
+`nightly build` dry run, signed with a throwaway key) and publishes nothing; its summary names what a real run would publish. No launcher lists a
+snapshot or updates to one; a developer installs one with `horizon-launcher install snapshot-<date>-<short>`, which
+looks the tag up on its own and checks its signature for exactly that version.
+
+### Daily run
+
+`.github/workflows/daily.yml` runs the in-game legs once a day, at 09:00 UTC on main's head, and when root
+dispatches it (`-f commit=<sha>`, `-f dry_run=false` to write). One run runs and at most one waits; a newer waiting
+dispatch replaces an older waiting one. The schedule stops when main's head already has a completed real daily run;
+a hand dispatch never does, so it retries a run whose tag move, issues or nightly failed. Its legs are the workflows that left main pushes:
+the ignored-tests data shards (`ignored-tests.yml`), the wasm fixture and guest stacks (`wasm-mods.yml`),
+`fn-replace-check.yml`, the native linkage probe (`native-dylib-probe.yml`), the launcher's Windows runtime-lease
+tests (`launcher-windows-check.yml`), the machine sample built against the commit's mod API (`machine-sample.yml`)
+and the prebuilt SDK of the commit
+(`prebuilt-game-build.yml`; each leg packs its slices, and `sdk-publish` signs and publishes them as the mod SDK's
+release `sdk-<sha>` (`sdk-publish.yml`) only after a green summary on a real run on main, before the Nightly that
+needs them; a failed publish files one issue, `Daily: sdk-publish did not complete`), each called
+with the commit. Its
+summary (`tools/ci/daily_summary.py`) reads each leg's result and its sanitised verdict file, never a log:
+
+- every leg green: the tag `daily-green` moves to the commit, and `release.yml` (kind `nightly`) publishes the
+  Nightly of that commit whenever a player-facing pull request merged since the published one (no batch-size or
+  age rule; the pause switch and release-blockers still hold it);
+- a failing test: one issue `Daily: <crate> <test>` (label `bug`) with its panic location, the first daily run that
+  saw it and the pull requests merged since the last green daily as suspects; later runs comment on it, and the
+  first run where it passes closes it. A leg that failed without a test name gets one issue per leg. A red machine
+  sample is no break: its one issue, `Daily: update the machine sample for the mod API change`, asks for the sample
+  to follow the API change and its pin to move.
+
+Only a run on `main` with `dry_run` false moves the tag, files issues or publishes; any other run prints what it
+would do. A Nightly ships only the commit `daily-green` points to, with its SDK (`release.yml`, `nightly build`).
+A [snapshot](#snapshot) (`release.yml -f kind=snapshot`) needs only dyna-checks' gate on its commit of main.
 
 ```mermaid
 flowchart LR
@@ -208,7 +274,7 @@ flowchart LR
     merge --> main(["main"])
     main --> mainchecks{"checks and<br/>parity-main"}
     mainchecks -- green --> decide{"decide<br/>tools/release_train.py"}
-    cron(["every 10 minutes"]) --> decide
+    daily(["daily run, every leg green"]) --> decide
     decide -- "5 player-facing PRs settled 5 min,<br/>the oldest waited 6 h, or release-now" --> nightly["nightly build:<br/>that commit + the reviewers' picks"]
     decide -- otherwise --> wait(["wait"])
     nightly --> gate{"smoke test drew a world,<br/>no release-blocker is open"}
@@ -239,6 +305,7 @@ commits) since the commit the published Nightly was built on:
   `force=true`.
 - A scheduled run takes main's newest commit where `checks` and `parity-main` passed (a later failed
   parity-main batch doesn't change it); after a run of either, the commit it passed on, once both passed there.
+  On the fork the commit is the daily run's (`daily-green` by default), never a scheduled pick.
 
 ### Nightly only
 
@@ -406,9 +473,17 @@ of downloads or caches belong to #3009; retaining a release does not authenticat
 
 The fork's [Nightly workflow](../.github/workflows/nightly-build.yml) selects an SDK-paired source through
 [`tools/ci/nightly.py`](../tools/ci/nightly.py), then calls `require-sdk` before rotation and again before
-publication. A complete pair currently means a published, non-draft `prebuilt-<40 lowercase hex SHA>` release
-with `SHA256SUMS` and the four v4 archives (Linux client, Linux server, Windows GNU and macOS ARM64).
-The [SDK workflow](../.github/workflows/prebuilt-game.yml) publishes those exact-SHA releases without pruning.
+publication. A complete SDK means a published, non-draft `sdk-<40 lowercase hex SHA>` release holding every asset
+`nightly.py sdk-assets` names: `sdk.json`, `SHA256SUMS` signed for `sdk-<sha>` (`SHA256SUMS.sig`), `surface.json`,
+`build-data.tar.xz` and the `runtime`, `api` and `engine` slices of the four packages (Linux client, Linux server,
+Windows GNU and macOS ARM64); its `sdk.json` must match those sums and name that build and this package format. The
+Nightly carries that `sdk.json` in its own signed sums. The SDK signature's message names `sdk-<sha>`, so it never
+passes for a game release, nor a game release's for an SDK (`horizon-release-sign`: `signed_digest`, `sdk_digest`).
+One publish step ([sdk-publish.yml](../.github/workflows/sdk-publish.yml)), called by the daily run (`sdk-publish`
+in [daily.yml](../.github/workflows/daily.yml)), by a [snapshot](#snapshot) and by the [SDK workflow](../.github/workflows/prebuilt-game.yml)'s
+hand dispatch, publishes those exact-SHA releases without pruning; it signs through the `release` environment on
+main only, and any other run signs with a throwaway key and publishes nothing. Older `prebuilt-<sha>` releases are
+outside it and are removed by hand.
 These workflows currently have separate concurrency groups (`nightly-build` and `prebuilt-game`): the two
 publication-time checks alone would not make concurrent deletion safe.
 
@@ -417,6 +492,14 @@ day. It prunes dated releases whose date is strictly older than UTC today minus 
 the current `nightly`. `nightly.py source_line` writes the full source commit into release notes, and
 `keep-source` preserves it under `nightly-source/<date>-<short>`. Those permanent source tags preserve source
 availability, not a promise to retain compiled SDKs forever.
+
+### What pruning deletes
+
+Once SDKs publish as `sdk-<sha>` releases, each asset's `kind` is listed in the release's signed `sdk.json`.
+Pruning deletes only assets whose `kind` is `runtime`, `api` or `engine`, never the release, its small files or
+its signature. An evicted build keeps `sdk.json`, `surface.json`, `build-data.tar.xz`, `api-source.tar.xz`,
+`SHA256SUMS` and `SHA256SUMS.sig`, so `cargo horizon-mod sdk diff` and the fit test keep working for it; only
+building against it needs the compiled assets back.
 
 ### Keep set and bound
 

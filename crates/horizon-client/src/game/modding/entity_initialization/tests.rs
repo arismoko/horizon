@@ -104,7 +104,7 @@ fn spawn_summon_and_disk_load_initialize_before_first_attachment_read() {
                 let uuid = 101 + i as i32;
                 game.world
                     .loaded_entities
-                    .push(((0, 0), vec![tag(kind, uuid)]));
+                    .push(((0, 0), vec![tag(kind, uuid).into()]));
                 game.spawn_loaded_entities();
                 let id = *game
                     .persist
@@ -496,7 +496,7 @@ fn a_loaded_entity_reads_its_saved_attachments_over_the_listeners_and_is_named_b
                     Tag::Compound(saved.to_nbt()),
                 );
             }
-            game.world.loaded_entities.push(((0, 0), vec![pig]));
+            game.world.loaded_entities.push(((0, 0), vec![pig.into()]));
             game.spawn_loaded_entities();
             let id = *game
                 .persist

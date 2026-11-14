@@ -1735,6 +1735,7 @@ mod iterative_tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn recursive_fields_survive_512_nodes_on_256_kib() {
         std::thread::Builder::new().stack_size(256 * 1024).spawn(|| {
             for (relation, depth) in (0..9).flat_map(|r| [(r, 512), (r, 513)]) {

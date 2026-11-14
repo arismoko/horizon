@@ -2,7 +2,7 @@
 
 pub trait Hooks {
     /// A player's display name was formatted. Replace `displayname` to change it.
-    /// Both sides: `context.side()` says which. It runs while a chat line or a command's feedback is built. Answer from the arguments and `context` alone, and fast: `context` holds the side, the registries and the settings of the resource generation, and a `/reload` builds the next one.
+    /// Both sides: `context.side()` says which. It runs wherever vanilla asks `Player.getDisplayName()`: when a chat line, a join or leave line, a command's feedback, a death message or an advancement message is built, and for the name tag over a player (every frame it shows, so it is not asked when no mod listens). Answer from the arguments and `context` alone, and fast: `context` holds the side, the registries and the settings of the resource generation, and a `/reload` builds the next one.
     #[hook(
         side = "both",
         contract = "collect",

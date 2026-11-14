@@ -306,7 +306,12 @@ fn general_row_unloads_with_its_chunk_and_reloads_once() {
 fn quarantine_preserves_a_missing_mods_record_byte_for_byte() {
     with_types(|game| {
         game.others.clear();
-        let tag = record_tag("gone:robot", [7, 7, 7, 7], b"opaque", Vec::new());
+        let mut tag = record_tag("gone:robot", [7, 7, 7, 7], b"opaque", Vec::new());
+        if let Tag::Compound(fields) = &mut tag {
+            // Vanilla fallback loading strips these fields; an opaque mod record must not.
+            fields.insert("Team".into(), Tag::String("missing-mod-team".into()));
+            fields.insert("leash".into(), Tag::Compound(Default::default()));
+        }
         let loaded = tag.clone();
         game.spawn_loaded_entity((0, 0), tag, None);
         assert_eq!(game.others.len(), 1);

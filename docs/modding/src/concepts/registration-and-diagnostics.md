@@ -13,6 +13,24 @@ the registration error path without panicking or exiting the process.
 - The first reason wins, including an empty reason. Reasons are preserved verbatim up to
   4096 UTF-8 bytes; longer reasons are truncated at a character boundary.
 
+## Loading warnings
+
+A problem that should not stop your mod, such as a missing optional integration or a setting it
+corrected, is a warning: `cx.warn("mymod.warn.no_jei", &["jei"])` inside `Hooks::register`
+(NeoForge's `ModLoadingIssue.warning`).
+
+- The key is a translation key in your mod's own `lang/` files; the arguments fill its `%s` in
+  order.
+- Like `refuse`, it takes no mod ID: the warning belongs to the calling mod. The mod keeps
+  loading and its declarations are kept.
+- The log names the mod, the key and the arguments at warn level. The Mods screen shows the mod's
+  first warning under its row in the player's language, or the key when no language has it; the
+  row is not marked failed.
+- A mod keeps its first 16 warnings; later ones are dropped. The key and each argument are cut as
+  refusal reasons are, to 4096 UTF-8 bytes at a character boundary.
+- Native and wasm mods take the same path; the game applies the cap and the cut again to what a
+  wasm mod sends.
+
 ## Native startup and hook panics
 
 The launcher supplies ordered mod IDs and hook factories to the installed game's

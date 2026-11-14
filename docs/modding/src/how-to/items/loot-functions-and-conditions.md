@@ -26,3 +26,34 @@ position), `block_entity` (the broken block's entity as it was before the break,
 `Items`) and `level` (the dimension, the game time, the time of day, the rain and the thunder, for conditions like
 vanilla's `time_check` and `weather_check`). The game sets it for a block a player or an explosion breaks and for a
 mob's death loot; on other rolls `place` is `None`.
+
+`queried_table_id` reports the caller's first supplied id, or
+`neoforge:unknown_loot_table` until the root and every nested table finish.
+Only the root then sets its id (an unnamed root sets the fallback), before the
+future global modifier pass (#1270). Nested tables share all parameters and
+never write the id. Consequently `neoforge:loot_table_id` inside a table normally
+matches the fallback, rather than the root's name.
+
+`queried_stack` is the stack whose data is being queried, distinct from the tool.
+Existing engine callers leave it absent; nested tables preserve it unchanged.
+Both fields cross the native and wasm loot callback boundary.
+
+`neoforge:can_item_perform_ability` requires one string field, `ability`.
+Names are plain and case-sensitive: `shears_dig` is valid; `minecraft:shears_dig`
+never holds. Unknown names load without error and have no default ability.
+The condition reads only `tool`; without one it is false. Tables without a tool
+parameter continue to load as before. A part's answer replaces the item-layer
+default, and a part that leaves the answer unchanged keeps that default.
+
+Defaults are `sword_sweep` from `minecraft:swords`, `shovel_douse` from
+`minecraft:douses_campfires`, the six shears abilities (`shears_dig`,
+`shears_harvest`, `shears_remove_armor`, `shears_carve`, `shears_disarm`,
+`shears_trim`), `fishing_rod_cast`, `trident_throw`, `brush_brush`,
+`firestarter_light` for flint and steel or fire charge, and `spyglass_scope`.
+All other defaults are false. Existing action sites retain their own vanilla
+answers until #3330 adopts the shared table.
+
+Engine callers can scope a shared `horizon_world::loot::query::LootQuery` with
+`with_query`. Call `set_id` before rolling to supply the first id, and read
+`table_id()` afterwards to inspect the completed root. Set `queried_stack` before
+sharing the query; normal loot callers do not query an item's own data.

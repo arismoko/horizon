@@ -985,6 +985,8 @@ impl Game<'_> {
     /// `ExperienceOrb.repairPlayerItems`: returns the experience left over.
     pub(in crate::game) fn mending(&mut self, amount: u32) -> u32 {
         let mut amount = amount;
+        let player = (self.serving.is_some() || self.options.dedicated.is_some())
+            .then(|| self.native_acting_id());
         loop {
             // EnchantmentHelper.getRandomItemWith(REPAIR_WITH_XP, damaged), in
             // EquipmentSlot order, drawn from the player's own random.
@@ -996,7 +998,7 @@ impl Game<'_> {
             ) else {
                 return amount;
             };
-            let Some(stack) = self.player_slot(slot).clone() else {
+            let Some(mut stack) = self.player_slot(slot).clone() else {
                 return amount;
             };
             let ctx = EffectContext {
@@ -1010,32 +1012,24 @@ impl Game<'_> {
                 &mut self.world.random,
                 amount as f32,
             ) as u32;
-            let to_repair_xp = self.xp_repair(&stack, amount, vanilla_repair);
-            // A hook can re-enter experience granting or replace the slot. Only
-            // repair the same eligible stack, using its current damage.
-            let eligible = self.player_slot(slot).as_ref().is_some_and(|current| {
-                mending_entries(current, slot, &world_stations!(self).enchantments) > 0
-            });
-            let Some(current) = self.player_slot_mut(slot).as_mut() else {
-                return amount;
-            };
-            let mut original = stack.clone();
-            original.damage = current.damage;
-            if *current != original || current.damage == 0 || !eligible {
-                return amount;
-            }
+            let to_repair_xp = self.xp_repair(player, &stack, amount, vanilla_repair);
+            // No re-check that the slot still holds the picked stack, eligible
+            // and damaged: nothing between the pick and here can change it. The
+            // `xp_repair_ratio` parts are asked through `&self` with a read-only
+            // host, and the `repair_with_xp` value only draws from the world's
+            // random. The repair is written back as the picked stack. A path that
+            // could change the slot in this window must bring the re-check back.
             if to_repair_xp == 0 {
                 // Vanilla consumes the XP when its own repair effect returns zero.
                 return if vanilla_repair == 0 { 0 } else { amount };
             }
-            let repaired = to_repair_xp.min(current.damage);
+            let repaired = to_repair_xp.min(stack.damage);
             if repaired == 0 {
                 return amount;
             }
-            current.damage -= repaired;
-            let item = current.item.to_string();
-            let player = (self.serving.is_some() || self.options.dedicated.is_some())
-                .then(|| self.native_acting_id());
+            stack.damage -= repaired;
+            let item = stack.item.to_string();
+            *self.player_slot_mut(slot) = Some(stack);
             let remaining = amount.saturating_sub(
                 (u64::from(repaired) * u64::from(amount) / u64::from(to_repair_xp)) as u32,
             );
@@ -1058,19 +1052,27 @@ impl Game<'_> {
     /// (its `minecraft:repair_with_xp` repair) as the item's parts scale it
     /// (`IItemExtension.getXpRepairRatio`), `floor(experience × ratio)` within
     /// `0..=i32::MAX`. A ratio left as it arrived keeps `vanilla` exactly, and
-    /// one that isn't finite is refused for it.
-    fn xp_repair(&mut self, stack: &ItemStack, experience: u32, vanilla: u32) -> u32 {
+    /// one that isn't finite is refused for it. `player` is the acting player,
+    /// `None` when no server runs (no part is asked then).
+    fn xp_repair(
+        &self,
+        player: Option<u128>,
+        stack: &ItemStack,
+        experience: u32,
+        vanilla: u32,
+    ) -> u32 {
+        let Some(player) = player else {
+            return vanilla;
+        };
         // One table lookup tells whether any part of this item listens; with none,
         // the stack is not converted and no host is made.
         if experience == 0
-            || (self.serving.is_none() && self.options.dedicated.is_none())
             || !mod_api::__private::item_listens(mod_api::HookId::XpRepairRatio, &stack.item)
         {
             return vanilla;
         }
         let arrived = vanilla as f32 / experience as f32;
         let mut ratio = arrived;
-        let player = self.native_acting_id();
         self.native_xp_repair_ratio(player, stack, experience, &mut ratio);
         if ratio.to_bits() == arrived.to_bits() {
             return vanilla;

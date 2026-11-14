@@ -11,8 +11,8 @@ See [Injections](../../concepts/injections.md).
 Native rendering callbacks such as `horizon_mod_render::render::world_drawn`,
 `hand_drawn` and `world_views` use a HEAD mixin. The launcher compiles the patched
 function against the prebuilt game. Callbacks borrow the frame's GPU resources;
-`world_views` supplies additional camera views. The renderer rejects invalid,
-duplicate and oversized view requests.
+`world_views` supplies additional camera views. The renderer refuses invalid,
+duplicate and oversized view requests by name, as `push` returns them.
 
 Use the geometry types re-exported as `horizon_mod_render::render::{Vertex, EntitySpan}`.
 Implement the `render_needs` callback to set `RenderNeeds` requests for world depth

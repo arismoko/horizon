@@ -7,6 +7,7 @@ use wgpu::{TextureFormat as T, util::DeviceExt};
 
 #[test]
 fn translucent_draws_sample_the_color_written_by_deferred() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else { return };
     let positions: [[f32; 3]; 6] = [
         [-1.0, -1.0, 0.0],

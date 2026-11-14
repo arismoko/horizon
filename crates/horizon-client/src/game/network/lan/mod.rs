@@ -9,6 +9,7 @@ mod mob_metadata;
 mod mob_states;
 mod raw_inbox;
 mod residency;
+mod viewed_areas;
 
 use super::{
     Game,
@@ -482,8 +483,7 @@ pub(super) struct LanHost {
     /// Far terrain sampled for Horizon clients (game/network/lan_far.rs); None when
     /// `horizon-lod-distance` is 0.
     pub far: Option<horizon_client::lod_net::Service>,
-    /// Native mods' commands and the level each needs, once asked
-    /// (game/modding/native_server.rs).
+    /// Native mods' commands and the level each needs, once asked (game/modding/native_server.rs).
     pub(super) native_commands: Option<super::native_server::NativeCommands>,
     /// The players a native mod leaves out of the sleep count when they
     /// aren't in bed (`native_sleep_ignored`).
@@ -509,17 +509,17 @@ impl Game<'_> {
         if std::mem::replace(&mut play.left_game, true) {
             return;
         }
-        let mut cancel = false;
-        self.native_player_stat_award(
-            player,
-            name,
-            "minecraft:custom",
-            "minecraft:leave_game",
-            1,
-            &mut cancel,
-        );
-        if !cancel && let Some(play) = self.lan.as_mut().and_then(|host| host.play.get_mut(&conn)) {
+        let award = if mod_api::__private::listened(mod_api::HookId::PlayerStatAward) {
+            self.edited_stat_award(player, name, "minecraft:custom", "minecraft:leave_game", 1)
+        } else {
             play.stats.custom("leave_game", 1);
+            return;
+        };
+        if let Some((ty, key, n)) = award
+            && let Some(play) = self.lan.as_mut().and_then(|host| host.play.get_mut(&conn))
+        {
+            play.stats
+                .add(ty.strip_prefix("minecraft:").unwrap_or(&ty), &key, n);
         }
     }
 
@@ -1669,6 +1669,7 @@ impl Game<'_> {
         let lan = Lan::start_with(sync.clone(), net)?;
         let mut hub = Hub::new(lan, sync, encoder, config, self.loop_context.clone());
         self.bind_guest_residency(&mut hub);
+        self.passages.record_on(&mut hub);
         hub.rule_registry = self.level.rule_registry.clone();
         hub.sync_attachments = !mod_api::__private::mods().is_empty();
         hub.flat_world = self.world_flat;
@@ -2201,7 +2202,7 @@ impl Game<'_> {
     /// Only the entities whose id is above `after` (0: all of them). With
     /// `kept`, idle mobs and items no client can pair with are described bare
     /// (game/network/lan_idle.rs).
-    fn lan_entities(
+    pub(super) fn lan_entities(
         &mut self,
         out: &mut States,
         drain_minecart_steps: bool,
@@ -3176,19 +3177,7 @@ impl Game<'_> {
             }
             // Persist is swapped per level, so parked dimensions retain their marks.
             self.spend_forced_meta();
-            // ServerEntity.sendChanges clears needsSync once it has looked.
-            // SteppedInterpolationTracker.updateTracking clears syncPosition.
-            for m in &mut self.mobs {
-                m.needs_sync = false;
-                m.sync_position = false;
-            }
-            self.creatures
-                .projectiles
-                .for_each_mut(|p| p.needs_sync = false);
-            for d in &mut self.dropped {
-                d.needs_sync = false;
-            }
-            self.tridents.iter_mut().for_each(|t| t.needs_sync = false);
+            self.lan_syncs_looked();
 
             // The step command reaches clients before the events its tick
             // generated, as ServerTickRateManager.updateStepTicks does.
@@ -3322,13 +3311,8 @@ impl Game<'_> {
         {
             self.run_native_menu_events();
         }
-        if self
-            .lan
-            .as_ref()
-            .is_some_and(|host| !host.hub.chunk_watches.is_empty())
-        {
-            self.run_chunk_watches();
-        }
+        self.run_chunk_watches();
+        self.flush_passages();
         if let Some(host) = self.lan.as_mut() {
             host.hub.collect_tracking();
         }
@@ -3866,13 +3850,12 @@ impl Game<'_> {
         let Some(host) = self.lan.as_ref() else {
             return;
         };
-        // DistanceManager.PlayerTicketTracker: every chunk within the server's
-        // view distance (Chebyshev) of a player holds a PLAYER_LOADING ticket
-        // at the entity-ticking level (31), whatever the player asked for;
-        // levels rise by one a chunk, so FULL (33) reaches two chunks past
-        // it. An extra area finishes its chunks out to its radius + 1. That
-        // covers what the player tracks (`ChunkTrackingView`, within its view
-        // distance + 1) and those chunks' lit neighbours.
+        // DistanceManager.PlayerTicketTracker: every chunk within the server's view distance
+        // (Chebyshev) of a player holds a PLAYER_LOADING ticket at the entity-ticking level (31),
+        // whatever the player asked for; levels rise by one a chunk, so FULL (33) reaches two
+        // chunks past it. An extra area finishes its chunks out to its radius + 1. That covers what
+        // the player tracks (`ChunkTrackingView`, within its view distance + 1) and those chunks'
+        // lit neighbours. The viewed areas (#3716) are squares of their own.
         let radius = host.hub.config.view_distance + 1;
         let rule = self
             .ui
@@ -3886,12 +3869,12 @@ impl Game<'_> {
             .chain(
                 self.arrival_chunks(self.dim)
                     .into_iter()
-                    // An arrival keeps only its landing spot lit enough to
-                    // resolve (the 3x3 `resolve_arrivals` checks), where it
-                    // then ticks without a player.
+                    // An arrival keeps only its landing spot lit enough to resolve (the 3x3
+                    // `resolve_arrivals` checks), where it then ticks without a player.
                     .map(|chunk| (chunk, 1)),
             )
             .chain(self.portal_ticket_areas())
+            .chain(self.viewed_extra())
             .collect();
     }
 

@@ -1356,5 +1356,9 @@
   "Only what works on {instance}": "เฉพาะที่รองรับกับ {instance}",
   "{count} versions that don't work on {instance} are hidden": "ซ่อน {count} เวอร์ชันที่ไม่รองรับกับ {instance}",
   "Duplicate native mod {id}.": "พบม็อดเนทีฟ {id} ซ้ำกัน",
-  "Native and content mod ids differ.": "ID ของม็อดเนทีฟและม็อดเนื้อหาไม่ตรงกัน"
+  "Native and content mod ids differ.": "ID ของม็อดเนทีฟและม็อดเนื้อหาไม่ตรงกัน",
+  "This prebuilt game has no API route. Update Horizon and rebuild the mods against this game.": "This prebuilt game has no API route. Update Horizon and rebuild the mods against this game.",
+  "The prebuilt game's API file list names {file}, which is not a plain path.": "The prebuilt game's API file list names {file}, which is not a plain path.",
+  "The prebuilt game is missing its API files: {files}.": "The prebuilt game is missing its API files: {files}.",
+  "Native mods route: {route}.": "Native mods route: {route}."
 }

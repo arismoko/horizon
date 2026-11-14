@@ -272,6 +272,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn developer_offline_never_consumes_inherited_sessions() {
         if let Some(file) = std::env::var_os("OFFLINE_SESSION_TEST_FILE") {
             assert!(parse(&["--developer-single-player"]).is_err());
@@ -283,6 +284,7 @@ mod tests {
         std::fs::write(&file, b"unconsumed session sentinel").unwrap();
         let result = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
+                "--include-ignored",
                 "--exact",
                 "game::launch_api::tests::developer_offline_never_consumes_inherited_sessions",
                 "--nocapture",

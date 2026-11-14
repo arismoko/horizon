@@ -5,18 +5,26 @@ impl Launcher {
     /// build stays on the Horizon the instance plays (`native_mods::base_for`), unless the
     /// warning was Update's: then it moves to that newer Horizon.
     pub(super) fn build_native(&mut self) {
+        self.build_native_on(None, false)
+    }
+
+    /// [`Self::build_native`] on `base` when given (an update's newer release or Nightly) instead
+    /// of the Horizon the instance plays; with `back_up`, the player chose to back up the worlds
+    /// saved with mods the build switches off, then build without those mods.
+    pub(super) fn build_native_on(&mut self, base: Option<String>, back_up: bool) {
         if self.native_step.is_some() {
             return;
         }
         self.pending_consent = None;
         self.native_error = None;
+        self.native_worlds = None;
         // This attempt's own log, starting empty: an open panel shows it rather than the last
         // attempt's (`native_log_page`).
         self.native_log_reset();
         let instance = instances::selected();
         self.native_for = Some(instance.id.clone());
         let plays = self.version_of(&instance).cloned();
-        let base = native_mods::base_for(plays.as_deref(), &self.installed, false);
+        let base = base.or_else(|| native_mods::base_for(plays.as_deref(), &self.installed, false));
         let Some(base) = base else {
             let error = tr("Install Horizon first.").to_string();
             self.native_log_preflight(&error);
@@ -41,6 +49,7 @@ impl Launcher {
                 &folder,
                 &instance,
                 None,
+                back_up,
                 |step| {
                     let _ = tx.send(Msg::NativeProgress(step.label(), step.progress()));
                 },

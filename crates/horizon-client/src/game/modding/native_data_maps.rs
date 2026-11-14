@@ -188,6 +188,21 @@ impl DataMaps {
         Self { maps }
     }
 
+    /// Every entry map `type_id` of `registry` gives a value, with its merged
+    /// JSON; none where the map wasn't loaded.
+    pub(crate) fn values(
+        &self,
+        registry: &str,
+        type_id: &str,
+    ) -> impl Iterator<Item = (&str, &Value)> {
+        self.maps
+            .get(registry)
+            .and_then(|maps| maps.get(type_id))
+            .into_iter()
+            .flatten()
+            .map(|(entry, value)| (entry.as_str(), value))
+    }
+
     /// `entry`'s value in map `type_id` of `registry`, as NBT: none where the
     /// map gives it none, refused where no mod registered the map there.
     fn value(

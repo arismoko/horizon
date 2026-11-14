@@ -9,13 +9,48 @@ use horizon_client::{
     particles::{ParticleOptions, ParticleType},
 };
 use horizon_core::{position::BlockPos, random::RandomSource};
+use horizon_world::registry::BlockStateId;
+
+/// Whether a block type provides the composter's state-backed container ports.
+pub(super) fn is_composter(kind: &str) -> bool {
+    kind == "minecraft:composter"
+}
+
+/// State-backed container feedback, published only by the outermost successful transaction.
+pub(super) enum Effects {
+    Insert {
+        pos: [i32; 3],
+        before: BlockStateId,
+        after: BlockStateId,
+    },
+    Empty {
+        pos: [i32; 3],
+        after: BlockStateId,
+    },
+}
+
+/// Temporarily lends the provider the composter's random owner. Even unwinding restores
+/// Level.random before the transaction guard rolls the local owner back.
+struct ScopedRandom<'a, 'w> {
+    game: &'a mut Game<'w>,
+    pos: [i32; 3],
+    world_random: Option<horizon_core::random::LegacyRandom>,
+}
+
+impl Drop for ScopedRandom<'_, '_> {
+    fn drop(&mut self) {
+        let mut random = self.world_random.take().unwrap();
+        std::mem::swap(&mut *self.game.world.random, &mut random);
+        self.game.put_composter_random(self.pos, random);
+    }
+}
 
 impl Game<'_> {
     /// The composter's `level` at `pos`, None when it isn't a composter.
     pub(super) fn composter_level(&self, pos: [i32; 3]) -> Option<i32> {
         let state = self.world.block(pos[0], pos[1], pos[2]);
         let s = self.pack.assets.registry.state(state)?;
-        if &*s.name != "minecraft:composter" {
+        if !is_composter(&s.name) {
             return None;
         }
         s.properties.get("level")?.parse().ok()
@@ -24,15 +59,35 @@ impl Game<'_> {
     fn compostable(&self, stack: &ItemStack) -> Option<serde_json::Value> {
         self.items().get(&stack.item)?.compostable.clone()
     }
-    /// `ComposterBlock.addLayer` and level event 1500: the provider is
-    /// evaluated in the composter's block-interaction loot context (its
-    /// state; the level random), then the layer is added. True when it was.
-    fn composter_add(&mut self, pos: [i32; 3], layers: &serde_json::Value) -> bool {
+    /// The shared `ComposterBlock.addLayer` block-interaction loot context and level random.
+    fn composter_layers(&mut self, pos: [i32; 3], provider: &serde_json::Value) -> i32 {
         let context = ComputeContext {
             block: Some(pos),
             target: None,
         };
-        let layers = self.provider_int(layers, &context, 0).unwrap_or(0);
+        self.provider_int(provider, &context, 0).unwrap_or(0)
+    }
+
+    /// ComposterWrapper's private transactional random, using the unchanged vanilla layers
+    /// provider. Horizon initializes the owner from the current level stream once; it never
+    /// advances or rewinds the regular level stream while evaluating this capability.
+    fn composter_transactional_layers(
+        &mut self,
+        pos: [i32; 3],
+        provider: &serde_json::Value,
+    ) -> i32 {
+        let mut random = self.take_composter_random(pos);
+        std::mem::swap(&mut *self.world.random, &mut random);
+        let scope = ScopedRandom {
+            game: self,
+            pos,
+            world_random: Some(random),
+        };
+        scope.game.composter_layers(pos, provider)
+    }
+    /// `ComposterBlock.addLayer` and level event 1500 for immediate vanilla callers.
+    fn composter_add(&mut self, pos: [i32; 3], layers: &serde_json::Value) -> bool {
+        let layers = self.composter_layers(pos, layers);
         let before = self.world.block(pos[0], pos[1], pos[2]);
         let at = BlockPos::new(pos[0], pos[1], pos[2]);
         let after = self.with_level(|b, level, ticks| b.composter_insert(level, ticks, at, layers));
@@ -101,6 +156,76 @@ impl Game<'_> {
         self.composter_add(pos, &layers);
         (stack.count > 0).then_some(stack)
     }
+
+    /// `InputContainer.setChanged` through an ITEMS port. Slot acceptance and the one-item
+    /// limit are the shared container rules; only the state write and feedback are deferred.
+    pub(super) fn composter_capability_insert(&mut self, pos: [i32; 3], stack: &ItemStack) -> bool {
+        if self.composter_level(pos).is_none_or(|level| level >= 7) {
+            return false;
+        }
+        let Some(provider) = self.compostable(stack) else {
+            return false;
+        };
+        let before = self.world.block(pos[0], pos[1], pos[2]);
+        let layers = self.composter_transactional_layers(pos, &provider);
+        let after = self
+            .res
+            .behaviours()
+            .composter_state_after_layers(before, layers);
+        if after != before && !self.journal_set_block(pos, after) {
+            return false;
+        }
+        self.after_commit(super::transactions::After::Composter(Effects::Insert {
+            pos,
+            before,
+            after,
+        }));
+        true
+    }
+
+    /// `OutputContainer.setChanged` through an ITEMS port: no item entity or hand sound.
+    pub(super) fn composter_capability_extract(
+        &mut self,
+        pos: [i32; 3],
+        max: u32,
+    ) -> Option<ItemStack> {
+        if max == 0 || self.composter_level(pos) != Some(8) {
+            return None;
+        }
+        let before = self.world.block(pos[0], pos[1], pos[2]);
+        let after = self.res.behaviours().composter_state_after_extract(before);
+        if !self.journal_set_block(pos, after) {
+            return None;
+        }
+        self.after_commit(super::transactions::After::Composter(Effects::Empty {
+            pos,
+            after,
+        }));
+        Some(ItemStack::new("minecraft:bone_meal", 1))
+    }
+
+    pub(super) fn commit_composter_effects(&mut self, effects: Effects) {
+        self.with_level(|b, level, ticks| match effects {
+            Effects::Insert { pos, before, after } => {
+                b.composter_insert_effects(
+                    level,
+                    ticks,
+                    BlockPos::new(pos[0], pos[1], pos[2]),
+                    before,
+                    after,
+                );
+            }
+            Effects::Empty { pos, after } => {
+                b.composter_empty_effects(
+                    level,
+                    ticks,
+                    BlockPos::new(pos[0], pos[1], pos[2]),
+                    after,
+                );
+            }
+        });
+        let _ = self.process_level_events();
+    }
     /// `WorkAtComposter.compostItems` for the villager at `mob`: a full
     /// composter is emptied, then up to 20 wheat or beetroot seeds go in
     /// (keeping 10 of each kind) until the composter reaches level 7. Level
@@ -162,11 +287,7 @@ impl Game<'_> {
         let Some(layers) = self.compostable(stack) else {
             return;
         };
-        let context = ComputeContext {
-            block: Some(pos),
-            target: None,
-        };
-        let layers = self.provider_int(&layers, &context, 0).unwrap_or(0);
+        let layers = self.composter_layers(pos, &layers);
         let at = BlockPos::new(pos[0], pos[1], pos[2]);
         self.with_level(|b, level, ticks| b.composter_layer(level, ticks, at, layers));
         self.world.modified.insert((pos[0] >> 4, pos[2] >> 4));
@@ -213,3 +334,7 @@ impl Game<'_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "composter/capability_tests.rs"]
+mod capability_tests;

@@ -1,7 +1,9 @@
 //! `upgrade_block_entity_nbt` and `upgrade_entity_nbt` through a server host, as a mod calls them: an old villager
-//! takes its profession, and a future version is refused by name.
+//! takes its profession, and the refusals come back typed: a future version, data too deep to read, and a riding
+//! chain the fixes make too deep.
 use super::native_entity_refs::tests::with_game;
 use horizon_core::nbt::{Compound, Tag, parse_snbt};
+use mod_api::NbtUpgradeError;
 
 fn compound(text: &str) -> Compound {
     match parse_snbt(text).unwrap().0 {
@@ -10,9 +12,30 @@ fn compound(text: &str) -> Compound {
     }
 }
 
+/// `{id: "Pig"}` nested `depth` times, each in the one around it: under `Riding` as a pre-1.9 rider holds its mount,
+/// or under `Passengers` as a vehicle holds its rider.
+fn chain(depth: usize, riding: bool) -> Compound {
+    let mut inner = compound("{id: \"Pig\"}");
+    for _ in 0..depth {
+        let mut outer = compound("{id: \"Pig\"}");
+        let value = if riding {
+            Tag::Compound(inner)
+        } else {
+            Tag::List(vec![Tag::Compound(inner)])
+        };
+        outer.insert(if riding { "Riding" } else { "Passengers" }.into(), value);
+        inner = outer;
+    }
+    inner
+}
+
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
-fn a_mods_host_upgrades_old_data_and_refuses_a_future_version() {
+fn a_mods_host_upgrades_old_data_and_refuses_by_name() {
+    // The pre-1.13 fixes (the riding chain's) read the data fixers' tables of the prepared resources.
+    horizon_world::datafix::set_resources(std::path::Path::new(
+        &std::env::var_os("HORIZON_TEST_RESOURCES").expect("resources"),
+    ));
     mod_platform::testing::with_mods(Vec::new().into(), || {
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
@@ -32,10 +55,17 @@ fn a_mods_host_upgrades_old_data_and_refuses_a_future_version() {
             let current = horizon_world::datafix::CURRENT;
             assert_eq!(
                 host.upgrade_block_entity_nbt(current + 1, sign),
-                Err(format!(
-                    "data version {} is newer than the game's ({current})",
-                    current + 1
-                ))
+                Err(NbtUpgradeError::FutureVersion(current + 1))
+            );
+            // 512 passengers: the innermost compound at depth 1024, refused before any fix.
+            assert_eq!(
+                host.upgrade_entity_nbt(1900, chain(512, false)),
+                Err(NbtUpgradeError::TooDeep)
+            );
+            // 300 riders at DataVersion 100: 300 deep given, 600 deep once `Riding` becomes `Passengers`.
+            assert_eq!(
+                host.upgrade_entity_nbt(100, chain(300, true)),
+                Err(NbtUpgradeError::UpgradedTooDeep)
             );
         });
     });

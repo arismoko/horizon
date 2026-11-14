@@ -324,6 +324,45 @@ impl Game<'_> {
         packet: &horizon_protocol::packets::play::AddEntity,
         rotation: (f32, f32),
     ) -> bool {
+        let id = packet.id;
+        self.remove_remote_projectile(id as u32);
+        self.spawn_remote_projectile_inner(kind, packet, rotation)
+    }
+
+    /// Whether the client tracks `id` already: asked by `AddEntity` before it tracks the new one.
+    pub(super) fn tracks_remote_entity(&self, id: i32) -> bool {
+        self.remote
+            .as_ref()
+            .is_some_and(|r| r.tracked_entity(id).is_some())
+    }
+
+    /// `AddEntity`'s `spawn_remote_projectile`. Only an id the client already tracked (`replace`)
+    /// can still be in `falling` or `tnts`, so a new id skips those passes; the crystals and the
+    /// small lists are filtered every time, since the client adds to some of those itself.
+    pub(super) fn spawn_added_projectile(
+        &mut self,
+        p: &horizon_protocol::packets::play::AddEntity,
+        kind: &str,
+        rotation: (f32, f32),
+        replace: bool,
+    ) {
+        if replace {
+            self.spawn_remote_projectile(kind, p, rotation);
+        } else {
+            self.crystals.retain(|c| c.id != p.id as u32);
+            self.remove_remote_small_projectiles(p.id as u32);
+            self.spawn_remote_projectile_inner(kind, p, rotation);
+        }
+    }
+
+    /// `spawn_remote_projectile` without first removing an entity under the same id: for
+    /// `AddEntity` of an id the client does not track yet, which no list holds.
+    pub(super) fn spawn_remote_projectile_inner(
+        &mut self,
+        kind: &str,
+        packet: &horizon_protocol::packets::play::AddEntity,
+        rotation: (f32, f32),
+    ) -> bool {
         let id = packet.id as u32;
         let position = packet.position;
         let velocity = packet.velocity;
@@ -331,7 +370,6 @@ impl Game<'_> {
         let at = Vec3::new(position[0], position[1], position[2]);
         let velocity = Vec3::new(velocity[0], velocity[1], velocity[2]);
         let (yaw, pitch) = rotation;
-        self.remove_remote_projectile(id);
         match kind {
             "minecraft:evoker_fangs" => self.insert_fangs(id, position, yaw, 0, 0),
             "minecraft:tnt" => self.tnts.push(super::tnt::PrimedTnt {
@@ -351,6 +389,7 @@ impl Game<'_> {
                 owner: None,
                 guest: None,
                 power: 4.0,
+                used_portal: false,
                 block_state: None,
             }),
             // FallingBlockEntity.recreateFromPacket: the block state is the data.
@@ -418,16 +457,8 @@ impl Game<'_> {
                     .next_int_bound(100_000)
                     .unwrap_or(0);
                 let time = super::dragon::Crystal::start_time(at, drawn, self.clock.still());
-                self.crystals.push(super::dragon::Crystal {
-                    attachment_lifetime: Default::default(),
-                    join: Default::default(),
-                    id,
-                    position: at,
-                    show_bottom: true,
-                    time,
-                    beam: None,
-                    invulnerable: false,
-                });
+                self.crystals
+                    .push(super::dragon::Crystal::new(id, at, true, time));
             }
             _ => {
                 let Some(k) = projectile_kind(kind) else {

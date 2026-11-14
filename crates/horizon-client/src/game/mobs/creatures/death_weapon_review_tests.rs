@@ -52,6 +52,7 @@ fn arrow(weapon: Option<ItemStack>) -> Projectile {
         None,
     );
     shot.arrow.as_mut().unwrap().fired_from_weapon = weapon;
+    shot.id = 912;
     shot
 }
 fn hit(game: &mut Game<'_>, shot: &Projectile, amount: f32) -> bool {
@@ -223,12 +224,12 @@ fn death_weapon_different_killing_source_discards_projectile() {
             &arrow(Some(ItemStack::new("minecraft:bow", 1))),
             1.0
         ));
-        assert!(game.combat.death_weapons.contains_key(&70));
+        assert!(game.mobs[0].accepted_hit.is_some());
         let mut dead = game.mobs[0].clone();
         dead.last_damage = Some((Damage::of(DamageKind::Fall), i64::from(dead.age) + 1));
         dead.health = 0.0;
         game.mob_died(&dead);
-        assert!(!game.combat.death_weapons.contains_key(&70));
+        assert!(game.mobs[0].accepted_hit.is_none());
     });
 }
 
@@ -246,14 +247,14 @@ fn death_weapon_without_subscriber_does_not_capture() {
                 &arrow(Some(ItemStack::new("minecraft:bow", 1))),
                 1.0
             ));
-            assert!(game.combat.death_weapons.is_empty());
+            assert!(game.mobs[0].accepted_hit.is_none());
         });
     });
 }
 
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
-fn death_weapon_removal_and_vehicle_transfer_clear_capture() {
+fn death_weapon_removal_clears_capture_and_vehicle_transfer_keeps_its_owner() {
     if isolated() {
         return;
     }
@@ -266,16 +267,28 @@ fn death_weapon_removal_and_vehicle_transfer_clear_capture() {
                 &arrow(Some(ItemStack::new("minecraft:bow", 1))),
                 1.0
             ));
-            assert!(game.combat.death_weapons.contains_key(&70));
+            assert!(game.mobs[0].accepted_hit.is_some());
             if transfer {
-                let state = game.take_transferred_entity_state(70);
+                let mut state = game.take_transferred_entity_state(70);
                 game.detach_entity(70);
-                assert!(!game.combat.death_weapons.contains_key(&70));
+                assert!(
+                    game.mobs[0].accepted_hit.is_none(),
+                    "the transfer token took ownership"
+                );
+                game.mobs[0].last_damage = None;
+                state.restore_mob(&mut game.mobs[0]);
+                assert!(
+                    game.mobs[0]
+                        .accepted_hit
+                        .as_ref()
+                        .unwrap()
+                        .belongs_to(game.mobs[0].last_damage)
+                );
                 game.adopt_transferred_entity_state(70, state);
             } else {
                 game.forget_entity(70);
             }
-            assert!(!game.combat.death_weapons.contains_key(&70));
+            assert_eq!(game.mobs[0].accepted_hit.is_some(), transfer);
         }
         let mut dead = victim(game);
         dead.health = 0.0;
@@ -299,13 +312,16 @@ fn death_weapon_same_tick_stronger_arrow_replaces_weapon() {
                 1.0
             ));
             let first = game.mobs.iter().find(|m| m.id == 70).unwrap().last_damage;
-            assert!(hit(game, &arrow(Some(expected)), 2.0));
+            assert!(hit(game, &arrow(Some(expected.clone())), 2.0));
             let mut dead = game.mobs.iter().find(|m| m.id == 70).unwrap().clone();
             assert_eq!(
                 dead.last_damage, first,
                 "equal source values still commit a new hit"
             );
-            assert!(dead.projectile_damage_committed);
+            assert_eq!(
+                dead.accepted_hit.as_ref().unwrap().weapon,
+                Some(expected.clone())
+            );
             dead.health = 0.0;
             game.mob_died(&dead);
         });

@@ -7,6 +7,13 @@ pub fn block_key_listens(hook: HookId, key: crate::BlockKey) -> bool {
         .is_some_and(|table| !table.block_key(Some(key)).is_empty())
 }
 
+/// Whether the feature-pinned published table subscribes to this worldgen block key.
+pub fn worldgen_block_key_listens(hook: HookId, key: crate::BlockKey) -> bool {
+    worldgen_parts()
+        .for_hook(hook)
+        .is_some_and(|table| !table.block_key(Some(key)).is_empty())
+}
+
 impl HookParts {
     /// Prepared subscribers for an API block key; missing keys have no subscribers.
     pub fn block_key(&self, key: Option<crate::BlockKey>) -> &[Attached<dyn BlockPart>] {

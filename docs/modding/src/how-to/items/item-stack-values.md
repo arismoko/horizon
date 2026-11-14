@@ -37,6 +37,18 @@ removal refuse the entire replacement. Generic component setters and raw `set_co
 therefore return `Result`. A refusal leaves the stack unchanged. Typed damage setters do not
 need an error path.
 
+`apply_components(&patch)` merges over the existing patch rather than replacing it.
+Incoming values clear prior removals and incoming `!id` removals clear prior values;
+a removal wins if the same patch includes both, except that simultaneous damage and
+damage removal are refused. Damage values replace previous numeric overrides and are
+normalized just like `set_components`; malformed damage leaves the entire stack unchanged.
+`copy_component_from(&other, id)` copies only that component's own value or removal,
+including explicit zero damage. If `other` has no override, the target inherits too:
+no effective prototype value is materialized. `get` followed by `set` covers `update`.
+These owned-value operations require no host. To persist them on a whole stack, use
+server-side `ItemPlace::edit` inside a transaction; it preserves item/count and rolls
+back with its parent transaction instead of splitting one item off.
+
 `ItemResource::with_component` is also fallible for raw component values. Its default-value
 elision and `without_component` preserve the normal prototype-plus-patch semantics. The latter
 records real NBT removal entries for default components; it is not an unknown-value fallback.

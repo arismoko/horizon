@@ -357,6 +357,13 @@ pub(super) fn gameplay_tables(
                 motion.attributes =
                     std::sync::Arc::new(with_mod_attributes(&motion.attributes, declared)?);
             }
+            // #3728: then the bounds mods widen, on vanilla's attributes and
+            // the declared ones alike, before anything reads a definition.
+            let widenings = mod_api::__private::attribute_bounds_widenings();
+            if !widenings.is_empty() {
+                motion.attributes =
+                    std::sync::Arc::new(with_mod_widened_bounds(&motion.attributes, widenings)?);
+            }
             // #845: a mod's declared attribute sets
             // (`EntityAttributeCreationEvent`) become their entity types' rows
             // in the live attribute map's catalog — the one record the mob
@@ -421,10 +428,30 @@ pub(super) fn with_mod_attributes(
                 )
                 .map_err(|error| format!("mod attribute {}: {error}", declared.id))?,
                 syncable: declared.syncable,
-                sentiment: match declared.sentiment {
-                    mod_api::Sentiment::Positive => horizon_world::attributes::Sentiment::Positive,
-                    mod_api::Sentiment::Negative => horizon_world::attributes::Sentiment::Negative,
-                    mod_api::Sentiment::Neutral => horizon_world::attributes::Sentiment::Neutral,
+                tooltip: horizon_world::attributes::Tooltip {
+                    sentiment: match declared.sentiment {
+                        mod_api::Sentiment::Positive => {
+                            horizon_world::attributes::Sentiment::Positive
+                        }
+                        mod_api::Sentiment::Negative => {
+                            horizon_world::attributes::Sentiment::Negative
+                        }
+                        mod_api::Sentiment::Neutral => {
+                            horizon_world::attributes::Sentiment::Neutral
+                        }
+                    },
+                    display: match declared.tooltip.display {
+                        mod_api::AttributeDisplay::Ranged => {
+                            horizon_world::attributes::Display::Ranged
+                        }
+                        mod_api::AttributeDisplay::Percentage => {
+                            horizon_world::attributes::Display::Percentage
+                        }
+                        mod_api::AttributeDisplay::Boolean => {
+                            horizon_world::attributes::Display::Boolean
+                        }
+                    },
+                    base_modifier: declared.tooltip.base_modifier.clone(),
                 },
             })
         })
@@ -432,6 +459,28 @@ pub(super) fn with_mod_attributes(
     catalog
         .with_attributes(&added)
         .map_err(|error| format!("mod attribute declarations: {error}"))
+}
+
+/// The catalog with the attribute bounds mods widened (#3728,
+/// `Registrar::widen_attribute_bounds`): the union of every ask, whatever the
+/// load order. An unknown attribute, or a range without the attribute's
+/// default, refuses the load, naming the mod.
+pub(super) fn with_mod_widened_bounds(
+    catalog: &horizon_world::attributes::entity::Catalog,
+    widenings: &[mod_api::__private::AttributeBoundsWidening],
+) -> std::result::Result<horizon_world::attributes::entity::Catalog, String> {
+    let asks: Vec<_> = widenings
+        .iter()
+        .map(|ask| horizon_world::attributes::entity::WidenedBounds {
+            mod_id: ask.mod_id.clone(),
+            id: ask.id.clone(),
+            min: ask.min,
+            max: ask.max,
+        })
+        .collect();
+    catalog
+        .with_widened_bounds(&asks)
+        .map_err(|error| format!("mod attribute bounds: {error}"))
 }
 
 /// The catalog with the attributes mods add to existing entity types
@@ -611,6 +660,18 @@ pub(super) fn load_resources(
     } = core;
     let assets = Arc::new(assets);
     let render = Arc::new(render);
+    // The namespaces of the mod block states registered now: what every level.dat saved from
+    // here on records, and what a world is checked against before it opens (`level_mods`). A
+    // launch world's data preload, which may already have started, reads no mod records; its
+    // open, which checks them, waits for these resources.
+    {
+        use horizon_client::save::level_mods;
+        let registry = assets.registry;
+        let names = (0..registry.len() as u32)
+            .filter_map(|id| registry.state(horizon_world::registry::BlockStateId(id)))
+            .map(|state| state.name.as_str());
+        level_mods::set_block_namespaces(Some(level_mods::mod_namespaces(names)));
+    }
     if let Some(folder) = launch_world {
         world_loading::preload_launch_world(
             folder,

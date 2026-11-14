@@ -127,6 +127,7 @@ fn decode(p: [u8; 4]) -> f64 {
 /// 16 / tan(elevation) = 16 / (1 - (row + 0.5) / 8) blocks.
 #[test]
 fn the_sky_disc_reads_its_own_depth() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else { return };
     let (pixels, format) = picture(&gpu, "gbuffers_skybasic", 1.0, &[]);
     for row in 0..4 {
@@ -146,6 +147,7 @@ fn the_sky_disc_reads_its_own_depth() {
 /// one depth everywhere.
 #[test]
 fn the_sun_reads_its_own_depth() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else { return };
     let quad = |z: f32| {
         [
@@ -180,6 +182,7 @@ fn the_sun_reads_its_own_depth() {
 /// disc, the world shows (the fixture's grey), not the sky's red.
 #[test]
 fn the_sky_shows_only_where_the_world_left_the_far_plane() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else { return };
     let half = SIZE[0] as usize * SIZE[1] as usize / 2;
     let (far, _) = picture(&gpu, "gbuffers_skybasic", 1.0, &[]);

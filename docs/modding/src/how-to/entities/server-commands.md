@@ -14,7 +14,14 @@ online player, `players` one or more online players, `entity` exactly one entity
 and `entities` one or more entities. Missing or too-large selections produce
 vanilla feedback without calling the listener. Word and greedy text arguments
 are strings, numbers are finite doubles, booleans are typed, and item arguments
-are component-bearing stacks of one item. Block positions are resolved and floored
+are component-bearing stacks of one item. `mod_id` takes a loaded package id and
+delivers it as a string (NeoForge's `ModIdArgument`). `resource:<registry>`, such as
+`<kind:resource:minecraft:entity_type>`, takes an id that registry holds, static or
+from a data pack, and delivers `CommandArgumentValue::Id`; any other id is refused
+with vanilla's `argument.resource.not_found` before a listener runs. Clients see it
+as vanilla's `minecraft:resource_key`, so unmodded clients complete it too. The registry
+must be a `namespace:path` resource location of at most 256 bytes, and the server takes at
+most 256 distinct registries; a usage past either is left out, with the reason in the log. Block positions are resolved and floored
 from the source's world, relative or local coordinates without loading chunks.
 A player's source is their position and rotation. The console has no source
 entity and uses the Overworld spawn's block corner with zero rotation, so `@s`
@@ -25,7 +32,15 @@ cannot resolve there. Every source receives the same owned data, on native and w
 `CommandBlockMinecart { entity, .. }` or `Function { id, .. }`.
 `source.permission()` returns the effective `PermissionLevel`: functions use
 function permission; blocks and carts use game-master permission. `execute as`,
-`at` and `in` change argument resolution, not the origin. Feedback through
+`at` and `in` change argument resolution, not the origin. `command.dimension` and
+`command.position` are where the command executes after `execute in`, `at` or
+`positioned`; the console executes in the Overworld at its spawn corner.
+
+Two reads work in a command and elsewhere on the server. `player.profile(host)` returns
+the player's `GameProfile`: UUID, name and login properties such as the signed `textures`
+skin (empty for an offline-mode player). `host.advancement(&id)` returns a loaded
+`AdvancementInfo`: its parent, display (title, description, icon stack with its components, frame and
+flags), criterion names and requirements, from the set the last `/reload` built. Feedback through
 `host.commands().feedback` honours the underlying source's silence and track-output.
 
 ## Entity and player selectors
@@ -114,6 +129,11 @@ rejected value shows the returned `Text` and no listener runs. A valid value arr
 as `CommandArgumentValue::Custom { kind, value }`, where `kind` is `mymod:machine`
 and `value` is the canonical text `parse` returned. `suggest` is asked for the
 completions while the player types.
+
+For a fixed set of words, register `ChoiceArgument` (NeoForge's `EnumArgument`)
+instead of writing a type: `r.register_command_argument("mode",
+ChoiceArgument::new(["low", "high"]))`. It refuses other words, listing the valid
+ones, and completes the choices that start with the typed text.
 
 `CommandArgumentKind::Word` takes one word of ASCII letters, digits and `_ - . +`; the
 word ends at the first other character, a space included, so a value with `:` or `/`

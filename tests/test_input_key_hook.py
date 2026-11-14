@@ -116,10 +116,11 @@ impl Game {
         if self.early { return; }
         self.calls.push("finish");
     }
-    fn native_input_key(&mut self, name: &'static str, layout: Option<&'static str>, raw: u32, action: KeyAction,
-                        modifiers: u32) {
-        // The key's hook runs as input: a mod there may reach the clipboard.
+    fn key_input(&mut self, name: Option<&'static str>, layout: Option<&'static str>, raw: u32, action: KeyAction,
+                 modifiers: u32) {
+        // The key's route runs as input: a mod's hook there may reach the clipboard.
         assert!(self.input);
+        let name = name.unwrap_or("key.keyboard.unknown");
         self.calls.push("hook"); self.observed.push((name, layout, raw, action, modifiers));
     }
     METHOD

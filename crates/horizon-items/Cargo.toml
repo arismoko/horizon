@@ -21,3 +21,7 @@ test-support = []
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# The enabled-mods test names a package side (`mod_api::Side`).
+horizon-mod-vocab = { path = "../horizon-mod-vocab" }

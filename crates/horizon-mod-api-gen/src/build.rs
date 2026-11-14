@@ -288,6 +288,7 @@ fn render_records_need_no_game_sources() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn listed_render_slots_have_eligible_points() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     super::points::game_points(&root).unwrap();

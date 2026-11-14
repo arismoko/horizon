@@ -47,6 +47,8 @@ pub(super) struct Index<'a> {
     depth: usize,
     /// Every source file read, for the build script to track.
     pub(super) read: std::cell::RefCell<Vec<std::path::PathBuf>>,
+    /// Crates added for one consumer beside [`CRATES`] ([`Index::add_crate`]).
+    extra: Vec<(&'static str, &'static str)>,
 }
 
 /// The file a module's `#[path = "..."]` names.
@@ -79,7 +81,24 @@ impl<'a> Index<'a> {
             by_path: HashMap::new(),
             depth: 0,
             read: Default::default(),
+            extra: Vec::new(),
         }
+    }
+
+    /// Indexes one more crate, for this index only: the surface walk reads the facade crate
+    /// (`horizon_mod_api`), which no generated output resolves through.
+    pub(super) fn add_crate(&mut self, name: &'static str, dir: &'static str) {
+        if self.crate_dir(name).is_none() {
+            self.extra.push((name, dir));
+        }
+    }
+
+    fn crate_dir(&self, name: &str) -> Option<(&'static str, &'static str)> {
+        CRATES
+            .iter()
+            .chain(&self.extra)
+            .find(|(krate, _)| *krate == name)
+            .copied()
     }
 
     pub(super) fn item(&self, id: ItemId) -> &Item {
@@ -88,10 +107,9 @@ impl<'a> Index<'a> {
 
     /// The module at `path` in `krate`, parsed on first use.
     pub(super) fn module(&mut self, krate: &str, path: &[String]) -> Result<usize, String> {
-        let krate = CRATES
-            .iter()
-            .find(|(name, _)| *name == krate)
-            .map(|(name, _)| *name)
+        let krate = self
+            .crate_dir(krate)
+            .map(|(name, _)| name)
             .ok_or_else(|| format!("{krate} is not a crate the mod API builds on"))?;
         if let Some(&id) = self.by_path.get(&(krate, path.to_vec())) {
             return Ok(id);
@@ -111,6 +129,10 @@ impl<'a> Index<'a> {
                     });
                 match declared {
                     Some((Some((_, items)), _)) => self.expand_includes(items)?,
+                    // A generated `#[path]` is absolute.
+                    Some((None, Some(file))) if Path::new(&file).is_absolute() => {
+                        self.parse(krate, &file)?
+                    }
                     // `#[path]` is relative to the declaring file's directory: `parent.rs`
                     // sits beside it, `parent/mod.rs` below.
                     Some((None, Some(file))) => {
@@ -138,7 +160,7 @@ impl<'a> Index<'a> {
     }
 
     fn parse(&self, krate: &str, file: &str) -> Result<Vec<Item>, String> {
-        let dir = CRATES.iter().find(|(name, _)| *name == krate).unwrap().1;
+        let dir = self.crate_dir(krate).expect("a known crate").1;
         let path = self.root.join(dir).join(file);
         let source = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         self.read.borrow_mut().push(path.clone());
@@ -263,7 +285,11 @@ impl<'a> Index<'a> {
     }
 
     /// `path`, written in `module`, as a module of an indexed crate, if it is one.
-    fn absolute(&self, module: usize, path: &[String]) -> Option<(&'static str, Vec<String>)> {
+    pub(super) fn absolute(
+        &self,
+        module: usize,
+        path: &[String],
+    ) -> Option<(&'static str, Vec<String>)> {
         let m = &self.modules[module];
         let (first, rest) = path.split_first()?;
         let mut base = match first.as_str() {
@@ -279,10 +305,7 @@ impl<'a> Index<'a> {
                 path.push(name.to_string());
                 (m.krate, path)
             }
-            name => {
-                let krate = CRATES.iter().find(|(krate, _)| *krate == name)?.0;
-                (krate, Vec::new())
-            }
+            name => (self.crate_dir(name)?.0, Vec::new()),
         };
         for segment in rest {
             if segment == "super" {
@@ -309,7 +332,11 @@ fn defines(item: &Item, name: &str) -> bool {
 }
 
 /// Each path `tree` imports, with the name it binds (`None` for a glob).
-fn uses(tree: &UseTree, prefix: &mut Vec<String>, f: &mut impl FnMut(Vec<String>, Option<String>)) {
+pub(super) fn uses(
+    tree: &UseTree,
+    prefix: &mut Vec<String>,
+    f: &mut impl FnMut(Vec<String>, Option<String>),
+) {
     match tree {
         UseTree::Path(path) => {
             prefix.push(path.ident.to_string());

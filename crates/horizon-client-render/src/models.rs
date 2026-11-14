@@ -11,19 +11,35 @@ use serde_json::{Value, json};
 use std::path::Path;
 
 /// The standalone models native mods asked for (`native_standalone_models`).
-static STANDALONE: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+static STANDALONE: std::sync::OnceLock<StandaloneModels> = std::sync::OnceLock::new();
 /// Test fixture shared with the resource-bake worker.
-static STANDALONE_FIXTURE: std::sync::Mutex<Option<(Vec<String>, usize)>> =
+static STANDALONE_FIXTURE: std::sync::Mutex<Option<(StandaloneModels, usize)>> =
     std::sync::Mutex::new(None);
+
+/// Standalone file ids and forms with unforgeable registration-time ownership.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct StandaloneModels {
+    pub names: Vec<String>,
+    pub forms: Vec<StandaloneFormRegistration>,
+}
+
+/// A form with the mod identity attached by hook dispatch.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StandaloneFormRegistration {
+    pub owner: &'static str,
+    pub form: mod_api::StandaloneModelForm,
+}
 
 #[cfg(feature = "test-support")]
 static FIXTURE_CHANGED: std::sync::Condvar = std::sync::Condvar::new();
 
+fn namespaced(name: &str) -> bool {
+    name.split_once(':')
+        .is_some_and(|(ns, path)| !ns.is_empty() && !path.is_empty())
+}
+
 fn standalone_names(mut names: Vec<String>) -> Vec<String> {
-    names.retain(|n| {
-        n.split_once(':')
-            .is_some_and(|(ns, path)| !ns.is_empty() && !path.is_empty())
-    });
+    names.retain(|n| namespaced(n));
     names.sort();
     names.dedup();
     names
@@ -34,18 +50,20 @@ fn standalone_names(mut names: Vec<String>) -> Vec<String> {
 /// as vanilla's `ModelEvent.RegisterStandalone` is posted once per model
 /// discovery. Names are sorted and deduplicated; one without a namespace
 /// (`mymod:block/shaft_half`) is dropped. False when already set.
-pub fn register_standalone(names: Vec<String>) -> bool {
-    STANDALONE.set(standalone_names(names)).is_ok()
+pub fn register_standalone(mut models: StandaloneModels) -> bool {
+    models.names = standalone_names(models.names);
+    models.forms.retain(|entry| namespaced(entry.form.id()));
+    STANDALONE.set(models).is_ok()
 }
 
-/// Names baked beside block models. An active test fixture wins over process registration.
-pub fn standalone() -> Vec<String> {
-    if let Some((names, _)) = STANDALONE_FIXTURE
+/// Declarations baked beside block models; a test fixture overrides process registration.
+pub fn standalone() -> StandaloneModels {
+    if let Some((models, _)) = STANDALONE_FIXTURE
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .as_ref()
     {
-        return names.clone();
+        return models.clone();
     }
     STANDALONE.get().cloned().unwrap_or_default()
 }
@@ -66,8 +84,29 @@ pub fn standalone_fixture(names: Vec<String>) -> StandaloneFixture {
             .wait(fixture)
             .unwrap_or_else(std::sync::PoisonError::into_inner);
     }
-    *fixture = Some((names, 1));
+    *fixture = Some((
+        StandaloneModels {
+            names,
+            forms: Vec::new(),
+        },
+        1,
+    ));
     StandaloneFixture
+}
+
+#[cfg(feature = "test-support")]
+impl StandaloneFixture {
+    /// Add attributed forms before loading the fixture's resources.
+    pub fn with_forms(self, forms: Vec<StandaloneFormRegistration>) -> Self {
+        let mut fixture = STANDALONE_FIXTURE
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let models = &mut fixture.as_mut().expect("active fixture").0;
+        models.forms = forms;
+        models.forms.retain(|entry| namespaced(entry.form.id()));
+        drop(fixture);
+        self
+    }
 }
 
 #[cfg(feature = "test-support")]
@@ -165,8 +204,9 @@ pub(crate) fn prepare_with_models(
     };
     {
         let _step = crate::spans::startup::step("core.bake_standalone");
-        let names = standalone();
-        catalog.bake_standalone(root.source(), sprites, models, &names)?;
+        let standalone = standalone();
+        catalog.bake_standalone(root.source(), sprites, models, &standalone.names)?;
+        catalog.bake_standalone_forms(root.source(), sprites, models, &standalone.forms);
     }
     let mut placements = Vec::new();
     let mut states = Vec::new();
@@ -253,7 +293,7 @@ pub fn load_visibility(
 mod tests {
     #[test]
     fn standalone_names_are_namespaced_sorted_and_set_once() {
-        assert!(super::standalone().is_empty());
+        assert!(super::standalone().names.is_empty());
         let names = [
             "lanef:block/b",
             "nonamespace",
@@ -262,14 +302,37 @@ mod tests {
             "lanef:block/a",
             "lanef:block/b",
         ];
-        assert!(super::register_standalone(names.map(str::to_owned).into()));
+        assert!(super::register_standalone(super::StandaloneModels {
+            names: names.map(str::to_owned).into(),
+            forms: [
+                "no_namespace",
+                ":empty_namespace",
+                "namespace:",
+                "other:valid"
+            ]
+            .map(|id| super::StandaloneFormRegistration {
+                owner: "registering_mod",
+                form: mod_api::StandaloneModelForm::Combined {
+                    id: id.into(),
+                    parts: Vec::new(),
+                },
+            })
+            .into(),
+        }));
         assert_eq!(
-            super::standalone(),
+            super::standalone().names,
             ["lanef:block/a".to_owned(), "lanef:block/b".to_owned()]
         );
-        assert!(!super::register_standalone(vec!["other:block/c".into()]));
+        let registered = super::standalone();
+        assert_eq!(registered.forms.len(), 1);
+        assert_eq!(registered.forms[0].form.id(), "other:valid");
+        assert_eq!(registered.forms[0].owner, "registering_mod");
+        assert!(!super::register_standalone(super::StandaloneModels {
+            names: vec!["other:block/c".into()],
+            forms: Vec::new(),
+        }));
         assert_eq!(
-            super::standalone(),
+            super::standalone().names,
             ["lanef:block/a".to_owned(), "lanef:block/b".to_owned()]
         );
     }

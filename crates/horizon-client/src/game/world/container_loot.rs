@@ -1,7 +1,10 @@
 //! First-access loot shared by blocks and chest vehicles.
 use super::Game;
 use horizon_client::{containers::BlockEntity, save::PendingContainerLoot};
-use horizon_core::{nbt::Tag, random::LegacyRandom};
+use horizon_core::{
+    nbt::Tag,
+    random::{LegacyRandom, RandomSource},
+};
 
 #[derive(Clone, Copy)]
 pub(super) enum LootTarget {
@@ -158,23 +161,64 @@ impl Game<'_> {
             luck,
             entity: entity.as_ref(),
         };
-        let fill = |slots: &mut [Option<horizon_client::items::ItemStack>]| {
-            unpack_slots(&pending, slots, &loot, pos, context);
+        let Some(mut slots) = (match target {
+            LootTarget::Block(key) => self
+                .world
+                .block_entities
+                .get(&key)
+                .map(|e| e.slots().to_vec()),
+            LootTarget::Cart(id) => self
+                .carts
+                .iter()
+                .find(|c| c.id == id)
+                .map(|c| c.items.clone()),
+            LootTarget::Boat(id) => self
+                .boats
+                .iter()
+                .find(|b| b.id == id)
+                .map(|b| b.items.clone()),
+        }) else {
+            return;
         };
+        let origin = match target {
+            LootTarget::Block(_) => [pos.0 as f64 + 0.5, pos.1 as f64 + 0.5, pos.2 as f64 + 0.5],
+            LootTarget::Cart(id) => {
+                let p = self.carts.iter().find(|c| c.id == id).unwrap().position;
+                [p.x, p.y, p.z]
+            }
+            LootTarget::Boat(id) => {
+                let p = self.boats.iter().find(|b| b.id == id).unwrap().position;
+                [p.x, p.y, p.z]
+            }
+        };
+        let mut random = self.world.random.clone();
+        let mut sequences = std::mem::take(&mut self.rand_sequences);
+        fill_with_random(
+            &pending,
+            &mut slots,
+            &loot,
+            &mut random,
+            &mut sequences,
+            self.level.seed,
+            context,
+            |items| self.container_fill_hook(&table, target, origin, player, items),
+        );
+        self.world.random = random;
+        self.rand_sequences = sequences;
         match target {
             LootTarget::Block(key) => {
                 if let Some(e) = self.world.block_entities.get_mut(&key) {
-                    fill(e.slots_mut());
+                    e.slots_mut().clone_from_slice(&slots);
                 }
             }
             LootTarget::Cart(id) => {
                 if let Some(i) = self.carts.iter().position(|c| c.id == id) {
-                    self.carts.update(i, |c| fill(&mut c.items));
+                    self.carts.update(i, |c| c.items = slots);
                 }
             }
             LootTarget::Boat(id) => {
                 if let Some(i) = self.boats.iter().position(|b| b.id == id) {
-                    self.boats.update(i, |b| fill(&mut b.items));
+                    self.boats.update(i, |b| b.items = slots);
                 }
             }
         }
@@ -229,33 +273,62 @@ pub(super) fn take_block_pending(
     pending
 }
 
-/// The single roll/placement implementation used by Game and its mutable level adapter.
-fn unpack_slots(
+/// Vanilla LootContext.Builder: explicit seed, named sequence, then level random.
+fn fill_with_random(
     pending: &PendingContainerLoot,
     slots: &mut [Option<horizon_client::items::ItemStack>],
     loot: &horizon_world::loot::LootData,
-    pos: (i32, i32, i32),
+    level_random: &mut LegacyRandom,
+    sequences: &mut horizon_client::random_sequences::RandomSequences,
+    world_seed: i64,
     context: horizon_world::loot::ContainerLootContext<'_>,
+    mut hook: impl FnMut(&mut Vec<horizon_world::loot::LootStack>),
+) {
+    if let Some(seed) = pending.seed_value().filter(|seed| *seed != 0) {
+        unpack_slots(
+            pending,
+            slots,
+            loot,
+            &mut LegacyRandom::new(seed),
+            context,
+            &mut hook,
+        );
+    } else if let Some(id) = loot.random_sequence(&pending.table_id()) {
+        unpack_slots(
+            pending,
+            slots,
+            loot,
+            sequences.get(id, world_seed),
+            context,
+            &mut hook,
+        );
+    } else {
+        unpack_slots(pending, slots, loot, level_random, context, &mut hook);
+    }
+}
+
+/// The single roll/placement implementation used by Game and its mutable level adapter.
+fn unpack_slots<R: RandomSource + Clone>(
+    pending: &PendingContainerLoot,
+    slots: &mut [Option<horizon_client::items::ItemStack>],
+    loot: &horizon_world::loot::LootData,
+    random: &mut R,
+    context: horizon_world::loot::ContainerLootContext<'_>,
+    mut hook: impl FnMut(&mut Vec<horizon_world::loot::LootStack>),
 ) {
     // Entry points discard a pre-existing mixed state. Items added by the
     // player's advancement rewards keep their slots while this roll fills free ones.
-    // Zero/missing seed behavior is unchanged and tracked by #3690.
-    let seed = pending.seed_value().filter(|s| *s != 0).unwrap_or_else(|| {
-        horizon_core::random::position_seed(horizon_core::position::BlockPos::new(
-            pos.0, pos.1, pos.2,
-        ))
-    });
-    let mut random = LegacyRandom::new(seed);
-    let Some(items) = loot.roll_container_with(&pending.table_id(), &mut random, context) else {
+    let Some(mut items) = loot.roll_container_with(&pending.table_id(), random, context) else {
         return;
     };
+    hook(&mut items);
     let mut placed = vec![None; slots.len()];
     let free = slots
         .iter()
         .enumerate()
         .filter_map(|(i, s)| s.is_none().then_some(i))
         .collect();
-    loot.place_container_loot(items, &mut placed, free, &mut random);
+    loot.place_container_loot(items, &mut placed, free, random);
     for (slot, stack) in slots.iter_mut().zip(placed) {
         if let Some(stack) = stack {
             *slot = Some(horizon_client::structure_blocks::loot_item_with_components(
@@ -288,24 +361,41 @@ impl super::GameLevel<'_> {
                     .clone()
             });
             let key = (i32::MAX - 15, super::minecarts::CART_KEY_Y, id as i32);
-            self.carts.update(i, |cart| {
-                if let Some(BlockEntity::Chest(open)) = self.world.block_entities.get(&key) {
-                    cart.items.clone_from(open);
-                }
-                if cart.items.iter().any(Option::is_some) {
-                    return;
-                }
-                unpack_slots(
-                    &pending,
-                    &mut cart.items,
-                    loot,
-                    pos,
-                    horizon_world::loot::ContainerLootContext {
-                        biome: biome.as_deref(),
-                        ..Default::default()
-                    },
-                );
-            });
+            let mut slots = self.carts[i].items.clone();
+            if let Some(BlockEntity::Chest(open)) = self.world.block_entities.get(&key) {
+                slots.clone_from(open);
+            }
+            if slots.iter().any(Option::is_some) {
+                self.carts.update(i, |cart| cart.items = slots);
+                return;
+            }
+            let loot = loot.clone();
+            let mut random = self.world.random.clone();
+            let mut sequences = std::mem::take(self.rand_sequences);
+            fill_with_random(
+                &pending,
+                &mut slots,
+                &loot,
+                &mut random,
+                &mut sequences,
+                self.seed,
+                horizon_world::loot::ContainerLootContext {
+                    biome: biome.as_deref(),
+                    ..Default::default()
+                },
+                |items| {
+                    self.container_fill_hook(
+                        &pending.table_id(),
+                        target,
+                        [p.x, p.y, p.z],
+                        player,
+                        items,
+                    )
+                },
+            );
+            self.world.random = random;
+            *self.rand_sequences = sequences;
+            self.carts.update(i, |cart| cart.items = slots);
             if let Some(BlockEntity::Chest(open)) = self.world.block_entities.get_mut(&key) {
                 open.clone_from(&self.carts[i].items);
             }
@@ -326,20 +416,41 @@ impl super::GameLevel<'_> {
                 .name
                 .clone()
         });
+        let Some(entity) = self.world.block_entities.get(&key) else {
+            return;
+        };
+        if entity.slots().iter().any(Option::is_some) {
+            return;
+        }
+        let mut slots = entity.slots().to_vec();
+        let loot = loot.clone();
+        let mut random = self.world.random.clone();
+        let mut sequences = std::mem::take(self.rand_sequences);
+        fill_with_random(
+            &pending,
+            &mut slots,
+            &loot,
+            &mut random,
+            &mut sequences,
+            self.seed,
+            horizon_world::loot::ContainerLootContext {
+                biome: biome.as_deref(),
+                ..Default::default()
+            },
+            |items| {
+                self.container_fill_hook(
+                    &pending.table_id(),
+                    target,
+                    [key.0 as f64 + 0.5, key.1 as f64 + 0.5, key.2 as f64 + 0.5],
+                    player,
+                    items,
+                )
+            },
+        );
+        self.world.random = random;
+        *self.rand_sequences = sequences;
         if let Some(entity) = self.world.block_entities.get_mut(&key) {
-            if entity.slots().iter().any(Option::is_some) {
-                return;
-            }
-            unpack_slots(
-                &pending,
-                entity.slots_mut(),
-                loot,
-                key,
-                horizon_world::loot::ContainerLootContext {
-                    biome: biome.as_deref(),
-                    ..Default::default()
-                },
-            );
+            entity.slots_mut().clone_from_slice(&slots);
         }
     }
 }

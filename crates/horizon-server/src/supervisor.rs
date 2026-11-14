@@ -901,6 +901,7 @@ mod tests {
     /// A restore asked for while the game is stopped is done before the next start (the loop's
     /// head runs `apply_queued`), not left queued for some later restart.
     #[test]
+    #[ignore = "daily"]
     fn a_queued_restore_is_done_before_the_next_start() {
         let dir =
             std::env::temp_dir().join(format!("horizon-server-queued-{}", std::process::id()));
@@ -1034,6 +1035,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[ignore = "daily"]
     fn a_switch_backs_up_then_rolls_back_world_and_release() {
         let (shared, dir) = installed("rollback", &[("v1", 0), ("v2", 0)]);
         let install = shared.install.clone().unwrap();
@@ -1081,6 +1083,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[ignore = "daily"]
     fn a_game_that_comes_up_ends_the_update_and_prunes_old_releases() {
         let (shared, dir) = installed("prune", &[("v1", 0), ("v2", 0), ("v3", 0)]);
         let install = shared.install.clone().unwrap();
@@ -1104,6 +1107,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[ignore = "daily"]
     fn a_game_that_cant_load_is_never_switched_to() {
         let (shared, dir) = installed("unloadable", &[("v1", 0), ("v2", 127)]);
         let install = shared.install.clone().unwrap();
@@ -1189,6 +1193,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[ignore = "daily"]
     fn a_management_stop_ends_the_supervisor_and_a_stop_in_game_keeps_it() {
         let dir = std::env::temp_dir().join(format!("horizon-server-stop-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();

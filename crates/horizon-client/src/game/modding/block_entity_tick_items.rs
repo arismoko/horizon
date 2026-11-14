@@ -29,6 +29,7 @@ pub(super) struct Scope {
     pub(super) failure_generation: u64,
     pub poisoned: bool,
     pub items: Option<Vec<Proposal>>,
+    pub unchanged: bool,
     pub snapshot: Option<
         Box<(
             mod_api::ModBlockEntity,
@@ -47,6 +48,7 @@ impl Scope {
             failure_generation,
             poisoned: false,
             items: None,
+            unchanged: false,
             snapshot: None,
             savepoints: Vec::new(),
         }
@@ -147,10 +149,11 @@ impl Game<'_> {
         mut taken: horizon_client::containers::ModBlockEntity,
         original_items: &[Option<ItemStack>],
         parent: (Option<Key>, Option<Box<Scope>>),
+        changed: bool,
     ) {
         use super::api_values::{BlockEntitySnapshotError, finish_block_entity_writeback};
         use horizon_client::containers::BlockEntity;
-        if let Some(key) = self.block_entity_tick_key.take()
+        if let Some(key) = self.block_entity_tick_key
             && key.unbalanced
         {
             if let Some(scope) = &mut self.block_entity_tick_items {
@@ -159,15 +162,23 @@ impl Game<'_> {
             self.abort_tick_item_transactions(key.transaction_depth);
         }
         let Some(mut scope) = self.block_entity_tick_items.take() else {
+            if changed {
+                self.put_back_mod_block_entity(pos, taken, original_items);
+            } else {
+                self.restore_unchanged_tick(pos, taken);
+            }
             self.block_entity_tick_key = parent.0;
             self.block_entity_tick_items = parent.1;
-            self.put_back_mod_block_entity(pos, taken, original_items);
             return;
         };
-        if scope.snapshot.is_none() {
+        if scope.snapshot.is_none() && !scope.unchanged {
+            if changed {
+                self.put_back_mod_block_entity(pos, taken, original_items);
+            } else {
+                self.restore_unchanged_tick(pos, taken);
+            }
             self.block_entity_tick_key = parent.0;
             self.block_entity_tick_items = parent.1;
-            self.put_back_mod_block_entity(pos, taken, original_items);
             return;
         }
         let owns_placeholder = self.world.block_entities.generation(&pos) == scope.generation
@@ -178,7 +189,9 @@ impl Game<'_> {
                 matches!(self.server_resident_entity(proposal.id), EntityLookup::Found { location, .. } if location == proposal.location)
                     && self.dropped.iter().any(|e| e.id == proposal.id && e.stack == proposal.original)
             }));
-        let accepted = if let Some(snapshot) = scope.snapshot.take() {
+        let accepted = if scope.unchanged {
+            valid
+        } else if let Some(snapshot) = scope.snapshot.take() {
             let (snapshot, before) = *snapshot;
             finish_block_entity_writeback(
                 &mut taken,
@@ -209,7 +222,11 @@ impl Game<'_> {
             }
         }
         if owns_placeholder {
-            self.put_back_mod_block_entity(pos, taken, original_items);
+            if changed {
+                self.put_back_mod_block_entity(pos, taken, original_items);
+            } else {
+                self.restore_unchanged_tick(pos, taken);
+            }
         } else {
             self.drop_unreturned_mod_contents(pos, taken);
         }

@@ -302,7 +302,12 @@ pub mod tests {
         assert!(!ticks("doubler:press_entity"));
         let tick = |kind: &str| {
             let mut entity = ModBlockEntity::new(kind.into(), Default::default());
-            dispatch_block_entity_tick(&mut NoHost, [0, 64, 0], &mut entity);
+            dispatch_block_entity_tick(
+                &mut NoHost,
+                &mut BlockEntityTickReply::Changed,
+                [0, 64, 0],
+                &mut entity,
+            );
             entity.data.len()
         };
         // The tick is asked by the entity's type, which differs from its block's id.
@@ -403,6 +408,39 @@ impl BlockEntitiesRegistrar for PartRegistrar {
                 kind: *key,
                 part: kind,
             })
+        }
+    }
+
+    fn declare_block_entity_part_state(
+        &mut self,
+        part: &'static str,
+        declaration: crate::PartStateDeclaration,
+    ) -> Result<(), crate::BlockEntityStateError> {
+        let key = (declaration.namespace, declaration.name);
+        let checked = declaration
+            .check(self.mod_wasm)
+            .and_then(|()| {
+                self.owned_declaration_id(&format!("{}:{}", key.0, key.1))
+                    .map(drop)
+                    .map_err(|_| crate::PartStateRefusal::UnownedNamespace)
+            })
+            .and_then(|()| match self.part_states.get(&key) {
+                Some(&(layout, declared)) if layout != declaration.layout => {
+                    Err(crate::PartStateRefusal::Incompatible { declared })
+                }
+                _ => Ok(()),
+            });
+        match checked {
+            Ok(()) => {
+                self.part_states
+                    .insert(key, (declaration.layout, declaration.data_name));
+                Ok(())
+            }
+            Err(reason) => {
+                let error = declaration.refused(part, reason);
+                self.refused.push(format!("{}: {error}", self.mod_id));
+                Err(error)
+            }
         }
     }
 

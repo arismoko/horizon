@@ -204,6 +204,11 @@ impl TryIntoApi for engine::LootContext<'_> {
                 ))
             })
             .transpose()?;
+        value.queried_table_id = self
+            .queried_table_id
+            .clone()
+            .unwrap_or_else(|| horizon_core::UNKNOWN_LOOT_TABLE.into());
+        value.queried_stack = self.queried_stack.as_ref().map(queried_stack).transpose()?;
         value.block = self.block.map(str::to_owned);
         value.luck = self.luck;
         value.biome = self.biome.map(str::to_owned);
@@ -224,6 +229,29 @@ impl TryIntoApi for engine::LootContext<'_> {
         });
         Ok(value)
     }
+}
+
+struct LootAbilityHost;
+impl mod_api::Host for LootAbilityHost {}
+mod_api::impl_host_areas!(LootAbilityHost);
+
+pub(crate) fn dispatch_loot_ability(tool: &engine::LootStack, ability: &str, holds: &mut bool) {
+    if !mod_api::__private::item_listens(mod_api::HookId::CanPerformAction, &tool.item) {
+        return;
+    }
+    let Ok(stack) = queried_stack(tool) else {
+        return;
+    };
+    mod_api::dispatch_can_perform_action(&LootAbilityHost, &stack, ability, holds);
+}
+
+fn queried_stack(stack: &engine::LootStack) -> Result<mod_api::ItemStack, LootValueError> {
+    if stack.count <= 0 || stack.damage < 0 {
+        return Err(LootValueError::InvalidPatch);
+    }
+    horizon_items::items::ItemStack::from_loot(stack)
+        .try_into_api()
+        .map_err(|_| LootValueError::InvalidPatch)
 }
 
 #[cfg(test)]
@@ -253,6 +281,8 @@ mod tests {
     }
     fn context() -> engine::LootContext<'static> {
         engine::LootContext {
+            queried_table_id: None,
+            queried_stack: None,
             entity: None,
             damage: None,
             player: None,
@@ -279,6 +309,8 @@ mod tests {
             direct: Some(engine::LootEntity::new("minecraft:arrow")),
         };
         let value = engine::LootContext {
+            queried_table_id: None,
+            queried_stack: None,
             entity: Some(&victim),
             damage: Some(&damage),
             player: None,
@@ -502,3 +534,7 @@ mod tests {
         assert_eq!(output, before);
     }
 }
+
+#[cfg(test)]
+#[path = "loot_query_tests.rs"]
+mod query_tests;

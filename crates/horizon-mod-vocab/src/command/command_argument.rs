@@ -124,3 +124,86 @@ pub trait CommandArgumentType: Send + Sync + 'static {
     /// player-visible text. A panicking native callback is also refused.
     fn suggest(&self, prefix: &str) -> Vec<CommandSuggestion>;
 }
+
+/// A ready argument type that takes one of a fixed set of words: NeoForge's `EnumArgument`.
+///
+/// Register it like any type: `r.register_command_argument("mode", ChoiceArgument::new(["low",
+/// "high"]))`, then name `<mode:mymod:mode>` in a usage. A word outside the set is refused with
+/// the valid ones listed; completion offers the choices that start with the typed text, in the
+/// order given. The value arrives as `CommandArgumentValue::Custom` with the chosen word.
+// no wire: a registered argument type stays in its mod; only its parse and completion results cross.
+#[derive(Clone, Debug, PartialEq, Eq)]
+// exhaustive: its fields are private, so mods cannot build or destructure it
+pub struct ChoiceArgument {
+    choices: Vec<String>,
+}
+
+impl ChoiceArgument {
+    /// The words a player may write, in completion order. Each must be a Brigadier `word`.
+    pub fn new(choices: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self {
+            choices: choices.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl CommandArgumentType for ChoiceArgument {
+    fn kind(&self) -> CommandArgumentKind {
+        CommandArgumentKind::Word
+    }
+
+    fn parse(&self, input: &str) -> Result<String, CommandArgumentError> {
+        if self.choices.iter().any(|choice| choice == input) {
+            return Ok(input.to_owned());
+        }
+        // NeoForge's key; a client without it shows the fallback.
+        Err(CommandArgumentError::new(Text::new(
+            crate::text::TextContent::Translatable {
+                key: "commands.neoforge.arguments.enum.invalid".into(),
+                fallback: Some("Enum constant must be one of %s, found %s".into()),
+                arguments: vec![Text::literal(self.choices.join(", ")), Text::literal(input)],
+            },
+        )))
+    }
+
+    fn suggest(&self, prefix: &str) -> Vec<CommandSuggestion> {
+        self.choices
+            .iter()
+            .filter(|choice| choice.starts_with(prefix))
+            .map(CommandSuggestion::new)
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_choice_refuses_other_words_and_completes_by_prefix() {
+        let mode = ChoiceArgument::new(["low", "high"]);
+        assert_eq!(mode.parse("high"), Ok("high".into()));
+        let refusal = mode.parse("med").unwrap_err();
+        let crate::text::TextContent::Translatable { arguments, .. } = &refusal.message().content
+        else {
+            panic!("a translatable refusal");
+        };
+        assert_eq!(
+            arguments,
+            &vec![Text::literal("low, high"), Text::literal("med")]
+        );
+        assert_eq!(mode.suggest("h"), vec![CommandSuggestion::new("high")]);
+    }
+
+    #[test]
+    fn an_id_value_crosses_the_wire() {
+        use super::super::CommandArgumentValue;
+        let value = CommandArgumentValue::Id(crate::Identifier::parse("minecraft:zombie").unwrap());
+        let mut out = crate::wire::Writer::new();
+        out.put(&value);
+        assert_eq!(
+            crate::wire::Reader::decode::<CommandArgumentValue>(out.bytes()).unwrap(),
+            value
+        );
+    }
+}

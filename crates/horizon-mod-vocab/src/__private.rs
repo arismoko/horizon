@@ -5,6 +5,21 @@ use crate::*;
 #[path = "__private/registry_installation.rs"]
 mod registry_installation;
 
+/// The native mods compiled into a game: the launcher-to-game build contract, not a mod-facing
+/// API. The launcher generates the rows from the selected manifests, independently of the mods'
+/// hook factories; the game checks them against the packages beside its executable
+/// (`horizon_mod_package::runtime`). It lives in the API's closure so that the launcher's
+/// `horizon_native_mods` library, built from the API slice alone, can name it.
+pub mod native {
+    /// One native mod compiled into the executable, with its manifest's `side`.
+    #[derive(Clone, Copy, Debug, Default, PartialEq)]
+    pub struct BuiltMod {
+        pub id: &'static str,
+        pub version: &'static str,
+        pub side: crate::Side,
+    }
+}
+
 /// Switch an installed mod's dispatches on or off, returning whether it was found.
 pub fn set_mod_enabled(id: &str, on: bool) -> bool {
     crate::set_mod_enabled(id, on)

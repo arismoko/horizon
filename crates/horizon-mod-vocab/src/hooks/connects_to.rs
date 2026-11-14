@@ -13,9 +13,11 @@ pub trait Hooks {
     /// block above) and `Bars` is `IronBarsBlock.attachsTo` for iron bars and
     /// glass panes (a solid face, bars or a pane, or a wall; vanilla's rule
     /// ignores `direction`). Change it, to false as well as to true, when the
-    /// block is your own. Asked whenever the block settles its shape toward a
-    /// side or is placed, inside the level's update: answer from the arguments
-    /// without touching the world. Only the block's own part is asked, so
+    /// block is your own. The neighbour's part answers first, in
+    /// `can_be_connected_to`, and `connected` starts from its answer: this
+    /// hook has the last word. Asked whenever the block settles its shape
+    /// toward a side or is placed, inside the level's update: answer from the
+    /// arguments without touching the world. Only the block's own part is asked, so
     /// vanilla blocks cost nothing. Authoritative servers only. Contract version
     /// `2`: version `1` was `fence_connects_to`, for fences alone and without
     /// `kind`. Diverges from upstream: new hook.
@@ -27,7 +29,7 @@ pub trait Hooks {
         key = "state",
         version = 2,
         target = "horizon_client::game::native_hooks::connects_to::GameLevel<'_>::native_connects_to",
-        neoforge = "IBlockExtension.canBeConnectedTo"
+        neoforge = "none (vanilla FenceBlock.connectsTo / WallBlock.connectsTo / IronBarsBlock.attachsTo)"
     )]
     fn connects_to(
         dimension: LevelDimension,
