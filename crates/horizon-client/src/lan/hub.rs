@@ -4494,9 +4494,9 @@ impl Hub {
                         events.push(HostEvent::Warn(format!(
                             "{} moved too quickly! {},{},{}",
                             g.name,
-                            crate::java_text::double_to_string(d[0]),
-                            crate::java_text::double_to_string(d[1]),
-                            crate::java_text::double_to_string(d[2])
+                            horizon_core::java_number::double_to_string(d[0]),
+                            horizon_core::java_number::double_to_string(d[1]),
+                            horizon_core::java_number::double_to_string(d[2])
                         )));
                         return std::ops::ControlFlow::Break(true);
                     }

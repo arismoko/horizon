@@ -949,7 +949,7 @@ impl Game<'_> {
         };
         self.ui.registries.target_block = hit.as_ref().map(|h| h.pos);
         self.ui.registries.target_point =
-            hit.map(|h| h.point.map(horizon_client::java_text::format_fixed2));
+            hit.map(|h| h.point.map(horizon_core::java_number::format_fixed2));
         self.ui.registries.selected_entities = self.crosshair_entity_uuid().into_iter().collect();
         // ClientPacketListener.getOnlinePlayerNames on a server.
         if let Some(names) = self.remote_online_names() {

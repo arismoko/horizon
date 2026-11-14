@@ -3,9 +3,9 @@ use super::{Arg, Context, Game, R, Target, err};
 use crate::game::chat::PLAYER_NAME;
 use horizon_client::{
     clock::SprintReport,
-    java_text::format_fixed,
     text::{self, Text},
 };
+use horizon_core::java_number::format_fixed;
 use horizon_core::random::RandomSource;
 
 fn millis(nanos: u64) -> String {

@@ -260,7 +260,7 @@ impl ServerTickRateManager {
         self.base.set_frozen(self.previous_is_frozen);
         SprintReport {
             ticks_per_second,
-            milliseconds_per_tick: crate::java_text::format_fixed2(per_tick),
+            milliseconds_per_tick: horizon_core::java_number::format_fixed2(per_tick),
         }
     }
     /// `checkShouldSprintThisTick`: whether to run this tick without waiting,

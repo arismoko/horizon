@@ -40,7 +40,7 @@ use horizon_client::{
     items::ItemStack,
     text::{self, Style, Text},
 };
-use horizon_core::{geometry::Vec3, random::RandomSource};
+use horizon_core::{geometry::Vec3, java_number::float_to_string, random::RandomSource};
 use horizon_protocol::packets::play::{self, Clientbound as C};
 use horizon_world::registry::BlockStateId;
 
@@ -182,18 +182,10 @@ fn entity_name_key(id: &str) -> String {
 fn texts(args: &[Text]) -> Vec<Text> {
     args.to_vec()
 }
-/// Java's String.valueOf(float/double) for the values commands print.
-fn java_float(v: f64) -> String {
-    if v == v.trunc() && v.abs() < 1.0e7 {
-        format!("{v:.1}")
-    } else {
-        format!("{v}")
-    }
-}
 /// String.format(Locale.ROOT, "%.<decimals>f"): Java rounds the shortest
 /// decimal text half-up, which `{:.N}` (exact value, half-even) does not.
 pub(super) fn percent_f(v: f64, decimals: usize) -> String {
-    horizon_client::java_text::format_fixed(v, decimals)
+    horizon_core::java_number::format_fixed(v, decimals)
 }
 /// String.format(Locale.ROOT, "%f").
 fn format_double(v: f64) -> String {
@@ -2196,13 +2188,13 @@ impl Game<'_> {
                 if self.command_clock_state(&clock).rate == rate {
                     return Err(err(
                         "commands.time.rate.already_same",
-                        &[&clock, &java_float(f64::from(rate))],
+                        &[&clock, &float_to_string(rate)],
                     ));
                 }
                 self.command_clock_state(&clock).rate = rate;
                 self.feedback(Text::tr(
                     "commands.time.rate",
-                    &[&clock, &java_float(f64::from(rate))],
+                    &[&clock, &float_to_string(rate)],
                 ));
                 Ok(1)
             }
@@ -3561,8 +3553,8 @@ impl Game<'_> {
             p[0].clone(),
             p[1].clone(),
             p[2].clone(),
-            Text::literal(java_float(f64::from(yaw))),
-            Text::literal(java_float(f64::from(pitch))),
+            Text::literal(float_to_string(yaw)),
+            Text::literal(float_to_string(pitch)),
             dim,
         ];
         let key = if targets.len() == 1 {
@@ -3624,8 +3616,8 @@ impl Game<'_> {
             Text::literal(pos[0].to_string()),
             Text::literal(pos[1].to_string()),
             Text::literal(pos[2].to_string()),
-            Text::literal(java_float(f64::from(yaw))),
-            Text::literal(java_float(f64::from(pitch))),
+            Text::literal(float_to_string(yaw)),
+            Text::literal(float_to_string(pitch)),
             Text::literal(self.dim.id()),
         ];
         self.feedback(Text::translate("commands.setworldspawn.success", &args));

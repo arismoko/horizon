@@ -1120,8 +1120,8 @@ impl ArgType {
                     return Err(CommandError::tr_at(
                         "argument.float.low",
                         &[
-                            &horizon_client_core::snbt::java_float(*min),
-                            &horizon_client_core::snbt::java_float(v),
+                            &horizon_core::java_number::float_to_string(*min),
+                            &horizon_core::java_number::float_to_string(v),
                         ],
                         reader,
                     ));
@@ -1131,8 +1131,8 @@ impl ArgType {
                     return Err(CommandError::tr_at(
                         "argument.float.big",
                         &[
-                            &horizon_client_core::snbt::java_float(*max),
-                            &horizon_client_core::snbt::java_float(v),
+                            &horizon_core::java_number::float_to_string(*max),
+                            &horizon_core::java_number::float_to_string(v),
                         ],
                         reader,
                     ));
@@ -1146,8 +1146,8 @@ impl ArgType {
                     return Err(CommandError::tr_at(
                         "argument.double.low",
                         &[
-                            &horizon_client_core::snbt::java_double(*min),
-                            &horizon_client_core::snbt::java_double(v),
+                            &horizon_core::java_number::double_to_string(*min),
+                            &horizon_core::java_number::double_to_string(v),
                         ],
                         reader,
                     ));
@@ -1157,8 +1157,8 @@ impl ArgType {
                     return Err(CommandError::tr_at(
                         "argument.double.big",
                         &[
-                            &horizon_client_core::snbt::java_double(*max),
-                            &horizon_client_core::snbt::java_double(v),
+                            &horizon_core::java_number::double_to_string(*max),
+                            &horizon_core::java_number::double_to_string(v),
                         ],
                         reader,
                     ));

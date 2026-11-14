@@ -1731,7 +1731,7 @@ fn rate_exceeded(shared: &Shared, average: f32) -> (horizon_core::nbt::Tag, Stri
     };
     let line = format!(
         "Player exceeded rate-limit (sent {} packets per second)",
-        crate::java_text::float_to_string(average)
+        horizon_core::java_number::float_to_string(average)
     );
     (log.write)("Server thread", "WARN", &line);
     let text = horizon_protocol::text::plain(&reason, &log.lang);

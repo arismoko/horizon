@@ -8,10 +8,10 @@
 use crate::{
     font::Font,
     hud_layout::{Blend, GuiDraw, WHITE},
-    java_text::float_to_string,
     scoreboard::{Comp, NumberFormat, Objective, RenderType, Scoreboard, comp_text},
     text::Text,
 };
+use horizon_core::java_number::float_to_string;
 use std::{
     borrow::Cow,
     cmp::Ordering,
