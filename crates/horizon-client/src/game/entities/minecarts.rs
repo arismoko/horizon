@@ -2155,10 +2155,11 @@ impl Game<'_> {
         // AbstractMinecart.activateMinecart: a powered activator rail ejects
         // the rider, and getDismountLocationForPassenger places it beside the
         // cart instead of leaving it at the seat.
-        if alive && self.riding.is_none() {
-            if let Some(i) = self.carts.iter().position(|cart| cart.id == id) {
-                self.dismount_cart(i);
-            }
+        if alive
+            && self.riding.is_none()
+            && let Some(i) = cart_at(&self.carts, id, i)
+        {
+            self.dismount_cart(i);
         }
         true
     }
