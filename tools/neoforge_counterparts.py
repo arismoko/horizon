@@ -10,14 +10,76 @@ from modding_hook_notes import expand
 PAGE = "reference/neoforge-counterparts.md"
 
 
+def attribute_end(text, start):
+    """The index just past the `]` closing the attribute at `start` (`#[...]`)."""
+    i = start + 2
+    depth = 1
+    while i < len(text):
+        c = text[i]
+        if c == '"':
+            i += 1
+            while i < len(text):
+                if text[i] == "\\":
+                    i += 2
+                    continue
+                if text[i] == '"':
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == "r":
+            j = i + 1
+            while j < len(text) and text[j] == "#":
+                j += 1
+            if j < len(text) and text[j] == '"':
+                close = '"' + "#" * (j - i - 1)
+                k = text.find(close, j + 1)
+                assert k != -1, "unterminated raw string"
+                i = k + len(close)
+                continue
+        if c == "[":
+            depth += 1
+        elif c == "]":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    raise AssertionError(f"unterminated attribute at {start}")
+
+
 def hooks(root):
     rows = []
     for path in sorted((root / "crates/horizon-mod-vocab/src/hooks").glob("*.rs")):
         if path.name == "mod.rs":
             continue
         text = path.read_text(encoding="utf8")
-        for m in re.finditer(r"#\[hook\((.*?)\)\]\s*(?:fn\s+(\w+))", text, re.S):
-            attr, name = m.group(1), m.group(2)
+        i = 0
+        while True:
+            start = text.find("#[hook(", i)
+            if start < 0:
+                break
+            end = attribute_end(text, start)
+            attr = text[start + len("#[hook("):end - 2]
+            i = end
+            # A hook's #[notes] or /// line may stand between #[hook] and its fn.
+            j = end
+            while True:
+                while j < len(text) and text[j].isspace():
+                    j += 1
+                if text.startswith("#[", j):
+                    j = attribute_end(text, j)
+                    continue
+                if text.startswith("//", j):
+                    k = text.find("\n", j)
+                    j = len(text) if k < 0 else k + 1
+                    continue
+                if text.startswith("/*", j):
+                    k = text.find("*/", j + 2)
+                    assert k != -1, "unterminated block comment"
+                    j = k + 2
+                    continue
+                break
+            name = re.match(r"fn\s+(\w+)", text[j:])
 
             def key(k):
                 v = re.search(k + r'\s*=\s*"([^"]*)"', attr)
@@ -28,7 +90,8 @@ def hooks(root):
                 lst = re.search(r"neoforge\s*=\s*\[(.*?)\]", attr, re.S)
                 if lst:
                     neo = ", ".join(re.findall(r'"([^"]*)"', lst.group(1)))
-            rows.append((name, key("side") or "", neo))
+            if name:
+                rows.append((name.group(1), key("side") or "", neo))
     return sorted(rows)
 
 
@@ -55,7 +118,7 @@ A key names the event class (`PlayerEvent.Clone`) or runtime callback (`IPayload
 notes about cancelling or the event bus belong in the hook's `///` doc, not in the key.
 
 {len(rows)} hooks: {len(mapped)} name a counterpart, {len(none)} say they have none.
-This is a declaration reference, not an independent verification of every mapping. Registration events and the
+This is a declaration reference, checked against NeoForge 26.3-26.3.0.102's public Javadoc. Registration events and the
 callbacks they register are different moments: packet receipt names `IPayloadHandler.handle`, and per-draw item
 decoration names `IItemDecorator.render`, not their registration events. A `none` explains why no event or method
 matches that hook's runtime contract.
