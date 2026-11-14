@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:compostable",
     "minecraft:fox/variant",
     "minecraft:weapon",
     "minecraft:food",
@@ -92,6 +93,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
             .map(|weapon| weapon.to_tag())
             .map_err(str::to_owned);
     }
+    if id == "minecraft:compostable" { return horizon_items::item_data::ingredient_components::decoded_compostable(value); }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
         let Tag::Compound(_) = value else {
@@ -165,6 +167,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
+        "minecraft:compostable" => horizon_items::item_data::ingredient_components::validate_compostable(t),
         "minecraft:weapon" => horizon_items::properties::Weapon::from_tag(t)
             .map(|_| ())
             .map_err(str::to_owned),

@@ -1367,3 +1367,4 @@ fn malformed_wolf_collar_payloads_reject_whole_recipes_with_component_errors() {
         );
     }
 }
+

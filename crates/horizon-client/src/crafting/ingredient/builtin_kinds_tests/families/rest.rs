@@ -1712,3 +1712,4 @@ fn weapon_recipe_rejections_preserve_siblings_and_presence_strictness() {
     assert!(absent.test_in(&context, &paper));
     assert!(!relaxed.test_in(&context, &paper));
 }
+

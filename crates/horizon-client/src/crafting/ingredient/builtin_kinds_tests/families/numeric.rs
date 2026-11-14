@@ -694,3 +694,4 @@ fn minimum_attack_charge_recipe_decodes_and_matches_float_values() {
     assert!(absence.test_in(&context, &no_default));
     assert!(!positive.test_in(&context, &no_default));
 }
+

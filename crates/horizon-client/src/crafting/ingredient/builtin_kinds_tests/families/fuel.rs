@@ -431,3 +431,213 @@ fn food_codec_compiles_recipes_and_matches_borrowed_values() {
         ]),
     );
 }
+
+#[test]
+fn compostable_layers_compile_real_recipes_and_match_borrowed_values() {
+    const COMPONENT: &str = "minecraft:compostable";
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:apple".into(),
+        std::collections::BTreeMap::from([(
+            COMPONENT.into(),
+            Tag::compound([("layers", Tag::Short(2)), ("ignored", Tag::Byte(1))]),
+        )]),
+    )]));
+    let ingredient = |payload: Value| {
+        serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:apple",
+            "components":{COMPONENT:payload}
+        })
+    };
+    let constant_json =
+        ingredient(serde_json::json!({"layers":2,"chance":"ignored","can_villager_compost":false}));
+    let reference_json = ingredient(serde_json::json!({"layers":"fixture:unregistered"}));
+    let constant = Ingredient::parse(&constant_json, &items).unwrap();
+    let reference = Ingredient::parse(&reference_json, &items).unwrap();
+    let mut strict_json = constant_json.clone();
+    strict_json["strict"] = Value::Bool(true);
+    let strict = Ingredient::parse(&strict_json, &items).unwrap();
+    assert_eq!(
+        constant.shown.as_ref().unwrap()[0]
+            .data()
+            .unwrap()
+            .other(COMPONENT),
+        Some(&Tag::compound([("layers", Tag::Int(2))])),
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipe = |value: Value| {
+        serde_json::json!({
+            "type":"minecraft:crafting_shapeless", "ingredients":[value],
+            "result":{"id":"minecraft:diamond"}
+        })
+    };
+    let invalid_payloads = [
+        serde_json::json!({}),
+        serde_json::json!({"chance":0.5,"can_villager_compost":true}),
+        serde_json::json!({"layers":[]}),
+        serde_json::json!({"layers":{}}),
+        serde_json::json!({"layers":"Bad:provider"}),
+        serde_json::json!({"layers":"minecraft:a:b"}),
+        serde_json::json!(2),
+    ];
+    let mut sources = vec![
+        ("fixture:constant".into(), recipe(constant_json)),
+        ("fixture:reference".into(), recipe(reference_json)),
+    ];
+    for (index, payload) in invalid_payloads.into_iter().enumerate() {
+        let json = ingredient(payload);
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(json["components"].as_object().unwrap())
+                .unwrap(),
+            removed: Vec::new(),
+            strict: false,
+        };
+        assert!(
+            components::validate(&rule, &items)
+                .unwrap_err()
+                .starts_with("component minecraft:compostable:")
+        );
+        sources.push((format!("fixture:invalid_{index}"), recipe(json)));
+    }
+    assert!(
+        horizon_command::item::decoded_component_value(
+            COMPONENT,
+            &Tag::compound([("layers", Tag::End)]),
+            &items.component_registry,
+        )
+        .is_err()
+    );
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        sources,
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 2, "malformed recipes are omitted");
+    let mut candidate = ItemStack::new("minecraft:apple", 1);
+    assert!(recipes.recipe_matches(&context, "fixture:constant", &[Some(candidate.clone())], 1));
+    assert!(!recipes.recipe_matches(&context, "fixture:reference", &[Some(candidate.clone())], 1));
+    assert!(strict.test_in(&context, &candidate));
+    candidate.data_mut().set_loot_component(
+        "minecraft:custom_data",
+        &Some(Tag::compound([("opaque", Tag::Int(1))])),
+    );
+    assert!(constant.test_in(&context, &candidate));
+    assert!(!strict.test_in(&context, &candidate));
+    candidate
+        .data_mut()
+        .set_loot_component("minecraft:custom_data", &None);
+    for (number, expected) in [
+        (Tag::Byte(2), 2),
+        (Tag::Short(-2), -2),
+        (Tag::Int(i32::MIN), i32::MIN),
+        (Tag::Long(4_294_967_298), 2),
+        (Tag::Float(2.9_f32.to_bits()), 2),
+        (Tag::Double((-2.9_f64).to_bits()), -2),
+        (Tag::Double(f64::NAN.to_bits()), 0),
+        (Tag::Float(f32::INFINITY.to_bits()), i32::MAX),
+        (Tag::Double(f64::NEG_INFINITY.to_bits()), i32::MIN),
+        (Tag::Double((-0.0_f64).to_bits()), 0),
+    ] {
+        let payload = Tag::compound([("layers", number), ("unknown", Tag::List(vec![]))]);
+        assert_eq!(
+            horizon_command::item::decoded_component_value(
+                COMPONENT,
+                &payload,
+                &items.component_registry
+            )
+            .unwrap(),
+            Tag::compound([("layers", Tag::Int(expected))]),
+        );
+        candidate
+            .data_mut()
+            .set_loot_component(COMPONENT, &Some(payload));
+        assert_eq!(constant.test_in(&context, &candidate), expected == 2);
+        assert_eq!(
+            recipes.recipe_matches(&context, "fixture:constant", &[Some(candidate.clone())], 1),
+            expected == 2
+        );
+    }
+    candidate.data_mut().set_loot_component(
+        COMPONENT,
+        &Some(Tag::compound([(
+            "layers",
+            Tag::String("fixture:unregistered".into()),
+        )])),
+    );
+    assert!(recipes.recipe_matches(&context, "fixture:reference", &[Some(candidate.clone())], 1));
+    assert!(!constant.test_in(&context, &candidate));
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(reference.test_in(&context, std::hint::black_box(&candidate)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    let default_key = Ingredient::parse(
+        &ingredient(serde_json::json!({"layers":"composter"})),
+        &items,
+    )
+    .unwrap();
+    assert_eq!(
+        default_key.shown.as_ref().unwrap()[0]
+            .data()
+            .unwrap()
+            .other(COMPONENT),
+        Some(&Tag::compound([(
+            "layers",
+            Tag::String("minecraft:composter".into())
+        )])),
+    );
+    for spelling in ["composter", ":composter", "minecraft:composter"] {
+        candidate.data_mut().set_loot_component(
+            COMPONENT,
+            &Some(Tag::compound([("layers", Tag::String(spelling.into()))])),
+        );
+        assert!(default_key.test_in(&context, &candidate));
+    }
+    for spelling in ["", ":", "minecraft:"] {
+        assert_eq!(
+            horizon_command::item::decoded_component_value(
+                COMPONENT,
+                &Tag::compound([("layers", Tag::String(spelling.into()))]),
+                &items.component_registry,
+            )
+            .unwrap(),
+            Tag::compound([("layers", Tag::String("minecraft:".into()))]),
+        );
+    }
+    let malformed = Tag::compound([(
+        "layers",
+        Tag::String(horizon_core::nbt::JavaString(vec![0xd800])),
+    )]);
+    assert!(
+        horizon_command::item::decoded_component_value(
+            COMPONENT,
+            &malformed,
+            &items.component_registry
+        )
+        .is_err()
+    );
+    candidate
+        .data_mut()
+        .set_loot_component(COMPONENT, &Some(malformed));
+    assert!(!reference.test_in(&context, &candidate));
+    candidate.data_mut().set_loot_component(COMPONENT, &None);
+    assert!(
+        constant.test_in(&context, &candidate),
+        "prototype is inherited again"
+    );
+    candidate.data_mut().set_loot_component(
+        "!minecraft:compostable",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(
+        !constant.test_in(&context, &candidate),
+        "removal is not an inherited value"
+    );
+}

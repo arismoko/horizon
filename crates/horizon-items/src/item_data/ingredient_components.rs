@@ -40,6 +40,17 @@ pub fn removed(stack: &ItemStack, id: &str) -> bool {
 /// Presence is checked by the caller, so empty decoded enchantment maps compare equal.
 pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
     match id {
+        "minecraft:compostable" => {
+            let a = a
+                .data()
+                .and_then(|d| d.other(id))
+                .and_then(|tag| compostable_layers(tag).ok());
+            let b = b
+                .data()
+                .and_then(|d| d.other(id))
+                .and_then(|tag| compostable_layers(tag).ok());
+            matches!((a, b), (Some(a), Some(b)) if a == b)
+        }
         "minecraft:weapon" => {
             let weapon = |stack: &ItemStack| {
                 stack
@@ -204,6 +215,28 @@ fn dyed_color(stack: &ItemStack) -> Option<i32> {
         data.other("minecraft:dyed_color")
             .and_then(horizon_core::color::rgb_color_from_tag)
     })
+}
+
+/// `Compostable.CODEC` / `ResolvableInt.CODEC`: required layers, either any Java
+/// int or a resource key. References are keys, not registry lookups.
+fn compostable_layers(value: &Tag) -> Result<crate::properties::resolvable::Int<'_>, &'static str> {
+    if !matches!(value, Tag::Compound(_)) {
+        return Err("Not a map");
+    }
+    let layers = value.get("layers").ok_or("Missing layers")?;
+    crate::properties::resolvable::int(layers)
+        .ok_or("layers: expected a number or resource location")
+}
+
+/// Validate without materializing a normalized payload.
+pub fn validate_compostable(value: &Tag) -> Result<(), String> {
+    compostable_layers(value).map(|_| ()).map_err(str::to_owned)
+}
+
+/// Normalize only the persistent codec fields; unknown record fields are ignored.
+pub fn decoded_compostable(value: &Tag) -> Result<Tag, String> {
+    let layers = compostable_layers(value).map_err(str::to_owned)?.to_tag();
+    Ok(Tag::compound([("layers", layers)]))
 }
 
 /// Exact stored-value comparison, including the fields removed from `other` by decoding.
