@@ -41,3 +41,6 @@ pub mod version;
 
 pub use level_key::LevelKey;
 pub use version::VANILLA_VERSION;
+
+/// Queried loot table id before a root roll finishes, or for an unnamed root.
+pub const UNKNOWN_LOOT_TABLE: &str = "neoforge:unknown_loot_table";

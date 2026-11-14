@@ -141,14 +141,55 @@ pub fn verify(
 /// release's, nor a release's for a nightly's.
 pub const NIGHTLY: &str = "nightly";
 
+/// The channel snapshots are signed for (release.yml kind snapshot, through nightly-build.yml): a
+/// commit of main built to test it after merge, published as `snapshot-<date>-<commit>`. No
+/// launcher lists or updates to one; a developer installs one by its tag.
+pub const SNAPSHOT: &str = "snapshot";
+
+/// The channels of builds that are not releases. Each is signed for its own name and for each
+/// build's own version (`<channel>-<date>-<commit>`), so no build passes for another channel's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Channel {
+    Nightly,
+    Snapshot,
+}
+
+impl Channel {
+    const ALL: [Channel; 2] = [Channel::Nightly, Channel::Snapshot];
+
+    /// The channel's tag, which its channel signature is for: [`NIGHTLY`] or [`SNAPSHOT`].
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Channel::Nightly => NIGHTLY,
+            Channel::Snapshot => SNAPSHOT,
+        }
+    }
+
+    /// How its release titles start (`Nightly 2026-10-28 · 0c02067`).
+    const fn title(self) -> &'static str {
+        match self {
+            Channel::Nightly => "Nightly",
+            Channel::Snapshot => "Snapshot",
+        }
+    }
+
+    /// The channel of a tag or version: the channel's own tag, or one that starts `<tag>-`.
+    pub fn of(tag: &str) -> Option<Channel> {
+        Self::ALL.into_iter().find(|channel| {
+            tag.strip_prefix(channel.tag())
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with('-'))
+        })
+    }
+}
+
 /// Whether `tag` is a nightly's: `nightly`, or a past one kept as `nightly-<date>`.
 pub fn is_nightly(tag: &str) -> bool {
-    tag == NIGHTLY || tag.starts_with("nightly-")
+    Channel::of(tag) == Some(Channel::Nightly)
 }
 
 /// The version a nightly is listed as, from its release title ("Nightly 2026-10-28 · 0c02067"):
 /// `nightly-2026-10-28-0c02067`. `published` (GitHub's `published_at`) dates a title without one.
-/// For listing only: what installs is checked against [`nightly_title_version`], which has no
+/// For listing only: what installs is checked against [`build_title_version`], which has no
 /// fallback, since nothing signs `published`.
 pub fn nightly_version(title: &str, published: &str) -> String {
     let mut words = title
@@ -186,10 +227,20 @@ fn is_date(text: &str) -> bool {
         })
 }
 
+/// The prefix of a mod SDK's release tag: `sdk-<build id>`, the game's full commit sha
+/// (design: the SDK is published as its own signed release per build).
+pub const SDK_PREFIX: &str = "sdk-";
+
+/// Whether `tag` names a mod SDK's release (`sdk-…`), whatever follows the prefix.
+pub fn is_sdk(tag: &str) -> bool {
+    tag.starts_with(SDK_PREFIX)
+}
+
 /// The signed SHA-256 of `asset` in release `tag`, or why the download must be refused.
 /// `sums` and `signature` are the release's SHA256SUMS and SHA256SUMS.sig, None when it has none.
-/// A nightly is never a release: its tags are refused here, whatever their signature
-/// ([`nightly_digest`] checks those).
+/// A nightly or a snapshot is never a release: their tags are refused here, whatever their
+/// signature ([`build_digest`] checks those). Nor is a mod SDK: its files are never game files
+/// ([`sdk_digest`] checks those).
 pub fn signed_digest(
     tag: &str,
     asset: &str,
@@ -197,58 +248,102 @@ pub fn signed_digest(
     signature: Option<&str>,
     keys: &[PublicKey],
 ) -> Result<String, String> {
-    if is_nightly(tag) {
+    match Channel::of(tag) {
+        Some(Channel::Nightly) => {
+            return Err(format!(
+                "{tag} is a Nightly build: only a launcher with Nightly turned on installs it."
+            ));
+        }
+        Some(Channel::Snapshot) => {
+            return Err(format!(
+                "{tag} is a snapshot build: only `horizon-launcher install {tag}` installs it."
+            ));
+        }
+        None => {}
+    }
+    if is_sdk(tag) {
         return Err(format!(
-            "{tag} is a Nightly build: only a launcher with Nightly turned on installs it."
+            "{tag} is a mod SDK, not a game release: it is never installed as the game."
         ));
     }
     digest_in(tag, tag, asset, sums, signature, keys)
 }
 
-/// The version a Nightly's GitHub title names, strictly: `Nightly 2026-10-28 · 0c02067` (as
-/// nightly-build.yml writes it) gives `nightly-2026-10-28-0c02067`. Anything else is None: a
-/// Nightly is verified against the version it installs as, so a title that doesn't name its date
-/// and commit is refused rather than dated by when GitHub says it was published.
-pub fn nightly_title_version(title: &str) -> Option<String> {
-    let (date, commit) = title.strip_prefix("Nightly ")?.split_once(" · ")?;
-    let commit_ok = (7..=40).contains(&commit.len())
-        && commit
+/// The signed SHA-256 of `asset` in the mod SDK of game build `build` (a full 40-character commit
+/// sha): `sums` must be signed for exactly `sdk-<build>`, so neither a game release's list nor
+/// another build's SDK passes for it.
+pub fn sdk_digest(
+    build: &str,
+    asset: &str,
+    sums: Option<&[u8]>,
+    signature: Option<&str>,
+    keys: &[PublicKey],
+) -> Result<String, String> {
+    if build.len() != 40
+        || !build
             .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
-    (is_date(date) && commit_ok).then(|| format!("{NIGHTLY}-{date}-{commit}"))
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        return Err(format!(
+            "{build:?} is not a game build's full commit, so its SDK can't be checked."
+        ));
+    }
+    let tag = format!("{SDK_PREFIX}{build}");
+    digest_in(&tag, &tag, asset, sums, signature, keys)
 }
 
-/// Whether `version` is a Nightly build's full version, `nightly-<date>-<commit>`, the form its
-/// [`SIGNATURE_V2`] is signed for.
-pub fn is_nightly_build(version: &str) -> bool {
+/// The version a build of `channel` names in its GitHub title, strictly: on the Nightly channel
+/// `Nightly 2026-10-28 · 0c02067` (as nightly-build.yml writes it) gives
+/// `nightly-2026-10-28-0c02067`, on the snapshot channel `Snapshot 2026-11-13 · 0c02067` gives
+/// `snapshot-2026-11-13-0c02067`. Anything else is None, the other channel's title included: the
+/// caller says which channel it asked for, never the title. A build is verified against the
+/// version it installs as, so a title that doesn't name its date and commit is refused rather than
+/// dated by when GitHub says it was published.
+pub fn build_title_version(channel: Channel, title: &str) -> Option<String> {
+    let (date, commit) = title
+        .strip_prefix(channel.title())?
+        .strip_prefix(' ')?
+        .split_once(" · ")?;
+    (is_date(date) && is_commit(commit)).then(|| format!("{}-{date}-{commit}", channel.tag()))
+}
+
+fn is_commit(text: &str) -> bool {
+    (7..=40).contains(&text.len())
+        && text
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// Whether `version` is a full version of a build of `channel`, `<channel>-<date>-<commit>`, the
+/// form its [`SIGNATURE_V2`] is signed for.
+pub fn is_build(channel: Channel, version: &str) -> bool {
     version
-        .strip_prefix("nightly-")
+        .strip_prefix(channel.tag())
+        .and_then(|rest| rest.strip_prefix('-'))
         .and_then(|rest| rest.split_at_checked(10))
         .is_some_and(|(date, commit)| {
-            is_date(date)
-                && commit.strip_prefix('-').is_some_and(|c| {
-                    (7..=40).contains(&c.len())
-                        && c.bytes()
-                            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-                })
+            is_date(date) && commit.strip_prefix('-').is_some_and(is_commit)
         })
 }
 
-/// The signed SHA-256 of `asset` in the Nightly that installs as `version`
-/// (`nightly-<date>-<commit>`, from [`nightly_title_version`]): `signature` is its
-/// [`SIGNATURE_V2`], which must sign `sums` for exactly that version. A release's list, the channel
-/// signature (`nightly`) and another Nightly's are all refused, so an older Nightly can't be passed off
-/// as tonight's.
-pub fn nightly_digest(
+/// The signed SHA-256 of `asset` in the build of `channel` (the channel the caller asked for) that
+/// installs as `version` (`<channel>-<date>-<commit>`, from [`build_title_version`]): `signature`
+/// is its [`SIGNATURE_V2`], which must sign `sums` for exactly that version. A version of the other
+/// channel is refused before any signature is read; a release's list, a channel signature
+/// (`nightly`, `snapshot`) and another build's are refused by the signature, so an older Nightly
+/// can't be passed off as tonight's, nor a snapshot as a Nightly.
+pub fn build_digest(
+    channel: Channel,
     version: &str,
     asset: &str,
     sums: Option<&[u8]>,
     signature: Option<&str>,
     keys: &[PublicKey],
 ) -> Result<String, String> {
-    if !is_nightly_build(version) {
+    if !is_build(channel, version) {
         return Err(format!(
-            "{version:?} doesn't name a Nightly's date and commit, so it can't be checked: not installed."
+            "{version:?} doesn't name a {} build's date and commit, so it can't be checked: not installed.",
+            channel.title()
         ));
     }
     let Some(signature) = signature else {
@@ -489,6 +584,60 @@ mod tests {
     }
 
     #[test]
+    fn an_sdk_signature_never_passes_for_a_game_release_nor_the_reverse() {
+        let build = "0123456789abcdef0123456789abcdef01234567";
+        let sdk_tag = format!("{SDK_PREFIX}{build}");
+        let (key, sums, sdk_signature) = signed(&sdk_tag);
+        let keys = [key.public()];
+        let asset = "horizon-linux-x86_64.tar.gz";
+        let sdk = |signature: &str| {
+            sdk_digest(build, asset, Some(sums.as_bytes()), Some(signature), &keys)
+        };
+        assert_eq!(sdk(&sdk_signature), Ok(sha256_hex(b"linux")));
+        // The SDK's list, signed for its tag, is refused as a game release: under its own tag by
+        // name, and under a game release's tag by its signature.
+        for tag in [sdk_tag.as_str(), "v2026.11.13"] {
+            let refused = signed_digest(
+                tag,
+                asset,
+                Some(sums.as_bytes()),
+                Some(&sdk_signature),
+                &keys,
+            );
+            assert!(refused.is_err(), "{tag}");
+        }
+        let nightly = "nightly-2026-11-13-0123456";
+        assert!(
+            build_digest(
+                Channel::Nightly,
+                nightly,
+                asset,
+                Some(sums.as_bytes()),
+                Some(&sdk_signature),
+                &keys
+            )
+            .is_err()
+        );
+        // A game release's or a Nightly's signature is refused as the SDK's, and so is another
+        // build's SDK.
+        for tag in ["v2026.11.13", NIGHTLY, nightly] {
+            assert!(sdk(&key.sign(tag, sums.as_bytes())).is_err(), "{tag}");
+        }
+        let other = format!("{SDK_PREFIX}{}", "f".repeat(40));
+        assert!(sdk(&key.sign(&other, sums.as_bytes())).is_err());
+        assert!(
+            sdk_digest(
+                "0123456",
+                asset,
+                Some(sums.as_bytes()),
+                Some(&sdk_signature),
+                &keys
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn the_built_in_keys_file_parses() {
         assert!(parse_keys(KEYS).is_ok());
     }
@@ -544,7 +693,8 @@ mod tests {
         let (nightly, sums, signature) = signed(TONIGHT);
         let keys = [nightly.public()];
         let asset = "horizon-windows-x64.zip";
-        let digest = nightly_digest(
+        let digest = build_digest(
+            Channel::Nightly,
             TONIGHT,
             asset,
             Some(sums.as_bytes()),
@@ -567,7 +717,8 @@ mod tests {
         let (release, sums, signature) = signed("v0.2.81");
         let keys = [release.public()];
         assert!(
-            nightly_digest(
+            build_digest(
+                Channel::Nightly,
                 TONIGHT,
                 asset,
                 Some(sums.as_bytes()),
@@ -576,7 +727,17 @@ mod tests {
             )
             .is_err()
         );
-        assert!(nightly_digest(TONIGHT, asset, Some(sums.as_bytes()), None, &keys).is_err());
+        assert!(
+            build_digest(
+                Channel::Nightly,
+                TONIGHT,
+                asset,
+                Some(sums.as_bytes()),
+                None,
+                &keys
+            )
+            .is_err()
+        );
         assert!(is_nightly("nightly-2026-10-27") && !is_nightly("v0.2.81"));
     }
 
@@ -586,14 +747,23 @@ mod tests {
         // Last week's build, re-served under tonight's title: its v2 signature names last week.
         let (key, sums, old) = signed("nightly-2026-10-21-aaaaaaa");
         let keys = [key.public()];
-        let tonight = nightly_title_version("Nightly 2026-10-28 · 0c02067").unwrap();
-        let err = nightly_digest(&tonight, asset, Some(sums.as_bytes()), Some(&old), &keys);
+        let tonight =
+            build_title_version(Channel::Nightly, "Nightly 2026-10-28 · 0c02067").unwrap();
+        let err = build_digest(
+            Channel::Nightly,
+            &tonight,
+            asset,
+            Some(sums.as_bytes()),
+            Some(&old),
+            &keys,
+        );
         assert!(err.is_err(), "an older Nightly passed as {tonight}");
         // The channel signature (SHA256SUMS.sig, for launchers from before v2) is no v2 signature.
         let (key, sums, channel) = signed(NIGHTLY);
         let keys = [key.public()];
         assert!(
-            nightly_digest(
+            build_digest(
+                Channel::Nightly,
                 &tonight,
                 asset,
                 Some(sums.as_bytes()),
@@ -605,7 +775,8 @@ mod tests {
         // And a version that isn't a full Nightly build is refused whatever signs it.
         for version in [NIGHTLY, "nightly-2026-10-28", "v0.2.81"] {
             let (key, sums, signature) = signed(version);
-            let err = nightly_digest(
+            let err = build_digest(
+                Channel::Nightly,
                 version,
                 asset,
                 Some(sums.as_bytes()),
@@ -619,11 +790,14 @@ mod tests {
     #[test]
     fn a_nightlys_title_is_parsed_strictly() {
         assert_eq!(
-            nightly_title_version("Nightly 2026-10-28 · 0c02067").as_deref(),
+            build_title_version(Channel::Nightly, "Nightly 2026-10-28 · 0c02067").as_deref(),
             Some("nightly-2026-10-28-0c02067")
         );
         assert_eq!(
-            nightly_title_version(&format!("Nightly 2026-10-28 · {}", "a".repeat(40))),
+            build_title_version(
+                Channel::Nightly,
+                &format!("Nightly 2026-10-28 · {}", "a".repeat(40))
+            ),
             Some(format!("nightly-2026-10-28-{}", "a".repeat(40)))
         );
         for title in [
@@ -638,12 +812,122 @@ mod tests {
             " Nightly 2026-10-28 · 0c02067",
             "Nightly 2026-10-28 · 0c02067/../x",
         ] {
-            assert_eq!(nightly_title_version(title), None, "{title:?}");
+            assert_eq!(
+                build_title_version(Channel::Nightly, title),
+                None,
+                "{title:?}"
+            );
         }
-        assert!(is_nightly_build("nightly-2026-10-28-0c02067"));
-        assert!(!is_nightly_build("nightly-2026-10-28"));
-        assert!(!is_nightly_build("nightly-2026-10-28-"));
-        assert!(!is_nightly_build("nightly-2026-10-28-0c02067-x"));
+        assert!(is_build(Channel::Nightly, "nightly-2026-10-28-0c02067"));
+        assert!(!is_build(Channel::Nightly, "nightly-2026-10-28"));
+        assert!(!is_build(Channel::Nightly, "nightly-2026-10-28-"));
+        assert!(!is_build(Channel::Nightly, "nightly-2026-10-28-0c02067-x"));
+    }
+
+    /// A snapshot's signature never passes for a Nightly, nor a Nightly's for a snapshot, though one
+    /// key signs both; the release channel refuses snapshot tags as it refuses nightly ones.
+    #[test]
+    fn snapshot_and_nightly_signatures_never_pass_for_each_other() {
+        const SNAPSHOT_BUILD: &str = "snapshot-2026-11-13-0c02067";
+        const NIGHTLY_BUILD: &str = "nightly-2026-11-13-0c02067";
+        let asset = "horizon-windows-x64.zip";
+        let digest = |channel, version: &str, signed_for: &str| {
+            let (key, sums, signature) = signed(signed_for);
+            build_digest(
+                channel,
+                version,
+                asset,
+                Some(sums.as_bytes()),
+                Some(&signature),
+                &[key.public()],
+            )
+        };
+        use Channel::{Nightly, Snapshot};
+        assert_eq!(
+            digest(Snapshot, SNAPSHOT_BUILD, SNAPSHOT_BUILD),
+            Ok(sha256_hex(b"windows"))
+        );
+        assert_eq!(
+            digest(Nightly, NIGHTLY_BUILD, NIGHTLY_BUILD),
+            Ok(sha256_hex(b"windows"))
+        );
+        assert!(digest(Nightly, NIGHTLY_BUILD, SNAPSHOT_BUILD).is_err());
+        assert!(digest(Snapshot, SNAPSHOT_BUILD, NIGHTLY_BUILD).is_err());
+        // A genuine build of the other channel, asked for on this one: refused before its
+        // signature is read, though that signature is valid for it.
+        let other = digest(Nightly, SNAPSHOT_BUILD, SNAPSHOT_BUILD).unwrap_err();
+        assert!(other.contains("doesn't name a Nightly build"), "{other}");
+        assert!(digest(Snapshot, NIGHTLY_BUILD, NIGHTLY_BUILD).is_err());
+        assert_eq!(
+            build_title_version(Nightly, "Snapshot 2026-11-13 · 0c02067"),
+            None
+        );
+        assert_eq!(
+            build_title_version(Snapshot, "Nightly 2026-11-13 · 0c02067"),
+            None
+        );
+        assert!(
+            digest(Snapshot, SNAPSHOT_BUILD, SNAPSHOT).is_err(),
+            "the channel's signature"
+        );
+        for tag in [SNAPSHOT, SNAPSHOT_BUILD] {
+            let (key, sums, signature) = signed(tag);
+            let err = signed_digest(
+                tag,
+                asset,
+                Some(sums.as_bytes()),
+                Some(&signature),
+                &[key.public()],
+            );
+            assert!(err.unwrap_err().contains("snapshot build"), "{tag}");
+        }
+    }
+
+    #[test]
+    fn channels_are_read_from_their_prefix_only() {
+        assert_eq!(Channel::of("nightly"), Some(Channel::Nightly));
+        assert_eq!(Channel::of("nightly-2026-10-27"), Some(Channel::Nightly));
+        assert_eq!(Channel::of("snapshot"), Some(Channel::Snapshot));
+        assert_eq!(
+            Channel::of("snapshot-2026-11-13-0c02067"),
+            Some(Channel::Snapshot)
+        );
+        for tag in [
+            "v0.2.81",
+            "nightlyx",
+            "snapshots-2026-11-13",
+            "prebuilt-0c02067",
+            "",
+            "Snapshot",
+        ] {
+            assert_eq!(Channel::of(tag), None, "{tag:?}");
+        }
+        assert!(!is_nightly("snapshot-2026-11-13-0c02067"));
+        assert_eq!(
+            build_title_version(Channel::Snapshot, "Snapshot 2026-11-13 · 0c02067").as_deref(),
+            Some("snapshot-2026-11-13-0c02067")
+        );
+        for title in [
+            "Snapshot 2026-11-13",
+            "snapshot 2026-11-13 · 0c02067",
+            "Snapshot2026-11-13 · 0c02067",
+            "Release 2026-11-13 · 0c02067",
+            "Snapshot 2026-11-13 · 0C02067",
+        ] {
+            assert_eq!(
+                build_title_version(Channel::Snapshot, title),
+                None,
+                "{title:?}"
+            );
+        }
+        assert!(is_build(Channel::Snapshot, "snapshot-2026-11-13-0c02067"));
+        for version in [
+            "snapshot-2026-11-13",
+            "snapshot",
+            "release-2026-11-13-0c02067",
+        ] {
+            assert!(!is_build(Channel::Snapshot, version), "{version}");
+        }
     }
 
     #[test]

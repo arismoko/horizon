@@ -551,10 +551,34 @@ impl Game<'_> {
         // The scan also includes a capped source below eyes exactly on a cell boundary.
         inside(y) || (eye[1] == f64::from(y) && inside(y - 1))
     }
-    /// A key for the main-hand stack (`destroyingItem`): its item and components.
-    pub(super) fn main_hand_key(&self) -> String {
-        self.held()
-            .map_or(String::new(), |s| format!("{} {:?}", s.item, s.extra))
+    /// The main-hand stack a break begins with (`destroyingItem`).
+    pub(super) fn main_hand_key(&self) -> Option<ItemStack> {
+        self.held().cloned()
+    }
+    /// `MultiPlayerGameMode.sameDestroyTarget`'s item half for the stack
+    /// `began` a break began with: `ItemStack.isSameItemSameComponents` with
+    /// the main hand now (count and damage left out, as vanilla's kept
+    /// reference sees an in-place change), which the parts of `began`'s item
+    /// may overturn (`IItemExtension.shouldCauseBlockBreakReset`).
+    pub(super) fn same_destroying_item(&self, began: &Option<ItemStack>) -> bool {
+        let held = self.held();
+        let same = match (began, held) {
+            (None, None) => true,
+            (Some(a), Some(b)) => a.item == b.item && a.extra == b.extra,
+            _ => false,
+        };
+        let Some(began) = began else {
+            return same;
+        };
+        if !mod_api::__private::item_listens(
+            mod_api::HookId::ShouldCauseBlockBreakReset,
+            &began.item,
+        ) {
+            return same;
+        }
+        let mut reset = !same;
+        self.native_should_cause_block_break_reset(began, held, &mut reset);
+        !reset
     }
     /// Whether an attack would hit an entity rather than the block behind
     /// it: the crosshair's `EntityHitResult`.
@@ -647,7 +671,8 @@ impl Game<'_> {
         let mut changed = [false; 2];
         for h in 0..2 {
             let replaced = self.hands_replaced[h];
-            let same = shows_held_stack(&self.visible_hands[h], &next[h], replaced);
+            let mut same = shows_held_stack(&self.visible_hands[h], &next[h], replaced);
+            self.reequip_part(h, &next[h], &mut same);
             if same {
                 self.visible_hands[h] = next[h].clone();
                 self.hands_replaced[h] = false;
@@ -667,6 +692,37 @@ impl Game<'_> {
                 self.hands_replaced[h] = false;
             }
         }
+    }
+
+    /// `IItemExtension.shouldCauseReequipAnimation` for hand `h` (0 main, 1
+    /// off), asked while the stack it shows differs from `held` by slot or
+    /// by value and `held` isn't empty: `same` (shown at once) is vanilla's
+    /// answer, and the parts of the held item may turn it either way.
+    fn reequip_part(&self, h: usize, held: &(usize, Option<ItemStack>), same: &mut bool) {
+        let Some(stack) = &held.1 else {
+            return;
+        };
+        let visible = &self.visible_hands[h];
+        if visible.0 == held.0 && visible.1.as_ref() == Some(stack) {
+            return;
+        }
+        if !mod_api::__private::item_listens(
+            mod_api::HookId::ShouldCauseReequipAnimation,
+            &stack.item,
+        ) {
+            return;
+        }
+        let hand = if h == 0 { Hand::Main } else { Hand::Off };
+        let slot_changed = h == 0 && visible.0 != held.0;
+        let mut reequip = !*same;
+        self.native_should_cause_reequip_animation(
+            stack,
+            visible.1.as_ref(),
+            hand,
+            slot_changed,
+            &mut reequip,
+        );
+        *same = !reequip;
     }
 
     /// A replay owns its held-item and equip animation state. Reset it when a
@@ -926,6 +982,7 @@ impl GameHands<'_, '_> {
     }
 }
 impl HandWorld for GameHands<'_, '_> {
+    type Held = Option<ItemStack>;
     fn hit(&mut self) -> Hit {
         if self.game.entity_targeted() {
             return Hit::Entity;
@@ -1043,8 +1100,11 @@ impl HandWorld for GameHands<'_, '_> {
         self.keep(r);
         true
     }
-    fn main_hand_key(&mut self) -> String {
+    fn main_hand_key(&mut self) -> Option<ItemStack> {
         self.game.main_hand_key()
+    }
+    fn same_destroying_item(&mut self, began: &Option<ItemStack>) -> bool {
+        self.game.same_destroying_item(began)
     }
     fn destroy_stage(&mut self, _: [i32; 3], _: Option<i32>) {}
     fn swing(&mut self, hand: Hand, animation: SwingAnimation) {

@@ -13,9 +13,8 @@ pub(crate) struct KeyShape {
     pub(crate) context: String,
 }
 
-/// The shapes of `mod_api`'s capability keys (`CapabilityKey<dyn T>` and the item and entity
-/// forms), each once, in the order their keys are exported.
-pub(crate) fn key_shapes(index: &mut Index<'_>) -> Result<Vec<KeyShape>, String> {
+/// Every exported capability declaration, including keys sharing a handler shape.
+fn key_declarations(index: &mut Index<'_>) -> Result<Vec<(String, KeyShape)>, String> {
     let api = index.module("mod_api", &[])?;
     let names: Vec<String> = index.modules[api]
         .items
@@ -26,7 +25,7 @@ pub(crate) fn key_shapes(index: &mut Index<'_>) -> Result<Vec<KeyShape>, String>
         })
         .flat_map(use_names)
         .collect();
-    let mut shapes = Vec::new();
+    let mut declarations = Vec::new();
     for name in names {
         let Ok(Found::Item(id)) = index.resolve(api, &name) else {
             continue;
@@ -62,6 +61,15 @@ pub(crate) fn key_shapes(index: &mut Index<'_>) -> Result<Vec<KeyShape>, String>
             handler: trait_name(object)?,
             context,
         };
+        declarations.push((name, shape));
+    }
+    Ok(declarations)
+}
+
+/// Distinct provider shapes, in the order their keys are exported.
+pub(crate) fn key_shapes(index: &mut Index<'_>) -> Result<Vec<KeyShape>, String> {
+    let mut shapes = Vec::new();
+    for (_, shape) in key_declarations(index)? {
         if !shapes.contains(&shape) {
             shapes.push(shape);
         }
@@ -201,6 +209,26 @@ pub fn generate(
     included: &[(&str, &str)],
 ) -> Result<(String, Vec<std::path::PathBuf>), String> {
     let index = &mut Index::new(root, included);
-    let providers = providers_code(&key_shapes(index)?);
+    let declarations = key_declarations(index)?;
+    let mut shapes = Vec::new();
+    for (_, shape) in &declarations {
+        if !shapes.contains(shape) {
+            shapes.push(shape.clone());
+        }
+    }
+    let mut providers = providers_code(&shapes);
+    let block_keys = declarations
+        .iter()
+        .filter(|(_, shape)| shape.by == "Block")
+        .map(|(name, shape)| {
+            format!(
+                "(crate::{name}.name, std::any::type_name::<dyn {}>()),",
+                shape.handler
+            )
+        })
+        .collect::<String>();
+    providers.push_str(&format!(
+        "pub(crate) fn builtin_block_capabilities() -> Vec<(&'static str, &'static str)> {{ vec![{block_keys}] }}\n"
+    ));
     Ok((providers, index.read.take()))
 }

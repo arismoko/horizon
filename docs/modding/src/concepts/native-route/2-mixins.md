@@ -152,11 +152,12 @@ A row the build can't apply stops the build, naming the mod, the row and the rea
 | | `… invalid helper; name a Rust file under src/ in this package` | Put the helper under `src/`, ending in `.rs`. |
 | | `… invalid hook; a named hook is a mod_api::Hooks method; a mixin names its target` | Remove the row's `hook` (or `hook_version`) key and name a `target`, or implement the hook in `Hooks`. |
 | | `… invalid target; a mixin targets a game function` | The target is in a mod you depend on. Call that mod's public functions instead. |
-| `E_MIXIN_TARGET_MISSING` | ``<target>: no function `<name>` in <module> on <Type>``, or ``no crate `<crate>` in the game's source`` | Check the path against the source at your commit, module first. |
+| `E_MIXIN_TARGET_MISSING` | ``<target>: no function `<path>` in this game build's function index (functions.json)``, or ``no crate `<crate>` in the game's source`` | Check the path against the source at your commit, module first. |
 | `E_MIXIN_TARGET_AMBIGUOUS` | `<target>: several functions have this path (a cfg-gated pair, for one)` | Target another function. |
 | `E_MIXIN_NOT_REPLACEABLE` | `<target>: a function below the game crate takes a replacement only when it carries #[horizon_mod_api_macros::replaceable]; …` | Target a game-crate function or a caller or callee carrying the marker. |
 | | `<target>: <reason>`, such as ``it is generic over types or takes `impl Trait` …`` | Target a caller or callee that can be copied. |
-| `E_MIXIN_SOURCE` | `<target>: <why>` | The game's source could not be read: retry the build. |
+| `E_MIXIN_SOURCE` | `<target>: <why>`, such as `<file> differs from this game build's functions.json` | The game's source could not be read, or is not the build's: retry the build. |
+| `E_MIXIN_INDEX` | `<path>: …: the game build's SDK has no function index …`, or `functions.json describes game build <commit>, not <commit>` | The SDK on disk is damaged or another build's: fetch the SDK again. |
 | `E_OVERWRITE_CONFLICT` | from the tool: `OVERWRITE must be exclusive on <function>; competing injections: <mod>/<row>, …` | Keep only one of those mods installed. |
 | `E_LOOP_ENTRY_REPLACED` | see [Published loops](3-loops.md#errors) | |
 | `E_MIXINS_PATCH` | `tools/mixins/narrow-reference-rule.patch does not apply to horizon-mixins <commit>: <why>` | Not your mod: report it on the game. |

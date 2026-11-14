@@ -635,6 +635,39 @@ pub enum SoundState {
     Stopped,
 }
 
+/// A file-backed standalone model baked on every resource load.
+// exhaustive: mods build every form with a struct literal and the game matches them without a wildcard
+#[derive(Clone, Debug, PartialEq, Eq, horizon_mod_api_macros::Wire)]
+pub enum StandaloneModelForm {
+    /// Bake one dependency with the blockstate baker's negative XYZ quarter-turns.
+    Rotated {
+        /// Namespaced identifier used to resolve the resulting `ModelRef`.
+        id: String,
+        /// Source model identifier, not the result identifier.
+        model: String,
+        /// Quarter-turn counts in X, Y, Z order, modulo four.
+        turns: [u8; 3],
+        /// Keep textures aligned to the resulting face's world basis.
+        uvlock: bool,
+    },
+    /// Bake all dependencies unturned and concatenate their quads into one model.
+    Combined {
+        /// Namespaced identifier used to resolve the resulting `ModelRef`.
+        id: String,
+        /// Source model identifiers, in quad concatenation order.
+        parts: Vec<String>,
+    },
+}
+
+impl StandaloneModelForm {
+    /// The resulting model's identifier.
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Rotated { id, .. } | Self::Combined { id, .. } => id,
+        }
+    }
+}
+
 // no wire: dispatch result retains a static owning-mod identity; not an owned transport record.
 /// A replace hook's answer, or a collect hook's entry, with the mod that gave it: the dispatch
 /// fills in `mod_id` (the answering mod's `[mod] id`), so no mod can answer for another.

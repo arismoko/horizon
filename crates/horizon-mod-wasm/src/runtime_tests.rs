@@ -4,8 +4,8 @@ use crate::test_log::{CAPTURE, capture_logs};
 
 #[test]
 fn released_queue_empty_fast_path_does_not_wait_for_its_mutex() {
-    let releases = Arc::new(Releases::default());
-    let guard = releases.ids.lock().unwrap();
+    let releases = Arc::new(Releases::<Id>::default());
+    let guard = releases.entries.lock().unwrap();
     let (send, receive) = std::sync::mpsc::channel();
     let worker = {
         let releases = releases.clone();
@@ -875,24 +875,35 @@ fn import_reply_retry_survives_a_nested_callback() {
 }
 
 #[test]
-fn another_threads_hook_fails_fast_while_an_import_lends_the_group() {
+fn another_threads_hook_completes_after_an_import_releases_the_group() {
     crate::test_stack::on_guest_stack(|| {
         let id = crate::boundary::import_id("StructureRandom", "next_long").unwrap();
         let module = module(&format!(
-            "i32.const {id} i32.const 0 i32.const 0 i32.const 2048 i32.const 8 call $host drop i64.const 8796093022216"
+            r#"
+            local.get 0 i32.eqz
+            if (result i64)
+                i32.const {id} i32.const 0 i32.const 0 i32.const 2048 i32.const 8 call $host
+                drop i64.const 8796093022216
+            else
+                i64.const 2199023255556
+            end"#
         ));
+        let (started, ready) = std::sync::mpsc::channel();
+        let (send, receive) = std::sync::mpsc::channel();
+        let mut contender = None;
+        let mut early = None;
         let mut random = Random(|| {
             let module = module.clone();
-            let (send, recv) = std::sync::mpsc::channel();
-            let thread = std::thread::spawn(move || {
-                crate::test_stack::on_guest_stack(|| send.send(call(&module)).unwrap())
-            });
-            assert_eq!(
-                recv.recv_timeout(Duration::from_secs(1))
-                    .expect("a Hook must not wait for the importing thread"),
-                None
-            );
-            thread.join().unwrap();
+            let started = started.clone();
+            let send = send.clone();
+            contender = Some(std::thread::spawn(move || {
+                crate::test_stack::on_guest_stack(|| {
+                    started.send(()).unwrap();
+                    send.send(call_at(&module, 1)).unwrap();
+                })
+            }));
+            ready.recv_timeout(Duration::from_secs(5)).unwrap();
+            early = Some(receive.recv_timeout(Duration::from_millis(100)));
             7
         });
         let mut frame = Frame::default();
@@ -901,6 +912,12 @@ fn another_threads_hook_fails_fast_while_an_import_lends_the_group() {
             module.call(CallClass::Load, frame, 0, None, |_| {}, |r| r.take::<i64>()),
             Some(7)
         );
+        contender.unwrap().join().unwrap();
+        assert_eq!(
+            early.unwrap(),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+        );
+        assert_eq!(receive.try_recv().unwrap(), Some(42));
         assert!(!module.is_stopped());
     })
 }
@@ -955,6 +972,7 @@ fn contended_calls_wait_for_the_group_and_workers_ignore_lending() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn contended_hook_times_out_without_poisoning_the_group() {
     crate::test_stack::on_guest_stack(|| {
         let module = module("i64.const 2199023255556");
@@ -1507,15 +1525,49 @@ fn depth_refusal_survives() {
     })
 }
 
-/// Contention while native code holds a loan refuses without stopping the group.
+/// A nested call must avoid a lock cycle while the target group lends its store.
 #[test]
-fn busy_refusal_survives() {
+fn nested_busy_refusal_survives() {
     crate::test_stack::on_guest_stack(|| {
         let module = module("i64.const 2199023255556");
         let guard = module.running.group.lock().unwrap();
         module.running.lending.store(1, Ordering::Relaxed);
+        let loan = Loan {
+            group: 0,
+            lending: Arc::new(AtomicUsize::new(1)),
+            context: Cell::new(std::ptr::null_mut()),
+            previous: LENT.get(),
+        };
+        LENT.set(&loan);
+        // The early nested refusal returns at once; without it the call would wait the full
+        // five seconds for the lock and then give the same refusal.
+        let started = Instant::now();
         assert_eq!(call(&module), None);
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(take_refusal().starts_with(&Refusal::Busy.to_string()));
+        // A refusal names the call holding the group, so a busy failure says who it waited on.
+        *module.running.holder.lock().unwrap() = Some(Holder {
+            module: "holder_mod".into(),
+            export: 7,
+            thread: std::thread::current(),
+            since: Instant::now() - Duration::from_secs(3),
+        });
+        assert_eq!(call(&module), None);
+        let refusal = take_refusal();
+        let thread = std::thread::current();
+        let thread = thread
+            .name()
+            .map_or_else(|| format!("{:?}", thread.id()), |name| format!("'{name}'"));
+        assert!(
+            refusal.starts_with(&format!(
+                "{}: held by mod holder_mod export 7 on thread {thread} for 3",
+                Refusal::Busy
+            )),
+            "{refusal}"
+        );
+        assert!(refusal.contains("; this call waited "), "{refusal}");
         assert!(!module.is_stopped());
+        drop(loan);
         module.running.lending.store(0, Ordering::Relaxed);
         drop(guard);
         assert_eq!(call(&module), Some(42));
@@ -2184,6 +2236,61 @@ fn refused_prepared_release_stops_group_before_another_stack_can_be_prepared() {
         assert_eq!(
             u32::from_le_bytes(memory[4004..4008].try_into().unwrap()),
             0
+        );
+    });
+}
+
+#[test]
+fn contended_prepared_release_at_capacity_cleans_up_before_slot_reuse() {
+    crate::test_stack::on_guest_stack(|| {
+        let bytes = guest_with_exports(
+            *mod_api::wire::LAYOUT,
+            "i64.const 2199023255556",
+            r#"
+            (func (export "prepare_can_equip") (result i64)
+                (if (i32.ge_u (i32.load (i32.const 512)) (i32.const 4096))
+                    (then unreachable))
+                i64.const 2199023255560)
+            (func (export "ask_can_equip") (result i64) i64.const 0)
+            (func (export "release_can_equip") (result i64)
+                (i32.store (i32.const 4004) (i32.load (i32.const 516)))
+                i64.const 0)
+            "#,
+        );
+        let module = WasmMod::instantiate(
+            &engine().unwrap(),
+            DEFAULT_GROUP_MEMORY_MIB,
+            &[Member {
+                name: "busy_release",
+                module: &bytes,
+            }],
+            None,
+        )
+        .unwrap()
+        .remove(0);
+        let owner = module.downgrade();
+        let token = owner.prepare(&[]).unwrap();
+        for index in 1..4096 {
+            assert_eq!(owner.prepare(&[]).unwrap().0, index);
+        }
+
+        let guard = module.running.group.lock().unwrap();
+        owner.release(token.0, token.1);
+        assert!(!owner.check(token.0, token.1));
+        assert!(!module.is_stopped());
+        drop(guard);
+
+        assert_eq!(owner.prepare(&[]), None);
+        assert!(!module.is_stopped());
+        assert_eq!(call(&module), Some(42));
+        let reused = owner.prepare(&[]).unwrap();
+        assert_eq!(reused.0, token.0);
+        assert_ne!(reused.1, token.1);
+        let group = module.running.group.lock().unwrap();
+        let memory = group.memory.data(&group.store);
+        assert_eq!(
+            u32::from_le_bytes(memory[4004..4008].try_into().unwrap()),
+            token.1
         );
     });
 }

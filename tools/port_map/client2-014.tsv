@@ -48,8 +48,8 @@ DirectJoinServerScreen.extractRenderState	port	crates/horizon-client/src/multipl
 DisconnectedScreen.init	port	crates/horizon-client/src/multiplayer.rs::Screen::buttons	reason text and the disconnected buttons; gap: minor: no Report to Server or open-report-folder button
 DisconnectedScreen.getNarrationMessage	port	crates/horizon-client/src/multiplayer.rs::Screen::narration	disconnect.lost and the reason, joined
 ErrorScreen.init	port	crates/horizon-client/src/title.rs::Title::buttons	Cancel button of the error mode (Mode::Error arm)
-ErrorScreen.extractRenderState	port	crates/horizon-client/src/title.rs::Title::draw	the error title and message (Mode::Error arm)
-ErrorScreen.extractBackground	port	crates/horizon-client/src/title.rs::Title::draw	gap: minor: the flat gradient is replaced by the title background
+ErrorScreen.extractRenderState	port	crates/horizon-client/src/title/draw.rs::Title::draw	the error title and message (Mode::Error arm)
+ErrorScreen.extractBackground	port	crates/horizon-client/src/title/draw.rs::Title::draw	gap: minor: the flat gradient is replaced by the title background
 FaviconTexture.forWorld	port	crates/horizon-client/src/title.rs::Title::icon	the world row's icon texture
 FaviconTexture.forServer	port	crates/horizon-client/src/multiplayer.rs::ping_all	server icon keyed by address, from the ping
 FaviconTexture.clear	inline	crates/horizon-client/src/multiplayer.rs::ping_all	icon dropped when the ping has no favicon
@@ -65,7 +65,7 @@ GenericWaitingScreen.createWaiting	skip:service		waiting screen while a report i
 GenericWaitingScreen.createCompleted	skip:service		result screen after a report (reporting)
 GenericWaitingScreen.init	skip:service		layout of the report waiting screen (reporting)
 GenericWaitingScreen.tick	skip:service		the report button's delay (reporting)
-GenericWaitingScreen.extractRenderState	port	crates/horizon-client/src/title.rs::Title::draw_with_items	Mode::Backup draws the waiting title, the message and the animated dots while the backup runs; the Created/Failed toast follows when it finishes
+GenericWaitingScreen.extractRenderState	port	crates/horizon-client/src/title/draw.rs::Title::draw_with_items	Mode::Backup draws the waiting title, the message and the animated dots while the backup runs; the Created/Failed toast follows when it finishes
 GenericWaitingScreen.shouldCloseOnEsc	skip:service		Escape on the report waiting screen (reporting)
 GenericWaitingScreen.getNarrationMessage	port	crates/horizon-client/src/title.rs::Title::narration	Mode::Backup: selectWorld.waitingForBackup.title and its message, joined
 InBedChatScreen.init	port	crates/horizon-client/src/game/interface/chat.rs::Game::draw_chat_screen	Leave Bed button over the chat; its click is in chat_click
@@ -145,7 +145,7 @@ TitleScreen.createNormalMenuOptions	port	crates/horizon-client/src/title.rs::Tit
 TitleScreen.getMultiplayerDisabledReason	port	crates/horizon-client/src/title.rs::Title::buttons	the decision is the button's enabled flag from Title.allows_multiplayer (AccountStatus::allows_multiplayer: servers-allowed, a multiplayer ban, a forced name change); the reason component vanilla shows for it is not built
 TitleScreen.createDemoMenuOptions	skip:other		demo build only (isDemo); Horizon has no demo mode
 TitleScreen.checkDemoWorldPresence	skip:other		demo world only
-TitleScreen.extractRenderState	port	crates/horizon-client/src/title.rs::Title::draw	version line and buttons
+TitleScreen.extractRenderState	port	crates/horizon-client/src/title/draw.rs::Title::draw	version line and buttons
 TitleScreen.mouseClicked	port	crates/horizon-client/src/title.rs::Title::click	gap: minor: no Realms notification popup to click
 TitleScreen.confirmDemo	skip:other		demo world reset only
 DirectJoinServerScreen.updateSelectButtonStatus	port	crates/horizon-client/src/multiplayer.rs::Screen::buttons	the Join Server button is active only while servers::parse_address accepts the typed address (Screen::Direct)

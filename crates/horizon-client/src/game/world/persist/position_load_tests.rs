@@ -28,7 +28,7 @@ fn deferred_position_records_do_not_resurrect_a_rejected_duplicate_uuid() {
             ("UUID", Tag::IntArray(uuid.to_vec())),
             ("Pos", Tag::String("invalid".into())),
         ]);
-        game.world.loaded_entities.push((source, vec![duplicate]));
+        game.world.queue_entity_nbt(source, vec![duplicate]);
         game.spawn_loaded_entities();
         // Remove the original after disk admission has rejected the duplicate.
         game.mobs.retain(|mob| mob.id != id);
@@ -41,7 +41,9 @@ fn deferred_position_records_do_not_resurrect_a_rejected_duplicate_uuid() {
         game.world
             .chunks
             .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
-        game.world.loaded_entities.extend(unloaded);
+        for (key, tags) in unloaded {
+            game.world.queue_entity_nbt(key, tags);
+        }
         game.spawn_loaded_entities();
         assert!(game.target_with_uuid(uuid).is_none());
     });
@@ -62,7 +64,7 @@ fn malformed_position_from_a_distant_chunk_survives_save_and_unload() {
             ("UUID", Tag::IntArray(vec![2469, 0, 0, 1])),
             ("marker", Tag::Int(37)),
         ]);
-        game.world.loaded_entities.push((source, vec![raw.clone()]));
+        game.world.queue_entity_nbt(source, vec![raw.clone()]);
         game.spawn_loaded_entities();
         let keys = HashSet::from([source]);
         let saved = game.entity_chunks(&keys, false);

@@ -699,8 +699,10 @@
     {
       "name": "Shape",
       "path": "crate::item::crafting::Shape",
-      "hash": "a157d010a4183033",
-      "canonical_path": "crate::item::crafting::Shape"
+      "hash": "004a43af941b0c62",
+      "canonical_path": "crate::item::crafting::Shape",
+      "baseline_hash": "a157d010a4183033",
+      "contract_change": "#3737 adds CustomDisplay at ordinal 3; ordinals 0, 1, 2 remain unchanged. Hash independently mixed from the four literal variant names using the original FNV layout algorithm."
     },
     {
       "name": "ShapeEntityKind",

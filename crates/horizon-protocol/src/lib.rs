@@ -19,6 +19,7 @@ pub mod item;
 pub mod menu_extra;
 pub mod mod_list;
 pub mod packets;
+pub mod passage_sync;
 pub mod payload_negotiation;
 pub mod quiet;
 pub mod registry;
@@ -29,6 +30,7 @@ pub mod secure_chat;
 pub mod server_status;
 pub mod servers;
 pub mod text;
+pub mod viewed_levels;
 
 /// SharedConstants.getProtocolVersion().
 pub const PROTOCOL_VERSION: i32 = horizon_core::version::PROTOCOL_VERSION;

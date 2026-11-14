@@ -3,8 +3,8 @@
 //! menu slot shows (ender chest, crafting grid, a mod's chest menu). Mods read and write
 //! them through `ItemPlace`'s `stack`, `insert` and `extract`, which come here for these places; a block entity's slots,
 //! a stack inside an item and a mod's own places go through their handlers.
+use super::Game;
 use super::transactions::After;
-use super::{Game, minecarts::CartKind};
 use horizon_client::{first_person::Hand, items::ItemStack};
 use mod_api::__private::game::*;
 use mod_api::{EquipmentSlot, ItemPlace, LivingRef, Transaction};
@@ -33,9 +33,7 @@ impl Game<'_> {
     ) -> Option<R> {
         let key = (i32::MAX - 15, super::minecarts::CART_KEY_Y, id as i32);
         let at = |p: &horizon_core::geometry::Vec3| [p.x, p.y, p.z];
-        let container = |c: &super::minecarts::Minecart| {
-            c.id == id && matches!(c.kind, CartKind::Chest | CartKind::Hopper)
-        };
+        let container = |c: &super::minecarts::Minecart| c.id == id && c.kind.slots() > 0;
         let position = if let Some(c) = self.carts.iter().find(|c| container(c)) {
             at(&c.position)
         } else if let Some(b) = self.boats.iter().find(|b| b.id == id && b.chest) {
@@ -100,7 +98,7 @@ impl Game<'_> {
             return None;
         }
         if let Some(c) = self.carts.iter().find(|c| c.id == entity) {
-            let container = matches!(c.kind, CartKind::Chest | CartKind::Hopper);
+            let container = c.kind.slots() > 0;
             return container.then_some(c.items.len());
         }
         let b = self.boats.iter().find(|b| b.id == entity)?;
@@ -131,6 +129,9 @@ impl Game<'_> {
     /// isn't here or is dead, an item entity not in the level in place, any other place
     /// (`ItemPlace::stack` reads those), and on a client.
     pub(super) fn game_stack(&mut self, place: &ItemPlace) -> Option<ItemStack> {
+        if let ItemPlace::Scratch(id) = place {
+            return self.scratch_held(*id);
+        }
         if self.block_entity_tick_items.is_some() {
             return self.scoped_game_stack(place);
         }
@@ -161,6 +162,9 @@ impl Game<'_> {
         }
         if !self.places_simulated() || stack.count == 0 {
             return 0;
+        }
+        if let ItemPlace::Scratch(id) = place {
+            return self.scratch_insert(*id, &stack);
         }
         let max = self.containers().max_stack(&stack);
         // Puts what of `rest` fits into `slot`.
@@ -293,6 +297,9 @@ impl Game<'_> {
         }
         if !self.places_simulated() {
             return 0;
+        }
+        if let ItemPlace::Scratch(id) = place {
+            return self.scratch_extract(*id, &stack);
         }
         // How many of `stack` `held` gives.
         let taken = |held: Option<&ItemStack>| {
@@ -497,6 +504,132 @@ pub(super) mod tests {
         );
         guest.placed = true;
         guest
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn whole_stack_component_edit_preserves_slot_and_refuses_item_or_count_changes() {
+        use mod_api::Tag;
+        with_game(|game| {
+            open_to_lan(game);
+            let mut player = guest(1);
+            player.inventory[3] = Some(ItemStack::new("minecraft:paper", 16));
+            game.lan.as_mut().unwrap().hub.guests.push(player);
+            let host_before = game.inventory.clone();
+            let dropped_before = game.dropped.len();
+            let inventory =
+                |game: &super::Game<'_>| game.lan.as_ref().unwrap().hub.guests[0].inventory.clone();
+            let mut expected = inventory(game);
+            let name = Tag::String("named paper".into());
+            expected[3].as_mut().unwrap().data_mut().custom_name = Some(name.clone());
+            let slot = ItemPlace::PlayerSlot {
+                player: 123,
+                slot: 3,
+            };
+            let result = game.transaction(|host, tx| {
+                Ok::<_, ()>(slot.edit(host, tx, |stack| {
+                    stack
+                        .apply_components(&[("minecraft:custom_name".into(), name)].into())
+                        .unwrap();
+                }))
+            });
+            assert_eq!(result, Ok(true));
+            assert_eq!(game.dropped.len(), dropped_before);
+            assert_eq!(
+                inventory(game),
+                expected,
+                "all 16 named paper stay in slot 3"
+            );
+            assert_eq!(game.inventory, host_before);
+
+            // Refusing the edit must not need an outer abort to keep the slot intact.
+            assert_eq!(
+                game.transaction(|host, tx| {
+                    Ok::<_, ()>(slot.edit(host, tx, |stack| stack.set_count(15).unwrap()))
+                }),
+                Ok(false)
+            );
+            assert_eq!(inventory(game), expected);
+            let stone = ItemStack::new("minecraft:stone", 16)
+                .try_into_api()
+                .unwrap();
+            assert_eq!(
+                game.transaction(|host, tx| {
+                    Ok::<_, ()>(slot.edit(host, tx, |stack| *stack = stone))
+                }),
+                Ok(false)
+            );
+            assert_eq!(inventory(game), expected);
+            assert_eq!(game.inventory, host_before);
+
+            let empty = ItemPlace::PlayerSlot {
+                player: 123,
+                slot: 4,
+            };
+            assert_eq!(
+                game.transaction(|host, tx| {
+                    Ok::<_, ()>(empty.edit(host, tx, |_| panic!("empty place ran editor")))
+                }),
+                Ok(false)
+            );
+            assert_eq!(inventory(game), expected);
+            assert_eq!(game.dropped.len(), dropped_before);
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn whole_stack_component_edit_rolls_back_with_its_transaction() {
+        use mod_api::Tag;
+        with_game(|game| {
+            open_to_lan(game);
+            let mut player = guest(1);
+            player.inventory[3] = Some(ItemStack::new("minecraft:paper", 16));
+            game.lan.as_mut().unwrap().hub.guests.push(player);
+            let inventory =
+                |game: &super::Game<'_>| game.lan.as_ref().unwrap().hub.guests[0].inventory.clone();
+            let before = inventory(game);
+            let slot = ItemPlace::PlayerSlot {
+                player: 123,
+                slot: 3,
+            };
+            let mut named = ItemStack::new("minecraft:paper", 1);
+            named.data_mut().custom_name = Some(Tag::String("copied name".into()));
+            let source = named.try_into_api().unwrap();
+            let mut expected = before.clone();
+            expected[3].as_mut().unwrap().data_mut().custom_name =
+                Some(Tag::String("copied name".into()));
+            let expected_stack = expected[3].as_ref().unwrap().try_into_api().unwrap();
+            let original_stack = before[3].as_ref().unwrap().try_into_api().unwrap();
+            assert_eq!(
+                game.transaction(|host, tx| {
+                    assert!(slot.edit(host, tx, |stack| {
+                        stack.copy_component_from(&source, "minecraft:custom_name");
+                    }));
+                    assert_eq!(slot.stack(host), Some(expected_stack.clone()));
+                    Err::<(), ()>(())
+                }),
+                Err(())
+            );
+            assert_eq!(inventory(game), before);
+
+            // A child abort restores the slot even when the parent goes on to commit.
+            assert_eq!(
+                game.transaction(|host, _| {
+                    let child = host.transaction(|host, tx| {
+                        assert!(slot.edit(host, tx, |stack| {
+                            stack.copy_component_from(&source, "minecraft:custom_name");
+                        }));
+                        Err::<(), ()>(())
+                    });
+                    assert_eq!(child, Err(()));
+                    assert_eq!(slot.stack(host), Some(original_stack.clone()));
+                    Ok::<(), ()>(())
+                }),
+                Ok(())
+            );
+            assert_eq!(inventory(game), before);
+        });
     }
 
     #[test]
@@ -2289,6 +2422,184 @@ pub(super) mod tests {
                 assert_eq!(items.amount(host, 4), 0);
             }
             assert_eq!(stand_slot(game, 0), None);
+        });
+    }
+
+    /// A chunk at the origin, open to LAN, with a full water cauldron at (2, 64, 0).
+    fn with_cauldron(game: &mut super::Game<'_>) -> mod_api::LevelRef {
+        use horizon_client::chunk::Chunk;
+        use mod_api::BlockUpdateFlags;
+        open_to_lan(game);
+        game.world
+            .chunks
+            .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+        let level = game.level("minecraft:overworld").unwrap();
+        let state = horizon_world::chunk::BlockState {
+            name: "minecraft:water_cauldron".to_owned(),
+            properties: [("level".to_owned(), "3".to_owned())].into_iter().collect(),
+        };
+        let full = game.pack.assets.registry.resolve(&state).unwrap();
+        let flags = BlockUpdateFlags::NEIGHBORS;
+        assert_eq!(
+            game.level_set_block(level, [2, 64, 0], full, flags),
+            Ok(true)
+        );
+        level
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn a_scratch_stack_lives_in_its_transaction_and_keeps_its_item() {
+        use mod_api::{FLUIDS, ITEM_FLUIDS, move_resources};
+        with_game(|game| {
+            let level = with_cauldron(game);
+            let cauldron = game.world.block(2, 64, 0);
+            let api = |name, count| ItemStack::new(name, count).try_into_api().unwrap();
+            let bucket = api("minecraft:bucket", 1);
+            let buckets = ItemResource::of(&bucket);
+            let stick = ItemResource::of(&api("minecraft:stick", 1));
+            let host: &mut dyn ServerHost = game;
+            // Made in a transaction that aborts, it goes with it.
+            let made = host.transaction(|host, tx| {
+                Err::<(), _>(host.scratch_stack(tx, bucket.clone()).unwrap().unwrap())
+            });
+            let lost = made.unwrap_err();
+            let gone = host.transaction(|host, tx| Ok::<_, ()>(host.scratch_take(tx, &lost)));
+            assert_eq!(gone, Ok(None));
+            let got = host.transaction(|host, tx| {
+                let place = host.scratch_stack(tx, bucket.clone()).unwrap().unwrap();
+                assert_eq!(place.insert(host, tx, &buckets, 2), 2);
+                // Another item has nowhere to go: a scratch stack doesn't spill.
+                assert_eq!(place.insert(host, tx, &stick, 1), 0);
+                assert_eq!(place.amount(host), 3);
+                // Filling it would make it a water bucket, another item: refused.
+                let block = level.capability(host, &FLUIDS, [2, 64, 0], None).unwrap();
+                let held = place.capability(host, &ITEM_FLUIDS).unwrap();
+                let filled = move_resources(host, &block, &held, |_| true, 1000, tx);
+                assert_eq!(filled, Ok(0));
+                Ok::<_, ()>(host.scratch_take(tx, &place))
+            });
+            assert_eq!(got, Ok(Some(api("minecraft:bucket", 3))));
+            assert_eq!(game.world.block(2, 64, 0), cauldron);
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn a_scratch_stack_merges_into_its_parent_and_ends_with_the_outermost() {
+        with_game(|game| {
+            open_to_lan(game);
+            let bucket = ItemStack::new("minecraft:bucket", 1)
+                .try_into_api()
+                .unwrap();
+            let buckets = ItemResource::of(&bucket);
+            let host: &mut dyn ServerHost = game;
+            let place = host.transaction(|host, _| {
+                // Made and filled in a child that commits: the parent keeps it as it was left.
+                let place = host
+                    .transaction(|host, tx| {
+                        let place = host.scratch_stack(tx, bucket.clone()).unwrap().unwrap();
+                        assert_eq!(place.insert(host, tx, &buckets, 1), 1);
+                        Ok::<_, ()>(place)
+                    })
+                    .unwrap();
+                assert_eq!(place.amount(host), 2);
+                // A child that writes it and aborts puts it back.
+                let aborted = host.transaction(|host, tx| {
+                    assert_eq!(place.insert(host, tx, &buckets, 3), 3);
+                    assert_eq!(place.amount(host), 5);
+                    Err::<(), _>(())
+                });
+                assert_eq!(aborted, Err(()));
+                assert_eq!(place.amount(host), 2);
+                Ok::<_, ()>(place)
+            });
+            // The outermost close ends it: nothing reads or takes it after.
+            let place = place.unwrap();
+            assert_eq!(place.amount(host), 0);
+            let taken = host.transaction(|host, tx| Ok::<_, ()>(host.scratch_take(tx, &place)));
+            assert_eq!(taken, Ok(None));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn a_strict_slot_refuses_what_the_plain_slot_spreads() {
+        use horizon_client::chunk::Chunk;
+        use mod_api::BlockUpdateFlags;
+        with_game(|game| {
+            open_to_lan(game);
+            game.world
+                .chunks
+                .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+            let level = game.level("minecraft:overworld").unwrap();
+            let chest = game.pack.assets.registry.default_state("minecraft:chest");
+            let flags = BlockUpdateFlags::NEIGHBORS;
+            assert_eq!(
+                game.level_set_block(level, [0, 64, 0], chest.unwrap(), flags),
+                Ok(true)
+            );
+            let slots = |game: &mut super::Game<'_>| {
+                let Some(BlockEntity::Chest(items)) =
+                    game.world.block_entities.get_mut(&(0, 64, 0))
+                else {
+                    panic!("no chest")
+                };
+                items[..2].to_vec()
+            };
+            if let Some(BlockEntity::Chest(items)) = game.world.block_entities.get_mut(&(0, 64, 0))
+            {
+                items[0] = Some(ItemStack::new("minecraft:stick", 64));
+            }
+            let stick =
+                ItemResource::of(&ItemStack::new("minecraft:stick", 1).try_into_api().unwrap());
+            let place = ItemPlace::BlockEntity {
+                level,
+                pos: [0, 64, 0],
+                side: None,
+                slot: 0,
+            };
+            let strict = ItemPlace::Strict(Box::new(place.clone()));
+            let host: &mut dyn ServerHost = game;
+            let went = |host: &mut dyn ServerHost, at: &ItemPlace| {
+                host.transaction(|host, tx| Ok::<_, ()>(at.insert(host, tx, &stick, 5)))
+            };
+            assert_eq!(went(&mut *host, &strict), Ok(0));
+            assert_eq!(went(&mut *host, &place), Ok(5));
+            assert_eq!(
+                slots(game),
+                [
+                    Some(ItemStack::new("minecraft:stick", 64)),
+                    Some(ItemStack::new("minecraft:stick", 5))
+                ]
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn one_by_one_shows_one_bucket_of_sixteen_and_fills_one() {
+        use mod_api::{FLUIDS, ITEM_FLUIDS, move_resources};
+        with_game(|game| {
+            let level = with_cauldron(game);
+            let mut player = guest(1);
+            player.inventory[0] = Some(ItemStack::new("minecraft:bucket", 16));
+            game.lan.as_mut().unwrap().hub.guests.push(player);
+            let one = ItemPlace::OneByOne(Box::new(ItemPlace::PlayerSlot {
+                player: 123,
+                slot: 0,
+            }));
+            let host: &mut dyn ServerHost = game;
+            assert_eq!(one.amount(host), 1);
+            let block = level.capability(host, &FLUIDS, [2, 64, 0], None).unwrap();
+            let bucket = one.capability(host, &ITEM_FLUIDS).unwrap();
+            let moved = host
+                .transaction(|host, tx| move_resources(host, &block, &bucket, |_| true, 1000, tx));
+            assert_eq!(moved, Ok(1000));
+            let held = game.lan.as_ref().unwrap().hub.guests[0].inventory.clone();
+            assert_eq!(held[0], Some(ItemStack::new("minecraft:bucket", 15)));
+            let water = Some(ItemStack::new("minecraft:water_bucket", 1));
+            assert!(held.contains(&water));
         });
     }
 }

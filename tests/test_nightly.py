@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -165,7 +166,7 @@ class UntrustedBuildTests(unittest.TestCase):
     def test_no_nightly_build_is_trusted(self):
         # The train only starts `nightly build` (Nightly only since 2026-10-28); it builds nothing itself.
         release = (WORKFLOWS / "release.yml").read_text()
-        self.assertNotIn("game-build.yml", release)
+        self.assertNotIn("/game-build.yml", release)
         self.assertIn("gh workflow run nightly-build.yml", release)
         nightly_build = (WORKFLOWS / "nightly-build.yml").read_text()
         self.assertIn("trusted: false", nightly_build)
@@ -229,15 +230,15 @@ class PruneBuildsTests(unittest.TestCase):
         self.assertIn('git archive --format=tar.gz --prefix="horizon-${SHA:0:7}/" -o horizon-source.tar.gz "$SHA"',
                       pick)
         sign = build.split("\n  sign:", 1)[1].split("\n  publish:", 1)[0]
-        self.assertIn("dist/horizon-source.tar.gz", sign.split("sign_release.sh nightly", 1)[1])
+        self.assertIn("dist/horizon-source.tar.gz", sign.split('sign_release.sh "$KIND"', 1)[1])
         publish = build.split("\n  publish:", 1)[1].split("\n  answer:", 1)[0]
         self.assertIn('"dist/horizon-source.tar.gz#Source of this Nightly', publish)
         self.assertIn('nightly.py keep-source "$SHA" "$DATE"', publish)
 
-    def test_the_workflow_prunes_on_schedule_only(self):
+    def test_the_workflow_prunes_on_real_runs_only(self):
         build = (WORKFLOWS / "nightly-build.yml").read_text()
         step = build.split("Old nightly/build-* branches deleted", 1)[1].split("- uses:", 1)[0]
-        self.assertIn("if: github.event_name == 'schedule'", step)
+        self.assertIn("if: steps.mode.outputs.dry_run != 'true'", step)
         self.assertIn("prune-builds --days 7", step)
         self.assertIn("GITHUB_STEP_SUMMARY", step)
 
@@ -245,14 +246,17 @@ class PruneBuildsTests(unittest.TestCase):
 
 class SdkPairTests(unittest.TestCase):
     def test_only_complete_published_exact_pair_is_eligible(self):
+        # Written out, not taken from the module: the release a Nightly needs, signed index and sums included.
         assets = [{"name": name} for name in (
-            "SHA256SUMS", "horizon-prebuilt-v5-x86_64-unknown-linux-gnu.tar.gz",
-            "horizon-prebuilt-v5-x86_64-unknown-linux-gnu-server.tar.gz",
-            "horizon-prebuilt-v5-x86_64-pc-windows-gnu.tar.gz",
-            "horizon-prebuilt-v5-aarch64-apple-darwin.tar.gz")]
-        release = {"draft": False, "tag_name": "prebuilt-" + "a" * 40, "assets": assets}
+            "sdk.json", "SHA256SUMS", "SHA256SUMS.sig", "api-source.tar.xz", "build-data.tar.xz", "surface.json",
+            *(f"{kind}-{leg}.tar.xz" for kind in ("runtime", "api", "engine") for leg in (
+                "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-gnu-server", "x86_64-pc-windows-gnu",
+                "aarch64-apple-darwin")))]
+        release = {"draft": False, "tag_name": "sdk-" + "a" * 40, "assets": assets}
         for changes, expected in [({}, True), ({"draft": True}, False),
-                                  ({"tag_name": "prebuilt-" + "b" * 40}, False)]:
+                                  ({"tag_name": "sdk-" + "b" * 40}, False),
+                                  # The old prebuilt-<sha> release is not an SDK.
+                                  ({"tag_name": "prebuilt-" + "a" * 40}, False)]:
             with mock.patch.object(nightly.train, "gh_json", return_value=[[], [{**release, **changes}]]):
                 self.assertEqual(nightly.sdk_ready("a" * 40), expected)
         for index in range(len(assets)):
@@ -270,10 +274,23 @@ class SdkPairTests(unittest.TestCase):
                 mock.patch.object(nightly, "is_ancestor", return_value=True), \
                 mock.patch.object(nightly, "git", return_value="a" * 40), \
                 mock.patch.object(nightly, "sdk_ready", return_value=False), \
+                mock.patch.object(nightly.train, "daily_green_commit", return_value="a" * 40), \
                 mock.patch.object(nightly.train, "green_main_head") as automatic:
             with self.assertRaises(SystemExit):
                 nightly.green_base("arismoko/horizon", "")
             automatic.assert_not_called()
+
+    def test_an_explicit_base_must_be_the_daily_green_commit_itself(self):
+        # "a" is an ancestor of daily-green ("b"), but had no daily run of its own.
+        with mock.patch.dict(nightly.os.environ, {"NIGHTLY_BASE": "a" * 40}), \
+                mock.patch.object(nightly, "is_ancestor", return_value=True), \
+                mock.patch.object(nightly, "git", return_value="a" * 40), \
+                mock.patch.object(nightly, "sdk_ready", return_value=True), \
+                mock.patch.object(nightly.train, "daily_green_commit", return_value="b" * 40), \
+                mock.patch.object(nightly, "stop", side_effect=SystemExit) as stop:
+            with self.assertRaises(SystemExit):
+                nightly.green_base("arismoko/horizon", "")
+        self.assertIn("is not the commit `daily-green` points to", stop.call_args.args[2])
 
     def test_final_sha_change_or_disappearing_sdk_stops_before_pushing(self):
         for sha, sdk_ready in (("a" * 40, False), ("b" * 40, True)):
@@ -286,24 +303,32 @@ class SdkPairTests(unittest.TestCase):
                     nightly.build_set(nightly.Ref("main", "a" * 40, T), [], [], "2026-11-11", True, False)
                 push.assert_not_called()
 
-    def test_automatic_selection_reads_inventory_once_for_all_candidates(self):
-        def choose(*, parity, eligible):
-            self.assertTrue(parity)
-            self.assertFalse(eligible("b" * 40))
-            self.assertTrue(eligible("a" * 40))
-            return "a" * 40
+    def test_automatic_selection_takes_the_daily_green_commit_with_its_sdk(self):
         with mock.patch.dict(nightly.os.environ, {"NIGHTLY_BASE": ""}), \
-                mock.patch.object(nightly, "ready_sdk_shas", return_value={"a" * 40}) as inventory, \
-                mock.patch.object(nightly.train, "green_main_head", side_effect=choose), \
+                mock.patch.object(nightly.train, "daily_green_commit", return_value="a" * 40), \
+                mock.patch.object(nightly, "sdk_ready", return_value=True), \
+                mock.patch.object(nightly.train, "green_main_head") as automatic, \
                 mock.patch.object(nightly, "is_ancestor", return_value=True), \
                 mock.patch.object(nightly, "git", side_effect=["a" * 40, NOW]):
             self.assertEqual(nightly.green_base("arismoko/horizon", "").sha, "a" * 40)
-            inventory.assert_called_once_with()
+            automatic.assert_not_called()
+        for green, ready in (("", True), ("a" * 40, False)):
+            with self.subTest(green=green, ready=ready), \
+                    mock.patch.dict(nightly.os.environ, {"NIGHTLY_BASE": ""}), \
+                    mock.patch.object(nightly.train, "daily_green_commit", return_value=green), \
+                    mock.patch.object(nightly, "sdk_ready", return_value=ready), \
+                    mock.patch.object(nightly, "is_ancestor", return_value=True), \
+                    mock.patch.object(nightly, "git", return_value="a" * 40), \
+                    mock.patch.object(nightly, "stop", side_effect=SystemExit):
+                with self.assertRaises(SystemExit):
+                    nightly.green_base("arismoko/horizon", "")
 
     def test_publication_checks_fresh_inventory_and_leaves_upstream_unchanged(self):
         with mock.patch.dict(nightly.os.environ, {"GITHUB_REPOSITORY": "arismoko/horizon"}), \
-                mock.patch.object(nightly, "ready_sdk_shas", side_effect=[{"a" * 40}, set()]) as inventory:
+                mock.patch.object(nightly, "ready_sdk_shas", side_effect=[{"a" * 40}, set()]) as inventory, \
+                mock.patch.object(nightly, "published_index") as index:
             nightly.require_sdk("a" * 40)
+            index.assert_called_once_with("a" * 40)
             with self.assertRaisesRegex(SystemExit, "publication refused"):
                 nightly.require_sdk("a" * 40)
             self.assertEqual(inventory.call_count, 2)
@@ -311,6 +336,43 @@ class SdkPairTests(unittest.TestCase):
                 mock.patch.object(nightly, "sdk_ready") as sdk:
             nightly.require_sdk("a" * 40)
             sdk.assert_not_called()
+
+    def test_the_sdk_index_must_name_this_build_format_and_assets_and_match_its_sums(self):
+        import hashlib
+        sha = "a" * 40
+        good = {"build": {"commit": sha}, "package_format": nightly.package_format(),
+                "assets": {name: {} for name in nightly.SDK_ARCHIVES}}
+        self.assertEqual(nightly.checked_index(sha, json.dumps(good).encode()), good)
+        for why, document in (
+                ("for build", {**good, "build": {"commit": "b" * 40}}),
+                ("package format", {**good, "package_format": 0}),
+                ("does not list surface.json", {**good, "assets": {name: {} for name in nightly.SDK_ARCHIVES[:-1]}}),
+                ("not an SDK index", {"build": {}})):
+            with self.subTest(why), self.assertRaisesRegex(SystemExit, why):
+                nightly.checked_index(sha, json.dumps(document).encode())
+        sums = f"{hashlib.sha256(b'index').hexdigest()}  sdk.json\n{'0' * 64} *surface.json\n"
+        self.assertTrue(nightly.listed("sdk.json", b"index", sums))
+        self.assertFalse(nightly.listed("sdk.json", b"other", sums))
+        self.assertFalse(nightly.listed("surface.json", b"index", sums))
+        self.assertFalse(nightly.listed("SHA256SUMS", b"index", sums))
+
+    def test_an_sdk_asset_is_trusted_only_under_the_forks_signature_for_its_own_tag(self):
+        command = nightly.signature_check("a" * 40, Path("/tmp/x"), ["sdk.json"])
+        self.assertEqual(command[:6], ["cargo", "run", "--locked", "--quiet", "-p", "horizon-release-sign"])
+        arguments = command[command.index("--") + 1:]
+        self.assertEqual(arguments, ["verify", "--repository", "arismoko/horizon", "--tag", "sdk-" + "a" * 40,
+                                     "--only", "sdk.json", "/tmp/x"])
+        self.assertNotIn("--publishing", command, "an unsigned SDK is refused, as the launcher refuses it")
+
+    def test_the_previous_sdk_is_the_nearest_published_one_behind_the_build(self):
+        a, b, c, d = ("a" * 40, "b" * 40, "c" * 40, "d" * 40)
+        # c is not on d's history; b is nearer than a.
+        with mock.patch.object(nightly, "ready_sdk_shas", return_value={a, b, c, d}), \
+                mock.patch.object(nightly, "is_ancestor", side_effect=lambda x, y: x in (a, b)), \
+                mock.patch.object(nightly, "git", side_effect=lambda *args: {f"{a}..{d}": "9", f"{b}..{d}": "2"}[args[-1]]):
+            self.assertEqual(nightly.previous_sdk(d), b)
+        with mock.patch.object(nightly, "ready_sdk_shas", return_value={d}):
+            self.assertEqual(nightly.previous_sdk(d), "")
 
     def test_fork_pick_refuses_explicit_prs_ignores_saved_prs_and_upstream_keeps_both(self):
         main = nightly.Ref("main", "a" * 40, T)

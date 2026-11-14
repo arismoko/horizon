@@ -66,3 +66,39 @@ values. Reads also work in world hooks. A lookup reads the loaded map: it parses
 touches no file.
 
 Wasm mods read data maps the same way, with the same answers.
+
+## NeoForge's built-in block maps
+
+The game itself reads three of NeoForge's block maps (`NeoForgeDataMaps`), with no code in your
+mod: `neoforge:flammable`, `neoforge:oxidizables` and `neoforge:waxables`, in
+`data/neoforge/data_maps/block/<name>.json`. They load from the world's data packs and mods'
+files on every server data load, merged as your own maps are, and each load replaces the last.
+
+```json
+{ "values": { "mymod:tin": { "next_oxidation_stage": "mymod:dull_tin" } } }
+```
+
+- `neoforge:flammable` (`ignite_odds`, `burn_odds`): fire asks a mod's fire hook first, then this
+  map, then vanilla's table. Burn odds are clamped to 300, as a hook's answer is.
+- `neoforge:oxidizables` (`next_oxidation_stage`): the stage a random tick weathers a block to, its
+  properties kept. A mapped block weathers only where the game's weathering already ticks it
+  (vanilla's copper blocks), so naming another block does not make it age by itself.
+- `neoforge:waxables` (`waxed`): the twin honeycomb waxes a block to, for the player's honeycomb
+  and the dispenser's, its properties kept.
+
+The axe reads the inverse maps before its own transform table: the oxidation inverse scrapes one
+stage back, the waxing inverse takes the wax off. They are derived from the forward maps on every
+load, never declared. Where several blocks share a next stage or a waxed twin, the one with the
+lowest block registry id is the one given back. That is a Horizon choice: NeoForge keeps whichever
+its map iteration met last.
+
+Random-tick oxidation, honeycomb, dispenser waxing and the axe each move exactly one step, so a
+chain that loops only alternates there. Lightning resets a struck block along the whole oxidation
+inverse. So that mod data can never hang it, an oxidation chain that loops (a block that is its own
+next stage included) is refused at load with an error naming `neoforge:oxidizables` and the
+blocks, and those blocks get no scraping step; the lightning walk also stops where it would come
+back to a block it already passed. Lightning's waxed check, the carved pumpkin and the copper chest
+keep vanilla's own lists. A block the maps don't name keeps vanilla's behaviour.
+
+`generate_block_transform`, `neoforge:transformables` and `block_transform_appenders` are not read
+yet ([#3359](https://github.com/arismoko/horizon/issues/3359)).

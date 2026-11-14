@@ -55,6 +55,12 @@ impl LevelAccess for GameLevel<'_> {
             self.native_block_changed(self.dimension, pos, old, new);
         }
     }
+    fn observes_block_state_change(&self, old: BlockStateId, new: BlockStateId) -> bool {
+        self.block_state_change_heard(old, new)
+    }
+    fn observe_block_state_change(&self, pos: BlockPos, old: BlockStateId, new: BlockStateId) {
+        self.block_state_change(pos, old, new);
+    }
     fn neighbor_notify(&self, pos: BlockPos, skipped: Option<Direction>) -> bool {
         if !self.native_authoritative
             || !mod_api::__private::listened(mod_api::HookId::NeighborNotify)
@@ -215,6 +221,9 @@ impl LevelAccess for GameLevel<'_> {
         }
         !cancel
     }
+    fn has_water_ticket(&self, pos: BlockPos) -> bool {
+        self.world.water_tickets.contains([pos.x, pos.y, pos.z])
+    }
     fn allow_moisture_change(&self, pos: BlockPos, from: i32, to: i32) -> bool {
         let mut cancel = false;
         if self.native_authoritative {
@@ -354,6 +363,16 @@ impl LevelAccess for GameLevel<'_> {
     ) -> bool {
         self.piston_move_allowed(piston, direction, extending, push, destroy)
     }
+    fn on_destroyed_by_push_reaction(
+        &mut self,
+        ticks: &mut Ticks,
+        pos: BlockPos,
+        state: BlockStateId,
+        direction: Direction,
+        fluid: FluidState,
+    ) {
+        self.destroyed_by_push_reaction(ticks, pos, state, direction, fluid);
+    }
     fn observe_piston_moved(
         &self,
         piston: BlockPos,
@@ -457,7 +476,20 @@ impl LevelAccess for GameLevel<'_> {
     }
     fn has_connection_hook(&self) -> bool {
         self.native_authoritative
-            && mod_api::__private::has_scoped_hook(mod_api::HookId::ConnectsTo)
+            && (mod_api::__private::has_scoped_hook(mod_api::HookId::ConnectsTo)
+                || mod_api::__private::has_scoped_hook(mod_api::HookId::CanBeConnectedTo))
+    }
+    fn adjust_can_be_connected_to(
+        &self,
+        kind: horizon_core::connection_kind::ConnectionKind,
+        pos: BlockPos,
+        state: BlockStateId,
+        connector: BlockStateId,
+        direction: Direction,
+        face_solid: bool,
+        vanilla: bool,
+    ) -> bool {
+        self.can_be_connected_to(kind, pos, state, connector, direction, face_solid, vanilla)
     }
     fn adjust_connects_to(
         &self,
@@ -601,6 +633,31 @@ impl LevelAccess for GameLevel<'_> {
     ) {
         if self.native_authoritative {
             self.native_can_sustain_plant(self.dimension, state, ground, ground_pos, sustains);
+        }
+    }
+    fn asks_is_fertile(&self) -> bool {
+        self.native_authoritative && mod_api::__private::has_scoped_hook(mod_api::HookId::IsFertile)
+    }
+    fn before_is_fertile(&self, state: BlockStateId, pos: BlockPos, fertile: &mut bool) {
+        self.native_is_fertile(self.dimension, state, pos, fertile);
+    }
+    fn asks_can_be_hydrated(&self, state: BlockStateId) -> bool {
+        self.native_authoritative
+            && crate::game::api_values::block_state::block_listens(
+                mod_api::HookId::CanBeHydrated,
+                state,
+            )
+    }
+    fn before_can_be_hydrated(
+        &self,
+        state: BlockStateId,
+        pos: BlockPos,
+        fluid: FluidState,
+        fluid_pos: BlockPos,
+        hydrates: &mut Option<bool>,
+    ) {
+        if let Some(fluid) = native_world_read::api_fluid_state(fluid) {
+            self.native_can_be_hydrated(self.dimension, state, pos, fluid, fluid_pos, hydrates);
         }
     }
     fn before_may_place_on(

@@ -1614,6 +1614,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn every_action_has_an_icon_and_every_string_a_horizon_key() {
         let english = lang::Language::load(&[], "en_us");
         let ((), missed) = lang::scoped(english, || {

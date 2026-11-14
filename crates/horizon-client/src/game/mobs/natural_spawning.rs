@@ -451,7 +451,8 @@ impl GameLevel<'_, '_> {
     }
     /// The handle of this pass's level, which the spawn checks are told.
     fn level_ref(&self) -> mod_api::LevelRef {
-        mod_api::LevelRef::new(self.game.lend_epoch(), self.game.dim.key())
+        self.game
+            .level_ref(self.game.lend_epoch(), self.game.dim.key())
     }
     /// The mob the position check of this spawn created, when one did and it
     /// is the one asked for (`entity` at `position`, facing `yaw`): the spawn
@@ -1338,8 +1339,9 @@ impl<'a> Game<'a> {
         let Some(terrain) = self.end.locator() else {
             return;
         };
-        // `FlatLevelSource.spawnOriginalMobs` is empty: a superflat world places no packs.
-        if terrain.is_flat() {
+        // `FlatLevelSource.spawnOriginalMobs` is empty: a superflat world places no packs, and
+        // neither does a mod's chunk generator, whose own `spawnOriginalMobs` the API has none of.
+        if !terrain.noise_ground() {
             return;
         }
         // `NoiseGeneratorSettings.disableMobGeneration`: the shipped End preset
@@ -1688,6 +1690,7 @@ mod tests {
     /// Players walking, crossing borders, meeting, splitting, joining, leaving
     /// and swapping order: every pass matches the uncached collection.
     #[test]
+    #[ignore = "daily"]
     fn spawn_candidates_match_the_uncached_union_while_players_move() {
         let mut seed = 0x5DEECE66Du64;
         let mut next = move |bound: u64| {

@@ -675,6 +675,7 @@ impl Game<'_> {
                         &crate::game::native_hooks::HookedAttributeTooltips::new(self, None),
                         self.item_enchantments(),
                         &|k| self.pack.names.display_get(k),
+                        &|attribute| self.attribute_style(attribute, false),
                     )
                 })
             {
@@ -1276,16 +1277,6 @@ impl Game<'_> {
         else {
             return false;
         };
-        let button_craftable = self
-            .recipe_ui
-            .view
-            .buttons
-            .iter()
-            .flat_map(|b| b.entries.iter())
-            .any(|e| e.0 == entry_index && e.1);
-        if !button_craftable && self.recipe_ui.last_placed.as_deref() == Some(id.as_str()) {
-            return false;
-        }
         self.recipe_ui.last_placed = Some(id);
         self.recipe_ui.ghost.clear();
         self.place_book_recipe(book_type, entry_index, use_max);

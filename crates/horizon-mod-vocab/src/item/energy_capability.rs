@@ -21,7 +21,7 @@ pub trait EnergyHandler: Send + Sync {
 }
 
 /// Energy, as NeoForge 26.3's `Capabilities.Energy.BLOCK`: a block entity's energy as one side
-/// reaches it. The game answers it for a mod block entity's buffer (`block_entity_energy`, as
+/// reaches it. The game answers it for a mod block entity's buffer (`Registrar::block_energy`, as
 /// `SimpleEnergyHandler`): its capacity, the most one insert and one extract move, and the sides
 /// a fill comes through and a drain leaves by.
 pub const ENERGY: CapabilityKey<dyn EnergyHandler> = CapabilityKey {

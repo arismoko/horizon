@@ -473,6 +473,10 @@ impl Game<'_> {
     pub(super) fn build_screen(&mut self) {
         let shown =
             self.screen != Screen::Playing || self.title.is_some() || self.screen_over_playing();
+        // Gui.setScreen: KeyMapping.releaseAll, as the screen or overlay opens.
+        if shown {
+            self.native_input.mappings.release_all();
+        }
         let (framebuffer, gui) = self.gui_frame_now();
         let identity = self
             .title

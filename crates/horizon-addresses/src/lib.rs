@@ -64,9 +64,6 @@ pub const LAUNCHER_ABOUT: &str = "https://playhorizon.dev";
 /// The separately branded arismoko fork launcher installer's product home.
 pub const FORK_LAUNCHER_ABOUT: &str = "https://github.com/arismoko/horizon";
 
-/// Exact fork Git source accepted for a starter native mod's SDK dependency.
-pub const NATIVE_MOD_SDK_SOURCE: &str = "https://github.com/arismoko/horizon";
-
 /// Cargo's canonical source identity for the crates.io registry.
 pub const CARGO_CRATES_IO_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
 
@@ -76,3 +73,12 @@ pub const HORIZON_MIXINS_SOURCE: &str =
 
 /// Where the fork releases the prebuilt horizon-mixins tool; a release's tag and file follow.
 pub const MIXINS_TOOL_RELEASES: &str = "https://github.com/arismoko/horizon/releases/download";
+
+/// Where the fork publishes each game build's mod SDK (`sdk-<build id>`) and the game releases
+/// whose `sdk.json` names their build; a release's tag and file follow. `HORIZON_SDK_BASE`
+/// overrides it.
+pub const SDK_RELEASES: &str = "https://github.com/arismoko/horizon/releases/download";
+
+/// The fork's newest releases, which `cargo horizon-mod` reads to find the one SDK a short sha names.
+pub const SDK_RELEASE_LIST: &str =
+    "https://api.github.com/repos/arismoko/horizon/releases?per_page=100";

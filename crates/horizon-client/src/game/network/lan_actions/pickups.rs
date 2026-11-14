@@ -56,9 +56,8 @@ impl Game<'_> {
                 continue;
             };
             let answer = if listens {
-                let stack = self.dropped[i].stack.clone();
                 let answer = self
-                    .as_guest(conn, |g| g.native_pickup_answer(&stack))
+                    .as_guest(conn, |g| g.native_pickup_answer(item_id))
                     .unwrap_or_default();
                 // Only a dispatched callback can invalidate the original index.
                 let Some(at) = self.dropped.iter().position(|d| d.id == item_id) else {
@@ -109,7 +108,7 @@ impl Game<'_> {
                 None if mod_api::__private::listened(mod_api::HookId::ItemPickedUpPost) => {
                     self.dropped[i].stack.count = 0;
                     let raised = self
-                        .as_guest(conn, |g| g.native_pickup_post(&stack))
+                        .as_guest(conn, |g| g.native_pickup_post(item_id, &stack))
                         .flatten();
                     let at = self.dropped.iter().position(|d| d.id == item_id);
                     if let (Some(at), Some(raised)) = (at, raised) {

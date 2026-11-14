@@ -4,6 +4,7 @@ use quote::quote;
 use std::{fs, path::Path, process::Command};
 
 #[test]
+#[ignore = "daily"]
 fn retained_knockback_entries_apply_hook_edits_cancel_and_delegate_once() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut modules = proc_macro2::TokenStream::new();

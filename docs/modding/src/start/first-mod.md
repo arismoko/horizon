@@ -15,16 +15,21 @@ cargo horizon-mod new greeter --template native
 cd greeter
 ```
 
-This writes a flat project, pinned to the newest prebuilt Horizon (or to `--horizon <commit>`):
+This writes a flat project, pinned to the build of the current Nightly (or to `--horizon <build>`), and fetches
+that build's SDK (about 2 MB):
 
 ```text
 greeter/
 ├── horizon-mod.toml     # the manifest; [native] pins the exact Horizon build
-├── Cargo.toml           # depends on horizon-mod-api, never on the game
+├── Cargo.toml           # depends on horizon-mod-api in .horizon/sdk/, never on the game
 ├── src/lib.rs           # the hooks
 ├── assets/
-└── data/
+├── data/
+└── .horizon/sdk/        # the pinned SDK: fetched by the tool, never committed or packed
 ```
+
+After a fresh clone, run any `cargo horizon-mod` command once before opening the project in an editor: it fetches
+`.horizon/sdk/` again.
 
 `cargo horizon-mod update` moves the pin to a newer Horizon later.
 

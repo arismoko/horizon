@@ -652,6 +652,7 @@ pub(super) mod tests {
     /// (-16, -8), and nothing reads as a scene change. A much darker frame then does.
     #[test]
     fn finds_a_shift_and_a_scene_change() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             return;
         };
@@ -689,6 +690,7 @@ pub(super) mod tests {
 
     #[test]
     fn repeated_cuts_and_stable_frames_update_the_history() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             return;
         };

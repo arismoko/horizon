@@ -4,7 +4,8 @@
 starts and references (`structure/`), biomes (`biome_source/`, `climate/`), noise and density (`router.rs`,
 `terrain.rs`, `aquifer/`, on `horizon_core::density` and `horizon_core::noise`), surface rules (`material_*`), carvers
 (`carver/`), then decoration (`feature_graph.rs`, `decoration*.rs`, `placement/`) and structure pieces. The entry point
-is `generator*.rs`; `crates/horizon-client/src/vanillagen.rs` binds it to the streaming workers.
+is `generator*.rs`; `generator/data.rs` owns seed-independent `GeneratorData` and its load boundary.
+`crates/horizon-client/src/vanillagen.rs` binds it to the streaming workers.
 
 Each stage has its own harness against vanilla (`tools/test_<stage>_parity.py`; `python3 tools/parity.py --list`
 names them), and the whole-chunk harness below checks the stages together. `python3 tools/port_ledger.py where

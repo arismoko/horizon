@@ -1978,6 +1978,7 @@ pub(crate) mod tests {
         assert!(Arc::ptr_eq(&chunk.sections[top], &lit.sections[top]));
     }
     #[test]
+    #[ignore = "daily"]
     fn a_tall_column_relights_as_its_full_light_and_keys_its_sections() {
         let layout = crate::chunk::ColumnLayout::new(-64, 2096).unwrap();
         let mut w = world_of(layout, |c| {

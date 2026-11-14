@@ -211,6 +211,12 @@ impl Game<'_> {
                 loaded_from_disk,
                 &mut canceled,
             );
+            let spawn = self
+                .native_lifecycle
+                .pending_item_spawns
+                .iter()
+                .position(|entry| entry.0 == id)
+                .map(|index| self.native_lifecycle.pending_item_spawns.remove(index));
             if canceled {
                 self.persist.joins_canceled += 1;
                 self.forget_entity(id);
@@ -222,9 +228,15 @@ impl Game<'_> {
                 self.remember_join(id, kind.into_owned());
                 // `addEntity` files it under its section, untold.
                 self.entity_section_joined(id, [at.x, at.y, at.z]);
+                if let Some((id, item, count, position)) = spawn {
+                    self.native_item_spawn(id, &item, count, position);
+                }
             }
         }
-        self.persist.joined_seq = self.persist.joined_seq.max(observed);
+        // A held toss is not past yet: the mark stays before it.
+        if self.native_lifecycle.held_joins.is_empty() {
+            self.persist.joined_seq = self.persist.joined_seq.max(observed);
+        }
         kept
     }
 
@@ -282,7 +294,8 @@ impl Game<'_> {
         if let Some(d) = self.dragon.as_ref() {
             offer(Slot::Apart(Apart::Dragon), d.id, d.join);
         }
-        best
+        // A toss still being asked (`item_toss`) ends the flush: it and what joined after wait.
+        best.filter(|&(_, id, _)| !self.native_lifecycle.held_joins.contains(&id))
     }
 
     fn remember_join(&mut self, id: u32, kind: String) {
@@ -738,6 +751,7 @@ mod tests {
                 );
 
                 game.crystals.push(super::super::dragon::Crystal {
+                    fall: Default::default(),
                     attachment_lifetime: Default::default(),
                     join: Default::default(),
                     id: base + 4,
@@ -821,6 +835,7 @@ mod tests {
                     guest: None,
                     no_gravity: false,
                     power: 4.0,
+                    used_portal: false,
                     block_state: None,
                 });
                 game.native_joins_flush(false, 0);

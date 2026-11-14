@@ -481,6 +481,7 @@ pub struct EntityRenderState {
     pub age: f32,
     pub yaw: f32,
     pub pitch: f32,
+    pub living: Option<super::LivingRenderState>,
 }
 impl From<EntityRenderState> for super::EntityRenderState {
     fn from(v: EntityRenderState) -> Self {
@@ -490,6 +491,7 @@ impl From<EntityRenderState> for super::EntityRenderState {
             age,
             yaw,
             pitch,
+            living,
         } = v;
         Self {
             id,
@@ -497,6 +499,92 @@ impl From<EntityRenderState> for super::EntityRenderState {
             age,
             yaw,
             pitch,
+            living,
+        }
+    }
+}
+// exhaustive: the game builds it with a literal; mods only read it
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct LivingRenderState {
+    pub body_rot: f32,
+    pub y_rot: f32,
+    pub x_rot: f32,
+    pub death_time: f32,
+    pub walk_animation_pos: f32,
+    pub walk_animation_speed: f32,
+    pub scale: f32,
+    pub age_scale: f32,
+    pub is_upside_down: bool,
+    pub is_baby: bool,
+    pub is_in_water: bool,
+    pub has_red_overlay: bool,
+    pub pose: Pose,
+    pub bed_orientation: Option<Direction>,
+}
+impl From<LivingRenderState> for super::LivingRenderState {
+    fn from(v: LivingRenderState) -> Self {
+        let LivingRenderState {
+            body_rot,
+            y_rot,
+            x_rot,
+            death_time,
+            walk_animation_pos,
+            walk_animation_speed,
+            scale,
+            age_scale,
+            is_upside_down,
+            is_baby,
+            is_in_water,
+            has_red_overlay,
+            pose,
+            bed_orientation,
+        } = v;
+        Self {
+            body_rot,
+            y_rot,
+            x_rot,
+            death_time,
+            walk_animation_pos,
+            walk_animation_speed,
+            scale,
+            age_scale,
+            is_upside_down,
+            is_baby,
+            is_in_water,
+            has_red_overlay,
+            pose,
+            bed_orientation,
+        }
+    }
+}
+
+// exhaustive: the game builds it with a literal; mods only read it
+// no wire: borrowed game-to-hook adapter; its call fields cross separately.
+pub struct ContainerLootFilled<'a> {
+    pub table: &'a str,
+    pub dimension: &'a str,
+    pub origin: [f64; 3],
+    pub block: Option<[i32; 3]>,
+    pub entity: Option<u32>,
+    pub opener: Option<u128>,
+}
+impl<'a> From<ContainerLootFilled<'a>> for super::ContainerLootFilled<'a> {
+    fn from(v: ContainerLootFilled<'a>) -> Self {
+        let ContainerLootFilled {
+            table,
+            dimension,
+            origin,
+            block,
+            entity,
+            opener,
+        } = v;
+        Self {
+            table,
+            dimension,
+            origin,
+            block,
+            entity,
+            opener,
         }
     }
 }

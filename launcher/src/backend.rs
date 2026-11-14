@@ -1168,7 +1168,7 @@ pub fn install(release: &Release, progress: impl Fn(f32)) -> Result<(), String> 
         // served under its own GitHub tag. A title that doesn't parse strictly is refused: nothing
         // signs GitHub's publication time.
         Some(github_tag) => {
-            let version = horizon_release_sign::nightly_title_version(&release.name)
+            let version = crate::signed::title_version(github_tag, &release.name)
                 .filter(|v| *v == release.tag)
                 .ok_or_else(|| {
                     crate::i18n::trf(
@@ -1177,7 +1177,7 @@ pub fn install(release: &Release, progress: impl Fn(f32)) -> Result<(), String> 
                         &[("title", &format!("{:?}", release.name))],
                     )
                 })?;
-            crate::signed::nightly_digest(
+            crate::signed::build_digest(
                 github_tag,
                 &version,
                 asset,
@@ -3284,7 +3284,7 @@ pub use update_selection::select_after_update;
 /// Installs `tag` (or with "latest" the newest release, pre-releases left out), then updates the selection as
 /// `select_after_update` says when `as_update`, or always selects it otherwise.
 pub fn install_tag(tag: &str, as_update: bool, progress: impl Fn(f32)) -> Result<String, String> {
-    let releases = releases()?;
+    let releases = [releases()?, release_selection::snapshot(tag)?].concat();
     let release = if tag == "latest" {
         releases
             .iter()
@@ -4890,6 +4890,43 @@ pub fn {f}("
         );
         assert_eq!(game_fallback_for("windows", "x86_64"), None);
         assert_eq!(game_fallback_for("macos", "aarch64"), None);
+    }
+
+    /// A snapshot is never listed, so no update or version list offers it, even once one is
+    /// installed (`release_selection::snapshot` finds one by its tag alone).
+    #[test]
+    fn a_snapshot_is_never_offered_or_picked_as_an_update() {
+        const SNAPSHOT: &str = "snapshot-2026-11-13-bbbbbbb";
+        let zip = "horizon-windows-x64.zip";
+        let asset = |tag: &str| serde_json::json!([{"name": zip, "browser_download_url": format!("https://example.test/{tag}/{zip}"), "size": 1}]);
+        let list = serde_json::json!([
+            {"tag_name": SNAPSHOT, "name": "Snapshot 2026-11-13 · bbbbbbb", "prerelease": true,
+             "published_at": "2026-11-13T10:00:00Z", "assets": asset(SNAPSHOT)},
+            {"tag_name": "nightly", "name": "Nightly 2026-11-12 · aaaaaaa", "prerelease": true,
+             "published_at": "2026-11-12T10:00:00Z", "assets": asset("nightly")},
+            {"tag_name": "v0.2.81", "name": "v0.2.81", "published_at": "2026-10-01T10:00:00Z",
+             "assets": asset("v0.2.81")},
+        ]);
+        let releases = game_releases_with(&list, Some(zip), None);
+        assert_eq!(
+            releases.iter().map(|r| r.tag.as_str()).collect::<Vec<_>>(),
+            ["nightly-2026-11-12-aaaaaaa", "v0.2.81"]
+        );
+        for installed in [vec![], vec![SNAPSHOT.to_owned()]] {
+            let update = horizon_update(&releases, &installed).unwrap();
+            assert_eq!(update.tag, "nightly-2026-11-12-aaaaaaa", "{installed:?}");
+        }
+        // A snapshot the developer selected stays selected when that Nightly installs as an
+        // update, whether it is the only version installed or beside a release.
+        for installed in [
+            vec![SNAPSHOT.to_owned()],
+            vec![SNAPSHOT.to_owned(), "v0.2.81".into()],
+        ] {
+            assert!(
+                !select_after_update(Some(SNAPSHOT), &installed),
+                "{installed:?}"
+            );
+        }
     }
 
     /// The ARM64 Windows launcher installs the ARM64 build where a release has one, and the x64

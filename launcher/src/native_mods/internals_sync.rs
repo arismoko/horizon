@@ -1,6 +1,7 @@
 //! Compiler-driven discovery uses an isolated, per-pin source and metadata cache.
 use super::{api, dependencies, internals, rust_toolchain};
 use crate::i18n::trf;
+use horizon_mod_package::build_data;
 use horizon_mod_package::internals::{self as catalog, ListedInternal};
 use serde::Deserialize;
 use std::{
@@ -118,10 +119,11 @@ pub struct DiscoveryCatalog {
 }
 
 impl DiscoveryCatalog {
-    /// Copy both files while the discovery lease is held; refuse a reused destination.
+    /// Copy both build-data files the discovery wrote while its lease is held; refuse a reused
+    /// destination.
     pub fn snapshot(&self, destination: &Path) -> Result<PathBuf, String> {
         fs::create_dir(destination).map_err(|e| e.to_string())?;
-        for name in ["internals.json", "mod-catalog.json"] {
+        for name in [build_data::INTERNALS, build_data::POINTS] {
             fs::copy(self.directory.join(name), destination.join(name))
                 .map_err(|e| e.to_string())?;
         }
@@ -130,7 +132,7 @@ impl DiscoveryCatalog {
 }
 
 /// Discover the pinned game with only this mod's modules, using the launcher's managed tools.
-/// Hold the returned catalog while reading its internals.json and mod-catalog.json files.
+/// Hold the returned catalog while reading its internals.json and points.json files.
 pub fn pinned_catalog_with_modules(folder: &Path) -> Result<DiscoveryCatalog, String> {
     super::require_consent().map_err(|e| e.to_string())?;
     let lease = crate::native_cache::Cache::acquire(&crate::backend::build_dir())
@@ -213,7 +215,9 @@ fn catalog_for_mod_with(
         &fresh.join("points.json"),
         &fresh.join(internals::INTERNALS),
         horizon_platform::mod_build::api_gen::staging::Mode::Discovery,
-        horizon_mod_package::manifest::API,
+        &horizon_platform::mod_build::api_gen::staging::Build {
+            commit: native.horizon.clone(),
+        },
     )?;
     fs::write(fresh.join(".discovery-ready"), "").map_err(|e| e.to_string())?;
     if game.exists() {
@@ -459,7 +463,7 @@ mod snapshot_tests {
         fs::create_dir_all(&dir).unwrap();
         let shared = dir.join("shared");
         fs::create_dir_all(&shared).unwrap();
-        for name in ["internals.json", "mod-catalog.json"] {
+        for name in ["internals.json", "points.json"] {
             fs::write(shared.join(name), "first").unwrap();
         }
         let lease = crate::native_cache::Cache::acquire(&dir.join("cache")).unwrap();
@@ -475,11 +479,11 @@ mod snapshot_tests {
             "first"
         );
         // The next discovery replaces both published files once the first lease ends.
-        for name in ["internals.json", "mod-catalog.json"] {
+        for name in ["internals.json", "points.json"] {
             fs::write(shared.join(name), "second").unwrap();
         }
         assert_eq!(
-            fs::read_to_string(snapshot.join("mod-catalog.json")).unwrap(),
+            fs::read_to_string(snapshot.join("points.json")).unwrap(),
             "first"
         );
         fs::remove_dir_all(dir).unwrap();

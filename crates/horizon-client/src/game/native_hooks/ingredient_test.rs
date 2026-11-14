@@ -13,7 +13,7 @@ impl Game<'_> {
         let mut pending = Vec::from([ingredient]);
         let mut candidates = std::collections::HashSet::new();
         while let Some(node) = pending.pop() {
-            if node.custom.is_some() {
+            if node.custom.is_some() || node.rule.is_some() {
                 return Err(NotEnumerable);
             }
             if let Some((shape, children)) = &node.children {
@@ -59,7 +59,18 @@ mod enumeration_tests {
         mod_platform::testing::with_mods(Vec::new().into(), || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let host: &dyn mod_api::Host = game;
-                let parse = |json| host.recipe_ingredient(json).unwrap().unwrap();
+                // The host JSON convenience helper accepts only flat inputs. Exercise
+                // shapes through the shared parser and the real API conversion boundary.
+                let parse = |json| {
+                    use crate::game::api_values::TryIntoApi;
+                    crate::crafting::Ingredient::parse(
+                        &serde_json::from_str(json).unwrap(),
+                        game.items(),
+                    )
+                    .unwrap()
+                    .try_into_api()
+                    .unwrap()
+                };
                 let assert_exact = |ingredient: &mod_api::Ingredient| {
                     let keys = ingredient.item_keys(host).unwrap();
                     for name in &game.items().registry_order {
@@ -110,8 +121,9 @@ mod enumeration_tests {
                     game.items().registry_order.len()
                 );
 
-                let mut component = plain.clone();
-                component.custom = Some(("neoforge:components".into(), Default::default()));
+                let component = parse(
+                    r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:damage":5}}"#,
+                );
                 assert_eq!(
                     component.item_keys(host),
                     Err(mod_api::IngredientKeysError::NotEnumerable)

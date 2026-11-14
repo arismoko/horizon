@@ -40,6 +40,7 @@ fn the_example_pack_s_0_2_port_passes() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn the_tool_checks_a_0_2_pack() {
     let dir = scratch("api-0-2");
     let files = [
@@ -70,6 +71,7 @@ fn the_tool_checks_a_0_2_pack() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn every_template_makes_a_pack_that_passes() {
     let root = scratch("templates");
     for template in ["post", "sky", "material"] {
@@ -94,6 +96,7 @@ fn every_template_makes_a_pack_that_passes() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn packs_and_checks_the_package() {
     let root = scratch("pack");
     let dir = root.join("glow");

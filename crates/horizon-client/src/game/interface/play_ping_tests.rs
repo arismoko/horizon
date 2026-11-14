@@ -18,7 +18,7 @@ fn decode(packet: S) -> (S, usize) {
     (S::decode(id, reader.rest()).unwrap(), bytes.len())
 }
 
-fn output(rx: &mpsc::Receiver<Out>) -> Vec<C> {
+pub(in crate::game) fn output(rx: &mpsc::Receiver<Out>) -> Vec<C> {
     rx.try_iter()
         .flat_map(|out| match out {
             Out::Packet(body) => vec![body],
@@ -99,7 +99,9 @@ fn pass(game: &mut Game<'_>, conn: u32, packet: S) {
     );
 }
 
-fn fixture(
+/// Two registered guests (connections 1 and 2) on a LAN host, with their
+/// outbound packets.
+pub(in crate::game) fn fixture(
     resources: &mut Option<std::sync::Arc<crate::game::Resources>>,
 ) -> (Game<'_>, [mpsc::Receiver<Out>; 2]) {
     let mut game = crate::game::game_tests::tests::server_game(resources);

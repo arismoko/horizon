@@ -218,6 +218,7 @@ fn audited() -> Vec<(String, Vec<Interface>)> {
 }
 
 #[test]
+#[ignore = "daily"]
 fn no_pipeline_exceeds_the_weakest_gpus_inter_stage_limit() {
     let mut over = Vec::new();
     for (shader, entries) in audited() {

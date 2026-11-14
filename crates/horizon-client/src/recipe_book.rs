@@ -437,10 +437,14 @@ impl Book {
             .enumerate()
             .map(|(i, id)| (id.to_string(), i))
             .collect();
-        let placements = entries
+        let placements: HashMap<_, _> = entries
             .iter()
-            .filter_map(|e| Some((e.id.clone(), recipes.placement(&e.id)?)))
+            .filter_map(|entry| {
+                let placement = recipes.placement(&entry.id)?;
+                (!placement.impossible()).then(|| (entry.id.clone(), placement))
+            })
             .collect();
+        entries.retain(|entry| placements.contains_key(&entry.id));
         Self {
             entries,
             placements,
@@ -458,9 +462,9 @@ impl Book {
                 .as_ref()
                 .is_some_and(|r| stock.can_craft(&r.iter().collect::<Vec<_>>()));
         }
-        self.placements
-            .get(&entry.id)
-            .is_some_and(|p| stock.can_craft(&p.ingredients.iter().collect::<Vec<_>>()))
+        self.placements.get(&entry.id).is_some_and(|p| {
+            !p.impossible() && stock.can_craft(&p.ingredients.iter().collect::<Vec<_>>())
+        })
     }
     /// Numbers the entries as `RecipeManager.unpackRecipeInfo` numbers the
     /// displays: every recipe in id order, each with its displays.
@@ -485,7 +489,10 @@ impl Book {
     /// `ingredient`'s items as its display resolves them (the cycling order
     /// of ghost slots and the overlay).
     pub fn items_of(&self, ingredient: &Ingredient) -> Vec<String> {
-        ingredient.order.clone()
+        ingredient.shown.as_ref().map_or_else(
+            || ingredient.order.clone(),
+            |stacks| stacks.iter().map(|stack| stack.item.to_string()).collect(),
+        )
     }
     /// `RecipeBookComponent.fillGhostRecipe` of a book type: the result and the
     /// ingredients faded into the menu's slots, in the order the component
@@ -500,10 +507,12 @@ impl Book {
         items: &crate::items::Items,
     ) -> Vec<GhostSlot> {
         let stacks = |ingredient: &Ingredient| -> Vec<ItemStack> {
-            self.items_of(ingredient)
-                .iter()
-                .map(|i| ItemStack::new(i, 1))
-                .collect()
+            ingredient.shown.clone().unwrap_or_else(|| {
+                self.items_of(ingredient)
+                    .iter()
+                    .map(|i| ItemStack::new(i, 1))
+                    .collect()
+            })
         };
         let mut out = Vec::new();
         match book_type {
@@ -1014,6 +1023,24 @@ impl RecipeIndex {
         )
     }
 
+    /// Build book displays only from retained recipes with placement candidates.
+    pub(crate) fn from_recipes(recipes: &Recipes) -> Self {
+        Self::from_source_refs(recipes.by_type.values().flat_map(|entries| {
+            entries
+                .iter()
+                .filter(|entry| entry.has_placement_candidates())
+                .map(|entry| (entry.id.clone(), &*entry.json))
+        }))
+    }
+
+    pub(crate) fn from_serialized(recipes: &std::collections::BTreeMap<String, Box<str>>) -> Self {
+        let values: Vec<_> = recipes
+            .iter()
+            .filter_map(|(id, text)| serde_json::from_str(text).ok().map(|value| (id, value)))
+            .collect();
+        Self::from_source_refs(values.iter().map(|(id, value)| ((*id).clone(), value)))
+    }
+
     fn from_source_refs<'a>(
         sources: impl IntoIterator<Item = (String, &'a serde_json::Value)>,
     ) -> Self {
@@ -1161,7 +1188,7 @@ impl Settings {
             // bare, and every reader of the book (the network copy, the
             // advancements' JSON, the saved file) knows it qualified.
             let id = crate::crafting::qualified(id);
-            if !self.recipes.contains(&id) && !index.special(&id) {
+            if index.contains(&id) && !self.recipes.contains(&id) && !index.special(&id) {
                 self.recipes.insert(id.clone());
                 self.to_be_displayed.insert(id.clone());
                 displays += index.displays(&id);

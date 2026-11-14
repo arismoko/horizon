@@ -101,15 +101,23 @@ pub struct DimensionSettings {
     /// Whether the level has a bedrock ceiling, as the Nether does.
     pub has_ceiling: bool,
     /// The chunk generator's id: `minecraft:noise`, or one a mod registered
-    /// with `register_chunk_generator`, which takes no noise settings.
+    /// with `register_chunk_generator`, which reads noise settings only for the
+    /// vanilla stages it asks for.
     pub generator: String,
-    /// The noise settings' id (`minecraft:overworld`, or a data pack's).
+    /// The noise settings' id (`minecraft:overworld`, or a data pack's). A
+    /// mod's chunk generator takes the surface, the carvers' aquifer and the
+    /// structures' base height from them (`ChunkGenerator::vanilla_stages`).
     pub noise_settings: String,
     /// The one biome the level has, with the `Fixed` biome source.
     pub biome: String,
-    /// How the level chooses its biomes. Only `Fixed` suits a mod's own chunk generator, which
-    /// writes terrain only.
+    /// How the level chooses its biomes. Only `Fixed` suits a mod's own chunk generator. Not read
+    /// when `mod_biome_source` is set.
     pub biome_source: BiomeSourceKind,
+    /// A biome source a mod registered with `register_biome_source` (`mymod:chaos`), which then
+    /// chooses the level's biomes in place of `biome_source` and the fields it reads. It suits the
+    /// `minecraft:noise` generator and a chunk generator of a mod's own; it may come from a mod
+    /// that loads later.
+    pub mod_biome_source: Option<String>,
     /// The biomes a `Checkerboard` source alternates, at least one (vanilla sets no maximum).
     pub biomes: Vec<String>,
     /// A `Points` source's biomes and the climate each is chosen for, at least one.
@@ -159,8 +167,9 @@ pub struct DimensionSettings {
     /// `Level.getSeaLevel`: the sea level mob spawning, rain and snow, maps and phantoms use. With
     /// `None` it is the noise settings' own for `minecraft:noise`, and the Overworld's 63 for a
     /// chunk generator a mod registered, which reads none; `Some` is for that generator, whose
-    /// terrain the game cannot read a sea level from. A level of `minecraft:noise` keeps its noise
-    /// settings' sea level, which the terrain is built with.
+    /// terrain the game cannot read a sea level from. A level of `minecraft:noise`, and one whose
+    /// chunk generator asks for vanilla stages, keeps its noise settings' sea level, which the
+    /// stages are built with.
     pub sea_level: Option<i32>,
     /// When a player can sleep in a bed here (`BedRule.canSleep`): `always`, `when_dark` or `never`.
     pub bed_can_sleep: String,
@@ -205,6 +214,7 @@ impl Default for DimensionSettings {
             noise_settings: "minecraft:overworld".into(),
             biome: "minecraft:plains".into(),
             biome_source: BiomeSourceKind::Fixed,
+            mod_biome_source: None,
             biomes: Vec::new(),
             biome_points: Vec::new(),
             biome_scale: 2,
@@ -319,8 +329,12 @@ pub struct LevelDimensionType {
 }
 
 impl DimensionSettings {
-    /// What the biome source's codec refuses, if anything.
+    /// What the biome source's codec refuses, if anything. A mod's biome source is checked once
+    /// every mod has registered.
     pub fn invalid_biome_source(&self) -> Option<String> {
+        if self.mod_biome_source.is_some() {
+            return None;
+        }
         let reason = match self.biome_source {
             BiomeSourceKind::Fixed => return None,
             BiomeSourceKind::Checkerboard if self.biomes.is_empty() => {

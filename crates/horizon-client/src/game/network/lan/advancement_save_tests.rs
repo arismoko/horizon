@@ -21,6 +21,15 @@ mod connected_advancement_save_tests {
     #[test]
     #[ignore = "needs prepared resources and scratch homes"]
     fn save_commands_write_the_connected_nonowners_current_advancements() {
+        // Reload consults process-wide mod registration. Other fixtures may install
+        // rejecting reload listeners, so run this vanilla server in its own process.
+        crate::game::in_own_process(
+            "game::lan::connected_advancement_save_tests::save_commands_write_the_connected_nonowners_current_advancements",
+            connected_advancement_save,
+        );
+    }
+
+    fn connected_advancement_save() {
         use super::super::{execution_role::ExecutionRole, stats};
         use std::sync::{Arc, Mutex};
         let mut game_resources = None;

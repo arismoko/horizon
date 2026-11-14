@@ -3,7 +3,7 @@
 //! This is distinct from the startup inventory used for registration: disabled
 //! and refused packages do not enter this snapshot. The owning game constructs
 //! it from accepted packages, and every data reader shares that generation.
-use crate::Side;
+use mod_vocab::Side;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, io, path::Path};
 

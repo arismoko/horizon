@@ -102,6 +102,11 @@ pub struct ExplorationMap {
 #[non_exhaustive]
 #[derive(horizon_mod_api_macros::Wire)]
 pub struct LootContext {
+    /// Queried root id, written after all nested rolls, before global modifiers (#1270).
+    /// The first id wins; nested rolls never write it. Unset is `UNKNOWN_LOOT_TABLE`.
+    pub queried_table_id: String,
+    /// Stack whose data is queried, unchanged through nested rolls; absent in existing callers.
+    pub queried_stack: Option<crate::ItemStack>,
     /// Entity named by the table, if any.
     pub entity: Option<LootEntity>,
     /// Killing damage, if any.
@@ -229,6 +234,8 @@ impl LootContext {
     /// An empty roll context with its captured random seed.
     pub fn new(seed: i64) -> Self {
         Self {
+            queried_table_id: horizon_core::UNKNOWN_LOOT_TABLE.into(),
+            queried_stack: None,
             entity: None,
             damage: None,
             player: None,

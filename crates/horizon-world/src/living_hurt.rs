@@ -117,6 +117,17 @@ pub trait HurtWorld {
         damage: f32,
         blocked: bool,
     ) -> Result<(), Self::Error>;
+    /// `LivingDamageEvent.Post`, the last thing `hurtServer` does for a hit that passed the
+    /// incoming-damage check and the cooldown: after `die`, the hurt sounds and the criteria.
+    /// `container` carries the final values; its health damage is 0 when none was taken. The
+    /// default does nothing.
+    fn damage_post(
+        &mut self,
+        _s: &mut HurtState<Self::Source>,
+        _container: &DamageContainer,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 /// What `LivingDamageEvent.Pre` changed, back in the cooldown: `lastHurt` takes the damage
 /// Pre left (vanilla's `lastHurt` plus what Pre added) and the cooldown takes what Pre set,
@@ -348,5 +359,6 @@ pub fn finish_equipment_hurt<W: HurtWorld>(
         }
     }
     w.attacker_criterion(s, original, damage, blocked)?;
+    w.damage_post(s, &container)?;
     Ok(accepted)
 }

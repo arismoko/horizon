@@ -472,6 +472,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     #[cfg(unix)]
     fn fifo_and_directory_do_not_block_or_become_settings() {
         let root = root("fifo");
@@ -522,6 +523,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     #[cfg(unix)]
     fn validates_open_handle_after_entry_replacement() {
         use std::io::Read;

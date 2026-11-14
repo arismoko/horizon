@@ -2,7 +2,9 @@
 """Print the ignored-tests shard matrix: every shard, or the ones a pull request needs.
 
 Usage:
-  ignored_shards.py --matrix --all      `matrix=`, every shard (main's pushes)
+  ignored_shards.py --matrix --all      `matrix=`, every shard and the daily-rows legs (the daily run)
+  ignored_shards.py --prepare PACKAGE [ARG...]   run what PACKAGE's tests need built first (PREPARE), with ARGs
+                                                 appended (`-j2`); nothing when it needs nothing
   ignored_shards.py --matrix BASE HEAD  `matrix=`, the shards this pull request must run
 
 The ignored-tests check is a matrix with one package per shard; this file is the single
@@ -15,8 +17,10 @@ workspace (launcher/Cargo.lock) and selects nothing.
 """
 
 import json
+import subprocess
 import sys
 import tomllib
+from functools import lru_cache
 from pathlib import Path
 
 # The repository root, appended so a script run finds `tools` without shadowing anything already importable.
@@ -30,6 +34,22 @@ ROOT = Path(__file__).resolve().parents[2]
 # 279s, horizon-client-lib 189s, 16m53s wall); horizon-world and horizon-items joined when every library
 # test started running with the data, not only the #[ignore]d ones. Rebalance by editing this tuple only.
 SHARDS = ("horizon-client", "horizon-client-lib", "horizon-client-render", "horizon-world", "horizon-items")
+# The leg that runs the daily rows (tools/ci/ignored-tests/daily-*.txt) that no package shard above runs: the moved
+# tests of every other package, and of the shard packages' targets their shard does not build (tools/ci/ignored_tests.py
+# daily_rows_groups). Coverage, not speed: without it those tests would run nowhere. Main's full matrix only.
+DAILY_ROWS = "daily-rows"
+# The leg that runs each workspace's daily rows. The launcher's get a leg of their own, on the same runner size: its
+# workspace builds GPUI and the launcher from nothing (25 minutes on 8 cores, measured cold), which does not fit beside
+# the other packages' groups in one 60-minute leg. Coverage, not spreading a slow job.
+DAILY_ROWS_LEGS = {".": DAILY_ROWS, "launcher": "daily-rows-launcher"}
+# What a package's tests need built that `cargo test` does not build itself, by package: the one command, run
+# before its tests by `verify` (dyna-ci.yml), the launcher job and the daily run (tools/ci/ignored_tests.py), so they
+# cannot drift. horizon-mod-package's holder tests start the `holder_actor` example from beside their test executable
+# (target/debug/examples, the test profile's folder).
+PREPARE = {
+    "horizon-mod-package": ["cargo", "build", "--locked", "--profile", "test", "-p", "horizon-mod-package",
+                            "--features", "runtime-process", "--example", "holder_actor"],
+}
 # A package too big for one test process's memory runs as several legs, `PACKAGE#NofM` (tools/ci/ignored_tests.py
 # gives each test to exactly one leg). horizon-client's single process was killed (signal 9) on three main runs.
 LEGS = {"horizon-client": 2}
@@ -40,6 +60,9 @@ ROOT_WIDE_FILES = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rustfmt.t
 SHARED_SOURCES = {"horizon-client": ("horizon-client", "horizon-client-lib")}
 # Workspaces of their own: nothing under them builds the shard packages.
 SEPARATE_WORKSPACES = ("launcher/",)
+# Every Cargo workspace whose tests the daily rows may name, by folder: the game's, and the launcher's own (its own
+# Cargo.lock; the daily-rows leg runs a launcher row from launcher/).
+WORKSPACES = (".", "launcher")
 
 
 def expand(packages):
@@ -49,6 +72,51 @@ def expand(packages):
         for package in packages
         for number in range(1, LEGS.get(package, 1) + 1)
     ]
+
+
+@lru_cache(maxsize=1)
+def workspace_members():
+    """{package: (its folder, its workspace's folder)} for every member of WORKSPACES, relative to the root."""
+    members = {}
+    for workspace in WORKSPACES:
+        table = tomllib.loads((ROOT / workspace / "Cargo.toml").read_text())
+        for member in ([workspace] if "package" in table else []) + [
+                Path(workspace, folder).as_posix() for folder in table["workspace"].get("members", ())]:
+            name = tomllib.loads((ROOT / member / "Cargo.toml").read_text())["package"]["name"]
+            members[name] = (member, workspace)
+    return members
+
+
+def daily_rows_leg(package):
+    """The leg that runs `package`'s daily rows that no package shard runs (DAILY_ROWS_LEGS, by its workspace)."""
+    return DAILY_ROWS_LEGS[workspace_members()[package][1]]
+
+
+def workspace_targets():
+    """Each member's test targets as the daily rows name them, in every workspace (WORKSPACES):
+    {package: {"lib", "bin:NAME", "test:NAME"}}.
+
+    Read from the manifests and Cargo's default layout (src/lib.rs, src/main.rs, src/bin/, tests/), not by building."""
+    targets = {}
+    for member, _ in workspace_members().values():
+        folder = ROOT / member
+        table = tomllib.loads((folder / "Cargo.toml").read_text())
+        name = table["package"]["name"]
+        found = set()
+        if "lib" in table or (folder / "src/lib.rs").is_file():
+            found.add("lib")
+        found.update(f"bin:{entry['name']}" for entry in table.get("bin", []))
+        found.update(f"test:{entry['name']}" for entry in table.get("test", []))
+        if table["package"].get("autobins", True):
+            if (folder / "src/main.rs").is_file():
+                found.add(f"bin:{name}")
+            found.update(f"bin:{path.stem}" for path in (folder / "src/bin").glob("*.rs"))
+            found.update(f"bin:{path.parent.name}" for path in (folder / "src/bin").glob("*/main.rs"))
+        if table["package"].get("autotests", True):
+            found.update(f"test:{path.stem}" for path in (folder / "tests").glob("*.rs"))
+            found.update(f"test:{path.parent.name}" for path in (folder / "tests").glob("*/main.rs"))
+        targets[name] = found
+    return targets
 
 
 def workspace_dependencies():
@@ -101,10 +169,16 @@ def select(paths, dependencies):
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
+    if arguments[:1] == ["--prepare"] and len(arguments) >= 2:
+        command = PREPARE.get(arguments[1])
+        if command:
+            print("$ " + " ".join([*command, *arguments[2:]]), flush=True)
+            sys.exit(subprocess.run([*command, *arguments[2:]], cwd=ROOT).returncode)
+        sys.exit(0)
     every = arguments[:2] == ["--matrix", "--all"]
     selected = len(arguments) == 3 and arguments[0] == "--matrix"
     if every:
-        shards = expand(SHARDS)
+        shards = [*expand(SHARDS), *DAILY_ROWS_LEGS.values()]
     elif selected:
         shards = expand(select(rust_changes.changed_paths(arguments[1], arguments[2]), workspace_dependencies()))
     else:

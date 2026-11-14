@@ -69,6 +69,8 @@ fn default_components_reader_baseline() -> client::Result<()> {
     )?;
     assert!(
         native_load_hooks::install(NativeLoadHooks {
+            item_ability_default: |_, _, _| false,
+            loot_ability: |_, _, _| {},
             loot_table_load: |_, _, _| {},
             modify_default_components: |context, item, _| {
                 assert_eq!(context.origin(), DataLoadOrigin::ClientPreload);

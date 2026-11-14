@@ -333,7 +333,7 @@ fn missing_original_at_reload_preserves_the_published_data_and_reports_its_owner
         &resources,
         &horizon_mod_package::enabled::EnabledMods::new([(
             "reload_test".into(),
-            horizon_mod_package::Side::Both,
+            mod_api::Side::Both,
         )]),
     );
     let world = root.join("world");
@@ -415,7 +415,7 @@ fn server_reload_delivers_mod_files_overrides_and_preserves_all_data_on_failure(
         &resources,
         &horizon_mod_package::enabled::EnabledMods::new([(
             "reload_test".into(),
-            horizon_mod_package::Side::Both,
+            mod_api::Side::Both,
         )]),
     );
     let world = root.join("world");
@@ -597,7 +597,7 @@ fn server_reload_skips_unparsable_files_and_delivers_the_rest() {
         &resources,
         &horizon_mod_package::enabled::EnabledMods::new([(
             "reload_test".into(),
-            horizon_mod_package::Side::Both,
+            mod_api::Side::Both,
         )]),
     );
     let world = root.join("world");
@@ -801,7 +801,7 @@ fn server_reload_retains_listeners_for_other_hooks() {
         &resources,
         &horizon_mod_package::enabled::EnabledMods::new([(
             "reload_test".into(),
-            horizon_mod_package::Side::Both,
+            mod_api::Side::Both,
         )]),
     );
     let world = root.join("world");

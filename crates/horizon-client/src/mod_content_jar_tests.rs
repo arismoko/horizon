@@ -336,7 +336,8 @@ fn accepted_jar_inputs_distinguish_unreadable_invalid_and_non_file_cache_entries
 
 #[test]
 fn code_only_inventory_changes_cache_roots_and_recipe_conditions_without_content_namespaces() {
-    use horizon_mod_package::{Side, enabled::EnabledMods};
+    use horizon_mod_package::enabled::EnabledMods;
+    use mod_api::Side;
     let fixture = Fixture::new("enabled-inventory");
     fixture.write(
         "base/data/minecraft/recipe/code_only.json",

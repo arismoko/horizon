@@ -155,6 +155,16 @@ impl Contents {
         })
     }
 
+    /// Remaining capacity for `offered` in a stack's bundle component, without cloning contents.
+    pub fn room_in_stack(items: &Items, bundle: &ItemStack, offered: &ItemStack) -> Option<u32> {
+        let inside = contents_of(items, bundle)?;
+        Some(
+            Weight::ONE
+                .sub(contents_weight(items, inside))
+                .how_many(item_weight(items, offered)),
+        )
+    }
+
     /// `getMaxAmountToAdd` for `stack`'s kind of item.
     pub fn room_for(&self, items: &Items, stack: &ItemStack) -> u32 {
         Weight::ONE

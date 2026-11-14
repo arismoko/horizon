@@ -274,7 +274,7 @@ where
         .map(|json| {
             data.source_catalog
                 .decode(&json.to_string())?
-                .resolve(&data.presets)
+                .resolve(&data.presets, seed)
         })
         .transpose()?;
     let climate = router.as_ref().map(|r| r.climate_sampler());

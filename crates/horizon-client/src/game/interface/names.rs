@@ -187,6 +187,7 @@ impl Game<'_> {
             || self.sleeping.is_some()
             || self.spectator()
             || self.own_invisible()
+            || self.own_render_canceled()
         {
             return None;
         }
@@ -202,7 +203,7 @@ impl Game<'_> {
         }
     }
     /// The names the name tags show this frame (the control socket's status).
-    pub(super) fn shown_name_tags(&self, camera: glam::DVec3) -> Vec<String> {
+    pub(in crate::game) fn shown_name_tags(&self, camera: glam::DVec3) -> Vec<String> {
         self.name_tags(camera, 1.0)
             .into_iter()
             .filter_map(|t| t.lines.last().map(|(t, _)| t.plain()))
@@ -220,17 +221,19 @@ impl Game<'_> {
         camera: glam::DVec3,
         alpha: f64,
         hooks: bool,
-        frustum: Option<&horizon_client::gfx::Frustum>,
+        frustum: Option<&horizon_client::gfx::JoinedFrusta>,
     ) -> Vec<NameTag> {
         let target = self.mob_hit().map(|(i, _, _)| self.mobs[i].id);
+        // Asked once a frame: a mod loaded without this hook costs the tags nothing.
+        let name_format = hooks && mod_api::__private::listened(mod_api::HookId::PlayerNameFormat);
         let viewer = self.player_team();
         let mut tags = Vec::new();
         let players = self.other_players();
         let player_ids = named_by_player_list(&players);
         let named = self.mobs.iter().filter_map(|m| {
             // Already named by the player list: a second tag would sit on the
-            // first (`named_by_player_list`).
-            if player_ids.contains(&m.id) {
+            // first (`named_by_player_list`). A mob a mod's pre hook canceled has none.
+            if player_ids.contains(&m.id) || self.render_canceled(m.id) {
                 return None;
             }
             // A mannequin with no name still shows its description.
@@ -252,6 +255,7 @@ impl Game<'_> {
         let own_id = own.as_ref().map(|(m, _)| m.id);
         let players = players
             .into_iter()
+            .filter(|(m, _)| !self.render_canceled(m.id))
             .chain(own)
             .map(|(m, name)| (m, name, true));
         // Who is riding whom: asked once per tag below, and rescanning every entity
@@ -375,9 +379,9 @@ impl Game<'_> {
                 Some(t) => t.formatted_name(member),
                 None => member,
             };
-            // Every frame: build the username only for a mod to read.
+            // Every frame: build the username only for a mod that listens.
             if player
-                && hooks
+                && name_format
                 && let Some(uuid) = self.remote_player_uuid(m.id)
             {
                 shown = self.player_text(&name, uuid);
@@ -1208,6 +1212,7 @@ mod tests {
             children: Vec::new(),
         };
         let kind = MobType {
+            shadow: None,
             id: "minecraft:player".into(),
             species: Species::Zombie,
             width: 0.6,

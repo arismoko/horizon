@@ -1205,7 +1205,9 @@ fn guests_see_each_other_and_the_world_entities() {
 /// A menu opened with extra data (a mod menu type's, NeoForge's `openMenu`
 /// with an extra-data writer) reaches the client as a `horizon:menu_extra`
 /// payload naming the window and the block, right before that window's
-/// `OpenScreen`; a menu without it sends no payload.
+/// `OpenScreen`; a menu without it sends no payload. The bot answers no
+/// revision query, so the server serves it the legacy layout — the bytes a
+/// Horizon client has always read for a block's menu.
 #[test]
 fn menu_extra_data_comes_right_before_its_menu() {
     use horizon_client::{items::ItemStack, lan::menu::Slots};
@@ -1239,7 +1241,7 @@ fn menu_extra_data_comes_right_before_its_menu() {
         loop {
             match bot.recv_play()? {
                 C::CustomPayload(p) if p.channel == menu_extra::CHANNEL => {
-                    let message = menu_extra::decode(&p.data).map_err(|e| e.to_string())?;
+                    let message = menu_extra::decode_legacy(&p.data).map_err(|e| e.to_string())?;
                     extras.push((message, true));
                 }
                 C::OpenScreen(p) => return Ok((bot, extras, p.container)),
@@ -1279,7 +1281,7 @@ fn menu_extra_data_comes_right_before_its_menu() {
         [(
             menu_extra::Message {
                 window,
-                pos: [3, 70, -5],
+                pos: Some([3, 70, -5]),
                 data: vec![7, 0, 255],
             },
             true
@@ -1611,6 +1613,7 @@ fn the_prediction_records_each_client_tick_and_the_server_ticks_it_had_seen() {
 /// and its mod's update tag, then once per tick however often it is synced,
 /// with no `BlockEntityData` for one whose mod gives no tag.
 #[test]
+#[ignore = "daily"]
 fn a_synced_mod_block_entity_reaches_the_chunks_players_once_a_tick() {
     use horizon_client::block_entity_types::{self, BlockEntityTypes};
     use horizon_client::containers::{BlockEntity, ModBlockEntity};
@@ -1623,6 +1626,7 @@ fn a_synced_mod_block_entity_reaches_the_chunks_players_once_a_tick() {
         assert!(
             std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
+                    "--include-ignored",
                     "--exact",
                     "a_synced_mod_block_entity_reaches_the_chunks_players_once_a_tick",
                     "--nocapture",

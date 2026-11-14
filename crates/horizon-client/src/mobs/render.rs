@@ -198,7 +198,7 @@ fn climate(m: &Mob) -> &'static str {
 }
 /// `AvatarRenderer` entities: a mannequin draws exactly like a player —
 /// the player model, its resolved skin and the same scale.
-fn avatar(m: &Mob) -> bool {
+pub fn avatar(m: &Mob) -> bool {
     matches!(&*m.kind.id, "minecraft:player" | "minecraft:mannequin")
 }
 /// `AvatarRenderer.shouldRenderLayers`: a spectating player or mannequin
@@ -1122,7 +1122,7 @@ pub fn base_transform_at(m: &Mob, alpha: f32, origin: glam::Mat4) -> glam::Mat4 
         let pitch = m.previous_head_pitch + (m.head_pitch - m.previous_head_pitch) * alpha;
         base *= glam::Mat4::from_rotation_x((-90.0 - pitch).to_radians())
             * glam::Mat4::from_rotation_y(((m.age as f32 + alpha) * -75.0).to_radians());
-    } else if matches!(m.custom_name.as_deref(), Some("Dinnerbone" | "Grumm")) {
+    } else if anim::upside_down(m) {
         // isEntityUpsideDown
         base *= glam::Mat4::from_translation(glam::Vec3::new(0.0, m.height() + 0.1, 0.0))
             * glam::Mat4::from_rotation_z(PI);
@@ -1264,7 +1264,7 @@ fn body_overlay(m: &Mob, alpha: f32) -> u32 {
 }
 /// LivingEntityRenderState.hasRedOverlay: hurt or dying (not a creaking
 /// tearing down).
-fn red_overlay(m: &Mob) -> bool {
+pub fn red_overlay(m: &Mob) -> bool {
     m.hurt_time > 0 || (m.death_time > 0 && !super::creaking::tearing_down(m))
 }
 fn species_scale(m: &Mob, alpha: f32) -> glam::Mat4 {
@@ -1481,9 +1481,9 @@ pub fn render_with(
         out,
     );
 }
-/// [`render_with`], with the parts a mod's `player_submit` hid left out of the body (after Skin
+/// [`render_with`], with the parts a mod's `render_player_pre` hid left out of the body (after Skin
 /// Customization); the armour in `extra` and the other layers keep every part. `parts`, given
-/// while a mod's `mob_layer` listens, gets the humanoid parts as the body was drawn
+/// while the mods' post hooks want them, gets the humanoid parts as the body was drawn
 /// ([`PosedParts`](mod_api::PosedParts)); it stays None for a mob that isn't a humanoid or isn't
 /// drawn.
 #[allow(clippy::too_many_arguments)]
@@ -1992,7 +1992,7 @@ fn posed_body(
     let anchors = custom.map_or(Vec::new(), |c| c.anchors.clone());
     (model, poses, anchors)
 }
-/// The humanoid parts of a body drawn with `poses`, for `mob_layer`: read from the poses the
+/// The humanoid parts of a body drawn with `poses`, for the mods' post hooks and layers: read from the poses the
 /// draw already made, so nothing is posed twice; fixed-size, nothing allocated.
 fn posed_parts(poses: &Poses) -> Option<mod_api::PosedParts> {
     mod_api::PosedParts::new(|part| {
@@ -2189,7 +2189,7 @@ fn render_visible(
     if !posable {
         skin = None;
     }
-    // The parts a mod's `player_submit` or `mob_submit` hid this frame: the body draws without them,
+    // The parts a mod's `render_player_pre` or `render_living_pre` hid this frame: the body draws without them,
     // the armour and the other layers below with every part.
     let mut hidden_poses = Poses::pooled();
     let body_poses: &Poses = if hidden.is_empty() {
@@ -2202,7 +2202,7 @@ fn render_visible(
         }
         &hidden_poses
     };
-    // `mob_layer`'s snapshot: the body's parts as drawn, for `HumanoidMobRenderer`'s families
+    // The mods' post hooks' snapshot: the body's parts as drawn, for `HumanoidMobRenderer`'s families
     // (`anim::extracts_humanoid`) only.
     if let Some(parts) = parts
         && anim::extracts_humanoid(m)
@@ -2943,7 +2943,7 @@ mod tests {
         (mob, data)
     }
 
-    /// `mob_layer`'s posed parts are kept from the body's own draw, on every entry the game draws
+    /// The mods' post hooks' posed parts are kept from the body's own draw, on every entry the game draws
     /// a mob or player through (CPU, GPU, layers only), and keeping them changes nothing drawn
     /// (#2060, #2464).
     #[test]
@@ -3053,7 +3053,7 @@ mod tests {
         assert!(!cow_drawn.is_empty(), "the cow draws");
         assert!(cow_parts.is_none(), "a cow is no humanoid");
 
-        // `mob_submit` hides a part of any model by its name, on the CPU and on the GPU
+        // `render_living_pre` hides a part of any model by its name, on the CPU and on the GPU
         // (#2957): a leg's one face goes; an unknown name is refused.
         let mut leg = mod_api::HiddenParts::default();
         leg.hide_named("right_hind_leg").unwrap();
@@ -3188,7 +3188,7 @@ mod tests {
         );
     }
 
-    /// A part `player_submit` hid leaves the body, after Skin Customization, while the armour
+    /// A part `render_player_pre` hid leaves the body, after Skin Customization, while the armour
     /// layered on it keeps the part (#2060, part 2).
     #[test]
     fn a_hidden_part_leaves_the_body_but_not_its_armour() {
@@ -3242,7 +3242,7 @@ mod tests {
             "only the body loses the arm"
         );
 
-        // `mob_layer` reads the parts as the body drew them: the hidden arm doesn't draw, and
+        // `render_living_post` reads the parts as the body drew them: the hidden arm doesn't draw, and
         // nothing else changed (#2464).
         let (_, shown) = draw_parts(hide(&[]), &[]);
         let (_, armless) = draw_parts(hide(&[mod_api::HumanoidPart::RightArm]), &[]);
@@ -3332,6 +3332,7 @@ mod tests {
 
         let model = Arc::new(Part::parse("root", &json!({"children": {"head": {}}})));
         let kind = Arc::new(MobType {
+            shadow: None,
             id: "minecraft:player".into(),
             species: Species::Zombie,
             width: 0.6,

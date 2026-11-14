@@ -216,6 +216,12 @@ impl WorldOptions {
         }
     }
     pub(super) fn cycle_preset(&mut self, step: i32) {
+        if self.alt_down {
+            self.world_type = self.world_type.step(step, true);
+            self.custom_preset = None;
+            self.preset_dimensions = None;
+            return;
+        }
         if self.preset_order.is_empty() {
             return;
         }

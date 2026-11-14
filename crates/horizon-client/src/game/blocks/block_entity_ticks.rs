@@ -16,6 +16,16 @@ use horizon_client::{
 use horizon_core::position::BlockPos;
 use horizon_world::registry::BlockStateId;
 
+/// Shared decision for a borrowed position read and an owned tick-phase snapshot.
+fn block_ticking_at(
+    levels: &horizon_client::ticket_levels::Levels,
+    pending: &horizon_client::fast_hash::FxHashSet<(i32, i32)>,
+    x: i32,
+    z: i32,
+) -> bool {
+    levels.block_ticking_at(x, z) && !pending.contains(&(x >> 4, z >> 4))
+}
+
 /// What `block_entities.tick` is visiting: the kinds its dispatch ticks, read once per entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TickedKind {
@@ -600,14 +610,12 @@ impl Game<'_> {
     /// (`ServerLevel.areEntitiesLoaded`).
     pub(super) fn block_ticking_area(&self) -> impl Fn(i32, i32) -> bool + use<> {
         let levels = self.tickets.levels();
-        let has_pending = !self.world.entities_pending.is_empty();
-        let pending = has_pending.then(|| self.world.entities_pending.clone());
-        move |x, z| {
-            levels.block_ticking_at(x, z)
-                && pending
-                    .as_ref()
-                    .is_none_or(|p| !p.contains(&(x >> 4, z >> 4)))
-        }
+        let pending = self.world.entities_pending.clone();
+        move |x, z| block_ticking_at(&levels, &pending, x, z)
+    }
+    /// Single-position read without copying the pending-entity set.
+    pub(super) fn block_ticking_at(&self, x: i32, z: i32) -> bool {
+        block_ticking_at(&self.tickets.levels(), &self.world.entities_pending, x, z)
     }
     /// `DaylightDetectorBlock.tickEntity` of the detector at `pos`.
     fn tick_daylight_detector(&mut self, pos: Pos) {

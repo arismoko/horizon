@@ -30,8 +30,8 @@ pub trait RecipesHost {
     /// An ingredient from recipe-file JSON text: an item, a `#tag`, or a list
     /// of them, a bare id as `minecraft:` (as vanilla reads it); `test` says
     /// whether a stack fits. Items the game doesn't know are left out; None
-    /// when nothing is left (an unknown or empty tag, for one) and outside a
-    /// world.
+    /// for missing tags, invalid ingredients or no known named items, and
+    /// outside a world. An existing-empty tag returns an empty ingredient.
     /// Invalid JSON is refused with `RecipeJsonError::InvalidJson`.
     #[access(PublishedResources)]
     fn recipe_ingredient(&self, json: &str) -> Result<Option<Ingredient>, RecipeJsonError>;

@@ -13,8 +13,8 @@ reports an amount and a capacity, without a resource identity. Its `insert` and
 ## Block providers
 
 Register a provider with `r.block_entity_capability(&ENERGY, &battery, …)`, using a
-declared or looked-up block entity type key. The game's provider exposes a mod
-block entity's `block_entity_energy` buffer:
+declared or looked-up block entity type key. Alternatively, declare the game's
+buffer with `r.block_energy(&block, buffer)`, where `buffer` is a `ModEnergyBuffer`:
 
 - Insertion respects the input sides, remaining capacity and per-insert limit.
 - Extraction respects the output sides, stored amount and per-extract limit.

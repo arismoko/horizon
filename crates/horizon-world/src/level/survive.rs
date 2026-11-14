@@ -501,14 +501,18 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
         self.fire_odds(state, pos, face).1
     }
     /// `FireBlock.getIgniteOdds` and `getBurnOdds` of `state` at `pos`, asked
-    /// from its side `face`: the level's answer, else `FireBlock.bootStrap`'s
-    /// table.
+    /// from its side `face`: the level's answer, else the world's
+    /// `neoforge:flammable` value, else `FireBlock.bootStrap`'s table.
     fn fire_odds(&self, state: BlockStateId, pos: BlockPos, face: Direction) -> (i32, i32) {
         if self.b.is_waterlogged(state) {
             return (0, 0);
         }
         let mut odds = None;
         self.level.before_fire_odds(state, pos, face, &mut odds);
+        let b = self.b;
+        let odds = odds.or_else(|| {
+            b.read_block_maps(|maps| maps.flammable(&b.table.info(b.block(state)).name))
+        });
         match odds {
             // Burn rolls are at most 300; spread speed has no upper cap.
             Some((ignite, burn)) => (ignite.max(0), burn.clamp(0, 300)),

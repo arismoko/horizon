@@ -12,8 +12,8 @@ A block's `ItemStorage` answers by kind, with `u64` amounts:
 - `page(host, cursor, page)`: one page of what it holds. The cursor is a plain value the caller keeps (0 for the
   start); the answer is the cursor to ask for next, or `None` at the end. A listing that changes between pages can skip a kind or return it twice.
 
-**Who answers it.** The game answers `STORAGE` for every block entity `ITEMS` reaches. Its own containers are asked in
-one pass over the slots the side reaches, by the rules hoppers follow, so a chest, a hopper and a furnace give the same
+**Who answers it.** The game answers `STORAGE` for every container or composter port `ITEMS` reaches. Its own containers are asked in
+one pass over the slots the side reaches, by the rules hoppers follow, so a chest, a hopper, a composter and a furnace give the same
 answers through either capability. A container whose `ITEMS` a mod answers is wrapped slot by slot. A mod's bulk store
 (a drive, drawers, a vault) answers `STORAGE` with a provider of its own, one entry per kind however many items it
 holds: register it `before_game` if the block also has slots.

@@ -102,7 +102,7 @@ fn finalization_never_retargets_stale_items_or_replaced_placeholders() {
             }
             game.block_entity_tick_items.as_mut().unwrap().snapshot =
                 Some(Box::new((snapshot, before)));
-            game.finish_tick_item_writeback(pos, taken, &original_items, (None, None));
+            game.finish_tick_item_writeback(pos, taken, &original_items, (None, None), true);
             assert!(game.block_entity_tick_items.is_none());
             assert!(game.block_entity_tick_key.is_none());
             assert!(game.transactions.is_empty());

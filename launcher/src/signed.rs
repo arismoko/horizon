@@ -5,7 +5,7 @@
 //! with a message saying why.
 
 use crate::backend::REPO;
-use horizon_release_sign::{PublicKey, SIGNATURE, SIGNATURE_V2, SUMS};
+use horizon_release_sign::{Channel, PublicKey, SIGNATURE, SIGNATURE_V2, SUMS};
 
 /// Where a release's attached file downloads from (GitHub's fixed address for it).
 pub fn asset_url(tag: &str, name: &str) -> String {
@@ -45,22 +45,35 @@ pub fn digest(
     horizon_release_sign::signed_digest(tag, asset, sums.as_deref(), signature.as_deref(), keys)
 }
 
-/// The signed SHA-256 of `asset` in the Nightly published under `tag` (`nightly`, or a dated
-/// `nightly-<date>`) that installs as `version` (`nightly-<date>-<commit>`, parsed strictly from its
-/// title by `horizon_release_sign::nightly_title_version`): its SHA256SUMS.v2.sig must sign the
-/// checksums for exactly that version, so an older Nightly can't be served as a newer one. The
-/// channel's SHA256SUMS.sig is for launchers from before and is not read.
-pub fn nightly_digest(
+/// The version the title of the build published under `tag` names, on `tag`'s channel only
+/// ([`build_digest`]): a snapshot's title under a Nightly's tag is None, and the reverse.
+pub fn title_version(tag: &str, title: &str) -> Option<String> {
+    horizon_release_sign::build_title_version(Channel::of(tag)?, title)
+}
+
+/// The signed SHA-256 of `asset` in the Nightly or snapshot published under `tag` (`nightly`, a
+/// dated `nightly-<date>`, or `snapshot-<date>-<commit>`) that installs as `version`
+/// (`<channel>-<date>-<commit>`, parsed strictly from its title by
+/// `horizon_release_sign::build_title_version`): its SHA256SUMS.v2.sig must sign the checksums for
+/// exactly that version, so an older Nightly can't be served as a newer one, nor a snapshot as a
+/// Nightly. The channel's SHA256SUMS.sig is for launchers from before and is not read.
+///
+/// The channel checked is the one `tag` is on ([`Channel::of`]): the launcher's choice, never the
+/// release's title. `tag` is a Nightly's tag the release list kept (`is_nightly` only) or the
+/// snapshot tag a developer named (`release_selection::snapshot`).
+pub fn build_digest(
     tag: &str,
     version: &str,
     asset: &str,
     keys: &[PublicKey],
     fetch: impl Fn(&str) -> Result<Option<Vec<u8>>, String>,
 ) -> Result<String, String> {
+    let channel = Channel::of(tag).ok_or_else(|| format!("{tag} is not a Horizon release."))?;
     let sums = fetch(&asset_url(tag, SUMS))?;
     let signature = fetch(&asset_url(tag, SIGNATURE_V2))?
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
-    horizon_release_sign::nightly_digest(
+    horizon_release_sign::build_digest(
+        channel,
         version,
         asset,
         sums.as_deref(),
@@ -182,11 +195,11 @@ mod tests {
         };
         let nightly = serving(horizon_release_sign::NIGHTLY, VERSION);
         assert_eq!(
-            nightly_digest("nightly", VERSION, "horizon.zip", &keys, &nightly),
+            build_digest("nightly", VERSION, "horizon.zip", &keys, &nightly),
             Ok(sha256_hex(b"game"))
         );
         // Another version than the one signed (an older Nightly served as tonight's, or the reverse).
-        assert!(nightly_digest(
+        assert!(build_digest(
             "nightly",
             "nightly-2026-10-29-1111111",
             "horizon.zip",
@@ -208,10 +221,42 @@ mod tests {
                 nightly(url)
             }
         };
-        let refused = nightly_digest("nightly", VERSION, "horizon.zip", &keys, old).unwrap_err();
+        let refused = build_digest("nightly", VERSION, "horizon.zip", &keys, old).unwrap_err();
         assert!(refused.contains("SHA256SUMS.v2.sig"), "{refused}");
         let release = serving("v0.2.81", "v0.2.81");
         assert!(digest("v0.2.81", "horizon.zip", &keys, &release).is_ok());
-        assert!(nightly_digest("nightly", VERSION, "horizon.zip", &keys, &release).is_err());
+        assert!(build_digest("nightly", VERSION, "horizon.zip", &keys, &release).is_err());
+        // A snapshot installs with its own version's signature; it never passes for a Nightly, nor a
+        // Nightly for it, nor a snapshot for a release.
+        const SNAPSHOT: &str = "snapshot-2026-10-28-0c02067";
+        let snapshot = serving(horizon_release_sign::SNAPSHOT, SNAPSHOT);
+        assert_eq!(
+            build_digest(SNAPSHOT, SNAPSHOT, "horizon.zip", &keys, &snapshot),
+            Ok(sha256_hex(b"game"))
+        );
+        assert!(build_digest("nightly", VERSION, "horizon.zip", &keys, &snapshot).is_err());
+        assert!(build_digest(SNAPSHOT, SNAPSHOT, "horizon.zip", &keys, &nightly).is_err());
+        // A genuine snapshot served under the Nightly's tag: its title is no Nightly's, and its
+        // version is refused on the Nightly channel before its (valid) signature is read.
+        assert_eq!(
+            title_version("nightly", "Snapshot 2026-10-28 · 0c02067"),
+            None
+        );
+        assert_eq!(
+            title_version(SNAPSHOT, "Nightly 2026-10-28 · 0c02067"),
+            None
+        );
+        assert_eq!(
+            title_version(SNAPSHOT, "Snapshot 2026-10-28 · 0c02067").as_deref(),
+            Some(SNAPSHOT)
+        );
+        assert!(build_digest("nightly", SNAPSHOT, "horizon.zip", &keys, &snapshot).is_err());
+        assert!(build_digest(SNAPSHOT, VERSION, "horizon.zip", &keys, &nightly).is_err());
+        for tag in [SNAPSHOT, "snapshot"] {
+            assert!(
+                digest(tag, "horizon.zip", &keys, &snapshot).is_err(),
+                "{tag}"
+            );
+        }
     }
 }

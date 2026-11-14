@@ -2,8 +2,8 @@
 // catalog-order: 0125
 
 pub trait Hooks {
-    /// A real window key event after handling, including repeats and consumed shortcuts
-    /// (`InputEvent.Key`). `key` is vanilla's name for the physical key (`key.keyboard.a`,
+    /// A key event after handling, the window's or the control socket's `key` (one press, then
+    /// one release for a tap), including repeats and consumed shortcuts (`InputEvent.Key`). `key` is vanilla's name for the physical key (`key.keyboard.a`,
     /// `key.keyboard.unknown` for one it doesn't name; `getKey`), `layout_key` its name
     /// for the key the keyboard layout produced (`getKeycode`: AZERTY's key at QWERTY's
     /// W gives `key.keyboard.z`; a named key such as Enter keeps the physical name;

@@ -43,6 +43,8 @@ pub(super) struct PrimedTnt {
     /// `PrimedTnt.explosionPower`: 4 by default, saved as `explosion_power`
     /// and clamped to 0..128 when read back.
     pub power: f32,
+    /// `PrimedTnt.teleport`: set on the recreated entity, never saved to NBT.
+    pub used_portal: bool,
     /// PrimedTnt.DATA_BLOCK_STATE_ID; None is the default TNT state.
     pub block_state: Option<horizon_world::registry::BlockStateId>,
 }
@@ -428,6 +430,7 @@ impl Game<'_> {
             guest,
             // PrimedTnt's constructor: 4 when nothing sets it.
             power: 4.0,
+            used_portal: false,
             block_state: None,
         });
     }
@@ -512,6 +515,7 @@ impl Game<'_> {
             ];
             let bounds = t.bounds();
             let (id, owner, guest, power) = (t.id, t.owner, t.guest, t.power);
+            let used_portal = t.used_portal;
             let silent = self.entity_silent(id);
             let (owner, guest) = match owner {
                 Some(_) => (owner, guest),
@@ -552,6 +556,7 @@ impl Game<'_> {
                     false,
                     super::explosion::ExplosionSource::default()
                         .with_silence(silent)
+                        .with_portal_proof(used_portal)
                         .with_entity(id, "minecraft:tnt"),
                 )
             });
@@ -890,6 +895,7 @@ mod tests {
             guest: None,
             no_gravity: true,
             power: 4.0,
+            used_portal: false,
             block_state: Some(BlockStateId(1)),
         };
         let raw = Tag::compound([("block_state", Tag::String("audit_missing:block".into()))]);
@@ -959,6 +965,7 @@ mod tests {
             owner: None,
             guest: None,
             power: 4.0,
+            used_portal: false,
             block_state: None,
         };
         tnt.velocity = bounce_velocity(Direction::Up, tnt.velocity);
@@ -1010,6 +1017,7 @@ mod tests {
                 owner: None,
                 guest: None,
                 power: 4.0,
+                used_portal: false,
                 block_state: None,
             };
             let border = bordered.then_some(&border);
@@ -1090,6 +1098,7 @@ mod tests {
                 owner: None,
                 guest: None,
                 power: 4.0,
+                used_portal: false,
                 block_state: None,
             };
             tnt.tick(
@@ -1166,6 +1175,7 @@ mod tests {
             owner: None,
             guest: None,
             power: 4.0,
+            used_portal: false,
             block_state: None,
         };
         tnt.tick(
@@ -1329,6 +1339,7 @@ mod tests {
             owner: None,
             guest: None,
             power: 4.0,
+            used_portal: false,
             block_state: None,
         };
         for _ in 0..10 {
@@ -1438,6 +1449,7 @@ mod tests {
             owner: None,
             guest: None,
             power: 4.0,
+            used_portal: false,
             block_state: None,
         };
         let mut tops = Vec::new();
@@ -1552,6 +1564,56 @@ mod tests {
 
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_transfer_tnt_state_follows_memory_but_not_saved_nbt() {
+        use super::super::commands::Target;
+        let mut resources = None;
+        let mut game = server_game(&mut resources).expect("set HORIZON_TEST_RESOURCES");
+        game.add_primed_tnt(BlockPos::new(8, 64, 8), 0.0, 80, None, None);
+        assert!(!game.tnts[0].used_portal);
+        let id = game.tnts[0].id;
+        game.teleport_to_in_level(Target::Tnt(id), [8.5, 64.0, 8.5], None, [false; 3], false);
+        assert!(game.tnts[0].used_portal);
+        let saved = game.tnt_nbt(0);
+        game.tnts.clear();
+        game.load_tnt(saved, None);
+        assert!(!game.tnts[0].used_portal);
+        let mut transfer = game.tnt_nbt(0);
+        super::super::persist::mark_fresh(&mut transfer);
+        game.tnts.clear();
+        game.world.loaded_entities.push((
+            (0, 0),
+            vec![horizon_client::world::PendingEntity::after_tnt_portal(
+                transfer,
+            )],
+        ));
+        game.spawn_loaded_entities();
+        assert!(game.tnts[0].used_portal);
+        assert!(game.tnt_nbt(0).get("horizon:tnt_used_portal").is_none());
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_transfer_ordinary_nbt_cannot_supply_runtime_immunity() {
+        use horizon_core::nbt::Tag;
+        let mut resources = None;
+        let mut game = server_game(&mut resources).expect("set HORIZON_TEST_RESOURCES");
+        for marker in [0, 1] {
+            game.add_primed_tnt(BlockPos::new(8, 64, 8), 0.0, 80, None, None);
+            let mut saved = game.tnt_nbt(0);
+            if let Tag::Compound(fields) = &mut saved {
+                fields.insert("horizon:tnt_used_portal".into(), Tag::Byte(marker));
+            }
+            game.tnts.clear();
+            game.world.queue_entity_nbt((0, 0), vec![saved]);
+            game.spawn_loaded_entities();
+            assert_eq!(game.tnts.len(), 1);
+            assert!(!game.tnts[0].used_portal, "ordinary NBT marker {marker}");
+            game.tnts.clear();
+        }
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn portal_blast_sulfur_cube_uses_only_positive_cooldown() {
         use horizon_client::mobs::Mob;
         use horizon_client::nether_portal::PortalState;
@@ -1622,6 +1684,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn loaded_tnt_fuse_uses_numeric_short_and_saves_without_raw() {
         use horizon_core::nbt::Tag;
         let mut resources = None;
@@ -1808,6 +1871,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_tnt_keeps_the_blast_without_its_sound() {
         on_big_stack(|| {
             let mut resources = None;
@@ -1866,6 +1930,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_potions_keep_the_splash_without_its_sound() {
         on_big_stack(|| {
             use horizon_client::projectiles::{Hit, Projectile, ProjectileKind};
@@ -1935,6 +2000,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_creeper_keeps_the_blast_after_its_source_is_removed() {
         on_big_stack(|| {
             let mut resources = None;
@@ -1971,6 +2037,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_launched_potions_and_bottles_keep_their_impact() {
         on_big_stack(|| {
             let mut resources = None;
@@ -1986,21 +2053,22 @@ mod tests {
             game.world.set(8, 63, 8, stone).unwrap();
             for kind in ["splash_potion", "lingering_potion", "experience_bottle"] {
                 for silent in [false, true, false] {
-                    game.launch_thrown(
+                    let mut shot = crate::game::potions::thrown_projectile(
                         ItemStack::new(&format!("minecraft:{kind}"), 1)
                             .with_potion("minecraft:swiftness"),
                         Vec3::new(8.5, 64.1, 8.5),
-                        Vec3::new(0.0, -1.0, 0.0),
-                        None,
+                        false,
                     );
-                    let id = *game.potions.thrown_ids().last().unwrap();
+                    shot.velocity = Vec3::new(0.0, -1.0, 0.0);
+                    game.add_projectile(shot);
+                    let id = game.creatures.projectiles.last().unwrap().id;
                     set_silent(&mut game, id, silent);
                     game.audio.heard.clear();
                     let particles = particle_count(&game);
                     let clouds = game.breath_clouds.len();
                     let xp: u32 = game.orbs.iter().map(|o| o.points() * o.count).sum();
-                    game.tick_effects(true);
-                    assert_eq!(game.potions.thrown_ids().count(), 0);
+                    game.tick_creature_entities().unwrap();
+                    assert!(!game.creatures.projectiles.iter().any(|p| p.id == id));
                     assert!(particle_count(&game) > particles, "{kind} keeps its splash");
                     assert_eq!(
                         sound_count(&game, "minecraft:entity.splash_potion.break"),
@@ -2018,6 +2086,49 @@ mod tests {
                 }
             }
         });
+    }
+
+    /// #13201: a dispensed potion or bottle is a level entity
+    /// (`ProjectileDispenseBehavior` → `Projectile.spawnProjectileUsingShoot`
+    /// → `level.addFreshEntity`), so selectors, `/data get` and `/kill` find
+    /// it while it flies.
+    #[test]
+    #[ignore = "daily"]
+    fn h13201_a_dispensed_potion_is_a_level_entity() {
+        let mut resources = None;
+        let Some(mut game) = server_game(&mut resources) else {
+            return;
+        };
+        // An operator's commands.
+        game.ui.registries.permission = 4;
+        use crate::game::commands::Target;
+        use horizon_core::nbt::Tag;
+        for kind in ["splash_potion", "lingering_potion", "experience_bottle"] {
+            let stack = ItemStack::new(&format!("minecraft:{kind}"), 1);
+            // The dispenser at (8, 100, 8) facing south.
+            game.shoot_projectile_item(
+                Vec3::new(8.5, 100.2, 9.2),
+                [0.0, 0.1, 1.0],
+                &stack,
+                1.1,
+                6.0,
+            );
+            let id = game.creatures.projectiles.last().unwrap().id;
+            let selector = format!("@e[type=minecraft:{kind},x=8.5,y=100,z=8.5,distance=..12]");
+            // Found as shot and again after it flew a tick.
+            for _ in 0..2 {
+                let found = game.run_command(&format!("execute if entity {selector}"));
+                assert!(found, "{kind}");
+                assert_eq!(game.level_entity(id as i32), Some(Target::Projectile(id)));
+                let saved = game.command_target_nbt(Target::Projectile(id)).unwrap();
+                let id_tag = Tag::String(format!("minecraft:{kind}").as_str().into());
+                assert_eq!(saved.get("id"), Some(&id_tag));
+                assert!(saved.get("Item").is_some() && saved.get("Motion").is_some());
+                game.tick_creature_entities().unwrap();
+            }
+            assert!(game.run_command(&format!("kill {selector}")), "{kind}");
+            assert!(!game.creatures.projectiles.iter().any(|p| p.id == id));
+        }
     }
 
     fn set_silent(game: &mut Game<'_>, id: u32, silent: bool) {
@@ -2039,6 +2150,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_bottles_preserve_xp_and_the_server_random_stream() {
         on_big_stack(|| {
             use horizon_client::projectiles::{Hit, Projectile, ProjectileKind};
@@ -2123,6 +2235,7 @@ mod tests {
     /// joined during a tick back one more: the late pass compared its join
     /// against an `announced` already raised past it.
     #[test]
+    #[ignore = "daily"]
     fn lit_tnt_ticks_on_the_next_level_tick_and_explodes_on_the_80th() {
         let mut resources = None;
         let Some(mut game) = server_game(&mut resources) else {
@@ -2152,6 +2265,7 @@ mod tests {
     /// `EntityTickList` loop) and waits for the next tick. The fix for #10063
     /// must not tick it in the tick it joined.
     #[test]
+    #[ignore = "daily"]
     fn tnt_primed_by_a_blast_waits_for_the_next_tick() {
         let mut resources = None;
         let Some(mut game) = server_game(&mut resources) else {

@@ -13,6 +13,8 @@ pub trait Hooks {
     /// when it validates or applies. Answer from the stack and the host alone,
     /// and fast. On a LAN host's own click the LAN host is not reachable
     /// through the `Host` (it answers as if no LAN were open).
+    /// Parts that read `context.setting(..)` or `side()` have no counterpart
+    /// on the Host. Named injections request `hook_version = 3`.
     #[hook(
         side = "both",
         contract = "listen",

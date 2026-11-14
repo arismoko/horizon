@@ -148,10 +148,11 @@ fn generated_chunks_survive_restart_substitution_added_regions_and_adoption() {
         terrain.restore_proto(&mut resumed, saved);
         assert_eq!(terrain.is_decorated(&resumed), decorated);
         let resumed = terrain.saved_proto(&resumed).unwrap();
+        // A resumed chunk keeps the biomes it was saved with, as a loaded one does.
         assert!(
             fingerprint(&resumed.column)
                 .iter()
-                .all(|biome| biome == "minecraft:desert")
+                .all(|biome| biome == "minecraft:ice_spikes")
         );
         for y in blocks.min_y()..blocks.max_y() {
             for z in 0..16 {

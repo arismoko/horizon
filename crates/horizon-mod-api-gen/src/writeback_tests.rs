@@ -3,6 +3,7 @@ use super::*;
 // Compile the generated crossing and the actual handwritten adapter bodies against
 // an isolated strict stack boundary, so refusal and atomic writeback are observable.
 #[test]
+#[ignore = "daily"]
 fn untouched_writeback_runtime_and_mutants() {
     let ty: Type = syn::parse_quote!(&mut ItemStack);
     let sibling: Type = syn::parse_quote!(&mut bool);

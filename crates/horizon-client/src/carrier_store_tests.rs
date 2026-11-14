@@ -584,6 +584,7 @@ fn hostile_operation_files_refuse_without_panic() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn entity_and_operation_envelopes_hold_exactly_at_their_limits() {
     // The largest entity image that fits passes; one more data byte
     // crosses the cell's bound and the encode refuses before any lift.
@@ -639,6 +640,7 @@ fn entity_and_operation_envelopes_hold_exactly_at_their_limits() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_decoded_operation_never_passes_the_decoded_envelope() {
     // A gzip payload that would decode past 40 MiB is refused by the
     // decompression budget, never materialized.
@@ -656,6 +658,7 @@ fn a_decoded_operation_never_passes_the_decoded_envelope() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_thousand_operations_do_not_grow_the_store() {
     let world = WorldDir::new("thousand-ops");
     let mut store = world.first_use();

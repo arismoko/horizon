@@ -209,18 +209,6 @@ impl Game<'_> {
         }
     }
 
-    /// The world's packs' content files, none without packs.
-    /// The biome table the world plays with, `None` before a world opens.
-    pub(super) fn packed_biomes(&self) -> Option<Arc<Biomes>> {
-        let table = world_loading::packed_biomes(
-            &self.world_root,
-            &self.options.resources,
-            self.res.biomes(),
-            &self.level.enabled_features,
-            &self.pack.additional_data,
-        );
-        (!Arc::ptr_eq(&table, self.res.biomes())).then_some(table)
-    }
     /// What the chunk and far-terrain workers mesh with: the pack's context,
     /// over the world's biomes when it has its own.
     pub(super) fn worker_context(&self) -> Arc<WorkerContext> {
@@ -298,7 +286,7 @@ impl Game<'_> {
             &items,
             &overlay,
             self.res.item_defaults(),
-            &sources,
+            (&sources, &recipes),
         );
         self.prepare_professions(root, &items, &mut stations)?;
         let data_maps = native_data_maps::DataMaps::load(
@@ -409,8 +397,11 @@ impl Game<'_> {
         stack: &functions::PackStack,
         root: &std::path::Path,
     ) -> Result<()> {
+        // A new world load: a saved base clamped into its bounds warns again (#3728).
+        horizon_client::living_attributes::LOAD_CLAMPS.begin_load();
         (self.world_tables, self.health_resources) =
             self.build_world_tables(stack, false, root, self.mods.data_switched)?;
+        self.install_block_maps();
         self.install_profession_save_snapshots();
         self.mods.datapack_registries = self.mods.datapack_candidate.take().map(|candidate| {
             Arc::new(mod_api::DatapackRegistrySet::first(
@@ -466,6 +457,7 @@ impl Game<'_> {
             );
         }
         self.world_tables = tables;
+        self.install_block_maps();
         self.install_profession_save_snapshots();
         self.world.pois.clear();
         for world in self.levels.parked_worlds() {
@@ -502,7 +494,8 @@ impl Game<'_> {
         }
         self.adv.tree = advancements;
         self.adv.reset_tree();
-        self.native_tags_updated(mod_api::TagsUpdateCause::ServerDataLoad { reload: true });
+        self.announce_data_bound(mod_api::TagsUpdateCause::ServerDataLoad { reload: true });
+        self.resolve_enchant_particles();
         self.announce_data_maps_updated(mod_api::DataMapsUpdateCause::ServerReload);
         self.build_screen();
     }
@@ -687,6 +680,7 @@ impl Game<'_> {
     pub(super) fn resolve_parts(&self) -> Result<()> {
         let prepared = self.prepare_parts(self.items())?;
         self.install_parts(prepared);
+        self.resolve_enchant_particles();
         Ok(())
     }
     /// Ask the parts of each block `isPathfindable` once per state and type: the answer depends
@@ -695,7 +689,11 @@ impl Game<'_> {
     pub(super) fn install_parts(&self, prepared: PreparedParts) {
         cauldron_interactions::install(prepared.cauldrons);
         if self.is_logical_server() {
-            native_worldgen_parts::publish(prepared.parts.as_ref(), &prepared.block_states);
+            native_worldgen_parts::publish(
+                prepared.parts.as_ref(),
+                &prepared.block_states,
+                self.pack.assets.registry,
+            );
         }
         api_values::install_block_states(prepared.block_states);
         native_world_read::install_block_tags(prepared.tags);

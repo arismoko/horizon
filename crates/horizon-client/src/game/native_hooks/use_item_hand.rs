@@ -22,9 +22,12 @@ impl Game<'_> {
         if mod_api::__private::has_part_hook(mod_api::HookId::UseItem)
             && let Ok(snapshot) = stack.try_into_api()
         {
+            let (player, player_entity_id) = self.native_clicker();
             self.native_use_item(mod_api::__private::UseItemCall {
                 stack: &snapshot,
                 hand: self.hand,
+                player,
+                player_entity_id,
                 result: &mut result,
             });
         }

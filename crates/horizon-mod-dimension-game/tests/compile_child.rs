@@ -32,6 +32,7 @@ fn run(args: &[&std::ffi::OsStr], home: &std::path::Path) -> std::process::ExitS
 }
 
 #[test]
+#[ignore = "daily"]
 fn private_compile_exits_zero_and_writes_one_artifact() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join(".horizon-cache/wasm");
@@ -72,6 +73,7 @@ fn private_compile_exits_zero_and_writes_one_artifact() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn missing_key_exits_one_and_writes_nothing() {
     let dir = tempfile::tempdir().unwrap();
     assert_eq!(
@@ -121,11 +123,13 @@ fn cache_loads(parents: usize) {
 }
 
 #[test]
+#[ignore = "daily"]
 fn production_parent_uses_child_artifact() {
     cache_loads(1);
 }
 
 #[test]
+#[ignore = "daily"]
 fn concurrent_production_parents_share_one_clean_artifact() {
     cache_loads(4);
 }

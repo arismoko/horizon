@@ -44,6 +44,7 @@ pub fn main() -> horizon_client::Result<()> {
             &horizon_client::item_tooltip::NoAttributeListener,
             &items.enchantments,
             &translate,
+            &|_| None,
         )
     };
     let mut out = String::new();

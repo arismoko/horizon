@@ -2,8 +2,12 @@
 //! (`native_minimap`: its tiles, image and HUD) and zoom (`native_zoom`) on the camera; clicks
 //! and frame times for mods (`native_clicks`, `native_frame_rate`).
 //! Each hook does nothing while its extra is off and no mod uses it.
+#[path = "extras/mouse_tweaks.rs"]
+pub(in crate::game) mod mouse_tweaks;
 #[path = "extras/reconnect.rs"]
 mod reconnect;
+#[path = "extras/sorting.rs"]
+mod sorting;
 
 use super::{Dim, Game, Screen};
 use horizon_client::{

@@ -90,6 +90,33 @@ pub fn declarations(game: &Path, explicit: &[&str]) -> Result<String, String> {
     Ok(modules.into_values().collect())
 }
 
+/// Declare every `*.rs` file of `directory` as a module named after its file, in file-name order, for a test
+/// target's root to `include!`: a new file there needs no hand-written `mod` line. A subfolder or a `mod.rs` is
+/// refused, since the flat folder would silently skip it.
+pub fn folder_modules(directory: &Path) -> Result<String, String> {
+    for entry in fs::read_dir(directory).map_err(|e| e.to_string())? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if path.is_dir() || path.file_name().is_some_and(|name| name == "mod.rs") {
+            return Err(format!(
+                "{}: put each module in a file of its own here, not a folder or mod.rs",
+                path.display()
+            ));
+        }
+    }
+    let mut code = String::new();
+    for name in module_files(directory)? {
+        let absolute = directory
+            .join(format!("{name}.rs"))
+            .canonicalize()
+            .map_err(|e| e.to_string())?;
+        code.push_str(&format!(
+            "#[path = {:?}]\nmod {name};\n",
+            absolute.to_string_lossy()
+        ));
+    }
+    Ok(code)
+}
+
 fn module_files(directory: &Path) -> Result<Vec<String>, String> {
     let mut names = Vec::new();
     for entry in fs::read_dir(directory).map_err(|e| e.to_string())? {
@@ -97,7 +124,9 @@ fn module_files(directory: &Path) -> Result<Vec<String>, String> {
         if path.extension().is_some_and(|ext| ext == "rs") {
             let name = path.file_stem().unwrap().to_string_lossy().into_owned();
             if name != "mod" {
-                syn::parse_str::<syn::Ident>(&name).map_err(|e| e.to_string())?;
+                syn::parse_str::<syn::Ident>(&name).map_err(|_| {
+                    format!("{}: the file name is not a Rust identifier", path.display())
+                })?;
                 names.push(name);
             }
         }
@@ -154,6 +183,40 @@ mod tests {
                 .unwrap_err()
                 .contains("invalid game module cfg")
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn folder_modules_declare_each_file_in_name_order_and_refuse_what_they_cannot_declare() {
+        let root = std::env::temp_dir().join(format!("folder-modules-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("zebra.rs"), "").unwrap();
+        fs::write(root.join("apple.rs"), "").unwrap();
+        fs::write(root.join("notes.txt"), "").unwrap();
+        let absolute = root.canonicalize().unwrap();
+        assert_eq!(
+            folder_modules(&root).unwrap(),
+            format!(
+                "#[path = {:?}]\nmod apple;\n#[path = {:?}]\nmod zebra;\n",
+                absolute.join("apple.rs").to_string_lossy(),
+                absolute.join("zebra.rs").to_string_lossy()
+            )
+        );
+        for refused in ["loot-tags.rs", "mod.rs", "nested"] {
+            let path = root.join(refused);
+            if refused == "nested" {
+                fs::create_dir(&path).unwrap();
+            } else {
+                fs::write(&path, "").unwrap();
+            }
+            let error = folder_modules(&root).unwrap_err();
+            assert!(error.contains(refused), "{error}");
+            if refused == "nested" {
+                fs::remove_dir(&path).unwrap();
+            } else {
+                fs::remove_file(&path).unwrap();
+            }
+        }
         fs::remove_dir_all(root).unwrap();
     }
 }

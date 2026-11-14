@@ -7,7 +7,15 @@ pub trait MenusServerHost {
     /// Side: server.
     /// Opens a chest menu of `rows` rows (1 to 6) titled `title` for the
     /// player, showing `items` (by slot, padded with empty ones), in place of
-    /// the menu they had open: its window id.
+    /// the menu they had open: its window id, a new one each time
+    /// (`ServerPlayer.openMenu`). The old menu closes as a close does, its
+    /// cursor stack going back to the player's inventory; `replace` says
+    /// whether the client is first sent a close for it
+    /// (`MenuProvider.shouldTriggerClientSideContainerClosingOnOpen`).
+    /// `MenuReplace::InPlace` changes the title and rows without the client
+    /// centring the mouse again. Packets for the old window are ignored. The
+    /// items of an open menu change through its slots (`menu`), not by
+    /// opening it again.
     #[access(WorldOnly)]
     fn open_menu(
         &mut self,
@@ -15,7 +23,18 @@ pub trait MenusServerHost {
         rows: u8,
         title: Text,
         items: Vec<Option<ItemStack>>,
+        replace: MenuReplace,
     ) -> Result<Option<i32>, StackWriteError>;
+    /// Side: server.
+    /// The menu `open_menu` opened that the player has open as window
+    /// `window` (the window id `open_menu`, `menu_clicked` and `menu_closed`
+    /// give). Its slots are written as `ItemPlace::MenuSlot` in a
+    /// transaction, and the client is sent each changed slot with the next
+    /// tick's container sync (`AbstractContainerMenu.broadcastChanges`), as
+    /// for any open menu. None for another window, a menu the game opened, or
+    /// a player who isn't here.
+    #[access(WorldOnly)]
+    fn menu(&self, uuid: u128, window: i32) -> Option<MenuRef>;
     /// Side: server.
     /// Closes the player's native menu (a `menu_closed` follows).
     #[access(WorldOnly)]

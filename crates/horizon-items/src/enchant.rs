@@ -17,6 +17,18 @@ use std::{
     },
 };
 
+impl Items {
+    /// Vanilla's enchantment-provider tag gives 1.0; non-members give 0.0.
+    /// Parts may override this answer; tag membership is not a separate particle-provider test.
+    pub fn default_enchant_power(&self, block: &str) -> f32 {
+        if self.block_in_tag("minecraft:enchantment_power_provider", block) {
+            1.0
+        } else {
+            0.0
+        }
+    }
+}
+
 /// Load-owned custom damage effect slots. Installed before resources load.
 static DAMAGE_EFFECT_IDS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
 

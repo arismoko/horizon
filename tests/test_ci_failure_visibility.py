@@ -129,7 +129,7 @@ class Visibility(unittest.TestCase):
         self.assertNotIn("private unexpected payload", log.getvalue())
 
     def test_data_end_memory_telemetry_is_bounded_best_effort(self):
-        steps = yaml.safe_load((ROOT / '.github/workflows/dyna-ci.yml').read_text())["jobs"]["ignored-tests-shards"]["steps"]
+        steps = yaml.safe_load((ROOT / '.github/workflows/ignored-tests.yml').read_text())["jobs"]["ignored-tests-shards"]["steps"]
         step = next(s for s in steps if s.get("name") == "Record data-leg end and compiler cache")
         self.assertEqual(step["if"], "always()")
         script = step["run"]
@@ -162,7 +162,7 @@ class Visibility(unittest.TestCase):
         self.assertNotIn("clippy", fmt["run"])
         self.assertIn("clippy", native["run"])
         self.assertNotIn("continue-on-error", native)
-        for name in ("Lint native targets", "Lint the server build without sound or controllers", "The machine sample builds against this API", "The mod API builds for wasm32"):
+        for name in ("Lint native targets", "Lint the server build without sound or controllers", "The mod API builds for wasm32"):
             step = next(s for s in steps if s.get("name") == name)
             self.assertLess(steps.index(fmt), steps.index(step))
             self.assertLess(steps.index(step), steps.index(final))

@@ -902,6 +902,10 @@ pub struct Viewer<'a> {
     pub position: [f64; 3],
     pub view_distance: i32,
     pub chunks: &'a crate::fast_hash::FxHashSet<(i32, i32)>,
+    /// A client that views this level from another (#3716): its areas here, centre and radius in
+    /// chunks, which it tracks from in place of its position (`viewed_levels::entities`), and at
+    /// most `MAX_ENTITIES` entities. None for a player in the level.
+    pub sources: Option<&'a [((i32, i32), i32)]>,
     pub tracker: &'a mut Tracker,
     /// What the tick sends it, in order.
     pub out: &'a mut Vec<Vec<u8>>,
@@ -946,9 +950,17 @@ fn broadcast_to_player(v: &Viewer, p: &Probe) -> bool {
 /// each of the tick's chunks whether the client has it (0: not looked up
 /// yet, 1: no, 2: yes), so each chunk is looked up once per client.
 fn sees(v: &Viewer, p: &Probe, chunks: &[(i32, i32)], held: &mut [u8]) -> bool {
-    let range = f64::from(p.range.min(v.view_distance * 16));
-    let (dx, dz) = (v.position[0] - p.x, v.position[2] - p.z);
-    dx * dx + dz * dz <= range * range && broadcast_to_player(v, p) && {
+    let near = match v.sources {
+        None => {
+            let range = f64::from(p.range.min(v.view_distance * 16));
+            let (dx, dz) = (v.position[0] - p.x, v.position[2] - p.z);
+            dx * dx + dz * dz <= range * range
+        }
+        Some(areas) => {
+            super::viewed_levels::entities::in_reach(areas, chunks[p.chunk as usize], p.range)
+        }
+    };
+    near && broadcast_to_player(v, p) && {
         let held = &mut held[p.chunk as usize];
         if *held == 0 {
             *held = 1 + u8::from(v.chunks.contains(&chunks[p.chunk as usize]));
@@ -1356,6 +1368,7 @@ impl Entities {
                     let mut held = vec![0; chunks.len()];
                     let (chunks, held) = (&**chunks, &mut held);
                     let mut kept = 0;
+                    let room = horizon_protocol::viewed_levels::MAX_ENTITIES;
                     // A client that moved (ChunkMap.move), or whose own entity
                     // appeared or changed section (ChunkMap.tick's movedPlayers), has
                     // every pair checked again.
@@ -1374,7 +1387,9 @@ impl Entities {
                             (v.position[2].floor() as i32) >> 4,
                         );
                         for (&(cx, cz), members) in chunks.iter().zip(members) {
-                            if (cx - vx).abs() > reach || (cz - vz).abs() > reach {
+                            if v.sources.is_none()
+                                && ((cx - vx).abs() > reach || (cz - vz).abs() > reach)
+                            {
                                 continue;
                             }
                             for &index in members {
@@ -1386,7 +1401,9 @@ impl Entities {
                                 if v.tracker.seen.contains_key(&p.id) {
                                     flags[index] = SEES | TRACKS;
                                     kept += 1;
-                                } else {
+                                } else if v.sources.is_none() || starts.len() + kept < room {
+                                    // A viewing client collects no more starts than its world
+                                    // could take with what it keeps so far; the cut below is exact.
                                     flags[index] = SEES;
                                     starts.push(index);
                                 }
@@ -1464,6 +1481,14 @@ impl Entities {
                             })
                             .encode(),
                         );
+                    }
+                    // A viewing client starts tracking no more than its viewed world holds.
+                    if v.sources.is_some() {
+                        let room = room.saturating_sub(v.tracker.seen.len());
+                        for &index in starts.iter().skip(room) {
+                            flags[index] = 0;
+                        }
+                        starts.truncate(room);
                     }
                 }
             });
@@ -2168,6 +2193,7 @@ mod tests {
                     position: self.positions[0],
                     view_distance: 10,
                     chunks: &self.chunks,
+                    sources: None,
                     tracker: t0,
                     out: o0,
                     gone: Some(&mut self.gone),
@@ -2181,6 +2207,7 @@ mod tests {
                     position: self.positions[1],
                     view_distance: 10,
                     chunks: &self.chunks,
+                    sources: None,
                     tracker: t1,
                     out: o1,
                     gone: None,

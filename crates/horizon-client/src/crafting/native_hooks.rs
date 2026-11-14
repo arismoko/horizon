@@ -8,8 +8,8 @@ use mod_api::RecipePropertyAddition;
 /// checked here; a match-time hook follows separately). Duplicates are
 /// removed keeping first-seen order. The load calls it once per occurrence
 /// (nested ones included), before any table parses the recipes; the
-/// answer must be the same every time. An unclaimed kind leaves the list
-/// empty and the recipe fails, as an unknown kind does.
+/// answer must be the same every time. With no listener the load refuses the recipe file
+/// before this runs; an empty answer keeps an unplaceable recipe.
 #[inline(never)]
 pub fn native_ingredient(
     context: &horizon_world::native_load_context::LoadContext,

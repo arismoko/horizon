@@ -1525,21 +1525,14 @@ impl Streaming {
         if chunk.fresh {
             world.modified.insert(key);
         }
-        world.load_chunk_block_entities(key, std::mem::take(&mut chunk.block_entities));
-        if let Some(extras) = &chunk.saved {
-            for (pos, attachments) in &extras.block_entity_attachments {
-                world
-                    .block_entities
-                    .restore_attachments(*pos, attachments.clone());
-            }
-        }
+        world.install_chunk_block_entities(&mut chunk);
         world
             .block_names
             .extend(std::mem::take(&mut chunk.block_names));
         let entities = std::mem::take(&mut chunk.entities);
         world.entities_pending.insert((chunk.x, chunk.z));
         if !entities.is_empty() {
-            world.loaded_entities.push(((chunk.x, chunk.z), entities));
+            world.queue_entity_nbt((chunk.x, chunk.z), entities);
         }
         self.generated_total += 1;
         // A chunk saved with its light needs no light job; its unlit
@@ -1798,9 +1791,16 @@ impl Streaming {
         // at once when the view moves and every eighth tick otherwise: a
         // column can stay a little past the edge without anyone noticing.
         let area = (self.center, self.radius);
-        let sweep = area != self.scan_area || self.scan_age >= 8;
-        self.scan_area = area;
-        self.scan_age = if sweep { 0 } else { self.scan_age + 1 };
+        // The sweep unloads columns, saving them and dropping their block entities' bindings:
+        // never while a transaction is open, whose values may still be tentative. A due sweep
+        // waits for the next update instead.
+        let sweep = (area != self.scan_area || self.scan_age >= 8)
+            && !world.block_entities.defers_retirement();
+        if sweep {
+            (self.scan_area, self.scan_age) = (area, 0);
+        } else {
+            self.scan_age = self.scan_age.saturating_add(1);
+        }
         self.requeue();
         self.relight_edits(world);
         hz_laps.lap("st_relight_edits");
@@ -4946,6 +4946,7 @@ mod cover_tests {
     /// cell's position relative to the areas: the full check took 20 of the ~30 s of the crate's tests.
     /// `cargo test --release -p horizon-client --lib the_grid_answers_as_the_scan` checks every cell.
     #[test]
+    #[ignore = "daily"]
     fn the_grid_answers_as_the_scan() {
         let stride = if cfg!(debug_assertions) { 4 } else { 1 };
         let mut seed = 0x9E37_79B9_7F4A_7C15u64;
@@ -4987,6 +4988,7 @@ mod cover_tests {
     /// Players thousands of blocks apart: no grid fits them, and the buckets
     /// answer what a scan of every area does, the nearest centre included.
     #[test]
+    #[ignore = "daily"]
     fn the_buckets_answer_as_the_scan() {
         let mut seed = 0x51_7CC1_B727_220Au64;
         let forced: HashSet<(i32, i32)> = HashSet::new();

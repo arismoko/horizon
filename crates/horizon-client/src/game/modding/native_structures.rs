@@ -110,9 +110,10 @@ fn placements<'a>(
         .iter()
         .map(|block| {
             let relative = StructureTemplate::transform(block.pos, mirror, rotation, [0; 3]);
+            let pos = std::array::from_fn(|i| relative[i].wrapping_add(at[i]));
             TemplateBlock {
-                pos: std::array::from_fn(|i| relative[i].wrapping_add(at[i])),
-                state: transforms.rotate(transforms.mirror(block.state, mirror), rotation),
+                pos,
+                state: transforms.rotate_at(transforms.mirror(block.state, mirror), pos, rotation),
                 nbt: block.nbt.as_deref(),
             }
         })

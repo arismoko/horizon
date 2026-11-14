@@ -368,3 +368,113 @@ fn entity_selection_has_no_additional_count_cap() {
         },
     );
 }
+
+/// One overworld cow (entity 1, tag `over`) and one nether cow (entity 2, tag `under`), then
+/// `lines` run as the first guest with the console's permission; each line's last invocation
+/// names the expected entities in its `argument` (their ids, sorted). Entity ids are handed
+/// out in summon order.
+fn in_two_levels(lines: &[(&str, &str, &[u32])]) {
+    let heard = Arc::new(Mutex::new(Vec::new()));
+    mod_platform::testing::with_mods(
+        vec![mod_api::ModEntry::new(
+            "selector_two_levels",
+            Box::new(SelectorCommands(heard.clone())),
+        )]
+        .into(),
+        || {
+            super::super::native_guest_turn_tests::with_guests(|game| {
+                game.build_registries();
+                game.register_native_commands();
+                game.ui.registries.permission = 4;
+                assert!(game.run_command(r#"summon minecraft:cow 4 64 5 {Tags:["over"]}"#));
+                assert!(game.run_command(
+                    r#"execute in minecraft:the_nether run summon minecraft:cow 4 64 5 {Tags:["under"]}"#
+                ));
+                game.lan_assign_ids();
+                game.as_guest(12, |game| {
+                    for (line, argument, expected) in lines {
+                        game.ui.registries.permission = 4;
+                        let before = heard.lock().unwrap().len();
+                        assert!(game.run_command(line), "{line}");
+                        let calls = heard.lock().unwrap();
+                        assert_eq!(calls.len(), before + 1, "{line} reaches the mod once");
+                        let mut ids = match calls.last().unwrap().argument(argument) {
+                            Some(Value::Entity(entity)) => vec![entity.id()],
+                            Some(Value::Entities(entities)) => {
+                                entities.iter().map(|entity| entity.id()).collect()
+                            }
+                            other => panic!("{line}: {other:?}"),
+                        };
+                        ids.sort_unstable();
+                        assert_eq!(&ids, expected, "{line}");
+                    }
+                })
+                .unwrap();
+            });
+        },
+    );
+}
+
+/// `native_command_entity_target` looks a selected entity up in the level that holds it
+/// (`in_target_level`): a mod command run from the overworld reaches the entity that lives in
+/// the nether, and each tag picks its own cow, not the one with the other id.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_typed_entity_argument_reaches_an_entity_in_another_level() {
+    in_two_levels(&[
+        (
+            "selectone @e[type=minecraft:cow,tag=over,limit=1]",
+            "target",
+            &[1],
+        ),
+        (
+            "selectone @e[type=minecraft:cow,tag=under,limit=1]",
+            "target",
+            &[2],
+        ),
+    ]);
+}
+
+/// A selector with no positional option reaches every level; `distance` (like `x`, `y`, `z`,
+/// `dx`, `dy` and `dz`) confines it to the source's level, which `execute in` sets; and
+/// `execute as` makes the chosen entity `@s`, not the invoker.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn execute_moves_the_selector_source_to_its_level_and_entity() {
+    in_two_levels(&[
+        // No positional option: both levels, whatever level the source is in.
+        ("selectall @e[type=minecraft:cow]", "targets", &[1, 2]),
+        (
+            "execute in minecraft:the_nether run selectall @e[type=minecraft:cow]",
+            "targets",
+            &[1, 2],
+        ),
+        (
+            "execute in minecraft:the_nether run selectall @e[type=minecraft:cow,tag=over]",
+            "targets",
+            &[1],
+        ),
+        // Confined by `distance`: the level of the source `execute in` made.
+        (
+            "execute in minecraft:the_nether run selectall @e[type=minecraft:cow,distance=..1000]",
+            "targets",
+            &[2],
+        ),
+        (
+            "execute in minecraft:overworld run selectall @e[type=minecraft:cow,distance=..1000]",
+            "targets",
+            &[1],
+        ),
+        (
+            "selectall @e[type=minecraft:cow,distance=..1000]",
+            "targets",
+            &[1],
+        ),
+        // `as` the overworld cow: `@s` is that cow, not the invoker.
+        (
+            "execute as @e[type=minecraft:cow,tag=over] run selectone @s",
+            "target",
+            &[1],
+        ),
+    ]);
+}

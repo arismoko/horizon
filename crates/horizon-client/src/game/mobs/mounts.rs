@@ -1131,7 +1131,7 @@ fn dismount_location(
 }
 /// `Entity.getCollisionHorizontalEscapeVector`: out of the vehicle's box
 /// along `yaw`, to the edge of the square it spans.
-pub(super) fn escape_vector(vehicle_width: f64, passenger_width: f64, yaw: f32) -> Vec3 {
+fn escape_vector(vehicle_width: f64, passenger_width: f64, yaw: f32) -> Vec3 {
     // 1.0E-5F: a float literal widened to double.
     let distance = (vehicle_width + passenger_width + f64::from(1.0e-5_f32)) / 2.0;
     let radians = f64::from(yaw * 0.017_453_292);
@@ -1747,6 +1747,7 @@ mod tests {
     /// mouthful is a `minecraft:eat` game event. A silent mount eats
     /// noiselessly, drawing no pitch, and a locked baby grows not at all.
     #[test]
+    #[ignore = "daily"]
     fn feeding_a_mount_draws_from_its_own_random_and_posts_eat() {
         let mut resources = None;
         let Some(mut game) = server_game(&mut resources) else {

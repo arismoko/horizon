@@ -1,5 +1,6 @@
 //! No resources or ordinary startup are needed for malformed compiler requests.
 #[test]
+#[ignore = "daily"]
 fn real_executable_refuses_malformed_hidden_requests() {
     for args in [
         vec!["--compile-wasm-module"],

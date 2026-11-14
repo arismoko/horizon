@@ -9,6 +9,13 @@ pub trait BlockEntitiesHost {
     /// the level it shows. An entity taken out for its tick cannot be read in that tick.
     #[access(WorldOnly)]
     fn block_entity(&self, level: LevelRef, pos: [i32; 3]) -> Option<BlockEntityRef>;
+    /// Side: both.
+    /// The handle [`BlockEntitiesHost::block_entity`] gives, and also for a block entity
+    /// out of the world for its own tick, whose identity and attachments stay in place
+    /// meanwhile: what its Part state (`BlockEntityPartState`) checks a handle against.
+    /// Its data reads still find nothing during that tick.
+    #[access(WorldOnly)]
+    fn block_entity_identity(&self, level: LevelRef, pos: [i32; 3]) -> Option<BlockEntityRef>;
 }
 /// The server host's methods of the `block_entities` area, implemented by the game and reached through [`ServerHost`].
 #[horizon_mod_api_macros::host_area]

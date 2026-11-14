@@ -1567,6 +1567,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn locale_switch_and_pack_overrides_keep_the_same_draft() {
         // The language table is process-wide. Run this test alone in a child so
         // other UI tests cannot observe its temporary French language.
@@ -1575,6 +1576,7 @@ mod tests {
             let module = module_path!().split_once("::").unwrap().1;
             let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
+                    "--include-ignored",
                     "--exact",
                     &format!("{module}::locale_switch_and_pack_overrides_keep_the_same_draft"),
                     "--nocapture",

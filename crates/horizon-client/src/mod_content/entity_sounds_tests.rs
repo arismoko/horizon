@@ -8,6 +8,8 @@ fn a_living_mod_types_row_is_its_templates_with_its_attributes() {
     let ghoul = |attributes: &[(&str, f64)], attachments: &[[f32; 3]]| EntityType {
         id: "ruby:ghoul".into(),
         template: "minecraft:zombie".into(),
+        shadow_radius: Some(0.2),
+        shadow_strength: Some(0.6),
         item: None,
         damage: 0.0,
         sounds: Default::default(),
@@ -19,6 +21,8 @@ fn a_living_mod_types_row_is_its_templates_with_its_attributes() {
         serde_json::from_slice(&mod_entity_row(&row, &modded).unwrap()).unwrap();
     let mut expected: serde_json::Value = serde_json::from_str(zombie).unwrap();
     expected["attributes"]["minecraft:max_health"] = 40.0.into();
+    expected["shadow_radius"] = serde_json::json!(0.2);
+    expected["shadow_strength"] = serde_json::json!(0.6);
     expected["template"] = "minecraft:zombie".into();
     expected["passenger_attachments"] = serde_json::json!([[0.0, 0.7, -0.1]]);
     assert_eq!(written, expected);

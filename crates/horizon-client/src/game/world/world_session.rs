@@ -1,6 +1,7 @@
 //! Opening and closing a local world from the client: the title screen's actions, entering a
 //! world on the server thread, and saving and leaving it on exit.
 use super::*;
+use horizon_client::save::level_mods;
 
 impl Game<'_> {
     /// `onAbort`: the confirm screen's Back or Escape reopens the Data
@@ -108,6 +109,23 @@ impl Game<'_> {
         })? {
             return Ok(());
         }
+        // A world saved with mods that are not loaded now asks first (#3856), unless the player
+        // already chose to open it anyway; the question reads the world and writes nothing.
+        if create.is_none() {
+            let dir = std::env::current_dir()?.join("saves").join(folder);
+            if !level_mods::is_confirmed(&dir) {
+                let missing = self.ask_missing_mods(&dir);
+                if !missing.is_empty() {
+                    if let Some(title) = self.title.as_mut() {
+                        title.ask_missing_mods(folder, missing);
+                        return Ok(());
+                    }
+                    for m in &missing {
+                        log::warn!("Horizon: {}", level_mods::describe(m));
+                    }
+                }
+            }
+        }
         self.join_world_rest()?;
         // Create World's data packs, in the world before it opens.
         if let Some(dir) = create.and_then(|o| o.pack_dir.as_deref()) {
@@ -162,17 +180,12 @@ impl Game<'_> {
     }
 
     /// Load authoritative world state synchronously, without client entry or
-    /// integrated-server selection. Server startup must use this entry point.
+    /// integrated-server selection: a test-only convenience over the same two
+    /// steps production startup calls separately (`prepare_world_and_rules`,
+    /// then `finish_open_world`).
+    #[cfg(test)]
     pub(super) fn load_world(&mut self, request: world_loading::WorldRequest) -> Result<()> {
-        self.join_world_rest()?;
-        self.perf.world_opening();
-        let prepared = request.prepare(
-            &self.res,
-            &self.pack,
-            &self.options,
-            &self.settings,
-            &horizon_world::datafix::progress::UpgradeProgress::new(),
-        )?;
+        let prepared = self.prepare_world_and_rules(request)?;
         self.finish_open_world(prepared)
     }
 

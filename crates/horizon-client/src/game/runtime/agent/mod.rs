@@ -706,6 +706,9 @@ impl Game<'_> {
             Mode::MissingBiomeRegions { world, missing } => {
                 json!({ "mode": "missing-biome-regions", "folder": world.folder, "name": world.name, "missing": missing.iter().map(|(owner, region)| json!({ "mod": owner, "region": region })).collect::<Vec<_>>() })
             }
+            Mode::MissingMods { world, missing } => {
+                json!({ "mode": "missing-mods", "folder": world.folder, "name": world.name, "missing": missing.iter().map(|m| json!({ "mod": m.id, "saved_version": m.saved_version, "code": m.code, "content": m.content, "blocks": m.blocks })).collect::<Vec<_>>() })
+            }
             Mode::Recover { world, issues } => {
                 let issue = |i: &Option<horizon_client::save::DatIssue>| match i {
                     None => json!(null),

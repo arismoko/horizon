@@ -473,6 +473,7 @@ dependencies = [
  "heck",
  "horizon-game-discovery",
  "horizon-mod-point-shape",
+ "horizon-mod-surface",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -501,6 +502,7 @@ dependencies = [
  "horizon-core",
  "horizon-mod-api-macros",
  "horizon-mod-point-shape",
+ "horizon-mod-surface",
  "horizon-mod-vocab",
  "horizon-shader-api",
  "log",
@@ -553,6 +555,18 @@ name = "horizon-mod-runtime"
 version = "0.1.0"
 dependencies = [
  "horizon-core",
+]
+
+[[package]]
+name = "horizon-mod-surface"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "proc-macro2",
+ "serde",
+ "serde_json",
+ "sha2",
+ "syn 2.0.119",
 ]
 
 [[package]]

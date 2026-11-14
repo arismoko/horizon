@@ -367,7 +367,8 @@ fn template_jigsaws<'a>(
         .iter()
         .map(|j| {
             let relative = StructureTemplate::transform(j.info.pos, Mirror::None, rotation, [0; 3]);
-            let state = resources.transforms.rotate(j.info.state, rotation);
+            let pos = std::array::from_fn(|i| relative[i] + position[i]);
+            let state = resources.transforms.rotate_at(j.info.state, pos, rotation);
             let orientation = resources
                 .registry
                 .state(state)
@@ -375,7 +376,7 @@ fn template_jigsaws<'a>(
                 .unwrap_or_default();
             let (front, top) = orientation.split_once('_').unwrap_or(("north", "up"));
             Jigsaw {
-                pos: std::array::from_fn(|i| relative[i] + position[i]),
+                pos,
                 front: direction(front),
                 top: direction(top),
                 rollable: j.rollable,

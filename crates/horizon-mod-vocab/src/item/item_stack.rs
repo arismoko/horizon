@@ -331,29 +331,66 @@ impl ItemStack {
     pub fn components(&self) -> Option<&Components> {
         self.components.as_deref()
     }
+    /// `ItemStack.applyComponents`: merge a patch without discarding other overrides.
+    /// Incoming values replace removals and incoming removals replace values. If both
+    /// are supplied for one component, removal wins (conflicting damage is refused).
+    /// Damage is normalized before any write; a malformed patch leaves this stack unchanged.
+    pub fn apply_components(&mut self, patch: &Compound) -> Result<(), StackError> {
+        let damage = patch_damage(patch)?;
+        for (id, value) in patch {
+            let id = id.to_string_lossy();
+            if id == "minecraft:damage" {
+                continue;
+            }
+            if let Some(id) = id.strip_prefix('!') {
+                self.remove_component_value(id, true);
+            } else if !patch.contains_key(&JavaString::from(format!("!{id}").as_str())) {
+                self.set_component_value(&id, value.clone())?;
+            }
+        }
+        if let Some(damage) = damage {
+            self.set_damage(damage);
+        }
+        Ok(())
+    }
+    /// Copy this component's own value or explicit removal from `other`, without
+    /// consulting item defaults. If `other` inherits it, clear this stack's override too.
+    /// An `id` that is not a namespaced component id (`Damage`, or a removal marker such as
+    /// `!minecraft:damage`) changes nothing.
+    pub fn copy_component_from(&mut self, other: &Self, id: &str) {
+        if crate::ComponentId::new(id).is_none() {
+            return;
+        }
+        if id == "minecraft:damage"
+            && let Some(damage) = other.damage
+        {
+            self.set_damage(damage);
+            return;
+        }
+        let patch = other.components().map(Components::as_nbt);
+        let removed = JavaString::from(format!("!{id}").as_str());
+        if patch.is_some_and(|patch| patch.contains_key(&removed)) {
+            self.remove_component_value(id, true);
+        } else if let Some(value) = patch.and_then(|patch| patch.get(&JavaString::from(id))) {
+            self.set_component_value(id, value.clone())
+                .expect("stored component is normalized");
+        } else {
+            self.remove_component_value(id, false);
+        }
+    }
     /// Replace the component patch at an NBT conversion boundary.
     /// Damage is normalized into the scalar field. Malformed or conflicting values
     /// refuse the entire replacement and leave the stack unchanged.
     pub fn set_components(&mut self, mut patch: Compound) -> Result<(), StackError> {
-        let damage = patch.remove(&JavaString::from("minecraft:damage"));
-        let removal = patch.get(&JavaString::from("!minecraft:damage"));
-        if removal.is_some_and(|value| !matches!(value, Tag::Compound(value) if value.is_empty())) {
-            return Err(StackError::InvalidDamage);
-        }
-        let removed = removal.is_some();
-        let next = match damage {
-            Some(value) => {
-                let value = damage_value(&value)?;
-                if removed || self.damage.is_some_and(|damage| damage != value) {
-                    return Err(StackError::ConflictingDamage);
-                }
-                Some(value)
-            }
-            None => self.damage,
-        };
-        if removed && next.is_some() {
+        let damage = patch_damage(&patch)?;
+        let removed = patch.contains_key(&JavaString::from("!minecraft:damage"));
+        if damage.is_some_and(|value| self.damage.is_some_and(|damage| damage != value))
+            || (removed && self.damage.is_some())
+        {
             return Err(StackError::ConflictingDamage);
         }
+        let next = damage.or(self.damage);
+        patch.remove(&JavaString::from("minecraft:damage"));
         self.damage = next;
         self.components = (!patch.is_empty()).then(|| Arc::new(Components::from(patch)));
         Ok(())
@@ -418,11 +455,26 @@ fn damage_value(value: &Tag) -> Result<u32, StackError> {
     };
     u32::try_from(value).map_err(|_| StackError::InvalidDamage)
 }
+
+/// Validate the raw damage entries before either a replacement or a merge mutates a stack.
+fn patch_damage(patch: &Compound) -> Result<Option<u32>, StackError> {
+    let damage = patch.get(&JavaString::from("minecraft:damage"));
+    let removal = patch.get(&JavaString::from("!minecraft:damage"));
+    if removal.is_some_and(|value| !matches!(value, Tag::Compound(value) if value.is_empty())) {
+        return Err(StackError::InvalidDamage);
+    }
+    let damage = damage.map(damage_value).transpose()?;
+    if damage.is_some() && removal.is_some() {
+        return Err(StackError::ConflictingDamage);
+    }
+    Ok(damage)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
 
     include!("item_stack_damage_tests.rs");
+    include!("item_stack_component_tests.rs");
 
     struct Number;
     impl Component for Number {
@@ -484,67 +536,5 @@ mod tests {
         assert!(other.components().is_none());
         stack.remove(&Number);
         assert!(stack.is_stackable_with(&other));
-    }
-
-    struct Other;
-    impl Component for Other {
-        type Value = i32;
-        fn id(&self) -> &str {
-            "test:other"
-        }
-        fn decode(&self, value: &Tag) -> Option<i32> {
-            Number.decode(value)
-        }
-        fn encode(&self, value: i32) -> Tag {
-            Number.encode(value)
-        }
-    }
-
-    fn patch(stack: &ItemStack) -> &Arc<Components> {
-        stack.components.as_ref().expect("stack has a patch")
-    }
-
-    #[test]
-    fn a_hook_snapshot_shares_the_patch_and_a_write_copies_it_once() {
-        let mut argument = ItemStack::of(ItemKey(0));
-        argument.set(&Number, 7).unwrap();
-        // The stack crossing snapshots a mutable argument before the listener runs.
-        let snapshot = argument.clone();
-        assert!(Arc::ptr_eq(patch(&argument), patch(&snapshot)));
-        assert_eq!(Arc::strong_count(patch(&snapshot)), 2);
-        assert_eq!(
-            argument, snapshot,
-            "an untouched argument compares unchanged"
-        );
-
-        argument.set(&Number, 8).unwrap();
-        assert!(!Arc::ptr_eq(patch(&argument), patch(&snapshot)));
-        assert_eq!(Arc::strong_count(patch(&snapshot)), 1);
-        let copied = Arc::as_ptr(patch(&argument));
-        argument.set(&Number, 9).unwrap();
-        assert_eq!(
-            Arc::as_ptr(patch(&argument)),
-            copied,
-            "the copy is made once"
-        );
-        assert_eq!(snapshot.get(&Number), Some(7));
-        assert_ne!(argument, snapshot);
-    }
-
-    #[test]
-    fn removing_absent_entries_keeps_the_patch_shared() {
-        let mut stack = ItemStack::of(ItemKey(0));
-        stack.set(&Number, 7).unwrap();
-        let snapshot = stack.clone();
-        stack.set_damage(3);
-        stack.remove(&Other);
-        assert!(Arc::ptr_eq(patch(&stack), patch(&snapshot)));
-
-        stack.remove(&Number);
-        assert!(
-            stack.components().is_none(),
-            "the last removal releases the patch"
-        );
-        assert_eq!(snapshot.get(&Number), Some(7));
     }
 }

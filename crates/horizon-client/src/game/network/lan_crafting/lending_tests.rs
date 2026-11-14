@@ -1,6 +1,8 @@
 use super::*;
 use horizon_client::{
-    containers::{ModBlockEntity, ModBlockEntityFields, ModCrafting, ModLinks},
+    containers::{
+        Furnace, FurnaceKind, ModBlockEntity, ModBlockEntityFields, ModCrafting, ModLinks,
+    },
     lan::{Joined, NetConfig, PlayerSender, guest::Guest, hub::HubConfig, menu::Menu as HubMenu},
 };
 use horizon_protocol::packets::configuration::ClientInformation;
@@ -317,5 +319,45 @@ fn menu_links_expose_chest_contents_in_the_answering_tick() {
             .unwrap();
         assert_eq!(menu.links.as_ptr(), before);
         assert_eq!(menu.links, vec![CHEST]);
+    });
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn menu_links_skip_a_furnace_the_mod_names() {
+    crate::game::native_entity_refs::tests::with_game(|game| {
+        setup(game);
+        // A furnace is a block entity, but not one a menu can lend slots from:
+        // `linkable_container` answers None for it, not only for a mod block
+        // entity with an empty id.
+        let furnace = (33, 200, 4);
+        game.world.block_entities.insert(
+            furnace,
+            BlockEntity::Furnace(Furnace {
+                kind: FurnaceKind::Furnace,
+                items: [
+                    Some(ItemStack::new("minecraft:iron_ore", 1)),
+                    Some(ItemStack::new("minecraft:coal", 1)),
+                    None,
+                ],
+                lit_remaining: 0,
+                lit_total: 0,
+                cooking_timer: 0,
+                cooking_total: 200,
+                speed: 1.0,
+                recipes_used: Default::default(),
+            }),
+        );
+        // The mod names the furnace first, then the chest: only the chest links.
+        lending(
+            vec![[furnace.0, furnace.1, furnace.2], [32, 200, 4]],
+            Arc::default(),
+            || {
+                game.tick_lan(false);
+                let guest = &game.lan.as_ref().unwrap().hub.guests[0];
+                let menu = guest.menu.as_ref().unwrap();
+                assert_eq!(menu.links, vec![CHEST]);
+            },
+        );
     });
 }

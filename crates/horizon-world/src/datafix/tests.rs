@@ -225,7 +225,7 @@ fn unknown_and_unreadable_data_comes_back_unchanged() {
 }
 
 #[test]
-fn too_deep_or_too_large_data_is_refused_before_any_fix() {
+fn too_deep_data_is_refused_before_any_fix() {
     // Passengers 512 levels deep: the innermost compound sits at depth 1024, past the cap.
     let mut deep = compound(snbt("{id: \"minecraft:pig\"}"));
     for _ in 0..MAX_DEPTH {
@@ -242,15 +242,103 @@ fn too_deep_or_too_large_data_is_refused_before_any_fix() {
         within = outer;
     }
     assert!(upgrade_entity(CURRENT, within).is_ok());
-    // A byte array past the chunk loader's 1 GiB.
-    let mut large = Compound::new();
-    large.insert(
-        "data".into(),
-        // Zeroed and never read: the pages are not touched.
-        Tag::ByteArray(vec![0; MAX_BYTES as usize + 1]),
-    );
+}
+
+/// A pre-1.9 entity riding a chain of `riders` mounts, each mount nested in its rider's `Riding`.
+fn riding_chain(riders: usize) -> Compound {
+    let mut chain = compound(snbt("{id: \"Pig\"}"));
+    for _ in 0..riders {
+        let mut rider = compound(snbt("{id: \"Pig\"}"));
+        rider.insert("Riding".into(), Tag::Compound(chain));
+        chain = rider;
+    }
+    chain
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_riding_chain_the_fix_makes_too_deep_is_refused_after_it() {
+    // Data from before 1.13 is upgraded with the data fixers' tables of the prepared resources.
+    set_resources(std::path::Path::new(
+        &std::env::var_os("HORIZON_TEST_RESOURCES").expect("resources"),
+    ));
+    // DataVersion 100, before `EntityRidingToPassengersFix` (135): each mount is one level below its rider, and
+    // after the fix each rider is two below its mount (a `Passengers` list, then the compound).
+    let old = 100;
+    // A small positive control verifies that the Riding fix actually runs.
+    let upgraded = Tag::Compound(upgrade_entity(old, riding_chain(2)).unwrap());
+    assert!(upgraded.get("Riding").is_none());
+    assert_eq!(dynamic::stream(upgraded.get("Passengers")).len(), 1);
+    // One rider with a deep opaque payload is enough: the input's deepest
+    // compound is at 510, and moving the rider below Passengers adds two levels.
+    // Avoid hundreds of riders: legacy fixes preserve additional nested data,
+    // and repeatedly walking and cloning that chain is needlessly expensive.
+    let mut rider = riding_chain(1);
+    let mut payload = Tag::Compound(Compound::new());
+    for _ in 0..509 {
+        payload = Tag::compound([("x", payload)]);
+    }
+    rider.insert("payload".into(), payload);
+    assert!(upgrade_entity(CURRENT, rider.clone()).is_ok());
     assert_eq!(
-        upgrade_block_entity(3400, large),
-        Err(UpgradeError::TooLarge)
+        upgrade_entity(old, rider),
+        Err(UpgradeError::UpgradedTooDeep)
     );
+}
+
+/// A tree whose deepest list or compound, as encoded, is at depth `levels - 1` (`levels` levels counting the root),
+/// reached through mixed lists: `x` holds one compound or none, then lists of a byte and the next list, each
+/// next list two levels down (its wrapper compound, then itself), the last one a byte and an int, wrapped too.
+fn mixed_lists(levels: usize) -> Compound {
+    let (lists, compounds) = ((levels - 3) / 2, (levels - 3) % 2);
+    let mut value = Tag::List(vec![Tag::Byte(1), Tag::Int(2)]);
+    for _ in 0..lists {
+        value = Tag::List(vec![Tag::Byte(0), value]);
+    }
+    for _ in 0..compounds {
+        value = Tag::compound([("x", value)]);
+    }
+    let mut root = Compound::new();
+    root.insert("x".into(), value);
+    root
+}
+
+#[test]
+fn mixed_list_wrappers_count_as_levels_as_the_writer_encodes_them() {
+    use horizon_core::nbt::{JavaString, Limits, NamedTag, write_named};
+    let written = |root: &Compound| {
+        let named = NamedTag {
+            name: JavaString::default(),
+            tag: Tag::Compound(root.clone()),
+        };
+        write_named(&named, Limits::saved()).is_ok()
+    };
+    // 512 levels: the deepest wrapper at 511, which the writer takes and so does the upgrade.
+    let at_cap = mixed_lists(MAX_DEPTH);
+    assert!(written(&at_cap));
+    assert_eq!(upgrade_entity(CURRENT, at_cap.clone()), Ok(at_cap));
+    // 513 levels: the deepest wrapper at 512, which the writer refuses, and the upgrade refuses by name.
+    let past = mixed_lists(MAX_DEPTH + 1);
+    assert!(!written(&past));
+    assert_eq!(upgrade_entity(CURRENT, past), Err(UpgradeError::TooDeep));
+    // Counted without wrappers, a root with `x: [1b, 2]` is 2 levels deep; encoded, it is 3.
+    assert_eq!(mixed_lists(3).get(&"x".into()), Some(&snbt("[1b, 2]")));
+}
+
+#[test]
+fn large_data_is_not_refused() {
+    // Past the 1 GiB this upgrade used to refuse, at the game's own version: zeroed and never read, so the pages
+    // are not touched.
+    let mut large = Compound::new();
+    large.insert("data".into(), Tag::ByteArray(vec![0; (1 << 30) + 1]));
+    let upgraded = upgrade_entity(CURRENT, large).unwrap();
+    assert!(
+        matches!(upgraded.get(&"data".into()), Some(Tag::ByteArray(v)) if v.len() == (1 << 30) + 1)
+    );
+    // An upgrade that runs: a villager with a wide, shallow list of 200,000 entries comes back fixed, its list kept.
+    let mut villager = compound(snbt(VILLAGER));
+    villager.insert("Tags".into(), Tag::List(vec![Tag::Int(7); 200_000]));
+    let upgraded = Tag::Compound(upgrade_entity(1900, villager).unwrap());
+    assert!(upgraded.get("VillagerData").is_some());
+    assert_eq!(dynamic::stream(upgraded.get("Tags")).len(), 200_000);
 }

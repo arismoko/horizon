@@ -535,7 +535,7 @@ mod tests {
     fn missing_malformed_and_bad_checksum_locks_refuse_before_fetch() {
         let dir = tempfile::tempdir().unwrap();
         super::super::tests::write_bundle(dir.path(), "example", "");
-        std::fs::write(dir.path().join("Cargo.toml"), "[package]\nname='example'\nversion='1.0.0'\n[dependencies]\nhorizon-mod-api='0.1'\nitoa='1'\n").unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "[package]\nname='example'\nversion='1.0.0'\n[dependencies]\nhorizon-mod-api={path='.horizon/sdk/api/crates/horizon-mod-api'}\nitoa='1'\n").unwrap();
         let bundle = super::super::bundle_in(dir.path()).unwrap().unwrap();
         let projects = [Project::read(&bundle).unwrap()];
         let wanted = [Wanted {

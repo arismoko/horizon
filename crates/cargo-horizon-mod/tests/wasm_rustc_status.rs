@@ -3,6 +3,7 @@
 use std::{fs, os::unix::fs::symlink, process::Command};
 
 #[test]
+#[ignore = "daily"]
 fn compiler_wrapper_preserves_diagnostics_exit_code_and_signal() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
         "../../target/wasm-rustc-status-{}",

@@ -265,6 +265,7 @@ fn unreachable_endpoints_fall_back_to_the_relay_in_the_code() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn wrong_secrets_fail() {
     let (_relay, address) = relay(generous());
     let host = start(Some(&address), PathMode::Auto);
@@ -475,6 +476,7 @@ fn a_host_that_never_attaches_is_unreachable() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn relayed_bandwidth_is_capped() {
     let rate = 200_000.0;
     let (_relay, address) = relay(Config {

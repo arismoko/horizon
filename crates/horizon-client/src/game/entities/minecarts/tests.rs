@@ -598,3 +598,22 @@ fn a_furnace_saves_its_push_without_y() {
     let loaded = Minecart::from_nbt(&saved, 1, CartKind::Furnace).unwrap();
     assert_eq!(loaded.push, Vec3::new(0.5, 0.0, 0.25));
 }
+
+/// A shulker beside the rail is picked up although `Mob::pushable` leaves it out.
+#[test]
+fn a_cart_picks_up_a_shulker_but_not_a_dead_one() {
+    assert!(offered_pickup(false, Species::Shulker, true));
+    assert!(!offered_pickup(false, Species::Shulker, false));
+    assert!(!offered_pickup(false, Species::Bat, true));
+    assert!(offered_pickup(true, Species::Cow, true));
+    assert!(pickup_instead_of_push(Species::Shulker, false, false));
+    assert!(can_ride_cart(Species::Shulker, 0));
+}
+
+/// A shulker already riding a boat is no pickup candidate and `Shulker.push` is a no-op.
+#[test]
+fn a_mounted_shulker_does_not_push_a_cart() {
+    assert!(!pickup_instead_of_push(Species::Shulker, true, false));
+    assert!(!takes_push_from_cart(Species::Shulker));
+    assert!(takes_push_from_cart(Species::Cow));
+}

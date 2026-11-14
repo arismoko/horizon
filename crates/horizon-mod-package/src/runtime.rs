@@ -1,20 +1,12 @@
 //! The native mods compiled into a game, and their executable-adjacent packages.
 use crate::{
-    Manifest, Side,
+    Manifest,
     mod_list::NATIVE_DIR,
     packages::{self, AdjacentManifest, ReadError},
 };
 use std::path::{Path, PathBuf};
 
-/// Launcher-to-game build contract, not a mod-facing API. Generated from the selected
-/// manifests independently of the mods' hook factories.
-#[doc(hidden)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BuiltMod {
-    pub id: &'static str,
-    pub version: &'static str,
-    pub side: Side,
-}
+use mod_vocab::__private::native::BuiltMod;
 
 /// Validated once before installing hooks. Vanilla explicitly supplies an empty inventory.
 #[derive(Debug, Default)]
@@ -125,6 +117,7 @@ impl std::error::Error for RuntimeError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mod_vocab::Side;
 
     const BUILT: &[BuiltMod] = &[
         BuiltMod {
@@ -156,9 +149,10 @@ mod tests {
                 "id = '{}'\nname = 'A mod'\nversion = '{}'\napi = '0.2'\nside = '{}'\ncapabilities = ['registries']\n",
                 expected.id,
                 expected.version,
-                match expected.side {
-                    Side::Both => "both",
-                    Side::Client => "client",
+                if expected.side == Side::Both {
+                    "both"
+                } else {
+                    "client"
                 }
             );
             if native {

@@ -46,6 +46,10 @@ struct Globals {
     hdr_gains: vec4<f32>,
     // The eye fog is measured from, camera-relative: zero but in a mod's world view.
     view_origin: vec4<f32>,
+    // A mod's world view's own, zero outside one (gfx/world_views.rs's `ViewCamera`): x -1 when
+    // mirrored (its screen runs right to left), else 1; y the clip-space depth its clip plane's
+    // entities come forward (`fs_entity_clipped`), 0 without one; z 1 with a clip plane.
+    world_view: vec4<f32>,
 }
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(0) @binding(1) var sprites: texture_2d_array<f32>;
@@ -322,6 +326,12 @@ fn fade_depth(clip: vec4<f32>, w: f32) -> vec4<f32> {
         // little out of the real ones, and the tile coming in under it hid it
         // at once, before its fade.
         scale *= 1.02;
+    }
+    // A world view's clip plane is its near plane, `z = w` (gfx/world_views.rs's `near_plane_on`):
+    // there the offset scales the depth in front of the plane, `w - z`, which keeps the plane
+    // where it is.
+    if globals.world_view.z != 0.0 {
+        return vec4(clip.xy, clip.w - (clip.w - clip.z) / scale, clip.w);
     }
     return vec4(clip.xy, clip.z * scale, clip.w);
 }
@@ -665,6 +675,11 @@ fn hdr_scene_alpha(scene: f32) -> f32 {
 }
 // The face's normal, from the fragment's derivatives, for how it faces the sun.
 var<private> hdr_normal: vec3<f32>;
+// The normal of the face through `dx` and `dy` (the position's screen derivatives): a mirrored
+// world view's x runs the other way, which would turn it round.
+fn screen_normal(dx: vec3<f32>, dy: vec3<f32>) -> vec3<f32> {
+    return normalize(cross(dy, dx)) * select(1.0, -1.0, globals.world_view.x < 0.0);
+}
 fn hdr_facing() -> f32 {
     return mix(0.45, 1.0, max(dot(hdr_normal, globals.sun.xyz), 0.0));
 }
@@ -738,7 +753,7 @@ fn hdr_mark(tier: u32, y: f32) -> f32 {
 @fragment fn fs_opaque(wire: TerrainWire) -> @location(0) vec4<f32> {
     let in = from_wire(wire);
     if HDR_LIGHTING && globals.hdr_light.z != 0.0 {
-        hdr_normal = normalize(cross(dpdy(in.local), dpdx(in.local)));
+        hdr_normal = screen_normal(dpdx(in.local), dpdy(in.local));
     }
     let texel = sprite(in.uv, in.layer & 0x7fffu);
     var color = texel * in.color;
@@ -756,7 +771,7 @@ fn solid_color(in: TerrainOut) -> vec4<f32> {
     let dx = dpdx(in.local);
     let dy = dpdy(in.local);
     if HDR_LIGHTING && globals.hdr_light.z != 0.0 {
-        hdr_normal = normalize(cross(dy, dx));
+        hdr_normal = screen_normal(dx, dy);
     }
     if faded(in.fade, in.local, dx, dy) { discard; }
     // Bit 15 of the layer marks opaque leaves (forceOpaque): no alpha cutout.
@@ -831,7 +846,7 @@ fn solid_finish_at(in: TerrainOut, texel: vec4<f32>, color: vec4<f32>, du: vec2<
     let in = from_wire(wire);
     let dx = dpdx(in.local);
     let dy = dpdy(in.local);
-    hdr_normal = normalize(cross(dy, dx));
+    hdr_normal = screen_normal(dx, dy);
     if sprite(in.uv, in.layer & 0x7fffu).a < 0.6 { discard; }
     let fogged = max(linear_fog(in.spherical, globals.fog.x, globals.fog.y),
         linear_fog(in.cylindrical, globals.fog.z, globals.fog.w)) * globals.fog_color.a;
@@ -844,7 +859,7 @@ fn solid_finish_at(in: TerrainOut, texel: vec4<f32>, color: vec4<f32>, du: vec2<
 @fragment fn fs_translucent(wire: TerrainWire) -> @location(0) vec4<f32> {
     let in = from_wire(wire);
     if HDR_WRITE_LIGHT && globals.hdr_light.w != 0.0 {
-        hdr_normal = normalize(cross(dpdy(in.local), dpdx(in.local)));
+        hdr_normal = screen_normal(dpdx(in.local), dpdy(in.local));
     }
     let texel = sprite(in.uv, in.layer & 0x7fffu);
     var color = texel * in.color;

@@ -426,6 +426,18 @@ impl AttrBounds {
     pub fn sanitize(&self, a: Attr, value: f64) -> f64 {
         sanitize(self.attrs[a as usize], value)
     }
+    /// The saved base `base` of the attribute `id` as a load takes it
+    /// ([`crate::living_attributes::loaded_base`]): clamped into an [`Attr`]'s
+    /// bounds when a mod that widened them is gone.
+    pub fn loaded_base(&self, id: &str, base: f64) -> f64 {
+        Attr::ALL
+            .into_iter()
+            .find(|a| a.id() == id)
+            .and_then(|a| self.attrs[a as usize])
+            .map_or(base, |definition| {
+                crate::living_attributes::loaded_base(id, definition, base)
+            })
+    }
     /// `RangedAttribute.sanitizeValue` of `max_absorption`.
     pub fn sanitize_max_absorption(&self, value: f64) -> f64 {
         sanitize(self.max_absorption, value)

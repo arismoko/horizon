@@ -21,6 +21,20 @@ pub trait ClientInputClientHost {
     #[access(ClientSetup)]
     fn mod_key(&self, mod_id: &str, name: &str) -> Option<(String, ClientModifiers)>;
     /// Side: client.
+    /// Whether mod `mod_id`'s registered mapping `id` is held (`KeyMapping.isDown`): its key or
+    /// mouse button is down and its conflict context and modifiers are active. False for an
+    /// unregistered id.
+    #[access(ClientSetup)]
+    fn is_down(&self, mod_id: &str, id: &str) -> bool;
+    /// Side: client.
+    /// Takes one click off mod `mod_id`'s registered mapping `id` (`KeyMapping.consumeClick`):
+    /// true when it had one. A press, each auto-repeat while its key is held, and a mouse press
+    /// add one, with no screen open and its conflict context and modifiers active, from the
+    /// window or the control socket alike; a screen opening drops them all. False for an
+    /// unregistered id.
+    #[access(ClientSetup)]
+    fn consume_click(&mut self, mod_id: &str, id: &str) -> bool;
+    /// Side: client.
     /// Playing, with nothing over the world: keys and zoom apply.
     #[access(ClientSetup)]
     fn playing(&self) -> bool;

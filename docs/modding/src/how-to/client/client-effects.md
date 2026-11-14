@@ -25,9 +25,28 @@ request's `advanced` and `creative` flags on native and wasm alike.
 Native internals mods can request extra world cameras through `world_views` and
 consume their textures in `world_view_drawn`. These are raw renderer callbacks, not
 portable API callbacks: wasm mods cannot use them. Construct a `WorldView` with a
-stable ID, camera, yaw, pitch, field of view and pixel size. Return the same
-requests whenever the frame asks; at most four valid, distinct IDs draw, with
-sides limited to 4096 pixels and the device limit.
+stable ID, camera, yaw, pitch, field of view and pixel size, and push it to the
+`WorldViews` the hook hands you. The hook is asked once a frame. Up to eight
+views with distinct IDs are taken, with sides limited to 4096 pixels and the
+device limit, and 4 x 4096 x 4096 pixels in all. `push` refuses any other view
+with a `WorldViewRefusal` naming it and the reason, and logs each refusal once.
+Each view culls the world with its own frustum, and the player's view keeps its
+own culling. These callbacks have no Wire form.
+
+For a view seen in another view, such as a portal seen through a portal, push the
+outer view first and add `with_parent(outer_id)` to the inner one. Views nest up to
+depth 5; depth 6 is refused. The inner view is drawn first, so in the outer view's
+`world_view_drawn` its picture is this frame's: draw it into the outer view's
+target there. `WorldViewDrawn` carries each view's `parent` and `nesting_depth`.
+
+For a view through a portal, add `with_clip_plane([x, y, z, d])`: nothing behind
+that world-space plane is drawn, and the camera must be behind it. In such a view
+an entity wins the depth test against terrain up to 1/1024 of its distance in
+front of it (about 1 block at 1024 blocks). For a mirror,
+give the camera reflected through it and add `with_mirror()`: the picture is
+flipped left to right, with face culling flipped to match, so the same faces are
+culled as in an unmirrored view. A clip plane with a zero normal, a value that is
+not finite, or the camera in front of it refuses the view.
 
 Use `world_view_drawn` to copy a still to your own buffer or draw into the supplied
 target with its encoder. Copy a picture you need to preserve: targets are reused

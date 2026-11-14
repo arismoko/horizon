@@ -61,6 +61,9 @@ fn game<'a>(resources: &'a mut Option<std::sync::Arc<crate::game::Resources>>) -
             .add_empty_chunk(ChunkPos::new(cx, 0))
             .unwrap();
     }
+    for cx in 0..2 {
+        game.load_ticking_neighbourhood(cx, 0);
+    }
     for command in [
         "difficulty normal",
         "forceload add 0 0 31 15",

@@ -464,6 +464,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn original_resolution_texels_and_vanilla_cube_orientation_are_preserved() {
         let f = Fixture::new(1024);
         let faces = Faces::try_load(

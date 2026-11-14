@@ -2477,6 +2477,7 @@ mod tests {
     /// `ServerData.validateIcon`: a PNG up to 1024x1024 is kept for
     /// servers.dat, though only a 64x64 one is drawn.
     #[test]
+    #[ignore = "daily"]
     fn an_icon_up_to_1024_square_is_kept() {
         assert!(valid_icon(&png(64)));
         assert!(valid_icon(&png(128)));

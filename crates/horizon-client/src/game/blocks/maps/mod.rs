@@ -1365,6 +1365,43 @@ impl Game<'_> {
             }
         }
     }
+    /// `LivingEntity.aiStep` -> `EntityEquipment.tick` for the host's player
+    /// and every mob: [`Self::tick_lodestone_compasses`] and
+    /// [`Self::tick_mob_compasses`].
+    pub(super) fn tick_equipment_compasses(&mut self) {
+        self.tick_lodestone_compasses();
+        self.tick_mob_compasses();
+    }
+    /// `EntityEquipment.tick` -> `CompassItem.inventoryTick` for mobs: a
+    /// compass in any of a mob's equipment slots loses its target when
+    /// the lodestone is gone.
+    fn tick_mob_compasses(&mut self) {
+        use horizon_items::equipment;
+        const TRACKER: &str = "minecraft:lodestone_tracker";
+        let dim = self.dimension_id();
+        let gone_in = |stack: Option<&ItemStack>| {
+            stack.is_some_and(|s| {
+                s.item.as_ref() == "minecraft:compass" && lodestone_target_gone(self, s, dim)
+            })
+        };
+        let mut gone: Vec<(usize, usize)> = Vec::new();
+        for (i, m) in self.mobs.iter().enumerate() {
+            for slot in 0..equipment::SLOT_NAMES.len() {
+                if gone_in(m.extra.slot_stack(slot)) {
+                    gone.push((i, slot));
+                }
+            }
+        }
+        for (i, slot) in gone {
+            let m = &mut self.mobs[i];
+            if let Some(mut stack) = m.extra.slot_stack(slot).cloned() {
+                stack
+                    .data_mut()
+                    .set_other(TRACKER, Some(Tag::Compound(Default::default())));
+                m.extra.set_slot_stack(slot, Some(stack));
+            }
+        }
+    }
     fn give_or_drop_stack(&mut self, stack: ItemStack) {
         if let Some(rest) = self.add_stack_to_inventory(stack)
             && let Some(eye) = self.eye_position()
@@ -2133,6 +2170,7 @@ mod tests {
     /// `can_place_on` component includes the banner block toggles that banner's
     /// marker, while one without does not.
     #[test]
+    #[ignore = "daily"]
     fn map_on_banner_in_adventure_mode_honours_can_place_on() {
         use crate::game::{Audio, Game, Options, Progress, Settings, load_resources};
         use horizon_client::{chunk::Chunk, command::args::GameMode};

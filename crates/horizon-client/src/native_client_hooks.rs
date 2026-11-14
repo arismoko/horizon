@@ -15,7 +15,7 @@ pub struct NativeClientHooks {
     pub has_mods: fn() -> bool,
     pub player_name_format: fn(&LoopContext, &crate::text::Text, &mut crate::text::Text),
     pub player_tab_list_name_format: fn(&LoopContext, u128, &str, &mut Option<crate::text::Text>),
-    pub living_drown: fn(&LoopContext, u32, &str, &mut bool, &mut f32, i32, &mut bool),
+    pub living_drown: fn(&LoopContext, u32, &str, &mut bool, &mut f32, &mut i32, &mut bool),
     pub living_fall: fn(&LoopContext, u32, &str, &mut f64, &mut f32, &mut bool),
     pub living_jump: fn(&LoopContext, u32, &str),
     pub living_jump_power: fn(&LoopContext, u32, &str, &mut f32),
@@ -130,7 +130,7 @@ pub(crate) fn living_drown(
     kind: &str,
     is_drowning: &mut bool,
     damage_amount: &mut f32,
-    bubble_count: i32,
+    bubble_count: &mut i32,
     cancel: &mut bool,
 ) {
     if let Some(hooks) = HOOKS.get() {

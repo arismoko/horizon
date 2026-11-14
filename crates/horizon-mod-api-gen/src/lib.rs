@@ -10,7 +10,6 @@ mod interface_cache_tests;
 mod listener_output_fixture;
 #[cfg(feature = "mixed-output-fixture")]
 mod mixed_output_fixture;
-pub mod sdk_catalog;
 #[doc(hidden)]
 pub use dispatch_fixtures::layout as dispatch_fixture_layout;
 pub use game_modules::materialize_game_modules;
@@ -72,7 +71,7 @@ fn doc_comments(
     Ok(docs)
 }
 
-/// The handles of the mod API: its public `*Ref` and `*Key` structs, by their receiver name.
+/// The mod API's public `*Ref`, `*Key` and `*Ticket` handles, by their receiver name.
 struct ApiTypes {
     handles: BTreeMap<String, String>,
 }
@@ -91,7 +90,7 @@ fn api_types(source: &str) -> Result<ApiTypes, String> {
         let base = name
             .strip_suffix("Ref")
             .map(str::to_owned)
-            .or_else(|| name.ends_with("Key").then(|| name.clone()));
+            .or_else(|| (name.ends_with("Key") || name.ends_with("Ticket")).then(|| name.clone()));
         if let Some(base) = base.filter(|base| !base.is_empty()) {
             let receiver = base.to_snake_case();
             if handles.insert(receiver.clone(), name).is_some() {
@@ -671,15 +670,18 @@ pub(crate) fn rerun_if_changed(path: &impl std::fmt::Display) {
     }
 }
 pub use wire::generate_host as generate_wire_host;
+pub mod functions;
 pub mod internals;
 pub mod internals_view;
 pub mod loops;
+pub mod mod_uses;
 pub mod notes;
 pub mod patch;
 pub mod points;
 pub mod replace;
 pub(crate) mod source;
 pub mod staging;
+pub mod surface;
 pub use build::{generate, generate_points, generate_render, write_if_changed};
 pub use notes::generate as generate_hook_notes;
 mod staged;
@@ -730,6 +732,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn fragment_hooks_generate() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let catalog = super::Catalog::load(&root).unwrap();
@@ -899,6 +902,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn only_a_game_hooks_placeholder_body_is_filled() {
         let fill = |body: &str, in_game: bool| {
             let method: syn::ItemFn = syn::parse_str(&format!(
@@ -952,6 +956,7 @@ mod tests {
     /// generator brings back the shipped file byte for byte with the generated
     /// code unchanged.
     #[test]
+    #[ignore = "daily"]
     fn new_hook_placeholder_is_reported_then_filled() {
         fn copy(from: &std::path::Path, to: &std::path::Path) {
             if from.is_dir() {
@@ -1027,9 +1032,9 @@ mod tests {
         std::fs::write(&first, original).unwrap();
         let hooks = root.join("crates/horizon-client/src/game/native_hooks/item_picked_up.rs");
         let shipped = std::fs::read_to_string(&hooks).unwrap();
-        let call = "self.fire_item_picked_up(player, item, count, can_pickup);";
+        let call = "self.fire_item_picked_up(player, item, can_pickup);";
         assert_eq!(shipped.matches(call).count(), 1);
-        let unfinished = shipped.replace(call, "let _ = (player, item, count);");
+        let unfinished = shipped.replace(call, "let _ = (player, item);");
         std::fs::write(&hooks, &unfinished).unwrap();
         assert!(
             super::fill_hooks(&root)
@@ -1037,7 +1042,7 @@ mod tests {
                 .starts_with("missing dispatch_item_picked_up call in native_item_picked_up: ")
         );
         assert_eq!(std::fs::read_to_string(&hooks).unwrap(), unfinished);
-        let placeholder = shipped.replace(call, "let _ = (player, item, count, can_pickup);");
+        let placeholder = shipped.replace(call, "let _ = (player, item, can_pickup);");
         std::fs::write(&hooks, &placeholder).unwrap();
         assert_eq!(
             super::sources(&root, super::FillMode::Require).unwrap_err(),

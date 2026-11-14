@@ -2,10 +2,24 @@
 
 ## Portable maths
 
-`mod_api::strict_math` provides the established platform-independent StrictMath
-operations: `log`, `log10`, `cbrt`, `hypot`, `atan`, `asin`, `acos` and `atan2`.
-They are pure functions with identical bits on native and wasm. It does not expose
-`sin`, `cos`, `tan`, `exp`, `pow`, or the AArch64 FMA variants.
+`mod_api::strict_math` provides platform-independent StrictMath operations:
+`sin`, `cos`, `tan`, `exp`, `pow`, `log`, `log10`, `cbrt`, `hypot`, `atan`,
+`asin`, `acos` and `atan2`. These are pure functions with identical result bits
+on native and wasm (NaN payloads are unspecified). The five `sin`/`cos`/`tan`/
+`exp`/`pow` additions use fdlibm's ordered IEEE double algorithms, including
+full large-argument trigonometric reduction, signed zeros, subnormals and
+overflow/underflow. They use no FMA or platform/libm calls and allocate no heap
+memory. Guest code links them locally: there is no Host call per operation.
+The AArch64 FMA variants are deliberately not part of this StrictMath set.
+
+The committed literal reference table and deterministic seeded generator
+(`tools/generate_strict_math_vectors.py`) use only public JDK `StrictMath`
+calls, not engine outputs. Native tests and the real compiled-wasm fixture
+compare exact bits, except that NaNs are compared by classification. The table
+was generated with OpenJDK `27.0.1.0.3` and contains 768 rows for each unary
+function and 1,309 power rows. Local architecture evidence
+must be reported separately: cross-platform claims require running these
+same vectors on x86_64, AArch64 and wasm32, not just compiling the other target.
 
 `mod_api::java_math` exposes the engine’s vanilla maths functions for native mods,
 including `round` and `round_f32`. These are the paths used for vanilla `Math`

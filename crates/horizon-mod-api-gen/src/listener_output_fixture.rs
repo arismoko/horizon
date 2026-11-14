@@ -49,6 +49,7 @@ pub fn source(root: &Path) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     #[test]
+    #[ignore = "daily"]
     fn mixed_outputs_commit_per_listener_natively() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let directory = tempfile::tempdir().unwrap();

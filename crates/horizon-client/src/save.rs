@@ -15,7 +15,9 @@
 //! `level.dat`) are migrated on open.
 use crate::mod_chunk_tickets::{ModTicket, ModTickets, TicketOwner};
 mod backpressure;
+use backpressure::compress_records;
 pub mod biome_regions;
+mod block_entity_order;
 pub mod level_mods;
 mod respawn;
 
@@ -51,7 +53,7 @@ use {
     },
     horizon_world::{
         DATA_VERSION,
-        chunk::BlockState,
+        chunk::{BlockState, block_entity_pos},
         chunk_status::ChunkStatus,
         compression::Compression,
         heightmap::{Heightmap, HeightmapChunk, HeightmapState, HeightmapType},
@@ -765,7 +767,7 @@ pub fn encode_block_entity(
                         .collect(),
                 ),
             ));
-            entries.push(("triggered", Tag::Int(i32::from(c.triggered))));
+            entries.push(("triggered", Tag::Int(c.triggered)));
             entries.push(("crafting_ticks_remaining", Tag::Int(c.crafting_ticks)));
         }
         BlockEntity::Banner(b) => {
@@ -946,7 +948,7 @@ pub fn decode_block_entity_for_block(
 
 pub fn decode_block_entity(tag: &Tag) -> Option<((i32, i32, i32), crate::containers::BlockEntity)> {
     use crate::containers::BlockEntity;
-    let int = |k: &str| number(tag.get(k)).map(|v| v as i32);
+    let int = |k: &str| tag.get(k).and_then(crate::nbt_path::int_value); // getIntOr
     let id = text(tag.get("id"))?;
     let pos = (int("x")?, int("y")?, int("z")?);
     if id.contains(':') && !id.starts_with("minecraft:") {
@@ -961,18 +963,17 @@ pub fn decode_block_entity(tag: &Tag) -> Option<((i32, i32, i32), crate::contain
     if id == "minecraft:jukebox" {
         let record = tag.get("RecordItem").and_then(item_from_nbt);
         let clock = number(tag.get("ticks_since_song_started"));
-        let ticks = clock.unwrap_or(0);
-        // JukeboxBlockEntity.loadAdditional adopts a saved clock separately
-        // from a record-only load. Catalog-dependent load validation is separate.
-        let song_clock_present = record.is_some() && clock.is_some();
-        let playing = record.is_some();
+        // `JukeboxBlockEntity.loadAdditional` -> `setSongWithoutPlaying`: only a
+        // saved clock brings a song back, and it comes back without playing.
+        let clocked = record.is_some() && clock.is_some();
         return Some((
             pos,
             BlockEntity::Jukebox(crate::containers::Jukebox {
                 items: [record],
-                ticks,
-                song_clock_present,
-                playing,
+                ticks: clock.unwrap_or(0),
+                song_clock_present: clocked,
+                playing: clocked,
+                loaded_clock: clocked,
             }),
         ));
     }
@@ -1130,7 +1131,7 @@ pub fn decode_block_entity(tag: &Tag) -> Option<((i32, i32, i32), crate::contain
                     }
                 }
             }
-            c.triggered = int("triggered").unwrap_or(0) != 0;
+            c.triggered = int("triggered").unwrap_or(0);
             c.state_triggered = None;
             c.crafting_ticks = int("crafting_ticks_remaining").unwrap_or(0);
         }
@@ -1468,7 +1469,7 @@ pub fn encode_with(
                 biome_packed
                     .palette
                     .iter()
-                    .map(|&b| string(&biomes.get(b as u16).name))
+                    .map(|&b| string(&biomes.saved_name(b as u16)))
                     .collect(),
             ),
         )];
@@ -1799,7 +1800,7 @@ fn decode_column(
             let ids: Vec<u16> = palette
                 .iter()
                 .map(|p| match p {
-                    Tag::String(s) => biomes.id(&s.to_string_lossy()),
+                    Tag::String(s) => biomes.saved_id(&s.to_string_lossy()),
                     _ => 0,
                 })
                 .collect();
@@ -1826,13 +1827,16 @@ fn decode_column(
     };
     if let Some(Tag::List(entities)) = tag.get("block_entities") {
         for e in entities {
+            if let Some(at) = block_entity_order::saved_at(e, [*x, *z]) {
+                extras.block_entity_order.push(at);
+            }
             let int = |k: &str| number(e.get(k)).map(|v| v as i32);
             let decoded = if let (Some(x), Some(y), Some(z)) = (int("x"), int("y"), int("z")) {
-                extras.block_entity_order.push((x, y, z));
                 let state = chunk.block(x & 15, y, z & 15);
                 registry
                     .state(state)
                     .and_then(|block| decode_block_entity_for_block(e, &block.name))
+                    .map(|(_, be)| (block_entity_pos((x, y, z), [chunk.x, chunk.z]), be))
             } else {
                 None
             };
@@ -2231,29 +2235,6 @@ const CHUNKS_PER_HELPER: usize = 4;
 /// one. Each chunk's bytes depend only on the chunk, and the writes stay in
 /// order, so the files are the same as from one thread. At most half the
 /// hardware threads help, leaving the rest to the game and its workers.
-fn compress_records(
-    records: &[((i32, i32), &Record)],
-    timestamp: u32,
-) -> Vec<std::io::Result<Option<ChunkRecord>>> {
-    // `RegionFile.getVersion`: the version `region-file-compression` selected
-    // (`RegionFileVersion.getSelected`), zlib unless a dedicated server said
-    // otherwise.
-    let compression = Compression::selected();
-    let compress = |record: &Record| {
-        record
-            .tag()
-            .map(|tag| ChunkRecord::from_nbt(&tag, compression, timestamp, Limits::saved()))
-            .transpose()
-    };
-    let helpers = horizon_threads::worker_count()
-        .div_ceil(2)
-        .min(records.len() / CHUNKS_PER_HELPER);
-    if helpers <= 1 {
-        return records.iter().map(|(_, r)| compress(r)).collect();
-    }
-    share_out(records.len(), helpers, |i| compress(records[i].1), || true)
-}
-
 /// `job(i)` for every `i` below `count`, in order, shared between this thread
 /// and up to `helpers - 1` scoped threads, each taking the next index as it
 /// finishes one. A helper the system refuses to start (`start` false, or a
@@ -3091,6 +3072,7 @@ impl SaveDir {
         registry: &'static BlockRegistry,
         biomes: &Arc<Biomes>,
     ) -> Result<()> {
+        biomes.ensure_saveable()?;
         let encoding = Arc::new(Encoding {
             registry,
             biomes: biomes.clone(),
@@ -3291,6 +3273,7 @@ impl SaveDir {
         registry: &BlockRegistry,
         biomes: &Biomes,
     ) -> Result<usize> {
+        biomes.ensure_saveable()?;
         let tables = self.tables.get().map(|t| &**t);
         let records = chunks
             .iter()
@@ -3703,8 +3686,8 @@ pub enum WorldPreset {
     Amplified,
     SingleBiomeSurface,
     /// `minecraft:debug_all_block_states`: a grid of every block state
-    /// (`DebugLevelSource`). The create screen does not offer it; a data
-    /// pack, `level-type` or a saved world names it.
+    /// (`DebugLevelSource`). The create screen offers it only with Alt held;
+    /// a data pack, `level-type` or a saved world names it too.
     Debug,
 }
 impl WorldPreset {
@@ -3921,7 +3904,7 @@ pub struct Level {
     /// the world enables, `minecraft:vanilla` included. Empty is vanilla's
     /// default, which the level.dat omits.
     pub enabled_features: std::sync::Arc<[String]>,
-    /// `fml.LoadingModList` at the root beside `Data`, the code mods the world was saved with; `None` without one.
+    /// The code mods (`fml.LoadingModList` beside `Data`), then the content mods (`horizon.ContentModList`), the world was saved with; `None` without either list.
     pub saved_mods: Option<Vec<level_mods::ModRecord>>,
     /// Game rule values by name without namespace (`keep_inventory`, ...).
     pub game_rules: BTreeMap<String, i32>,
@@ -6240,6 +6223,55 @@ mod tests {
         assert_eq!(short.get(0, -64, 0), stone.0);
     }
 
+    /// `BlockEntity.getPosFromTag`: a block entity saved under another chunk's
+    /// coordinates is read into the chunk that saved it (vanilla warns and
+    /// keeps the low four bits), instead of landing where that chunk has no
+    /// block.
+    #[test]
+    fn a_block_entity_saved_under_another_chunks_coordinates_moves_here() {
+        let Some(root) = std::env::var_os("HORIZON_TEST_RESOURCES") else {
+            return;
+        };
+        let root = PathBuf::from(root);
+        let assets = crate::assets::Assets::load(&root).expect("assets");
+        let biomes = Biomes::load(&horizon_assets::resource_source::ResourceRoot::directory(
+            root.clone(),
+        ))
+        .expect("biomes");
+        // The destination must contain a chest: the fork validates saved block
+        // entity membership before loading, independently of position repair.
+        // The current saved block-state codec uses `id`, not the old `Name` key.
+        let tag = horizon_core::nbt::parse_snbt(
+            r#"{xPos:0,zPos:0,yPos:-4,Status:"minecraft:full",sections:[{Y:4b,block_states:{palette:[{id:"minecraft:chest"}]}}],block_entities:[{id:"minecraft:chest",x:37,y:70,z:-3,Items:[]}]}"#,
+        )
+        .unwrap()
+        .0;
+        let chunk = decode_with(
+            &NamedTag {
+                name: "".into(),
+                tag,
+            },
+            assets.registry,
+            &biomes,
+            None,
+            ColumnLayout::VANILLA,
+        )
+        .expect("chunk");
+        let positions: Vec<(i32, i32, i32)> =
+            chunk.block_entities.iter().map(|(p, _)| *p).collect();
+        assert_eq!(
+            positions,
+            [(5, 70, 13)],
+            "moved into the chunk that saved it"
+        );
+        let order = &chunk.saved.as_ref().expect("extras").block_entity_order;
+        assert_eq!(
+            order,
+            &[(5, 70, 13)],
+            "load order follows the moved position"
+        );
+    }
+
     #[test]
     fn nether_and_end_chunks_save_with_their_own_height() {
         let Some(root) = std::env::var_os("HORIZON_TEST_RESOURCES") else {
@@ -6927,7 +6959,7 @@ mod tests {
         let mut crafter = crate::containers::Crafter::default();
         crafter.items[2] = Some(crate::items::ItemStack::new("minecraft:stick", 5));
         crafter.disabled[4] = true;
-        crafter.triggered = true;
+        crafter.triggered = 1;
         crafter.crafting_ticks = 3;
         let tag = encode_block_entity(
             (7, 8, 9),
@@ -6941,9 +6973,49 @@ mod tests {
         };
         assert_eq!(back.items[2].as_ref().map(|s| s.count), Some(5));
         assert!(back.disabled[4] && !back.disabled[3]);
-        assert!(back.triggered);
+        assert!(back.is_triggered());
         assert_eq!(back.crafting_ticks, 3);
         assert_eq!(back.redstone_signal(), 2);
+    }
+    /// `triggered` is an int vanilla saves as it is and calls triggered only at 1, so other
+    /// values come back unchanged and untriggered.
+    #[test]
+    fn crafter_triggered_keeps_the_whole_int() {
+        for value in [0, 1, 5, -1, 65537] {
+            let crafter = crate::containers::Crafter {
+                triggered: value,
+                ..Default::default()
+            };
+            let tag = encode_block_entity(
+                (0, 0, 0),
+                &crate::containers::BlockEntity::Crafter(crafter),
+                "minecraft:crafter",
+            );
+            let (_, back) = decode_block_entity(&tag).expect("crafter");
+            let crate::containers::BlockEntity::Crafter(back) = back else {
+                panic!("not a crafter");
+            };
+            assert_eq!(back.triggered, value);
+            assert_eq!(back.is_triggered(), value == 1, "triggered {value}");
+        }
+    }
+    #[test]
+    fn crafter_triggered_double_load_floors_and_saturates() {
+        for (value, expected) in [(-0.5_f64, -1), (1.5, 1), (4294967297.0, i32::MAX)] {
+            let tag = Tag::compound([
+                ("id", string("minecraft:crafter")),
+                ("x", Tag::Int(0)),
+                ("y", Tag::Int(0)),
+                ("z", Tag::Int(0)),
+                ("triggered", Tag::Double(value.to_bits())),
+            ]);
+            let (_, back) = decode_block_entity(&tag).expect("crafter");
+            let crate::containers::BlockEntity::Crafter(back) = back else {
+                panic!("not a crafter");
+            };
+            assert_eq!(back.triggered, expected, "triggered {value}d");
+            assert_eq!(back.is_triggered(), expected == 1, "triggered {value}d");
+        }
     }
     #[test]
     fn campfire_block_entity_round_trips() {
@@ -7181,6 +7253,7 @@ mod tests {
         assert_eq!(again.update_tag(), spawner.update_tag());
     }
     #[test]
+    #[ignore = "daily"]
     fn native_saved_ids_must_match_the_declared_block_membership() {
         // The production registry is immutable. Exercise its real readers in a fresh process.
         const CHILD: &str = "HORIZON_TEST_NATIVE_SAVED_MEMBERSHIP";
@@ -7188,6 +7261,7 @@ mod tests {
             for mode in ["accepted", "revoked"] {
                 let output = std::process::Command::new(std::env::current_exe().unwrap())
                     .args([
+                        "--include-ignored",
                         "--exact",
                         "save::tests::native_saved_ids_must_match_the_declared_block_membership",
                         "--nocapture",
@@ -7872,6 +7946,7 @@ mod tests {
         assert!(!unlit.lit && !unlit.light_loaded);
     }
     #[test]
+    #[ignore = "daily"]
     fn saved_light_matches_reference_for_layers_and_metadata() {
         let section = |y: Tag, sky: Option<Tag>, block: Option<Tag>| {
             let mut entries = vec![("Y", y)];
@@ -9963,8 +10038,9 @@ mod jukebox_song_clock_tests {
             };
             assert_eq!(j.record().is_some(), with_record);
             assert_eq!(j.ticks, clock.unwrap_or(0));
-            // H032 must preserve the separate legacy record-only adoption policy.
-            assert_eq!(j.playing, with_record);
+            // `setSongWithoutPlaying`: a saved clock, unstarted; else no song.
+            assert_eq!(j.playing, clock.is_some());
+            assert_eq!(j.loaded_clock, clock.is_some());
             let saved = encode_block_entity(pos, &model, "minecraft:jukebox");
             let command = block_entity_data(pos, &model, "minecraft:jukebox", None);
             check(label, &saved, clock);
@@ -10199,3 +10275,6 @@ mod calculated_blending_save_tests {
         let _ = fs::remove_dir_all(&dir);
     }
 }
+
+#[cfg(test)]
+mod biome_tests;

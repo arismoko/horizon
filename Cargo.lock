@@ -508,18 +508,24 @@ dependencies = [
 name = "cargo-horizon-mod"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "cap-std",
  "dunce",
+ "horizon-addresses",
  "horizon-mod-api-gen",
  "horizon-mod-package",
  "horizon-mod-point-emit",
+ "horizon-mod-surface",
  "horizon-mod-wasm",
  "horizon-port-pack",
+ "horizon-release-sign",
  "libc",
+ "ring",
  "rustc-demangle",
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "toml",
  "toml_edit",
  "ureq",
@@ -1812,7 +1818,6 @@ dependencies = [
  "bytemuck",
  "chrono",
  "crc32fast",
- "dunce",
  "flate2",
  "fs4",
  "gilrs",
@@ -1836,6 +1841,7 @@ dependencies = [
  "horizon-hdr",
  "horizon-hooks",
  "horizon-items",
+ "horizon-java-properties",
  "horizon-mod-api",
  "horizon-mod-api-gen",
  "horizon-mod-api-macros",
@@ -1862,7 +1868,6 @@ dependencies = [
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
- "open",
  "png",
  "pollster",
  "rustix 1.1.5",
@@ -1911,6 +1916,7 @@ dependencies = [
  "bytemuck",
  "chrono",
  "crc32fast",
+ "dunce",
  "flate2",
  "fs4",
  "getrandom 0.3.4",
@@ -1929,6 +1935,7 @@ dependencies = [
  "horizon-hdr",
  "horizon-hooks",
  "horizon-items",
+ "horizon-java-properties",
  "horizon-mcp",
  "horizon-mod-api",
  "horizon-mod-api-macros",
@@ -2040,6 +2047,7 @@ version = "0.1.0"
 dependencies = [
  "horizon-client-core",
  "horizon-core",
+ "horizon-items",
  "horizon-protocol",
  "horizon-world",
 ]
@@ -2183,11 +2191,16 @@ dependencies = [
  "horizon-client-core",
  "horizon-core",
  "horizon-mod-package",
+ "horizon-mod-vocab",
  "horizon-world",
  "log",
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "horizon-java-properties"
+version = "0.1.0"
 
 [[package]]
 name = "horizon-mcp"
@@ -2219,6 +2232,7 @@ dependencies = [
  "heck",
  "horizon-game-discovery",
  "horizon-mod-point-shape",
+ "horizon-mod-surface",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -2311,6 +2325,7 @@ dependencies = [
  "horizon-mod-api",
  "horizon-mod-api-macros",
  "horizon-mod-point-shape",
+ "horizon-mod-surface",
  "horizon-mod-vocab",
  "horizon-shader-api",
  "libc",
@@ -2331,6 +2346,7 @@ dependencies = [
  "wasmparser 0.261.0",
  "wat",
  "windows-sys 0.61.2",
+ "xz4rust",
  "zip",
 ]
 
@@ -2388,6 +2404,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-mod-surface"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "proc-macro2",
+ "serde",
+ "serde_json",
+ "sha2",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "horizon-mod-vocab"
 version = "0.1.0"
 dependencies = [
@@ -2411,6 +2439,7 @@ dependencies = [
  "horizon-client-core",
  "horizon-core",
  "horizon-guest-stack",
+ "horizon-java-properties",
  "horizon-mod-api",
  "horizon-mod-api-gen",
  "horizon-mod-api-macros",
@@ -2429,6 +2458,20 @@ dependencies = [
  "wasmparser 0.261.0",
  "wasmtime",
  "wat",
+]
+
+[[package]]
+name = "horizon-mod-wasm-wire-loopback"
+version = "0.1.0"
+dependencies = [
+ "horizon-core",
+ "horizon-game-discovery",
+ "horizon-mod-api",
+ "horizon-mod-api-gen",
+ "horizon-mod-runtime",
+ "horizon-world",
+ "log",
+ "serde_json",
 ]
 
 [[package]]
@@ -2535,6 +2578,7 @@ dependencies = [
  "horizon-core",
  "horizon-guest-stack",
  "horizon-hooks",
+ "horizon-java-properties",
  "horizon-mod-api-gen",
  "horizon-mod-point-shape",
  "horizon-perf-format",
@@ -2655,6 +2699,7 @@ dependencies = [
  "base64 0.22.1",
  "getrandom 0.3.4",
  "horizon-core",
+ "horizon-java-properties",
  "horizon-protocol",
  "horizon-world",
  "log",
@@ -7083,6 +7128,12 @@ name = "xxhash-rust"
 version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "550a2b930b62486a393c52d5c3b84bff264b28aa437ed64694d31e93b1757af7"
+
+[[package]]
+name = "xz4rust"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "606930b71bad6379f366994e4e6252a3462fa28bfc3695c33b07bef8f967d6d6"
 
 [[package]]
 name = "yaml-rust2"

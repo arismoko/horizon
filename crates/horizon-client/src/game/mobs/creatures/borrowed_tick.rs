@@ -750,7 +750,7 @@ impl Game<'_> {
 impl Game<'_> {
     /// The killing blow of a mob as the death hooks name it: its damage
     /// type and the causing entity's id (0 for none).
-    pub(super) fn mob_damage_source(&self, m: &Mob) -> (&'static str, u32) {
+    pub(in crate::game) fn mob_damage_source(&self, m: &Mob) -> (&'static str, u32) {
         let (damage_type, attacker) = match m.last_damage {
             Some((d, _)) => (source_damage_type(d), d.attacker),
             None => ("minecraft:generic", None),

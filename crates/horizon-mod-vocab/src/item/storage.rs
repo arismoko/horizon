@@ -176,14 +176,22 @@ pub trait ItemStorage {
     ) -> Result<Option<u64>, StorageError>;
 }
 
-/// Items by kind: a block entity's [`ItemStorage`] as one side reaches it. The game answers it
-/// for every block entity [`ITEMS`] reaches, from those slots; a mod's bulk store answers it
-/// with a provider of its own (`block_entity_capability(&STORAGE, ..)`). A block with slots and
-/// a store of its own registers its provider `before_game`, or the slots answer first.
+const STORAGE_SOURCE: &CapabilityKey<dyn ResourceHandler<ItemResource>> = &ITEMS;
+
+/// The default storage handler adapts this capability, including its mod providers.
+pub(crate) fn default_source(name: &str) -> Option<&'static str> {
+    (name == STORAGE.name).then_some(STORAGE_SOURCE.name)
+}
+
+/// Items by kind: a container's or composter port's [`ItemStorage`] as one side reaches it.
+/// The game answers it for every container or port [`ITEMS`] reaches, from those slots; a mod's
+/// bulk store answers it with a provider of its own (`block_entity_capability(&STORAGE, ..)`).
+/// A block with slots and a store of its own registers its provider `before_game`, or the slots
+/// answer first.
 pub const STORAGE: CapabilityKey<dyn ItemStorage> = CapabilityKey {
     name: "horizon:storage",
     default: Some(|host, at| {
-        let slots = at.level.capability(host, &ITEMS, at.pos, at.side)?;
+        let slots = at.level.capability(host, STORAGE_SOURCE, at.pos, at.side)?;
         // The game's own slots are asked in one pass each; a mod's ITEMS, slot by slot.
         Some(match slots.owner {
             None => Box::new(GameStorage(at)) as Box<dyn ItemStorage>,
@@ -193,8 +201,8 @@ pub const STORAGE: CapabilityKey<dyn ItemStorage> = CapabilityKey {
     handler: PhantomData,
 };
 
-/// The game's own [`STORAGE`] for a block entity with slots: each question and write one pass
-/// over the slots `.side` reaches, in the game, by the rules hoppers follow.
+/// The game's own [`STORAGE`] for container or composter slots: each question and write one
+/// pass over the slots `.side` reaches, in the game, by the rules hoppers follow.
 struct GameStorage(BlockSide);
 
 impl ItemStorage for GameStorage {

@@ -20,6 +20,7 @@ use horizon_world::{
     block_landing::BlockLandingRegistry,
     climbing::{self, ClimbingRegistry, ClimbingWorld},
     collision_context::{CollisionContext, CollisionEntity, CollisionItem},
+    collision_exclusions,
     edge_backoff::{self, EdgeBackoffInput, EdgeBackoffWorld},
     entity_move::{self, CollisionFlags, EntityMoveWorld, MovementHistory, MoverType},
     entity_obstruction::EntityIdentity,
@@ -39,7 +40,7 @@ use horizon_world::{
     movement_statistics::{self, MovementStat, MovementStatisticsWorld},
     movement_support::{self, MovementLocation},
     registry::{BlockStateId, BlockTableFile},
-    world_movement::{self, MovementRequest},
+    world_movement::MovementRequest,
     worldgen::tags::TagDefinitions,
 };
 use std::{
@@ -48,6 +49,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
+mod exclusions;
 mod restitution;
 
 /// A living entity jumped (`LivingEvent.LivingJumpEvent`).
@@ -366,9 +368,9 @@ pub enum MotionEvent {
         sound: bool,
         particles: bool,
     },
-    /// Entity event 67 (`LivingEntity.makeDrownParticles`): eight bubbles
-    /// around a drowning player.
-    Drown,
+    /// Entity event 67 (`LivingEntity.makeDrownParticles`): the bubbles
+    /// around a drowning player (8, or the count a mod set).
+    Drown(i32),
 }
 #[derive(Clone)]
 pub struct PlayerMotion {
@@ -555,6 +557,8 @@ pub struct PlayerMotion {
     /// The level's world border, whose walls stop the player's movement
     /// from inside (the game keeps it current; None: no border).
     pub border: Option<horizon_core::geometry::border::BorderGeometry>,
+    /// A mod's boxes in which the level's blocks don't stop this player (#3717).
+    pub collision_exclusions: horizon_world::collision_exclusions::CollisionExclusions,
 }
 impl PlayerMotion {
     /// `ServerGamePacketListenerImpl.handleMovePlayer`: the movement the client
@@ -1008,19 +1012,6 @@ impl MotionWorld<'_, '_, '_> {
             entities: self.entities,
             border: self.player.border.as_ref().map(|b| (b, at)),
         }
-    }
-    /// `Level.noCollision(player, bounds)`: blocks and the host's entity boxes.
-    pub fn no_player_collision(&mut self, bounds: Aabb) -> Result<bool> {
-        let context = self.context();
-        Ok(world_movement::no_world_collision(
-            &mut self.movement_collisions(),
-            world_movement::CollisionCheckRequest {
-                entity: EntityIdentity(0),
-                context,
-                bounds,
-                candidate_budget: 1_000_000,
-            },
-        )?)
     }
     fn block(&self, p: BlockPos) -> BlockStateId {
         self.scene.block(p.x, p.y, p.z)
@@ -2230,8 +2221,9 @@ impl EntityMoveWorld for MotionWorld<'_, '_, '_> {
     }
     fn collide(&mut self, movement: Vec3) -> Result<Vec3> {
         let max_step = self.player.attribute("minecraft:step_height")? as f32;
-        Ok(world_movement::resolve_world_movement(
+        Ok(collision_exclusions::resolve_world_movement(
             &mut self.movement_collisions(),
+            &self.player.collision_exclusions,
             MovementRequest {
                 entity: EntityIdentity(0),
                 context: self.context(),
@@ -2939,13 +2931,18 @@ impl crate::block_contact::InsideWalk for PlayerInside<'_, '_, '_, '_> {
     }
     /// `getEntityInsideCollisionShape` for the player: the whole block but for
     /// powder snow (its own collision shape), the filled cauldrons (their content
-    /// column) and the end portals and tripwires Horizon doesn't follow it into.
+    /// column), the end portals and tripwires Horizon doesn't follow it into, and
+    /// blocks inside the player's collision exclusions.
     fn inside_shape(
         &mut self,
         state: BlockStateId,
         p: BlockPos,
     ) -> crate::block_contact::InsideShape {
         use crate::block_contact::InsideShape;
+        // A block a mod's collision exclusions reach is none to be inside (#3717).
+        if self.m.player.collision_exclusions.spares(p) {
+            return InsideShape::Empty;
+        }
         let Some(definition) = self.m.assets.registry.state(state) else {
             return InsideShape::Full;
         };
@@ -6101,6 +6098,66 @@ mod tests {
             })
             .unwrap();
             assert_eq!(w.player.no_jump_delay == 10, ground_jump);
+        }
+    }
+
+    /// The player's fluid heights, which `entity_fluid_heights` reads: lava sources at x 20 and
+    /// water sources at x 21, y 4..=5 (each surface at 5 + 8/9). Standing at y 4 the player is
+    /// that surface less 4 deep in each fluid it touches, from its own bottom, as a mob is
+    /// (`mobs::living::fluid_heights`): lava, water, both where they meet (a tie), or neither.
+    #[test]
+    fn resident_fluid_heights_are_measured_from_the_feet() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../.local/horizon-client")
+            .join(horizon_core::VANILLA_VERSION);
+        if !root.join("movement-properties.nbt").exists() {
+            eprintln!("Prepared resources unavailable; the player fluid heights did not run");
+            return;
+        }
+        let assets = Assets::load(&root).unwrap();
+        let render = assets
+            .reload(&horizon_assets::resource_source::ResourceRoot::directory(
+                root.to_path_buf(),
+            ))
+            .unwrap();
+        let binding = crate::collisions::load(&root, assets.registry).unwrap();
+        let resources = MotionResources::load(&root, &assets).unwrap();
+        let mut scene = World::test_scene(&assets, &render, 3).unwrap();
+        for (name, x) in [("minecraft:lava", 20), ("minecraft:water", 21)] {
+            let source = assets.registry.default_state(name).unwrap();
+            for y in 4..=5 {
+                scene.set(x, y, 20, source).unwrap();
+            }
+        }
+        let depth = 5.0 + 8.0 / 9.0 - 4.0;
+        // (x, water height, lava height)
+        for (x, water, lava) in [
+            (20.5, 0.0, depth),
+            (21.5, depth, 0.0),
+            (21.0, depth, depth),
+            (25.5, 0.0, 0.0),
+        ] {
+            let mut player = PlayerMotion::new(&resources, Vec3::new(x, 4.0, 20.5)).unwrap();
+            player.ground.on_ground = true;
+            let mut w = MotionWorld {
+                tag_items: None,
+                block_registries: None,
+                loop_context: crate::test_resources::server_loop_context(),
+                damage_hooks: &crate::health::DamageHooks::NONE,
+                entities: &[],
+                player: &mut player,
+                scene: &mut scene,
+                assets: &assets,
+                collision_binding: &binding,
+                resources: &resources,
+                health: &resources.health,
+            };
+            w.fluid_base_tick().unwrap();
+            let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
+            assert!(near(w.player.fluid_height(WATER), water), "water at x {x}");
+            assert!(near(w.player.fluid_height(LAVA), lava), "lava at x {x}");
+            assert_eq!(w.player.fluids.was_touching_water, water > 0.0, "x {x}");
+            assert_eq!(w.player.is_in_lava(), lava > 0.0, "x {x}");
         }
     }
 

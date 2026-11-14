@@ -18,11 +18,19 @@ impl Game<'_> {
             if impact.amount > 0.0 {
                 let mob_kind = if stalactite {
                     horizon_client::mobs::DamageKind::FallingStalactite
+                } else if anvil {
+                    horizon_client::mobs::DamageKind::FallingAnvil
                 } else {
                     horizon_client::mobs::DamageKind::FallingBlock
                 };
+                let attack = horizon_client::health::Attack {
+                    attacker: block.id as i32,
+                    direct: Some(block.id as i32),
+                    position: Some([block.position.x, block.position.y, block.position.z]),
+                    ..Default::default()
+                };
                 falling_block::hurt_mobs_with_kind(
-                    crate::game::entity::damage_level_of!(self),
+                    crate::game::entity::damage_level_of!(self, &attack),
                     &mut self.mobs,
                     block.position,
                     impact.amount,
@@ -39,7 +47,7 @@ impl Game<'_> {
                 } else {
                     "minecraft:falling_block"
                 };
-                self.falling_hurt_player(block.position, impact.amount, kind);
+                self.falling_hurt_player(block.id, block.position, impact.amount, kind);
                 if let Some(host) = self.lan.as_ref() {
                     let bounds = falling_block::bounds(block.position);
                     let conns = host
@@ -58,7 +66,7 @@ impl Game<'_> {
                         .collect::<Vec<_>>();
                     for conn in conns {
                         self.guest_hit_by(conn, |g| {
-                            g.falling_hurt_player(block.position, impact.amount, kind)
+                            g.falling_hurt_player(block.id, block.position, impact.amount, kind)
                         });
                     }
                 }
@@ -196,7 +204,7 @@ impl Game<'_> {
             self.drop_falling_block(block.state, block.position);
         }
     }
-    fn falling_hurt_player(&mut self, position: Vec3, amount: f32, kind: &str) {
+    fn falling_hurt_player(&mut self, entity: u32, position: Vec3, amount: f32, kind: &str) {
         if self.creative || self.spectator() {
             return;
         }
@@ -208,16 +216,14 @@ impl Game<'_> {
         let Some(id) = self.motion.health.damage.id(kind) else {
             return;
         };
+        let attack = horizon_client::health::Attack {
+            attacker: entity as i32,
+            direct: Some(entity as i32),
+            position: Some([position.x, position.y, position.z]),
+            ..Default::default()
+        };
         let outcome = self
-            .hurt_player_equipment(
-                id,
-                amount,
-                None,
-                false,
-                0,
-                false,
-                &horizon_client::health::NO_ATTACK,
-            )
+            .hurt_player_equipment(id, amount, None, false, entity as i32, false, &attack)
             .unwrap_or_default();
         if outcome.hurt {
             // LivingEntity.hurtServer: ENTITY_HURT_PLAYER, the falling block
@@ -340,7 +346,7 @@ mod tests {
         *log.lock().unwrap() = Log::default();
     }
     fn hit(game: &mut Game<'_>) {
-        game.falling_hurt_player(Vec3::ZERO, 8.0, ANVIL);
+        game.falling_hurt_player(241, Vec3::ZERO, 8.0, ANVIL);
     }
     fn health(game: &Game<'_>) -> f32 {
         game.player.as_ref().unwrap().health.health()

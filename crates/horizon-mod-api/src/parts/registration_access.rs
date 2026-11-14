@@ -27,6 +27,7 @@ fn names(
         RegistrationKeyKind::Fluid => &keys.fluids,
         RegistrationKeyKind::Effect => &keys.effects,
         RegistrationKeyKind::BlockEntityType => &keys.block_entity_types,
+        RegistrationKeyKind::EntityType => &keys.entity_types,
         RegistrationKeyKind::Particle => &keys.particles,
         RegistrationKeyKind::GameRule => &keys.game_rules,
     }

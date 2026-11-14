@@ -5,6 +5,11 @@ Run after restoring target and before Cargo. Preserve an input's old mtime only
 when its Git object (including its mode) is identical. Tree objects cover directory
 inputs to build scripts, including additions and deletions. Commit dates alone are
 not safe: a newly merged change can have an older author or committer date.
+
+Every job that builds in a shared persistent target must run this first, or its
+artifacts outlive a snapshot that no longer describes them. The snapshot's name
+carries a version: renaming it discards every runner's old snapshot once, so
+targets left with another tree's artifacts are judged afresh.
 """
 
 import argparse

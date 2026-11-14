@@ -836,6 +836,16 @@ impl Game<'_> {
         let mut ropes: Vec<Rope> = Vec::new();
         for m in &self.mobs {
             if let Some(holder) = m.extra.leash {
+                // A mob a mod's pre hook canceled draws no lead (it is part of the mob's own
+                // render), but the fence knot it hangs from is an entity of its own.
+                if self.render_canceled(m.id) {
+                    if let Holder::Knot(p) = holder
+                        && !knots.contains(&p)
+                    {
+                        knots.push(p);
+                    }
+                    continue;
+                }
                 ropes.push(Rope {
                     holder,
                     here: lerp3(m.previous, m.position),

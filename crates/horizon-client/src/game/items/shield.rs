@@ -55,7 +55,7 @@ impl Game<'_> {
         }
     }
     /// The stack's `blocks_attacks`: its own component, else its item's, as the stack's item
-    /// parts allow (`minecraft:shield_block`): a stack they grant the ability to blocks with the
+    /// parts allow (`shield_block`): a stack they grant the ability to blocks with the
     /// component's defaults when it has none, and one they deny it blocks with nothing.
     pub(super) fn blocks_attacks(
         &self,

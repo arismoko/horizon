@@ -738,6 +738,9 @@ pub(super) fn writeback_fields(
         }
     }
     own.extend(refs);
+    if types.defs[def].rust.ends_with("BlockEntityTickEvent") {
+        own.sort_by_key(|leaf| !leaf.path.ends_with(".reply"));
+    }
     Some(own)
 }
 
@@ -875,7 +878,11 @@ fn borrowed_prepared(
         } else if leaf.optional {
             write!(back, "out.put_opt({}.as_deref());", leaf.path).unwrap();
         } else if leaf.view {
-            write!(back, "{}.__wire_put_snapshot(out);", leaf.path).unwrap();
+            if d.rust.ends_with("BlockEntityTickEvent") {
+                write!(back, "if *{name}.reply == crate::BlockEntityTickReply::Changed {{ {}.__wire_put_snapshot(out); }}", leaf.path).unwrap();
+            } else {
+                write!(back, "{}.__wire_put_snapshot(out);", leaf.path).unwrap();
+            }
         } else {
             write!(
                 back,
@@ -1042,6 +1049,26 @@ pub(super) fn dispatch(
                     .unwrap();
                     args.push(format!("&p{i}"));
                 }
+                // An optional borrow (`Option<&PosedParts>`) arrives owned and is lent again.
+                Ty::Option(inner)
+                    if matches!(
+                        **inner,
+                        Ty::Ref(_, false) | Ty::Str(Str::Borrowed) | Ty::List(_, List::Slice)
+                    ) =>
+                {
+                    writeln!(
+                        body,
+                        "let p{i}: {} = input.take()?;",
+                        held(types, ty).unwrap()
+                    )
+                    .unwrap();
+                    let lend = if matches!(**inner, Ty::Ref(..)) {
+                        "as_ref"
+                    } else {
+                        "as_deref"
+                    };
+                    args.push(format!("p{i}.{lend}()"));
+                }
                 _ => {
                     writeln!(
                         body,
@@ -1066,7 +1093,7 @@ pub(super) fn dispatch(
             call
         };
         if m.owner == "Hooks" && m.name == "register" {
-            back.push_str("if let Some(reason) = crate::__private::take_registration_refusal(&p1) { crate::RegistrationRefusalRegistrar::registration_refusal(&mut host, reason); }");
+            back.push_str("for warning in crate::__private::take_registration_warnings(&p1) { crate::RegistrationRefusalRegistrar::registration_warning(&mut host, warning); } if let Some(reason) = crate::__private::take_registration_refusal(&p1) { crate::RegistrationRefusalRegistrar::registration_refusal(&mut host, reason); }");
         }
         writeln!(
             arms,
@@ -1081,6 +1108,7 @@ pub(super) fn dispatch(
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_reborrowed_array_has_no_redundant_parentheses() {
     // `-D warnings` lint jobs refuse `unused_parens` in the generated host.
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

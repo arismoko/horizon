@@ -22,11 +22,11 @@ pub struct RegisteredAttribute {
     pub name: String,
     pub definition: Definition,
     pub syncable: bool,
-    pub sentiment: super::Sentiment,
+    pub tooltip: super::Tooltip,
 }
 /// A mod's declared attribute type, as the game hands it to
 /// [`Catalog::with_attributes`]: the declaring mod's id (the sort key), the
-/// namespaced attribute id, its definition, sync flag and sentiment.
+/// namespaced attribute id, its definition, sync flag and tooltip style.
 #[derive(Clone, Debug)]
 pub struct AddedAttribute {
     /// The declaring mod's id (`mymod`).
@@ -37,8 +37,46 @@ pub struct AddedAttribute {
     pub definition: Definition,
     /// Whether the attribute joins the sync set.
     pub syncable: bool,
-    /// The tooltip sentiment of a rising or falling value.
-    pub sentiment: super::Sentiment,
+    /// How its tooltip lines read: sentiment, display and base modifier.
+    pub tooltip: super::Tooltip,
+}
+/// A mod's ask to widen an existing attribute's bounds, as the game hands it
+/// to [`Catalog::with_widened_bounds`] (#3728).
+#[derive(Clone, Debug)]
+pub struct WidenedBounds {
+    /// The asking mod's id, which a refusal names.
+    pub mod_id: String,
+    /// The attribute's namespaced id (`minecraft:max_health`).
+    pub id: String,
+    /// The asked lower bound.
+    pub min: f64,
+    /// The asked upper bound.
+    pub max: f64,
+}
+/// An ask `Catalog::with_widened_bounds` refused, naming the mod.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum WidenBoundsError {
+    /// The catalog has no attribute with that id.
+    UnknownAttribute { mod_id: String, id: String },
+    /// The attribute's default is not inside the asked `[min, max]`.
+    DefaultOutside { mod_id: String, id: String },
+}
+impl fmt::Display for WidenBoundsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnknownAttribute { mod_id, id } => {
+                write!(
+                    f,
+                    "mod {mod_id} widens the bounds of {id}, which no attribute has"
+                )
+            }
+            Self::DefaultOutside { mod_id, id } => write!(
+                f,
+                "mod {mod_id} widens the bounds of {id} to a range its default is not inside"
+            ),
+        }
+    }
 }
 #[derive(Clone, Debug)]
 pub struct Catalog {
@@ -128,9 +166,9 @@ impl Catalog {
                 syncable: a["syncable"]
                     .as_bool()
                     .ok_or_else(|| invalid("missing attribute sync flag"))?,
-                // The vanilla export carries no sentiment: vanilla's own
-                // colors stay where the tooltip reads them.
-                sentiment: super::Sentiment::default(),
+                // The vanilla export carries no tooltip style: vanilla's own
+                // colors and formats stay where the tooltip reads them.
+                tooltip: super::Tooltip::default(),
             });
         }
         let mut defaults = BTreeMap::new();
@@ -253,7 +291,7 @@ impl Catalog {
                 name: attribute.id.clone(),
                 definition: attribute.definition,
                 syncable: attribute.syncable,
-                sentiment: attribute.sentiment,
+                tooltip: attribute.tooltip.clone(),
             });
         }
         let defaults = self
@@ -269,6 +307,36 @@ impl Catalog {
             attributes,
             ids,
             defaults,
+        })
+    }
+    /// A copy of the catalog with the bounds mods asked to widen
+    /// (`Registrar::widen_attribute_bounds`, #3728): each attribute's bounds
+    /// become the union of its own and every ask's, whatever their order, so
+    /// an ask narrower than the result changes nothing. Defaults, ids and
+    /// entity rows stay. An unknown attribute, or an ask whose range leaves
+    /// the attribute's default out, refuses, naming the mod.
+    pub fn with_widened_bounds(&self, asks: &[WidenedBounds]) -> Result<Catalog, WidenBoundsError> {
+        let mut attributes = self.attributes.clone();
+        for ask in asks {
+            let Some(id) = self.ids.get(ask.id.as_str()) else {
+                return Err(WidenBoundsError::UnknownAttribute {
+                    mod_id: ask.mod_id.clone(),
+                    id: ask.id.clone(),
+                });
+            };
+            let definition = &mut attributes[id.0].definition;
+            if !(ask.min..=ask.max).contains(&definition.default_value()) {
+                return Err(WidenBoundsError::DefaultOutside {
+                    mod_id: ask.mod_id.clone(),
+                    id: ask.id.clone(),
+                });
+            }
+            *definition = definition.widened(ask.min, ask.max);
+        }
+        Ok(Catalog {
+            attributes,
+            ids: self.ids.clone(),
+            defaults: self.defaults.clone(),
         })
     }
     /// A copy of the catalog whose `entity` row is `start` with `overrides`
@@ -492,6 +560,59 @@ mod row_tests {
         .unwrap()
     }
 
+    /// #3728: asks to widen bounds join as their union, in either order; a
+    /// narrower ask changes nothing; the default stays; an unknown attribute
+    /// or a range without the default refuses, naming the mod.
+    #[test]
+    fn widened_bounds_are_the_union_of_every_ask() {
+        let catalog = catalog();
+        let ask = |mod_id: &str, id: &str, min: f64, max: f64| WidenedBounds {
+            mod_id: mod_id.into(),
+            id: id.into(),
+            min,
+            max,
+        };
+        let health = |c: &Catalog| c.definition("minecraft:max_health").unwrap();
+        let small = ask("alpha", "minecraft:max_health", 1.0, 1e5);
+        let large = ask("beta", "minecraft:max_health", 1.0, 1e6);
+        let narrow = ask("gamma", "minecraft:max_health", 5.0, 100.0);
+        for asks in [
+            [small.clone(), large.clone(), narrow.clone()],
+            [narrow.clone(), large.clone(), small.clone()],
+        ] {
+            let widened = catalog.with_widened_bounds(&asks).unwrap();
+            assert_eq!(health(&widened).bounds(), Some((1.0, 1e6)));
+            assert_eq!(health(&widened).default_value(), 20.0);
+            assert_eq!(health(&widened).sanitize(5000.0), 5000.0);
+        }
+        assert_eq!(health(&catalog).sanitize(5000.0), 1024.0, "vanilla's stay");
+        let lower = catalog
+            .with_widened_bounds(&[ask("alpha", "minecraft:luck", -1e4, 0.0)])
+            .unwrap();
+        assert_eq!(
+            lower.definition("minecraft:luck").unwrap().bounds(),
+            Some((-1e4, 1024.0))
+        );
+        assert_eq!(
+            catalog
+                .with_widened_bounds(&[ask("alpha", "minecraft:mana", 0.0, 1.0)])
+                .unwrap_err(),
+            WidenBoundsError::UnknownAttribute {
+                mod_id: "alpha".into(),
+                id: "minecraft:mana".into()
+            }
+        );
+        assert_eq!(
+            catalog
+                .with_widened_bounds(&[ask("alpha", "minecraft:follow_range", 40.0, 1e4)])
+                .unwrap_err(),
+            WidenBoundsError::DefaultOutside {
+                mod_id: "alpha".into(),
+                id: "minecraft:follow_range".into()
+            }
+        );
+    }
+
     /// A declared row starts from its template's, as a content row does and
     /// `Zombie.createAttributes` does for the event's supplier (#845).
     #[test]
@@ -602,7 +723,10 @@ mod row_tests {
             id: id.into(),
             definition: Definition::ranged(1.0, 0.0, 10.0).unwrap(),
             syncable,
-            sentiment: Sentiment::Neutral,
+            tooltip: super::super::Tooltip {
+                sentiment: Sentiment::Neutral,
+                ..Default::default()
+            },
         };
         // Declared in the order the mods happen to register: the catalog
         // sorts them by mod id, then attribute id.

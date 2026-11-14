@@ -556,6 +556,7 @@ mod tests {
         // Metadata needs no AI or model. Avoid the resource loader, which also
         // initializes process-wide item tags used by unrelated mob tests.
         let kind = Arc::new(MobType {
+            shadow: None,
             id: kind.into(),
             species,
             width: 0.6,
@@ -724,6 +725,7 @@ mod tests {
                     position: [0.0; 3],
                     view_distance: 10,
                     chunks: &chunks,
+                    sources: None,
                     tracker: &mut tracker,
                     out: &mut packets,
                     gone: None,
@@ -887,6 +889,7 @@ mod tests {
                     position: [0.0; 3],
                     view_distance: 10,
                     chunks: &chunks,
+                    sources: None,
                     tracker: &mut tracker,
                     out: &mut packets,
                     gone: None,

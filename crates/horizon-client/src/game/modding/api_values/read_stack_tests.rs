@@ -35,6 +35,7 @@ fn read_encoding_keeps_nonresident_stack_limits() {
 // encoding is covered above; here a strict-conversion mutant must suppress the
 // predicate/draw command and fail independently at each handwritten consumer.
 #[test]
+#[ignore = "daily"]
 fn read_consumers_forward_nonresident_stacks_and_mutants() {
     fn body(source: &str, marker: &str) -> String {
         let source = &source[source.find(marker).unwrap()..];

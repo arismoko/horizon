@@ -3,6 +3,7 @@ use crate::gfx::hud_coverage;
 
 #[test]
 fn standalone_picture_draw_order_and_screen_exit_release() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(mut gpu) = Gpu::new() else { return };
     let image = Arc::new(pictures::Picture {
         id: u64::MAX,
@@ -246,6 +247,7 @@ fn quad(batch: &mut HudBatch, blend: Blend, color: u32, x: f32, uv: f32) {
 
 #[test]
 fn coverage_follows_hud_blends_discard_scissor_and_depth_without_changing_colour() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else {
         return;
     };
@@ -309,6 +311,7 @@ fn coverage_follows_hud_blends_discard_scissor_and_depth_without_changing_colour
 /// next blends over it: a text highlight added over a light backdrop, then a 50% black panel.
 #[test]
 fn each_hud_draw_clips_at_white_as_on_an_8_bit_frame() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else {
         return;
     };
@@ -347,6 +350,7 @@ fn each_hud_draw_clips_at_white_as_on_an_8_bit_frame() {
 
 #[test]
 fn coverage_preserves_each_cit_blend_and_its_destination_alpha() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(mut gpu) = Gpu::new() else {
         return;
     };
@@ -407,6 +411,7 @@ fn coverage_preserves_each_cit_blend_and_its_destination_alpha() {
 
 #[test]
 fn coverage_uses_pack_texts_final_alpha_and_discard() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(mut gpu) = Gpu::new() else {
         return;
     };
@@ -436,6 +441,7 @@ fn coverage_uses_pack_texts_final_alpha_and_discard() {
 
 #[test]
 fn a_pack_text_shader_without_a_colour_output_is_dropped_not_wrapped() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(mut gpu) = Gpu::new() else {
         return;
     };

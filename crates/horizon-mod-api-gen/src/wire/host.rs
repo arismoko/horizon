@@ -738,12 +738,30 @@ impl Cx {
                                 &mut put,
                                 prepared_field,
                             );
-                            for leaf in
-                                writeback_fields(types, *d, &format!("p{i}"), *mutable).unwrap()
-                            {
+                            let leaves =
+                                writeback_fields(types, *d, &format!("p{i}"), *mutable).unwrap();
+                            let tick_reply = types.defs[*d]
+                                .rust
+                                .ends_with("BlockEntityTickEvent")
+                                .then(|| {
+                                    leaves
+                                        .iter()
+                                        .find(|leaf| leaf.path.ends_with(".reply"))
+                                        .expect("tick reply")
+                                        .local
+                                        .clone()
+                                });
+                            for leaf in leaves {
                                 let local = format!("b_{}", leaf.local);
                                 backs.push(local.clone());
-                                write!(take, "let {local}: {} = r.take()?;", leaf.owned).unwrap();
+                                if leaf.view
+                                    && let Some(reply) = &tick_reply
+                                {
+                                    write!(take, "let {local}: Option<{}> = if b_{reply} == mod_api::BlockEntityTickReply::Changed {{ Some(r.take()?) }} else {{ None }};", leaf.owned).unwrap();
+                                } else {
+                                    write!(take, "let {local}: {} = r.take()?;", leaf.owned)
+                                        .unwrap();
+                                }
                                 let path = leaf.path;
                                 if leaf.append {
                                     let owner = path.rsplit_once('.').unwrap().0;
@@ -751,7 +769,11 @@ impl Cx {
                                         .unwrap();
                                     write!(apply, "{owner}.__wire_apply({local});").unwrap();
                                 } else if leaf.view {
-                                    write!(apply, "{path}.__wire_apply({local});").unwrap();
+                                    if tick_reply.is_some() {
+                                        write!(apply, "if let Some(snapshot) = {local} {{ {path}.__wire_apply(snapshot); }}").unwrap();
+                                    } else {
+                                        write!(apply, "{path}.__wire_apply({local});").unwrap();
+                                    }
                                 } else if leaf.optional {
                                     write!(take,"if {path}.is_some() != {local}.is_some() {{ return Err(WireError::Tag(u32::MAX)); }}").unwrap();
                                     write!(apply,"if let (Some(target),Some(value)) = ({path}.as_deref_mut(),{local}) {{ *target=value; }}").unwrap();
@@ -771,7 +793,12 @@ impl Cx {
                                 Ty::Ref(..)
                                     | Ty::Str(super::ty::Str::Borrowed)
                                     | Ty::List(_, super::ty::List::Slice)
-                            ) {
+                            ) || matches!(ty, Ty::Option(inner) if matches!(
+                                **inner,
+                                Ty::Ref(_, false)
+                                    | Ty::Str(super::ty::Str::Borrowed)
+                                    | Ty::List(_, super::ty::List::Slice)
+                            )) {
                                 self::put(ty, &format!("p{i}"))
                             } else {
                                 format!("w.put_owned(p{i});")
@@ -963,6 +990,7 @@ mod tests {
     /// one Cargo is told to watch: a hook signature moved in the vocabulary left the generated code
     /// stale until the build script was touched (#3123).
     #[test]
+    #[ignore = "daily"]
     fn host_generation_asks_cargo_to_watch_the_vocabulary_hook_sources() {
         let captured = std::thread::Builder::new()
             .stack_size(64 << 20)

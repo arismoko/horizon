@@ -337,6 +337,48 @@ impl Title {
                     .does(crate::widgets::Action::Back),
                 ]
             }
+            Mode::MissingMods { .. } => {
+                let (_, _, narrow) = missing_mods::layout(w, h);
+                let button_width = if narrow { (w - 20.0).min(300.0) } else { 150.0 };
+                let center = (w - button_width) / 2.0;
+                let y = h - if narrow { 76.0 } else { 52.0 };
+                vec![
+                    // Don't Open is the default: first, and what Escape does.
+                    b(
+                        center,
+                        y + if narrow { 48.0 } else { 24.0 },
+                        button_width,
+                        &lang::get("horizon.missing_mods.dont_open"),
+                        true,
+                        101,
+                    )
+                    .does(crate::widgets::Action::Cancel),
+                    b(
+                        if narrow {
+                            center
+                        } else {
+                            (w / 2.0).floor() - 152.0
+                        },
+                        y,
+                        button_width,
+                        &lang::get("horizon.missing_mods.backup_open"),
+                        true,
+                        102,
+                    ),
+                    b(
+                        if narrow {
+                            center
+                        } else {
+                            (w / 2.0).floor() + 2.0
+                        },
+                        y + if narrow { 24.0 } else { 0.0 },
+                        button_width,
+                        &lang::get("horizon.missing_mods.open"),
+                        true,
+                        103,
+                    ),
+                ]
+            }
             Mode::MissingBiomeRegions { .. } => {
                 let y = confirm_top(h, self.message_lines.get())
                     + 41.0

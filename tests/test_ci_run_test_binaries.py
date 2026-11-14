@@ -6,9 +6,11 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("run_test_binaries", ROOT / "tools/ci/run_test_binaries.py")
@@ -90,6 +92,107 @@ class RunTestBinariesTests(unittest.TestCase):
             self.assertTrue(any(line.startswith("::error::horizon-world lib.rs (unstartable): could not start")
                                 for line in summary), summary)
             self.assertFalse(any("(passing)" in line for line in summary))
+
+    def test_report_names_failed_tests_with_or_without_a_time(self):
+        output = tempfile.TemporaryFile("w+")
+        output.write("test a::fast ... ok <0.012s>\ntest a::bad ... FAILED <0.100s>\ntest a::plain ... FAILED\n"
+                     "child output test a::x ... FAILED\n")
+        result = {"binary": {"label": "pkg"}, "output": output, "seconds": 1.0, "max_rss_kib": 0}
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(runner.report(result), ["a::bad", "a::plain"])
+
+    def test_the_log_gives_each_tests_status_and_time(self):
+        # The records libtest writes (an ignored test's message follows `ignored:` and may hold spaces and colons).
+        self.assertEqual(runner.read_log(
+            "ok a::fast <0.012s>\nfailed a::bad <6.250s>\nignored a::skip\nignored: daily a::moved\n"
+            "ignored: measurement: cargo test -p x --release y -- --ignored a::measured\nok a::nested\n"
+            "ok a::panics_as_expected <0.000s>\n"), {
+            "a::fast": ("ok", 0.012), "a::bad": ("failed", 6.25), "a::skip": ("ignored", None),
+            "a::moved": ("ignored", None), "a::measured": ("ignored", None), "a::nested": ("ok", None),
+            "a::panics_as_expected": ("ok", 0.0)})
+
+    def test_a_passing_binary_without_a_timed_record_for_a_listed_test_is_caught(self):
+        result = {"status": "ok", "listed": ["a::timed", "a::ignored", "a::lost", "a::untimed"],
+                  "log": {"a::timed": ("ok", 0.1), "a::ignored": ("ignored", None), "a::untimed": ("ok", None)}}
+        self.assertEqual(runner.untimed(result), ["a::lost", "a::untimed"])
+        self.assertEqual(runner.untimed({**result, "status": "exit 101"}), [])
+        self.assertEqual(runner.untimed({**result, "listed": None}), ["(its tests could not be listed)"])
+
+    def test_a_harness_false_target_is_run_untimed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "Cargo.toml"
+            manifest.write_text('[package]\nname = "p"\n[[test]]\nname = "probe"\nharness = false\n[[test]]\nname = "plain"\n')
+            self.assertFalse(runner.uses_libtest(str(manifest), {"name": "probe", "kind": ["test"]}))
+            self.assertTrue(runner.uses_libtest(str(manifest), {"name": "plain", "kind": ["test"]}))
+            self.assertTrue(runner.uses_libtest(str(manifest), {"name": "p", "kind": ["lib"]}))
+            binary = Path(directory) / "probe"
+            binary.write_text("#!/bin/sh\necho \"args=$*\"\n")
+            binary.chmod(0o755)
+            result = runner.run_one({"executable": str(binary), "cwd": directory, "env": {}, "libtest": False},
+                                    {}, ["-Z", "unstable-options", "--report-time"], timed=True)
+            self.assertNotIn("listed", result)
+            self.assertEqual(runner.untimed(result), [])
+
+    def test_a_listing_counts_only_when_it_is_the_plain_form_with_its_own_total(self):
+        binary = {"executable": "x", "cwd": "."}
+        for stdout, expected in [
+            ("a::b: test\nc::d: test\n\n2 tests, 0 benchmarks\n", ["a::b", "c::d"]),
+            ("\n0 tests, 0 benchmarks\n", []),
+            ("a::b: test\nbench::x: bench\n\n1 test, 1 benchmark\n", ["a::b"]),
+            ('{ "type": "suite", "event": "discovery" }\n', None),
+            ("a::b: test\n\n2 tests, 0 benchmarks\n", None),
+        ]:
+            with unittest.mock.patch.object(runner.subprocess, "run",
+                                            return_value=subprocess.CompletedProcess([], 0, stdout, "")):
+                self.assertEqual(runner.listed_tests(binary, {}, []), expected, stdout)
+
+    def test_a_test_over_the_limit_fails_by_name_and_one_over_the_target_warns(self):
+        errors, warnings = runner.timing_verdict(
+            [(0.5, "a::fast", "pkg"), (5.0, "a::at_the_line", "pkg"), (5.01, "a::over", "pkg"), (2.2, "a::slowish", "pkg")],
+            2.0, 5.0)
+        self.assertEqual(len(errors), 1)
+        self.assertTrue(errors[0].startswith("pkg: a::over took 5.01s"))
+        self.assertIn('#[ignore = "daily"]', errors[0])
+        self.assertEqual([warning.split(" took")[0] for warning in warnings], ["pkg: a::at_the_line", "pkg: a::slowish"])
+
+    # A libtest stand-in: `--list` lists a::slow, a::fast and a::lost; a run writes its log to the --logfile path,
+    # with no record for a::lost when LOSE is set, and prints garbled interleaved output on stdout.
+    FAKE_LIBTEST = """#!/bin/sh
+for arg in "$@"; do case "$arg" in --list) printf 'a::slow: test\\na::fast: test\\na::lost: test\\n\\n3 tests, 0 benchmarks\\n'; exit 0;; esac; done
+log=""; previous=""
+for arg in "$@"; do [ "$previous" = "--logfile" ] && log="$arg"; previous="$arg"; done
+echo "args=$* bootstrap=$RUSTC_BOOTSTRAP"
+echo 'child says hi test a::slow ... okok'
+[ -n "$log" ] || exit 0
+printf 'ok a::slow <7.500s>\\nok a::fast <0.001s>\\n' > "$log"
+[ -n "$LOSE" ] || echo 'ok a::lost <0.002s>' >> "$log"
+"""
+
+    @unittest.skipUnless(os.name == "posix" and shutil.which("sh"), "requires a POSIX shell")
+    def test_time_limits_time_every_test_from_the_log_and_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "crates/horizon-world").mkdir(parents=True)
+            binary = root / "timed"
+            binary.write_text(self.FAKE_LIBTEST)
+            binary.chmod(0o755)
+            cargo = self.fake_toolchain(root, [binary])
+            code, output = self.run_main("--jobs", "1", "--time-limits", "2,5", "--", str(cargo), "test")
+            self.assertEqual(code, 1)
+            self.assertIn("args=-Z unstable-options --report-time --logfile ", output)
+            self.assertIn("bootstrap=1", output)
+            self.assertIn("::error::horizon-world lib.rs (timed): a::slow took 7.50s", output)
+            self.assertIn("3 tests timed, 7.5 test-seconds in total; slowest: a::slow 7.50s", output)
+            self.assertNotIn("no timed record", output)
+            with unittest.mock.patch.dict(os.environ, {"LOSE": "1"}):
+                code, output = self.run_main("--jobs", "1", "--time-limits", "2,9", "--", str(cargo), "test")
+            self.assertEqual(code, 1)
+            self.assertIn("::error::horizon-world lib.rs (timed): 1 listed tests have no timed record in libtest's "
+                          "log, so the guard cannot judge them: a::lost", output)
+            # Without the option nothing is added and the times are not judged.
+            code, output = self.run_main("--jobs", "1", "--", str(cargo), "test")
+            self.assertEqual(code, 0)
+            self.assertIn("args= bootstrap=\n", output)
 
     @unittest.skipUnless(os.name == "posix" and shutil.which("sh"), "requires a POSIX shell")
     def test_a_listing_without_test_binaries_fails(self):

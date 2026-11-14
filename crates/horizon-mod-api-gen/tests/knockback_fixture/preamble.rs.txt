@@ -19,7 +19,9 @@ struct Damage { attacker: Option<()>, from: Option<[f64; 3]> }
 pub struct DamageLevel<'a> { heard: &'a mut usize, scale: f64, cancel: bool }
 impl DamageLevel<'_> {
     fn knockback_canceled(&mut self, _: health::Hurting<'_>, knock: &mut health::Knock) -> bool { *self.heard += 1; knock.strength *= self.scale; self.cancel }
+    fn through_short_knockback<R>(&mut self, push: impl FnOnce(&mut Self) -> R) -> R { push(self) }
 }
+mod mod_api { #[derive(Clone, Copy)] pub enum KnockbackEntry { Short, Full } }
 mod health {
     pub struct Knock { pub strength: f64, pub x: f64, pub z: f64 }
     pub enum Hurting<'a> { Mob(&'a super::Mob, &'a super::Damage), Player(i32, super::HurtSource<'a>) }

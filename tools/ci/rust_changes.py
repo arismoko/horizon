@@ -2,7 +2,8 @@
 """Select CI checks from one fail-closed Git diff.
 
 The default answers Rust selection; --launcher uses the launcher's dependency paths.
---all emits the shared Rust, launcher, sample and tooling decisions for dyna-checks.
+--all emits the shared Rust, launcher and tooling decisions for dyna-checks (the machine sample is a daily leg,
+machine-sample.yml, so dyna-checks selects nothing for it).
 """
 
 import argparse
@@ -57,10 +58,9 @@ def needs_tooling(changes):
 
 def selections(changes):
     paths = [path for _, path in changes]
-    sample = needs_sample(paths)
-    return {"rust_required": needs_rust(paths) or sample,
+    return {"rust_required": needs_rust(paths),
             "launcher_required": needs_launcher(paths),
-            "tooling_required": needs_tooling(changes), "sample_required": sample}
+            "tooling_required": needs_tooling(changes)}
 
 
 def changed_entries(base, head):

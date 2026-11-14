@@ -160,6 +160,10 @@ enforce_whitelist = false
 view_distance = 10
 simulation_distance = 10
 max_view_distance = 0        # past view_distance, saved chunks only, up to this (0: off)
+max_viewed_loaded_chunks = 2048             # see "Other levels a mod shows a player" below
+max_viewed_ticking_chunks = 441
+max_viewed_loaded_chunks_per_level = 16384
+max_viewed_ticking_chunks_per_level = 3528
 admin_feedback_to_ops = true # operators see each other's commands ([name: ...]); false: only the log
 accept_older_clients = false # true: 26.2 clients join too (see below; work in progress)
 
@@ -240,6 +244,40 @@ by how fast each player's game takes them, and aren't read while the world's sav
 average tick goes over 50 ms, the ring pulls in by two chunks a second, never inside `view_distance`; after
 30 s of ticks under 45 ms, it grows back by one chunk every 5 s. What it sent is kept in memory for 5
 minutes (96 MB at most), so a player walking back isn't sent the save again.
+
+### Other levels a mod shows a player: `max_viewed_*`
+
+A server mod (a portal mod, for example) can ask for areas of chunks in other levels for one player
+(`PlayerRef::set_chunk_areas`). The server keeps them loaded and sends them to a Horizon client that can
+keep other levels; a vanilla client is sent nothing. An area either only keeps its chunks loaded (nothing
+ticks there because of it) or ticks them as a player standing there would. An area counts as no player:
+no mobs spawn around it, it doesn't count for sleeping, raids or spawners. Terrain generated for it is
+saved like any other.
+
+The four caps limit what mods can ask for, counted per level:
+
+| Setting | Default | Range | What it counts |
+|---|---|---|---|
+| `max_viewed_loaded_chunks` | 2048 | 0 to 65536 | Chunks kept loaded for one player in one level, the loading ring around each area included. Fixed at 2048 for this protocol revision: a higher value is lowered to 2048 at startup, with a warning in the log |
+| `max_viewed_ticking_chunks` | 441 | 0 to 65536 | Of them, the ticking ones: 441 is one player's simulation area at distance 10 |
+| `max_viewed_loaded_chunks_per_level` | 16384 | 0 to 1048576 | Loaded chunks of every player together in one level |
+| `max_viewed_ticking_chunks_per_level` | 3528 | 0 to 1048576 | Ticking chunks of every player together in one level |
+
+0 refuses every area of that kind. A request over a cap is refused whole, and the mod is told which cap and
+its value. Areas end when the player leaves.
+
+### Levels a mod opens: `horizon-max-runtime-levels`
+
+A mod can open levels of its own while the server runs ([runtime levels](modding/src/how-to/world/runtime-levels.md)).
+The server keeps at most 64 of them open at once, for all mods together; the 65th request is refused
+with `CapReached`. Set another number under `[properties]` in `server.toml`:
+
+```toml
+[properties]
+horizon-max-runtime-levels = 128
+```
+
+A level frees its place when its mod unloads it. After 300 ticks with nobody in it, it leaves memory, as any level does, but keeps its place: it opens again when someone enters it.
 
 Already have a vanilla server? Run `horizon-server init` in its folder, or `horizon-server import
 server.properties` to write `server.toml` from it. The world, `ops.json`, `whitelist.json` and the ban lists
@@ -656,6 +694,23 @@ Adoption keeps saved weights for returning regions, takes declared weights for n
 drops absent regions. Completed chunks keep their saved biomes and blocks. New generation may
 differ in surface material, carving, features and structures. The
 [design note](design/mod-api/mod-biome-regions.md) lists record limits and fixture coverage.
+
+### Worlds saved with mods that are gone: `[missing_mods]`
+
+A world records the mods it was saved with: code mods and content mods, and the namespaces of the mods' blocks.
+If one of them is no longer loaded, opening the world turns that mod's blocks into air and removes what they hold,
+and the next save makes it permanent. So the server refuses to start that world: it logs one line per missing mod
+and a last line naming the switch, and changes nothing in the world. To open it anyway, back the world up, then add
+to `server.toml` and restart:
+
+```toml
+[missing_mods]
+allow = true   # false, the default: don't start
+```
+
+Started as `horizon-client --dedicated` directly, `--allowMissingMods` does the same for one start. With either one,
+the server logs the same list as a warning and opens the world. A mod whose `mod_mismatch` listener marks a missing
+mod resolved (a migration) takes it off the list.
 
 ## 8. Start it with the computer
 

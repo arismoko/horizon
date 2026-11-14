@@ -87,11 +87,18 @@ impl crate::RegistrationContext {
     pub fn refuse(&self, reason: &str) {
         let mut reason_slot = self.self_refusal.lock().unwrap_or_else(|p| p.into_inner());
         if reason_slot.is_none() {
-            let mut end = reason.len().min(4096);
-            while !reason.is_char_boundary(end) {
-                end -= 1;
-            }
-            *reason_slot = Some(reason[..end].to_owned());
+            *reason_slot = Some(super::registration_refusal::bounded_text(reason).to_owned());
+        }
+    }
+
+    /// Report a loading problem that doesn't stop this mod: a missing optional integration,
+    /// a setting it corrected. `key` is a translation key in the mod's own `lang/` files and
+    /// `args` its `%s` arguments; the Mods screen shows it in the player's language, and the
+    /// log names the key. The first 16 warnings are kept, each cut as `refuse` cuts.
+    pub fn warn(&self, key: &str, args: &[&str]) {
+        let mut warnings = self.warnings.lock().unwrap_or_else(|p| p.into_inner());
+        if warnings.len() < super::registration_refusal::MAX_LOADING_WARNINGS {
+            warnings.push(super::registration_refusal::LoadingMessage::new(key, args));
         }
     }
 

@@ -14,7 +14,7 @@ when empty or when its contents match both the fluid and components.
 
 | Game provider | Rules |
 | --- | --- |
-| Mod block tanks (`block_entity_fluids`) | Access depends on side. Saved tanks reject fluids with components. |
+| Mod block tanks (`r.block_fluids(&block, tanks)` with `ModFluidTanks`) | Access depends on side. Saved tanks reject fluids with components. |
 | Water cauldron | One bucket in three levels; insertion and extraction use whole levels. |
 | Lava cauldron | One bucket, inserted or extracted whole. |
 | Registered cauldron content | Uses the whole levels specified through `register_cauldron_fluid_content`. |
@@ -80,3 +80,32 @@ A tank-only fluid emits the event without a sound.
 supply. `fluid_util::trigger_sound_and_game_event` emits only the sound and event.
 These effects are emitted before the call returns: call these helpers outside
 an enclosing transaction that you might abort.
+
+## World fluid
+
+A fluid container can pick up and place fluid in the world as a bucket does
+(NeoForge's `FluidUtil.tryPickupFluid` and `tryPlaceFluid`):
+
+| Helper | What it does |
+| --- | --- |
+| `fluid_util::try_pickup_world_fluid(host, destination, player, level, pos)` | Takes the source at `pos` (a fluid source, a waterlogged block's water, a bubble column) into `destination`, the whole bucket or nothing |
+| `fluid_util::try_pickup_fluid(host, destination, player, level, pos, side)` | The same, and where `pos` has no source, one move from the block's `FLUIDS` at `side` |
+| `fluid_util::try_place_fluid(host, source, player, level, pos, validate)` | Takes a bucket of the first fluid of `source` that comes out whole and places it at `pos`; `validate` refuses a waterloggable block that won't take it |
+| `fluid_util::first_stack_contained(host, place)` | Reads what the container at an `ItemPlace` holds at its first non-empty index |
+
+The three that move fluid each run in a transaction of its own, nested in one you have
+open. Under them, `level.pickup_fluid(host, pos, player, tx)` and
+`level.place_fluid(host, pos, fluid, player, validate, tx)` decide everything at the
+call against the world as the transaction has it and write the block at once, so a
+second pickup of the same source in the transaction gets nothing. A block the fluid
+replaces has its drops made at the call, with the block as it is and its block entity kept
+by the journal first: `block_drops` listeners, which only read, see the old block, and a
+cancelled drop keeps the replacement (it suppresses the drops and the experience, not the
+removal). The new block is written after the drops are made.
+The block's updates, the fluid tick, those drops, the broken block's particles and
+`block_destroy`, then the bucket's sound and `fluid_pickup` or `fluid_place` follow at the
+outermost commit. Where water evaporates (the Nether), placing it only hisses. The tank
+fallback's fill sound and event also wait for that commit
+(`level.play_fluid_effects(host, pos, fluid, pickup, player, tx)`). An aborted pickup or
+placement leaves the world unchanged, with no drop, sound or event, where NeoForge's may
+leave it changed.

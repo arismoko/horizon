@@ -80,6 +80,17 @@ pub fn configured_roots() -> Result<Option<Roots>> {
     if FORCE_DEFAULT.load(Ordering::Acquire) {
         return Ok(None);
     }
+    // A unit test never reaches the player's real folders: unless it points at a location file
+    // of its own, its roots are this test process's, under the temporary folder.
+    if cfg!(test) && !overridden("HORIZON_LAUNCHER_LOCATION_FILE") {
+        let home =
+            std::env::temp_dir().join(format!("horizon-launcher-test-{}", std::process::id()));
+        return Ok(Some(Roots {
+            launcher: home.join("launcher"),
+            game: home.join("game"),
+            build: home.join("launcher"),
+        }));
+    }
     let mut slot = location();
     if slot.is_none() {
         let resolved = if overridden("HORIZON_LAUNCHER_HOME") && overridden("HORIZON_HOME") {

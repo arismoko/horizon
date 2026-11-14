@@ -93,7 +93,7 @@ fn run(wasm: bool) {
         .canonicalize()
         .unwrap();
         let owner = tempfile::tempdir().unwrap();
-        for case in [
+        let cases = [
             "client_off",
             "client_flag",
             "client_env_one",
@@ -107,7 +107,8 @@ fn run(wasm: bool) {
             "integrated_off",
             "integrated_flag",
             "integrated_env_true",
-        ] {
+        ];
+        let run = |case: &str| {
             let scratch = owner.path().join(case);
             std::fs::create_dir(&scratch).unwrap();
             let mut command = std::process::Command::new(std::env::current_exe().unwrap());
@@ -139,17 +140,34 @@ fn run(wasm: bool) {
             } else if case.ends_with("env_false") {
                 command.env("HORIZON_GAME_TESTS", "false");
             }
-            let output = command.output().unwrap();
-            assert!(
-                output.status.success(),
-                "{case}: {}\n{}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            );
-            assert!(
-                String::from_utf8_lossy(&output.stdout).contains("1 passed"),
-                "child must execute the exact acceptance test, not zero tests"
-            );
+            command.output().unwrap()
+        };
+        // The wasm case runs alone in the fixture job: four cases at a time there, each still in its
+        // own process. The native case shares the slow shards' memory, so one at a time.
+        for group in cases.chunks(if wasm { 4 } else { 1 }) {
+            let run = &run;
+            let outputs: Vec<_> = std::thread::scope(|scope| {
+                let running: Vec<_> = group
+                    .iter()
+                    .map(|&case| scope.spawn(move || run(case)))
+                    .collect();
+                running
+                    .into_iter()
+                    .map(|child| child.join().unwrap())
+                    .collect()
+            });
+            for (case, output) in group.iter().zip(outputs) {
+                assert!(
+                    output.status.success(),
+                    "{case}: {}\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                assert!(
+                    String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+                    "child must execute the exact acceptance test, not zero tests"
+                );
+            }
         }
         return;
     }

@@ -33,6 +33,15 @@ and fireballs a chunk saves, fireworks and tridents; an ender pearl's comes from
 cooldown; `None` means a kind with no portal cooldown (armor stands, wind charges, the separately modelled dragon and
 others), a client, or a stale, parked or otherwise unavailable handle. The read does not load levels.
 
+`EntityRef::set_portal_cooldown` takes `&mut dyn ServerHost` and writes the value the read returns, for the kinds
+whose cooldown the level's portal walk owns: mobs, items, experience orbs, boats, minecarts, primed TNT, fireworks,
+tridents, arrows and the thrown items and fireballs a chunk saves. A positive value blocks portal entry on the next
+tick (and is refilled while the entity stands in a portal), and `0` lets it enter at once. A negative value, a
+client-side write and a stale handle are refused (`false`). The write also refuses a player, an acting guest, a
+falling block and an ender pearl by name: each keeps its cooldown in a store of its own (the player and guest portal
+states, the falling block's saved field, an End gateway traveller) that this write does not own, so a write can only
+reach them once that kind has its own owner decision.
+
 `MobRef::can_use_portal` reads the existing server portal decision for a mob in the current level, including mounts and player riders. It takes `&dyn Host`: `Some(false)` means the mob is ineligible, while `None` means a client, stale or unavailable handle, parked mob, or the separately modelled dragon. It does not load a level.
 
 `EntityRef::leash_holder` takes `&dyn Host` and reads the live lead of a mob or boat. `LeashHolder::Unleashed`

@@ -14,12 +14,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use horizon_mod_package::dependencies;
+use horizon_mod_package::mod_surface;
 
 mod api;
+mod api_route;
 mod inject;
 mod planning;
 mod slots;
-pub use planning::routes;
+pub use planning::{routes, update_check, UpdateCheck};
 mod crates;
 mod diagnostics;
 mod internals;
@@ -32,16 +34,18 @@ mod registry_plan;
 mod registry_runtime;
 mod registry_rustc;
 pub use internals_sync::{pinned_catalog_with_modules, DiscoveryCatalog};
+pub mod fit;
 mod isolate;
 mod mixins_patch;
 mod package;
 mod patch;
 mod picker;
 mod prebuilt;
+pub mod sdk_cache;
 
 pub use isolate::LeftOut;
 pub use picker::{Route, Routes};
-pub use prebuilt::{prebuilt_availability, Refusal};
+pub use prebuilt::Refusal;
 pub use registry_inventory::Inventory as RegistryInventory;
 
 // Settings and logs are shared by native-build and diagnostics tests.
@@ -343,6 +347,7 @@ pub fn clear_log() -> Result<(), String> {
 /// Appends `message` (with a newline) to the build log, so a failure that happens before any
 /// command runs is still recorded.
 pub fn append_log(message: &str) -> Result<(), String> {
+    fs::create_dir_all(root()).map_err(|e| format!("{}: {e}", root().display()))?;
     let mut log = fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -352,16 +357,16 @@ pub fn append_log(message: &str) -> Result<(), String> {
 }
 
 /// Records the whole attempt, including selection or export after compilation.
-fn logged<T>(
-    build: impl FnOnce(Result<&crate::native_cache::Cache, &str>) -> Result<T, String>,
-) -> Result<T, String> {
+fn logged<T, E: std::fmt::Display + From<String>>(
+    build: impl FnOnce(Result<&crate::native_cache::Cache, &str>) -> Result<T, E>,
+) -> Result<T, E> {
     // Another build or a cleanup holds the lease on the same target/: refuse. Any other
     // failure only stops cleanup for explicit builds. Automatic selection requires a held
     // cache for its catalog and can refuse instead of accessing an unsafe tree.
     let cache = match crate::native_cache::Cache::acquire(&backend::build_dir()) {
         Ok(cache) => Ok(cache),
         Err(crate::native_cache::Error::Busy) => {
-            return Err(cache_error(crate::native_cache::Error::Busy));
+            return Err(cache_error(crate::native_cache::Error::Busy).into());
         }
         Err(error) => Err(cache_error(error)),
     };
@@ -711,26 +716,19 @@ fn mismatch_error(list: &str) -> String {
     format!("{MISMATCH}{list}; rebuild against this game.")
 }
 
-/// The Horizon commit `version` (an installed release or Nightly) was built from, from GitHub.
+/// The build id (the Horizon commit) `version` (an installed release or Nightly) was built from:
+/// a developer install's checkout, else what the release's signed copy of its SDK's index names
+/// ([`sdk_cache::build_of`]).
 pub fn revision_of(version: &str) -> Result<String, String> {
     if crate::developer_install::is_developer(version) {
         return crate::developer_install::revision(version);
     }
-    let reference = match version.strip_prefix("nightly-") {
-        // nightly-2026-10-28-0c02067: the commit is its last word.
-        Some(rest) => rest.rsplit('-').next().unwrap_or(rest),
-        None => version,
-    };
-    let url = format!(
-        "https://api.github.com/repos/{}/commits/{reference}",
-        backend::REPO
-    );
-    let commit = crate::github::json(&url)?;
-    commit["sha"]
-        .as_str()
-        .filter(|s| is_revision(s))
-        .map(str::to_owned)
-        .ok_or_else(|| format!("GitHub doesn't know the commit of {version}."))
+    sdk_cache::build_of(
+        version,
+        &sdk_cache::Base::from_env(),
+        &horizon_release_sign::trusted_keys_for(backend::REPO),
+    )
+    .map_err(|refusal| refusal.to_string())
 }
 
 /// What a native build was made from: its `native-mods.json`.
@@ -951,8 +949,16 @@ pub enum Step {
     },
     /// The mods' own crates checked against Horizon's `Cargo.lock`.
     Crates,
-    /// The prebuilt game at a revision downloads (once).
-    PrebuiltGame(String),
+    /// The mod tools (the SDK's slices) of a build are fetched: bytes done of the whole.
+    Tools {
+        build: String,
+        done: u64,
+        total: u64,
+    },
+    /// Each mod is checked against the build: how many.
+    Checking(usize),
+    /// A world was backed up before the mods saved in it were switched off: where.
+    BackedUp(String),
     /// The mods compile against the prebuilt game.
     PrebuiltMods,
     Install,
@@ -1008,7 +1014,12 @@ impl Step {
             | Self::Plan(..)
             | Self::Crates
             | Self::LeftOut(_)
-            | Self::PrebuiltGame(_) => (Stage::Prepare, None),
+            | Self::Checking(_)
+            | Self::BackedUp(_) => (Stage::Prepare, None),
+            Self::Tools { done, total, .. } => (
+                Stage::Prepare,
+                (*total > 0).then_some(*done as f32 / *total as f32),
+            ),
             Self::Compile { done, total, .. } => (
                 Stage::Compile,
                 total.filter(|t| *t > 0).map(|t| *done as f32 / t as f32),
@@ -1037,10 +1048,19 @@ impl Step {
             Self::Mixins => tr("Applying the mixins").into(),
             Self::CachedMixins => tr("Reusing patched game source").into(),
             Self::Crates => tr("Checking native dependency pins and the game graph").into(),
-            Self::PrebuiltGame(revision) => trf(
-                "Downloading the prebuilt game at {revision} (once)",
-                &[("revision", &revision[..7])],
+            Self::Tools { build, done, total } => trf(
+                "Getting the mod tools for {build}: {done} of {total} MB",
+                &[
+                    ("build", build),
+                    ("done", &(done / 1_000_000).to_string()),
+                    ("total", &total.div_ceil(1_000_000).max(1).to_string()),
+                ],
             ),
+            Self::BackedUp(said) => said.clone(),
+            Self::Checking(count) => match count {
+                1 => tr("Checking 1 mod").into(),
+                count => trf("Checking {count} mods", &[("count", &count.to_string())]),
+            },
             Self::PrebuiltMods => tr("Compiling the mods against the prebuilt game").into(),
             Self::Plan(plan, profile) => format!("{} ({})", plan.label(), profile.name()),
             Self::Compile {
@@ -1111,6 +1131,7 @@ fn run_checked(
     });
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+    let started = std::time::Instant::now();
     let mut child = cmd
         .stderr(Stdio::piped())
         .spawn()
@@ -1150,6 +1171,8 @@ fn run_checked(
             tail.push_back(text);
         }
         let status = child.wait();
+        // Before the watcher's join, which can wait out its 100 ms poll.
+        let took = started.elapsed();
         finished.store(true, Ordering::Relaxed);
         let _ = watcher.join();
         if CANCEL.load(Ordering::Relaxed) {
@@ -1158,6 +1181,24 @@ fn run_checked(
         }
         let status = status.map_err(|e| ran(e.to_string()))?;
         if status.success() {
+            // Every command of a native build says how long it took, so the log accounts for
+            // the whole build and not only the steps that time themselves. The command's stdout
+            // went into this log and may not have ended its last line.
+            let mut last = *b"\n";
+            if let Ok(mut read) = fs::File::open(log_path()) {
+                if read.seek(SeekFrom::End(-1)).is_ok() {
+                    let _ = read.read_exact(&mut last);
+                }
+            }
+            let _ = writeln!(
+                log,
+                "{}{}",
+                if last[0] == b'\n' { "" } else { "\n" },
+                trf(
+                    "{step}: {ms} ms",
+                    &[("step", what), ("ms", &took.as_millis().to_string())],
+                )
+            );
             return Ok(());
         }
         let tail: Vec<String> = tail.into();
@@ -1490,6 +1531,9 @@ pub enum Failed {
     },
     /// Every mod was left out.
     Nothing,
+    /// Mods this build can't use were saved into worlds: the player chooses (stay, or back the
+    /// worlds up and build without them).
+    Worlds(AtStake),
     Other(String),
 }
 
@@ -1503,6 +1547,7 @@ impl std::fmt::Display for Failed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Mods { error, .. } | Self::Other(error) => f.write_str(error),
+            Self::Worlds(stake) => f.write_str(&stake.text),
             Self::Nothing => Ok(()),
             Self::NoConsent => f.write_str(tr("Native mods run inside your game with your rights; mixins compile code into the game. Allow native mods in Settings, Storage, or pass --trust-native-code.")),
         }
@@ -1530,6 +1575,134 @@ struct BuildOptions<'a> {
     allow_jar_downloads: bool,
     skip: &'a [LeftOut],
     registry_consent: Option<&'a dyn Fn(&RegistryInventory) -> bool>,
+    /// The game folder whose worlds a mod switched off for this build must not be lost from:
+    /// the instance's ([`guard_worlds`]).
+    worlds: Option<&'a Path>,
+    /// The player chose to back up the worlds saved with mods this build switches off, then
+    /// build without them.
+    back_up: bool,
+}
+
+/// Mods saved into worlds that a build would switch off ([`Failed::Worlds`]): what the player
+/// reads, and what the choice is between.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AtStake {
+    /// The mods and the worlds saved with them, and that opening the worlds without them
+    /// removes their content for good.
+    pub text: String,
+    /// The worlds' names.
+    pub worlds: Vec<String>,
+    /// Where backups go.
+    pub backups: PathBuf,
+    /// The build the instance plays now, as people read it: "Stay on" it is the default.
+    pub stay: String,
+    /// The release or Nightly the stopped build was on: the other choice builds on it again.
+    pub base: String,
+}
+
+/// Each project's fit to `sdk`'s build, by mod id, in `projects`' order; the surface and build
+/// data are read only when a mod made for another build asks.
+fn judge_all(
+    projects: &[api::Project<'_>],
+    sdk: &sdk_cache::Sdk,
+    base: &sdk_cache::Base,
+) -> Result<Vec<(String, fit::Verdict)>, sdk_cache::Refusal> {
+    let mut surface: Option<std::rc::Rc<mod_surface::Surface>> = None;
+    let mut catalog: Option<std::rc::Rc<internals::Catalog>> = None;
+    let mut verdicts = Vec::new();
+    for project in projects {
+        let verdict = fit::judge(
+            project,
+            sdk.commit(),
+            &mut || {
+                if surface.is_none() {
+                    surface = Some(std::rc::Rc::new(sdk_cache::surface(sdk, base)?));
+                }
+                Ok(surface.clone().expect("read above"))
+            },
+            &mut || {
+                if catalog.is_none() {
+                    let dir = sdk_cache::build_data(sdk, base)?;
+                    let read = internals::Catalog::read(&dir).map_err(|why| {
+                        sdk_cache::Refusal::Refused {
+                            build: sdk.shown(),
+                            why,
+                        }
+                    })?;
+                    catalog = Some(std::rc::Rc::new(read));
+                }
+                Ok(catalog.clone().expect("read above"))
+            },
+        )?;
+        verdicts.push((project.bundle.manifest.id.clone(), verdict));
+    }
+    Ok(verdicts)
+}
+
+/// Never switch a mod off silently in a game folder with worlds (SDK design §10.1, "Worlds"):
+/// when a world in `home` was saved with a mod of `left`, the build stops with
+/// [`Failed::Worlds`] naming them, unless the player chose `back_up`; then each of those worlds
+/// is backed up first, and a backup that fails stops the build with nothing switched off.
+fn guard_worlds(
+    home: &Path,
+    left: &[LeftOut],
+    build: &str,
+    back_up: bool,
+    progress: &impl Fn(Step),
+) -> Result<(), Failed> {
+    let ids: Vec<String> = left.iter().map(|l| l.id.clone()).collect();
+    let all = crate::worlds::list(home);
+    let at_stake = crate::worlds::saved_with(&all, &ids);
+    if at_stake.is_empty() {
+        return Ok(());
+    }
+    if !back_up {
+        let text = left
+            .iter()
+            .filter_map(|l| {
+                let worlds: Vec<String> = at_stake
+                    .iter()
+                    .filter(|(_, mods)| mods.contains(&l.id))
+                    .map(|(world, _)| world.name.clone())
+                    .collect();
+                (!worlds.is_empty()).then(|| match l.why {
+                    isolate::Why::DidNotBuild => {
+                        fit::worlds_at_stake_unbuilt(&l.id, build, &worlds)
+                    }
+                    _ => fit::worlds_at_stake(&l.id, build, &worlds),
+                })
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        return Err(Failed::Worlds(AtStake {
+            text,
+            worlds: at_stake
+                .iter()
+                .map(|(world, _)| world.name.clone())
+                .collect(),
+            backups: home.join("backups"),
+            stay: String::new(),
+            base: String::new(),
+        }));
+    }
+    for (world, _) in &at_stake {
+        let made = crate::worlds::backup(home, world).map_err(|error| {
+            Failed::Other(trf(
+                "Backing up {world} failed, so nothing was switched off or updated: {error}",
+                &[("world", &world.name), ("error", &error)],
+            ))
+        })?;
+        let said = trf(
+            "Backed up {world} to {path}",
+            &[
+                ("world", &world.name),
+                ("path", &made.display().to_string()),
+            ],
+        );
+        append_log(&said)?;
+        progress(Step::BackedUp(said));
+    }
+    Ok(())
 }
 
 /// The pipeline both targets build with ([`build`], [`build_server`]): `folder`'s mods on the
@@ -1545,6 +1718,7 @@ struct BuildOptions<'a> {
 /// Nothing of the player's outside the launcher's data is touched: no instance is edited and
 /// no version selected here.
 fn pipeline(
+    lease: &crate::native_cache::Cache,
     base: &str,
     folder: &Path,
     profile: Profile,
@@ -1647,9 +1821,76 @@ fn pipeline(
         }
     }
     let revision = build_revision(base, built_on.as_ref())?;
-    let other = mismatch(&mods, &revision);
-    if let Some(list) = &other {
-        return Err(mismatch_error(list).into());
+    let developer = crate::developer_install::is_developer(origin);
+    let sdk_base = sdk_cache::Base::from_env();
+    let keys = horizon_release_sign::trusted_keys_for(backend::REPO);
+    // A developer install's checkout has no published surface to test against: its mods are
+    // made for it exactly. Any other build tests each mod made for another build (SDK design §10).
+    let sdk = if developer {
+        if let Some(list) = mismatch(&mods, &revision) {
+            return Err(mismatch_error(&list).into());
+        }
+        None
+    } else {
+        Some(sdk_cache::index(&sdk_base, &revision, &keys).map_err(|r| r.to_string())?)
+    };
+    let mut fitted: Vec<String> = Vec::new();
+    if let Some(sdk) = &sdk {
+        progress(Step::Checking(projects.len()));
+        let verdicts = judge_all(&projects, sdk, &sdk_base).map_err(|r| r.to_string())?;
+        let mut unusable = Vec::new();
+        for (id, verdict) in verdicts {
+            match verdict {
+                fit::Verdict::MadeFor => {}
+                fit::Verdict::Fits { .. } => fitted.push(id),
+                unfit => unusable.push((id, unfit)),
+            }
+        }
+        if !unusable.is_empty() {
+            let shown = sdk.shown();
+            let texts: Vec<String> = unusable
+                .iter()
+                .map(|(id, verdict)| fit::refusal(id, verdict, &shown))
+                .collect();
+            for (id, verdict) in &unusable {
+                // The log has every changed item; messages name at most a few.
+                if let fit::Verdict::DoesNotFit { misfits, .. } = verdict {
+                    for misfit in misfits {
+                        append_log(&format!("{id}: {}", fit::change(misfit)))?;
+                    }
+                }
+            }
+            for text in &texts {
+                append_log(text)?;
+            }
+            // A server has no Mods page: the refusal and what to do are printed, and nothing is
+            // switched off for it.
+            if target == Target::Server {
+                return Err(texts.join("\n\n").into());
+            }
+            let pairs: Vec<(&Bundle, &[dependencies::Dependency])> = mods
+                .iter()
+                .zip(&declared)
+                .map(|(b, d)| (b, d.as_slice()))
+                .collect();
+            let unfit: Vec<LeftOut> = unusable
+                .iter()
+                .filter_map(|(id, verdict)| {
+                    let bundle = mods.iter().find(|b| &b.manifest.id == id)?;
+                    let why = isolate::Why::Unfit(fit::line(id, verdict, &shown));
+                    Some(LeftOut::new(bundle, why))
+                })
+                .collect();
+            let left = isolate::with_dependents(&unfit, &pairs);
+            if let Some(home) = options.worlds {
+                guard_worlds(home, &left, &shown, options.back_up, progress)?;
+            }
+            return Err(Failed::Mods {
+                left,
+                error: texts.join("\n\n"),
+                compiling: false,
+            });
+        }
     }
     if target == Target::Server {
         let jars = horizon_mod_package::manifest::collect_jar_requirements(
@@ -1664,14 +1905,40 @@ fn pipeline(
         )
         .map_err(|error| error.to_string())?;
     }
-    // Said with a failure: a mod made for another revision may not apply or compile on this one.
-    let blame = |e: String| {
-        match &other {
-        Some(list) => format!(
-            "{e}\n\nSome mods were made for other Horizon versions ({list}), which may be why. Install versions made for the same Nightly."
-        ),
-        None => e,
-    }
+    // A mod made for another build that fits this one and still doesn't compile is switched off
+    // here, and the others build: the compile is the final check.
+    // Switching it off follows the world rules like any other switch-off: when worlds were saved
+    // with it (or with a mod that needs it), the build stops unless the player chose to back
+    // them up.
+    let (worlds, back_up) = (options.worlds, options.back_up);
+    let shown = sdk
+        .as_ref()
+        .map_or_else(|| sdk_cache::shown(&revision, None), |sdk| sdk.shown());
+    let blame = |e: String| -> Failed {
+        let failed = fitted.iter().find_map(|id| {
+            let bundle = mods.iter().find(|b| &b.manifest.id == id)?;
+            e.contains(&format!("{} failed", prebuilt::compiling(id)))
+                .then(|| LeftOut::new(bundle, isolate::Why::DidNotBuild))
+        });
+        let Some(left) = failed else {
+            return Failed::Other(e);
+        };
+        if let Some(home) = worlds {
+            let pairs: Vec<(&Bundle, &[dependencies::Dependency])> = mods
+                .iter()
+                .zip(&declared)
+                .map(|(b, d)| (b, d.as_slice()))
+                .collect();
+            let going = isolate::with_dependents(std::slice::from_ref(&left), &pairs);
+            if let Err(stop) = guard_worlds(home, &going, &shown, back_up, progress) {
+                return stop;
+            }
+        }
+        Failed::Mods {
+            error: format!("{}\n\n{e}", fit::did_not_build(&left.id)),
+            left: vec![left],
+            compiling: true,
+        }
     };
     let mixins = newest(
         &mods,
@@ -1696,6 +1963,19 @@ fn pipeline(
     if let Some(reason) = prebuilt::refusal(&projects) {
         return Err(reason.to_string().into());
     }
+    // The steps around the mods' compile, timed like each command (`run_checked`), so the log
+    // accounts for the whole build.
+    let timed = |step: &str, since: std::time::Instant| {
+        append_log(&trf(
+            "{step}: {ms} ms",
+            &[
+                ("step", step),
+                ("ms", &since.elapsed().as_millis().to_string()),
+            ],
+        ))
+    };
+    timed("Planning the build", started)?;
+    let fetching = std::time::Instant::now();
     let prebuilt = if exists {
         None
     } else {
@@ -1704,13 +1984,43 @@ fn pipeline(
             .then(|| std::env::var_os(prebuilt::DEVELOPER_SDK))
             .flatten()
             .map(PathBuf::from);
-        Some(
-            prebuilt::fetch(&revision, target, local.as_deref(), || {
-                progress(Step::PrebuiltGame(revision.clone()))
-            })?
-            .map_err(|reason| reason.to_string())?,
-        )
+        let package = match (local, &sdk) {
+            (Some(local), _) => prebuilt::developer(&revision, target, &local)?,
+            (None, sdk) => {
+                // A developer install without its own prebuilt game uses its commit's SDK
+                // release, when one is published.
+                let fetched;
+                let sdk = match sdk {
+                    Some(sdk) => sdk,
+                    None => {
+                        fetched = sdk_cache::index(&sdk_base, &revision, &keys)
+                            .map_err(|r| r.to_string())?;
+                        &fetched
+                    }
+                };
+                let shown = sdk.shown();
+                sdk_cache::slices(
+                    lease,
+                    sdk,
+                    &sdk_base,
+                    prebuilt::Route::of(&projects),
+                    target,
+                    &|got: sdk_cache::Fetched| {
+                        progress(Step::Tools {
+                            build: shown.clone(),
+                            done: got.done,
+                            total: got.total,
+                        })
+                    },
+                )
+                .map_err(|r| r.to_string())?
+            }
+        };
+        Some(package)
     };
+    if prebuilt.is_some() {
+        timed("Checking the prebuilt game", fetching)?;
+    }
     check_cancelled()?;
     let plan = if exists {
         Plan::UpToDate
@@ -1767,14 +2077,24 @@ fn pipeline(
         Target::Server => rust_toolchain::linker_server(),
     };
     if let Some(game) = &prebuilt {
+        let checking = std::time::Instant::now();
         linker()?;
         let rust = rust_toolchain::install(|f| progress(Step::Rust(f)))?;
+        timed("Checking the Rust toolchain", checking)?;
         progress(Step::PrebuiltMods);
         let compiling = std::time::Instant::now();
+        let route = prebuilt::Route::of(&projects);
+        append_log(&trf(
+            "Native mods route: {route}.",
+            &[("route", route.name())],
+        ))
+        .map_err(blame)?;
         let (binary, libraries) = prebuilt::compile(
             &rust,
             game,
             &root().join("prebuilt-build"),
+            folder,
+            route,
             &projects,
             &declared,
             &resolution,
@@ -1792,15 +2112,17 @@ fn pipeline(
         .map_err(blame)?;
         check_cancelled()?;
         progress(Step::Install);
+        let installing = std::time::Instant::now();
         install(
             base,
             &version,
             target,
             &binary,
             &libraries,
-            &about("prebuilt", &internals::Catalog::read(game)?),
+            &about(route.name(), &internals::Catalog::read(&game.api)?),
             &ordered,
         )?;
+        timed("Installing the build", installing)?;
     } else {
         // Used again: it counts as the newest of the builds kept (`prune`).
         let _ = fs::write(target.directory(&version).join(".installed"), "");
@@ -1820,16 +2142,16 @@ const COMPILE_RETRIES: usize = 3;
 fn isolated(
     mut pipeline: impl FnMut(&[LeftOut]) -> Result<Built, Failed>,
     progress: &impl Fn(Step),
-) -> Result<Built, String> {
+) -> Result<Built, Failed> {
     let mut skip: Vec<LeftOut> = Vec::new();
     let mut compiles = 0;
     let mut last = String::new();
     let said = |skip: &[LeftOut], error: String| {
         let labels: Vec<String> = skip.iter().map(LeftOut::label).collect();
-        match labels.is_empty() {
+        Failed::Other(match labels.is_empty() {
             true => error,
             false => format!("{}\n\n{error}", labels.join("\n")),
-        }
+        })
     };
     loop {
         match pipeline(&skip) {
@@ -1861,8 +2183,9 @@ fn isolated(
                 last = error;
             }
             Err(Failed::Nothing) => return Err(said(&skip, last)),
-            Err(Failed::NoConsent) => return Err(Failed::NoConsent.into()),
-            Err(Failed::Other(error)) if error == CANCELLED => return Err(error),
+            Err(Failed::NoConsent) => return Err(Failed::NoConsent),
+            Err(Failed::Worlds(stake)) => return Err(Failed::Worlds(stake)),
+            Err(Failed::Other(error)) if error == CANCELLED => return Err(Failed::Other(error)),
             Err(Failed::Other(error)) => return Err(said(&skip, error)),
         }
     }
@@ -1897,6 +2220,7 @@ pub fn build(
     folder: &Path,
     instance: &Instance,
     profile: Option<Profile>,
+    back_up: bool,
     progress: impl Fn(Step),
     registry_consent: impl Fn(&RegistryInventory) -> bool,
 ) -> Result<String, Failed> {
@@ -1906,16 +2230,14 @@ pub fn build(
         return Err(Failed::Other(error));
     }
     logged(|cache| {
+        let lease = cache.map_err(|error| Failed::Other(error.into()))?;
         let profile = select_build_profile(instance.native_profile, profile, || {
-            planning::classify(
-                folder,
-                Some(base),
-                cache.map_err(|error| Failed::Other(error.into()))?,
-            )
+            planning::classify(folder, Some(base), lease)
         })?;
         let built = isolated(
             |skip| {
                 pipeline(
+                    lease,
                     base,
                     folder,
                     profile,
@@ -1923,13 +2245,24 @@ pub fn build(
                     BuildOptions {
                         skip,
                         registry_consent: Some(&registry_consent),
+                        worlds: Some(&instance.home),
+                        back_up,
                         ..BuildOptions::default()
                     },
                     &progress,
                 )
             },
             &progress,
-        )?;
+        )
+        .map_err(|failed| match failed {
+            // "Stay" keeps the build the instance plays now.
+            Failed::Worlds(stake) => Failed::Worlds(AtStake {
+                stay: playing(instance),
+                base: base.to_owned(),
+                ..stake
+            }),
+            other => other,
+        })?;
         check_cancelled()?;
         instances::edit(&instance.id, |meta| {
             meta.version = Some(built.version.clone())
@@ -1944,7 +2277,14 @@ pub fn build(
         }
         Ok(built.version)
     })
-    .map_err(Failed::Other)
+}
+
+/// The release or Nightly `instance` plays now (the one a native build of it started from).
+fn playing(instance: &Instance) -> String {
+    let Ok(version) = instance.resolve_version(None) else {
+        return String::new();
+    };
+    about(&version).map_or(version, |about| about.base)
 }
 
 /// Builds `folder`'s mods as the headless engine a dedicated server runs (`horizon-engine`,
@@ -1993,14 +2333,12 @@ pub fn build_server(
                 return Err(tr("Export the server outside the launcher's managed folders.").into());
             }
         }
+        let lease = cache.map_err(str::to_owned)?;
         let profile = select_build_profile(Profile::default(), profile, || {
-            planning::classify(
-                folder,
-                Some(base),
-                cache.map_err(|error| Failed::Other(error.into()))?,
-            )
+            planning::classify(folder, Some(base), lease)
         })?;
         let built = pipeline(
+            lease,
             base,
             folder,
             profile,
@@ -2316,8 +2654,89 @@ mod tests {
             },
             &|_| {},
         );
-        assert_eq!(result.unwrap_err(), CANCELLED);
+        assert_eq!(String::from(result.unwrap_err()), CANCELLED);
         assert_eq!(attempts, 2);
+    }
+
+    #[test]
+    fn a_mod_saved_into_a_world_is_never_switched_off_without_the_players_choice() {
+        use horizon_platform::world::nbt::{self, Limits, Tag};
+        let _guard = TEST_STATE.lock().unwrap();
+        let home = dir("guard-worlds");
+        let world = home.join("saves").join("Home");
+        fs::create_dir_all(&world).unwrap();
+        let record = Tag::compound([
+            ("ModId", Tag::String("greeter".into())),
+            ("ModVersion", Tag::String("1.0.0".into())),
+        ]);
+        let root = Tag::compound([
+            (
+                "Data",
+                Tag::compound([("LevelName", Tag::String("Home".into()))]),
+            ),
+            (
+                "fml",
+                Tag::compound([("LoadingModList", Tag::List(vec![record]))]),
+            ),
+        ]);
+        let bytes = nbt::write_named(
+            &nbt::NamedTag {
+                name: "".into(),
+                tag: root,
+            },
+            Limits::default(),
+        )
+        .unwrap();
+        fs::write(world.join("level.dat"), bytes).unwrap();
+        let left = |why| LeftOut {
+            id: "greeter".into(),
+            version: "1.0.0".into(),
+            why,
+        };
+        let build = "nightly-2026-11-20 (9a8b7c6)";
+        // A mod that fit but didn't compile goes through the same rule as one that doesn't fit.
+        for (why, headline) in [
+            (
+                isolate::Why::DidNotBuild,
+                "greeter looked compatible with nightly-2026-11-20 (9a8b7c6) but didn't build.",
+            ),
+            (
+                isolate::Why::Unfit("why".into()),
+                "greeter doesn't fit nightly-2026-11-20 (9a8b7c6).",
+            ),
+        ] {
+            let stopped = guard_worlds(&home, &[left(why)], build, false, &|_| {});
+            let Err(Failed::Worlds(stake)) = stopped else {
+                panic!("a world saved with the mod must stop the build");
+            };
+            assert!(stake.text.starts_with(headline), "{}", stake.text);
+            assert_eq!(stake.worlds, ["Home"]);
+            assert_eq!(stake.backups, home.join("backups"));
+            assert!(
+                !home.join("backups").exists(),
+                "nothing is backed up unasked"
+            );
+        }
+        // Chosen: the world is backed up first, then the build may go on without the mod.
+        let said = std::cell::RefCell::new(Vec::new());
+        guard_worlds(
+            &home,
+            &[left(isolate::Why::DidNotBuild)],
+            build,
+            true,
+            &|step| said.borrow_mut().push(step),
+        )
+        .unwrap();
+        assert_eq!(fs::read_dir(home.join("backups")).unwrap().count(), 1);
+        assert!(matches!(said.borrow().as_slice(), [Step::BackedUp(_)]));
+        // A mod no world was saved with is switched off with no question.
+        let other = LeftOut {
+            id: "other".into(),
+            version: "1.0.0".into(),
+            why: isolate::Why::DidNotBuild,
+        };
+        assert!(guard_worlds(&home, &[other], build, false, &|_| {}).is_ok());
+        fs::remove_dir_all(home).unwrap();
     }
 
     #[test]
@@ -2340,7 +2759,7 @@ mod tests {
             },
             &|_| {},
         );
-        let error = result.unwrap_err();
+        let error = String::from(result.unwrap_err());
         assert_eq!(attempts, COMPILE_RETRIES + 1);
         assert!(error.contains("broken_1 was left out"), "{error}");
         assert!(error.ends_with("compiler failure"), "{error}");
@@ -2457,7 +2876,7 @@ mod tests {
 
     /// The launcher's toolchain in `dir` for every host it ships one for: the build commands are
     /// checked for each host on whichever machine runs the tests, not only for its own.
-    fn toolchains(dir: impl Into<PathBuf>) -> Vec<Toolchain> {
+    pub(super) fn toolchains(dir: impl Into<PathBuf>) -> Vec<Toolchain> {
         let dir = dir.into();
         rust_toolchain::hosts()
             .iter()
@@ -2925,7 +3344,10 @@ mod tests {
 
     #[test]
     fn a_native_build_without_a_record_is_refused_before_preparation() {
+        let _guard = TEST_STATE.lock().unwrap();
+        let lease = crate::native_cache::Cache::acquire(&backend::build_dir()).unwrap();
         let Err(error) = pipeline(
+            &lease,
             "native-missing-record-test",
             Path::new("missing-mod-folder"),
             Profile::Optimized,
@@ -3229,10 +3651,10 @@ mod tests {
         eprintln!("NATIVE_SERVER_EXPORT_STEP=load_runtime");
         let runtime = horizon_mod_package::runtime::Runtime::load(
             &output.join(Target::Server.binary()),
-            &[horizon_mod_package::runtime::BuiltMod {
+            &[mod_vocab::__private::native::BuiltMod {
                 id: "exported",
                 version: "0.1.0",
-                side: horizon_mod_package::Side::Client,
+                side: mod_vocab::Side::Client,
             }],
         )
         .unwrap();
@@ -3305,7 +3727,16 @@ mod tests {
         fs::write(&file, stored).unwrap();
         let instance = instances::find("horizon").unwrap();
         let folder = dir("automatic-profile");
-        let error = build("v2099.09.09", &folder, &instance, None, |_| {}, |_| false).unwrap_err();
+        let error = build(
+            "v2099.09.09",
+            &folder,
+            &instance,
+            None,
+            false,
+            |_| {},
+            |_| false,
+        )
+        .unwrap_err();
         assert!(String::from(error).contains("is not prepared yet"));
         assert_eq!(fs::read(&file).unwrap(), stored);
         if let Some(previous) = previous {
@@ -3378,6 +3809,7 @@ mod tests {
                 &folder,
                 &instances::selected(),
                 choice,
+                false,
                 |_| {},
                 |_| false,
             ));
@@ -3741,6 +4173,32 @@ mod tests {
         ]);
         let e = run(cmd, "Compiling the game", |_| {}).unwrap_err();
         assert!(!e.contains("Smart App Control"), "{e}");
+    }
+
+    /// A command that succeeds leaves its time in the build log; one that fails leaves none.
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "daily"]
+    fn each_command_logs_its_time() {
+        let _guard = TEST_STATE.lock().unwrap();
+        clear_log().unwrap();
+        // Its stdout, which goes to the log, does not end its line.
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "printf output; sleep 0.05"]);
+        run(cmd, "Linking the game", |_| {}).unwrap();
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "exit 1"]);
+        run(cmd, "Compiling fnr_alpha", |_| {}).unwrap_err();
+        let log = fs::read_to_string(log_path()).unwrap();
+        let ms: u64 = log
+            .lines()
+            .find_map(|line| line.strip_prefix("Linking the game: ")?.strip_suffix(" ms"))
+            .unwrap_or_else(|| panic!("no timing line in {log}"))
+            .parse()
+            .unwrap();
+        assert!(ms >= 50, "{log}");
+        assert!(log.lines().any(|line| line == "output"), "{log}");
+        assert!(!log.contains("Compiling fnr_alpha: "), "{log}");
     }
 }
 

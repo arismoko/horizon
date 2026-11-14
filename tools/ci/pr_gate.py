@@ -1,10 +1,8 @@
 """Whether this run gets the heavy checks (everything that compiles), as `heavy=true|false` for $GITHUB_OUTPUT.
 
-A pull request from a contributor's fork gets only the cheap checks (verify-static and the format job): reviews read
-the diff, and a rollup carries the PR into one heavy run. The heavy checks run on main's pushes, on dispatches, and
-on every pull request whose head branch is in this repository: ours (rollups, syncs, fast-path fixes, our sessions'
-work); contributors' heads live in their forks. Workflows without this job spell the same rule as an expression
-(tests/test_pr_gate.py keeps them equal).
+Ordinary pull requests get only the cheap checks (verify-static and format). The heavy checks run on main's
+pushes, dispatches, and same-repository rollup or sync pull requests, identified by labels or branch names.
+Fork pull requests remain cheap even when they use those labels or names.
 
 A reviewer runs the heavy gate on one contributor's pull request with `gh workflow run dyna-ci.yml -f pr=<number>`:
 main's workflow checks out that pull request's head commit, runs the heavy jobs on GitHub's runners with a read-only
@@ -18,14 +16,18 @@ import subprocess
 import sys
 
 
-def outputs(event: str, same_repository: bool, pr: str, read_pr) -> dict[str, str]:
+def outputs(event: str, same_repository: bool, pr: str, read_pr, *, labels: tuple[str, ...] | list[str] = (), head_ref: str = "") -> dict[str, str]:
     if event == "workflow_dispatch" and pr:
         if not re.fullmatch(r"[1-9][0-9]{0,6}", pr):
             raise SystemExit(f"pr must be a pull request number, not {pr!r}")
         head = read_pr(pr)
         return {"heavy": "true", "pr_sha": head["sha"],
                 "trusted": "true" if head["same_repository"] else "false"}
-    heavy = event != "pull_request" or same_repository
+    # A rollup builder session pushes only branches named after itself (`rollup-76`), and a label added after the
+    # pull request opens misses its first event, so the branch name alone counts too.
+    integration = bool({"rollup", "sync"}.intersection(labels)) or head_ref.startswith(
+        ("fork-review-rollup-", "rollup-", "sync-"))
+    heavy = event != "pull_request" or (same_repository and integration)
     return {"heavy": "true" if heavy else "false", "pr_sha": "", "trusted": ""}
 
 
@@ -46,7 +48,9 @@ def read_pr(number: str) -> dict:
 def main() -> None:
     values = outputs(os.environ.get("EVENT", ""),
                      os.environ.get("HEAD_REPO", "") == os.environ.get("GITHUB_REPOSITORY"),
-                     os.environ.get("PR", ""), read_pr)
+                     os.environ.get("PR", ""), read_pr,
+                     labels=json.loads(os.environ.get("PR_LABELS", "[]")) or [],
+                     head_ref=os.environ.get("HEAD_REF", ""))
     for key, value in values.items():
         print(f"{key}={value}")
     print(f"heavy checks: {values['heavy']}", file=sys.stderr)

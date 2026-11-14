@@ -839,6 +839,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "daily"]
     fn mixed_recursive_temporaries_are_released_on_256_kib() {
         std::thread::Builder::new()
             .stack_size(256 * 1024)

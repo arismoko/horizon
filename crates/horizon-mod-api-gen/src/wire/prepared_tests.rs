@@ -152,6 +152,7 @@ fn on_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap();
 }
 #[test]
+#[ignore = "daily"]
 fn only_can_equip_changes_when_prepared_marker_is_removed() {
     on_stack(|| {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -230,6 +231,7 @@ fn only_can_equip_changes_when_prepared_marker_is_removed() {
     });
 }
 #[test]
+#[ignore = "daily"]
 fn prepared_fingerprint_covers_marker_entries_and_argument_layouts() {
     on_stack(|| {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

@@ -543,6 +543,7 @@ mod tests {
 
     #[test]
     fn uploads_preserve_ranges_and_reuse_high_water_storage() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             eprintln!("no GPU adapter: skipped");
             return;
@@ -723,6 +724,7 @@ mod tests {
     /// depth-tested quad in front of the wall shows.
     #[test]
     fn depth_tested_primitives_hide_behind_walls_and_see_through_ones_do_not() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             eprintln!("no GPU adapter: skipped");
             return;

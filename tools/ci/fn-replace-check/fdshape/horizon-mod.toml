@@ -15,7 +15,7 @@ mixins = "MIXINS"
 [[native.mixin]]
 id = "ported_block_entity_tick"
 kind = "HEAD"
-target = "horizon_client::game::api_values::super::Game<'_>::api_block_entity_tick"
+target = "horizon_client::game::block_entity_tick_reply::Game<'_>::api_block_entity_tick"
 helper = "src/mixins/tick.rs"
 bindings = [
   { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },

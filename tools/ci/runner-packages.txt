@@ -18,3 +18,7 @@ libvulkan-dev
 libxcursor1
 libxi6
 libxrandr2
+valgrind
+libc6-dbg
+gcc-mingw-w64-x86-64
+g++-mingw-w64-x86-64

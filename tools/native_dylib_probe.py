@@ -193,7 +193,7 @@ def main():
     template = (sdk / sdk_tools.TEMPLATE).read_text()
     (shipped / "main.rs").write_text(template.replace("/* MOD_ENTRIES */", '        "probe" => mod_0::hooks,\n').replace(
         "/* BUILT_MODS */",
-        '    horizon_mod_package::runtime::BuiltMod { id: "probe", version: "0.1.0", side: horizon_mod_package::Side::Both },\n'))
+        '    mod_api::__private::native::BuiltMod { id: "probe", version: "0.1.0", side: mod_api::Side::Both },\n'))
     shipped_exe = shipped / ("horizon-client.exe" if windows else "horizon-client")
     subprocess.run([*route, "--crate-type", "bin", "--crate-name", "horizon_native_game",
                     *(flag for arg in identity["link_args"] for flag in ("-C", f"link-arg={arg}")),

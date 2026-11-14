@@ -10,6 +10,7 @@ use {
     },
 };
 #[test]
+#[ignore = "daily"]
 fn bound_recursive_providers_and_registry_lists_before_sampling() {
     let registry = BlockRegistry::from_nbt(&Tag::compound([
         ("DataVersion", Tag::Int(DATA_VERSION)),

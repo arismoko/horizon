@@ -24,3 +24,16 @@ A key is known by its name, which must be namespaced (`chem_api:chemical`), and 
 mods that each declare their own `Chemical` under one name, rather than sharing the defining mod's, would never see
 each other's handlers. So the game refuses that at startup, naming both mods and both types, and it refuses a key whose name has no
 namespace. Both checks run once, when the mods register.
+
+Storage for a holder without a block entity (an entity, a player, a chunk, the level) comes stock, kept in an
+attachment the mod declares, as NeoForge mods keep a `ItemStacksResourceHandler` or `SimpleEnergyHandler` in one:
+`AttachedItems::new(&SLOTS, holder, size, capacity, valid)` (returns `None` for more than 4096
+indices) and `AttachedFluids` (`AttachedStacks<R>`, a
+`ResourceHandler<R>` over an `AttachmentType<StackList<R>>`, `single` for one index) and
+`AttachedEnergy::new(&ENERGY, holder, capacity, max_insert, max_extract)` over an `AttachmentType<u32>`. Give the
+item or fluid attachment the codec `ITEM_STACKS` or `FLUID_STACKS` to save it. Every write is an attachment write, so
+the transaction journal, which keeps each holder's attachment map, undoes it on an abort; sync follows the attachment
+type's `sync` flag. A mod's own resource type implements `StackedResource` to be held. `capacity` stays the physical
+limit of an in-range index while `valid` refuses only inserts (extraction never asks it), indices past the handler's
+`size` that the attachment keeps are never deleted by a smaller view, and the codecs refuse a saved `Slot` past 4096
+indices or an amount past what a signed `Int` saves, rather than honoring or wrapping it.

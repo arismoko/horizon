@@ -115,7 +115,39 @@ It looks at what your branch changes and runs what matters: rustfmt, clippy with
 crates you touched (and the launcher's), generated files, `Cargo.lock` and the Python tests. Like CI, it runs the
 vanilla harnesses only when your branch changes a harness, an oracle, a probe or the runner; otherwise it lists the
 ones your change can affect, and main's parity run checks them after the merge. `--harnesses` runs them on your
-machine anyway (it needs the vanilla data). It exits non-zero when something fails.
+machine anyway, and a change to mod content, assets, blocks or items also runs the `#[ignore]`d content-root tests;
+both need the prepared vanilla data and are reported as not run without it. `--quick` never runs the harnesses.
+It exits non-zero when something fails.
+
+### CI tiers
+
+CI is split by how long a test takes and what it needs. Main and rollups run only quick checks and unit tests;
+every test that boots the game runs once a day. Existing tests that need prepared resources, a child process or the
+network and are still in `verify` are being moved by the next change of #4022.
+
+| Tier | Runs on | What |
+| --- | --- | --- |
+| Push | every pull request push | `format`, `verify-static` |
+| Gate | rollup and sync pull requests, pushes to main | `lint`, `verify` (unit tests only), `verify-static`, `launcher` |
+| Daily | once a day on main's head | every test that boots the game or needs prepared resources, the wasm fixture, `fn-replace-check`, the SDK build and its linkage probe, the machine sample built against the mod API |
+
+**A unit test** uses no prepared resources, boots no game, starts no child process, uses no network and no compiled
+wasm fixture, and finishes in under 2 seconds. Any other test is a daily test: it carries `#[ignore]` and a row in
+`tools/ci/ignored-tests/` (the format is in that folder's README). `verify` fails a unit test that takes over 5
+seconds and `verify-static` one that boots the game; existing tests over 2 seconds and those that boot the game are
+already daily tests, and the existing ones that need resources, a child process or the network are being moved over.
+
+- A pull request is reviewed and merged on the push and gate tiers. Nothing else is asked of you.
+- Write a quick test where a quick test can catch the mistake. A test that needs the game or prepared resources is
+  welcome: mark it `#[ignore]` with its policy row, and say in the pull request that it has not run if you could not
+  run it.
+- If a daily run fails on a test your pull request added or touched, an issue is filed that names the test, where it
+  panicked and the pull requests merged since the last green daily run. The fix is an ordinary pull request.
+
+Three kinds of build: a **snapshot**, from main's head on request, needs only the gate tier and no in-game tests
+(it is published as `snapshot-<date>-<short>`, which no launcher offers, to test packages and platforms after a
+merge); the **nightly** is published by the daily run when every part of it is green; a **release** is cut from a
+nightly.
 
 Reviews on this fork read the diff, the design and CI; they do not run your change. So for anything a player or a
 mod author can see, please start the game once and try it (single player is enough:
@@ -173,12 +205,14 @@ it (edited on every push, never repeated): talk to its author in the thread befo
 Who reviews and merges: the Horizon Team, on CI for ordinary pull requests; risky ones (saves, network, world
 generation, the launcher's updates) wait for a local proof first ([merging](docs/release-flow.md#merging)).
 
-Every merge to main is released automatically ([release flow](docs/release-flow.md)), so main always stays playable.
+Merges reach players through the nightly, which the daily run publishes only when every in-game test passed
+([release flow](docs/release-flow.md)).
 How agents, checks, releases and signed updates keep this safe: [security](docs/security.md).
 
 ### Large pull requests
 
-500 lines stays the default. A pull request that can't be split below it starts from a spec:
+500 lines of code ([what counts](#pull-requests)) stays the default. A pull request that can't be split below it
+starts from a spec:
 
 1. **Open an issue with the spec** before the code: what changes, the files it touches, the behaviour players and
    other code will see, and the tests or harnesses that prove it.
@@ -191,7 +225,8 @@ How agents, checks, releases and signed updates keep this safe: [security](docs/
 
 ## Parity checks on forks
 
-The `verify` check (formatting, lints, tests) runs on every pull request. The `parity` check runs the affected
+A pull request from a fork gets the push tier ([CI tiers](#ci-tiers)); the gate runs when a rollup carries it. The
+`parity` check runs the affected
 harnesses on a maintainer's machine, which holds the game files, so it never runs a fork's code on its own: a
 maintainer reads your change, then adds the `run-parity` label, which runs it once on your current commit. After
 new pushes, we add it again.

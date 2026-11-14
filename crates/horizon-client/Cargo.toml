@@ -41,6 +41,8 @@ horizon-world = { path = "../horizon-world" }
 horizon-protocol = { path = "../horizon-protocol" }
 # server.properties, eula.txt and the user lists, shared with horizon-server.
 horizon-server-files = { path = "../horizon-server-files" }
+# The JDK's clock, for the LAN host's random seed and the probes.
+horizon-java-properties = { path = "../horizon-java-properties" }
 # The dedicated server's anticheat, off unless server.toml's [anticheat] turns it on (docs/anticheat.md).
 horizon-anticheat = { path = "../horizon-anticheat" }
 # The dedicated server's chat filter: [chat_filter], the slur list, mutes (docs/chat-filter.md);
@@ -102,10 +104,6 @@ fs4 = { version = "1.1.0", default-features = false, features = ["sync"] }
 rustix = { version = "1", default-features = false, features = ["std", "time", "process", "fs"] }
 
 [target.'cfg(windows)'.dependencies]
-# Resolve virtualized folders to shell-compatible physical paths.
-dunce = "1.0.5"
-# Use the registered URI handler without routing links through Explorer/cmd.
-open = { version = "5.4.5", features = ["shellexecute-on-windows"] }
 # DirectX 12, where Vulkan has no adapter or device, or by choice (`graphicsApi`, graphics.rs).
 # Shaders compile with FXC (d3dcompiler_47.dll, part of Windows), or on integrated GPUs with DXC
 # (dxcompiler.dll beside the game, gfx/dx12_compiler.rs).
@@ -148,8 +146,8 @@ friends = ["dep:horizon-friends"]
 # Records the call sites of mob random draws (`mob_ai_probe` traces).
 rng-trace = ["horizon-core/rng-trace", "horizon-client-lib/rng-trace"]
 # Rust's allocations go to the system heap instead of mimalloc, where heap profilers that replace
-# malloc (heaptrack, valgrind's massif) see them. Also the Windows prebuilt archive's allocator
-# (tools/prebuilt_game.py, #2394): there std's DLL keeps its own allocator. Otherwise mimalloc is faster.
+# malloc (heaptrack, valgrind's massif) see them. Also the Windows and macOS prebuilt archives' allocator
+# (tools/prebuilt_game.py, #2394, #3877): there std's shared library keeps its own allocator. Otherwise mimalloc is faster.
 system-allocator = ["horizon-threads/system-allocator"]
 # mimalloc that counts each thread's allocations and frees (`stats` replies with `alloc`).
 alloc-count = ["horizon-threads/alloc-count"]

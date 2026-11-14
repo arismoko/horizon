@@ -95,3 +95,12 @@ Direction, EquipmentSlot, GameMode, UseAnimation, ConnectionKind, AttachmentWrit
 and local Reduction's deliberate compact-u8 encoding. Payload enums/structs are
 outside the const-fold change. Small independent golden-byte/hash tests separately
 guard against mechanically captured implementation mistakes.
+
+## Intentional ingredient-shape contract change
+
+Issue #3737 adds `Shape::CustomDisplay` at ordinal 3. Compound, intersection and
+difference retain ordinals 0, 1 and 2; `ingredient_shape_contract_keeps_existing_tags_and_adds_custom_display_at_three`
+checks their literal bytes. The Shape pin records the approved four-variant
+contract, independently mixing the literal variant names with the original
+FNV layout algorithm. Its original captured hash remains in `baseline_hash`.
+The other frozen pins and the identity inventory remain unchanged.

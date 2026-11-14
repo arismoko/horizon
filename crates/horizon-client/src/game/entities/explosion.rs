@@ -483,12 +483,13 @@ impl Game<'_> {
     /// (`ExplosionDamageCalculator.getBlockExplosionResistance`), and whether
     /// the block is spared.
     fn blast_step<S: std::hash::BuildHasher>(
-        &self,
+        &mut self,
         pos: [i32; 3],
         resists: Option<([i32; 3], f32)>,
         cap: Option<f32>,
         portal_proof: bool,
         wither_immune: Option<&std::collections::HashSet<String, S>>,
+        explosion: &ExplosionStart<'_>,
     ) -> (f32, bool) {
         let state = self.world.block(pos[0], pos[1], pos[2]);
         let f = self.res.facts().get(state);
@@ -509,13 +510,23 @@ impl Game<'_> {
         let taken = match resists {
             Some((at, resistance)) if at == pos => (resistance + 0.3) * 0.3,
             _ if !self.res.facts().is_air(state) || f.fluid != Fluid::None => {
+                let immune = wither_immune.is_some_and(|t| t.contains(&*f.name));
+                let own = f.explosion_resistance;
+                // WitherBoss.canDestroy for the skull's cap, or what the
+                // block's parts answer for the skull.
+                let kept = match (cap, self.combat.explosion_direct) {
+                    (Some(_), Some(skull)) => !self.entity_may_destroy(skull, pos, !immune),
+                    _ => immune,
+                };
+                // Block.getExplosionResistance, or what the block's parts answer.
                 let base = if spared {
                     0.0
                 } else {
-                    f.explosion_resistance.max(fluid)
+                    self.part_explosion_resistance(pos, state, explosion)
+                        .unwrap_or(own)
+                        .max(fluid)
                 };
-                let immune = wither_immune.is_some_and(|t| t.contains(&*f.name));
-                (blast_resistance(base, cap, immune) + 0.3) * 0.3
+                (blast_resistance(base, cap, kept) + 0.3) * 0.3
             }
             _ => 0.0,
         };
@@ -529,6 +540,7 @@ impl Game<'_> {
         radius: f32,
         resists: Option<([i32; 3], f32)>,
         portal_proof: bool,
+        explosion: &ExplosionStart<'_>,
     ) -> Vec<[i32; 3]> {
         let (min_y, max_y) = self.with_level(|_, level, _| {
             use horizon_world::level::LevelAccess;
@@ -583,6 +595,7 @@ impl Game<'_> {
                                     cap,
                                     portal_proof,
                                     wither_immune.as_ref(),
+                                    explosion,
                                 );
                                 last = Some((pos, taken, spared));
                                 (taken, spared, false)
@@ -1464,7 +1477,8 @@ impl Game<'_> {
         // Explosion.explode: the blast is heard.
         let ctx = horizon_client::sculk::Context::default();
         self.post_game_event("minecraft:explode", center, ctx);
-        let mut targets = self.exploded_positions(center, radius, resists, source.portal_proof);
+        let mut targets =
+            self.exploded_positions(center, radius, resists, source.portal_proof, &start);
         let dimension = self.dim.id();
         self.native_explosion_detonate(dimension, center, &mut targets);
         let pushed =
@@ -1599,14 +1613,19 @@ impl Game<'_> {
         } else if let Some(tag) = super::spill::saved_entity(&self.world, pos) {
             self.pending.record_saved(pos, &tag);
         }
+        // Block.dropFromExplosion (only TntBlock refuses), or what the
+        // block's parts answer: it gates spawnAfterBreak and the loot.
+        let drops = self
+            .part_drops_from_explosion(pos, state, explosion)
+            .unwrap_or(!is_tnt);
         // Block.onExplosionHit runs spawnAfterBreak before the drops.
-        if !is_tnt && name.starts_with("minecraft:infested_") {
+        if drops && name.starts_with("minecraft:infested_") {
             self.spawn_infestation(pos);
         }
         // Its dropExperience is whether the blast's indirect source is a
         // player (a primed TNT's owner, not a mob's): ores, sculk and spawners
         // sample their experience then, and pop it while blocks drop.
-        if !is_tnt && self.combat.blast_owner_player {
+        if drops && self.combat.blast_owner_player {
             let xp = horizon_world::level::removal::break_experience(&mut self.world.random, &name)
                 .unwrap_or(0);
             if xp > 0
@@ -1618,7 +1637,7 @@ impl Game<'_> {
                 self.spawn_orbs(pos.map(|v| f64::from(v) + 0.5), xp);
             }
         }
-        if !is_tnt {
+        if drops {
             let dynamic = self.pending.dynamic(pos);
             // LootContextParams.EXPLOSION_RADIUS under DESTROY_WITH_DECAY: the
             // tables' survives_explosion and explosion_decay draw from their
@@ -1920,10 +1939,11 @@ fn add_or_append_stack(
 
 /// `WitherSkull.getBlockExplosionResistance`: `isDangerous() &&
 /// WitherBoss.canDestroy(state) ? min(0.8, resistance) : resistance`. Air has
-/// no resistance to begin with, and `#wither_immune` blocks keep theirs.
-fn blast_resistance(base: f32, cap: Option<f32>, wither_immune: bool) -> f32 {
+/// no resistance to begin with, and a block the skull may not destroy
+/// (`kept`: `#wither_immune`, or as its parts answer) keeps its own.
+fn blast_resistance(base: f32, cap: Option<f32>, kept: bool) -> f32 {
     match cap {
-        Some(cap) if !wither_immune => base.min(cap),
+        Some(cap) if !kept => base.min(cap),
         _ => base,
     }
 }
@@ -2246,7 +2266,17 @@ mod tests {
             game.world.random.set_seed(7);
             let expected = exploded_positions_stepwise(&mut game, center, radius, resists);
             game.world.random.set_seed(7);
-            let got = game.exploded_positions(center, radius, resists, false);
+            let start = ExplosionStart::from(mod_api::__private::built::ExplosionStart {
+                dimension: "minecraft:overworld",
+                center,
+                radius,
+                fire: false,
+                interaction: mod_api::BlockInteraction::Destroy,
+                damage_type: "minecraft:explosion",
+                source: None,
+                owner: None,
+            });
+            let got = game.exploded_positions(center, radius, resists, false, &start);
             assert!(expected.len() > 20, "{radius}: {}", expected.len());
             assert_eq!(got, expected, "radius {radius}, {resists:?}");
         }
@@ -2306,6 +2336,7 @@ mod tests {
     fn zombie_type() -> std::sync::Arc<horizon_client::mobs::MobType> {
         use horizon_client::mobs::{Anim, Brain, MobType, Part, Species};
         std::sync::Arc::new(MobType {
+            shadow: None,
             id: "minecraft:zombie".into(),
             species: Species::Zombie,
             width: 0.6,

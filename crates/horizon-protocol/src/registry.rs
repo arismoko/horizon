@@ -167,6 +167,9 @@ pub struct Dynamic {
     pub tags: HashMap<String, HashMap<String, Vec<i32>>>,
     /// The peer confirmed the native component registry identity.
     pub custom_components: bool,
+    /// The `horizon:menu_extra` payload layout the peer serves: the revision its
+    /// configuration query carried, 0 when it never asked (the legacy layout).
+    pub menu_extra_revision: u8,
 }
 /// The most registries whose tags one connection keeps. Vanilla names well under a hundred; a
 /// server naming more is not a registry list, and the bound keeps a hostile one from growing the
@@ -189,6 +192,7 @@ impl Dynamic {
             registries,
             tags,
             custom_components: _,
+            menu_extra_revision: _,
         } = self;
         let registry_bytes = registries.iter().fold(
             fresh_hash_table_bytes::<(String, Vec<(String, Option<Tag>)>)>(registries.capacity()),

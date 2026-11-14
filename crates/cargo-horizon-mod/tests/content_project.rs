@@ -1,6 +1,7 @@
 use std::{fs, process::Command};
 
 #[test]
+#[ignore = "daily"]
 fn git_project_build_checks_only_the_files_it_packages() {
     let root = std::env::temp_dir().join(format!("horizon-content-cli-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);

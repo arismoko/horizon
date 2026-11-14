@@ -4,20 +4,25 @@ name: fn-replace-check
 # (tools/ci/fn_replace_check.sh): function replacement, bridges, support modules, a published loop,
 # a mod with registry dependencies, and the refusals by name. So a change that breaks native mods
 # fails here and not on a player's machine (#1102). Build and link only: no game runs and no vanilla
-# data is read. Checked on main pushes and by dispatch, never on pull requests.
+# data is read. Checked by the daily run and by dispatch, never on pull requests or main pushes.
 on:
-  push:
-    branches: [main]
+  # The daily run (daily.yml) calls it with the commit to check; root dispatches it on a branch that changes
+  # what it builds.
+  workflow_call:
+    inputs:
+      commit:
+        description: The commit to check (the daily run's)
+        type: string
+        default: ''
   workflow_dispatch:
 permissions:
   contents: read
-# Main pushes coalesce: a started run always finishes, and only the newest waiting push runs next, so
-# the newest finished main run proves every commit before it. A red is attributed by reading the error,
-# with a manual dispatch on a suspect commit (through a branch pointing at it) when needed. Dispatches
-# queue in their own group per ref and never displace main's runs.
+# A daily run's call is grouped by that run and always finishes (daily.yml runs one at a time). A dispatch on main
+# gets a group of its own; elsewhere a newer dispatch on the same branch replaces the one before, which checked a
+# superseded head.
 concurrency:
-  group: fn-replace-check-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: false
+  group: fn-replace-check-${{ inputs.commit && github.run_id || github.ref == 'refs/heads/main' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ inputs.commit == '' && github.ref != 'refs/heads/main' }}
 env:
   # sccache (shared per Dyna host) cannot cache incremental compiles, so every Rust job builds non-incremental.
   CARGO_INCREMENTAL: 0
@@ -32,7 +37,7 @@ jobs:
         env:
           ENABLED: ${{ vars.DYNA_CI_SELF_HOSTED }}
           LEASE: ${{ vars.DYNA_CI_POOL_UNTIL }}
-          # Only main pushes and dispatches run this workflow, both from this repository.
+          # Only dispatches (the daily run's included) run this workflow, from this repository.
           SAME_REPO: true
           EVENT: ${{ github.event_name }}
         run: bash tools/ci/dyna_ci_runner.sh >> "$GITHUB_OUTPUT"
@@ -42,6 +47,8 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
       # GitHub's 16 GB runner is short of memory for the game's release build with more than two crates at once.
       # A Dyna runner builds as many as its CPU quota allows within its memory, 4 GiB per release rustc
       # (tools/ci/cargo_jobs.py). CARGO_BUILD_JOBS, not a flag: it must also reach the launcher's mod builds.
@@ -94,17 +101,38 @@ jobs:
             mkdir -p "$scratch"
           fi
           echo "FNR_SCRATCH=$scratch" >> "$GITHUB_ENV"
+      # Every job that builds in this runner's persistent target keeps its source snapshot true: a
+      # build of another tree without it left artifacts that a later job judged fresh (stale generated
+      # sources, 2026-11-13). Only byte-identical Git objects regain their previous timestamps.
+      - name: Restore unchanged source timestamps
+        run: python3 tools/ci/source_mtimes.py "${CARGO_TARGET_DIR:-target}/ci-source-mtimes-v2.json"
+      # Every build and test in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py).
+      - name: Cap build parallelism to the runner
+        run: python3 tools/ci/cargo_jobs.py --job-mib 3072 --cap
       # The SDK is built with the launcher's Rust: a mod's code is compiled against its metadata.
       - name: Server SDK, warnings denied
+        # Release with ThinLTO as published, but 16 codegen units instead of 1: the same features,
+        # flags, exports and link, built in parallel. A fault only one unit's inlining shows first
+        # appears at the prebuilt-game publish.
+        env:
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
         run: python3 tools/prebuilt_game.py build "$FNR_SCRATCH/prebuilt" --server
       - name: Build the launcher
         run: cargo build --release --locked --manifest-path launcher/Cargo.toml
       - name: Function replacement check (build and link)
         run: |
           launcher="${CARGO_TARGET_DIR:-launcher/target}/release/horizon-launcher"
-          FNR_MODS="alpha beta one ten fdshape support registry lower loop loop_second" tools/ci/fn_replace_check.sh \
-            "$launcher" "$FNR_SCRATCH/prebuilt" "$FNR_SCRATCH/check" 2>&1 | tee "$FNR_SCRATCH/fnr-check.log"
-          grep -F 'Function replacement:' "$FNR_SCRATCH/fnr-check.log" >> "$GITHUB_STEP_SUMMARY"
+          # api_only has no [native] row; beside alpha the mixed set still takes the engine route.
+          FNR_ROUTE=prebuilt FNR_MODS="alpha beta one ten fdshape support registry lower loop loop_second api_only" \
+            tools/ci/fn_replace_check.sh "$launcher" "$FNR_SCRATCH/prebuilt" "$FNR_SCRATCH/check" 2>&1 \
+            | tee "$FNR_SCRATCH/fnr-check.log"
+          grep -E 'Function replacement:|: [0-9]+ ms$|^Mods compiled against the prebuilt game in |^Runner load:' \
+            "$FNR_SCRATCH/fnr-check.log" >> "$GITHUB_STEP_SUMMARY"
+      - name: An API-only set takes the API route (build and link)
+        run: |
+          launcher="${CARGO_TARGET_DIR:-launcher/target}/release/horizon-launcher"
+          FNR_KEEP=1 FNR_ROUTE=prebuilt-api FNR_MODS="api_only" tools/ci/fn_replace_check.sh \
+            "$launcher" "$FNR_SCRATCH/prebuilt" "$FNR_SCRATCH/check"
       # It also builds horizon-mixins from source, where the runs before it download the prebuilt tool.
       # On its own: with no mod filling the loop, a mixin on the loop's function is compiled for the
       # empty slot. Beside the `loop` mod it would be compiled for that mod's slots instead.

@@ -194,6 +194,16 @@ fn biome_writes_roll_back_and_only_the_root_commit_notifies_clients() {
         assert!(game.world.dirty_sections.is_empty());
         assert!(rx.try_recv().is_err());
 
+        // LevelReader.getBiome reads the cell its fuzzy zoom selects, which for a block on a
+        // cell's edge such as `pos` can be a neighbour in an unloaded chunk: read back through a
+        // block whose zoomed cell is `pos`'s own.
+        let zoom = game.streaming.biome_zoom;
+        let probe = (0..16)
+            .flat_map(|x| (64..68).flat_map(move |y| (0..16).map(move |z| [x, y, z])))
+            .find(|&[x, y, z]| {
+                zoom.quart_at_block(horizon_core::position::BlockPos::new(x, y, z)) == [0, 16, 0]
+            })
+            .expect("a block in the chunk whose zoomed cell is pos's");
         let host: &mut dyn mod_api::ServerHost = game;
         host.transaction(|host, _| {
             assert!(level.set_biome(host, pos, &name));
@@ -202,7 +212,7 @@ fn biome_writes_roll_back_and_only_the_root_commit_notifies_clients() {
                 Err(())
             });
             assert!(inner.is_err());
-            assert_eq!(level.biome_at(host, pos).as_deref(), Some(name.as_str()));
+            assert_eq!(level.biome_at(host, probe).as_deref(), Some(name.as_str()));
             host.transaction(|host, _| {
                 assert!(level.set_biome(host, pos, &old_name));
                 assert!(level.set_biome(host, [3, 67, 3], &name));

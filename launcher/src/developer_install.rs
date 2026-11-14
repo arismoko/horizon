@@ -94,6 +94,10 @@ fn digest_tree(root: &Path, hash: &mut Sha256) -> Result<(), String> {
     Ok(())
 }
 
+/// The wasm standard library the packager copies from beside the game program, on every platform
+/// (it is not an executable, so it has no `EXE_SUFFIX`).
+const WASM_STD: &str = "horizon-wasm-std.wasm";
+
 pub fn install(checkout: &Path, program: &Path, trusted: bool) -> Result<String, String> {
     if !trusted {
         return Err(tr("Developer installation runs the checkout's build code and an unsigned game with your rights. Pass --trust-unsigned only if you trust both.").into());
@@ -115,8 +119,22 @@ pub fn install(checkout: &Path, program: &Path, trusted: bool) -> Result<String,
     if !checkout.join("exporters/manifest.json").is_file() {
         missing.push("exporters/manifest.json".into());
     }
+    // The packager copies the wasm standard library from beside the game, whatever mods follow.
+    let wasm_std = program.with_file_name(WASM_STD);
+    let wasm_std_missing = !wasm_std.is_file();
+    if wasm_std_missing {
+        missing.push(WASM_STD.into());
+    }
     if !missing.is_empty() {
-        return Err(trf("Missing developer packaging inputs: {files}. Build companions with cargo build -p horizon-client-lib --bin horizon-ctl -p horizon-prepare -p horizon-server. Run horizon-prepare compile-exporters --root CHECKOUT, then copy its server, client and manifest.json into CHECKOUT/exporters/.", &[("files", &missing.join(", "))]));
+        let mut message = trf(
+            "Missing developer packaging inputs: {files}. Build companions with cargo build -p horizon-client-lib --bin horizon-ctl -p horizon-prepare -p horizon-server. Run horizon-prepare compile-exporters --root CHECKOUT, then copy its server, client and manifest.json into CHECKOUT/exporters/.",
+            &[("files", &missing.join(", "))],
+        );
+        if wasm_std_missing {
+            message.push(' ');
+            message.push_str(&trf("Generate the wasm standard library from the same checkout with cargo run --locked -p cargo-horizon-mod -- wasm-std {path}", &[("path", &wasm_std.display().to_string())]));
+        }
+        return Err(message);
     }
     let (revision, snapshot) = committed_snapshot(&checkout)?;
     let _publication =
@@ -247,6 +265,92 @@ mod tests {
         assert!(committed_snapshot(folder.path())
             .unwrap_err()
             .contains("Commit your changes first"));
+    }
+    /// A checkout with the exporters manifest, and a game program beside the given companions.
+    fn packaging_inputs(
+        companions: &[&str],
+    ) -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+        let folder = tempfile::tempdir().unwrap();
+        let checkout = folder.path().join("checkout");
+        fs::create_dir_all(checkout.join("exporters")).unwrap();
+        fs::write(checkout.join("exporters/manifest.json"), "{}").unwrap();
+        let bin = folder.path().join("bin");
+        fs::create_dir(&bin).unwrap();
+        let magic: &[u8] = if cfg!(windows) {
+            b"MZ"
+        } else if cfg!(target_os = "macos") {
+            &[0xcf, 0xfa, 0xed, 0xfe]
+        } else {
+            b"ELF"
+        };
+        let program = bin.join(backend::CLIENT);
+        fs::write(
+            &program,
+            [magic, &horizon_mod_package::game_identity::MARK[..]].concat(),
+        )
+        .unwrap();
+        for name in companions {
+            fs::write(
+                bin.join(format!("{name}{}", std::env::consts::EXE_SUFFIX)),
+                "",
+            )
+            .unwrap();
+        }
+        (folder, checkout, program)
+    }
+    const COMPANIONS: [&str; 3] = ["horizon-ctl", "horizon-prepare", "horizon-server"];
+    const REMEDY: &str = "Build companions with cargo build -p horizon-client-lib --bin horizon-ctl -p horizon-prepare -p horizon-server. Run horizon-prepare compile-exporters --root CHECKOUT, then copy its server, client and manifest.json into CHECKOUT/exporters/.";
+    #[test]
+    fn a_missing_wasm_standard_library_is_named_with_its_generation_command_before_packaging() {
+        let (_folder, checkout, program) = packaging_inputs(&COMPANIONS);
+        let error = install(&checkout, &program, true).unwrap_err();
+        let expected_path = program
+            .canonicalize()
+            .unwrap()
+            .with_file_name("horizon-wasm-std.wasm");
+        assert_eq!(
+            error,
+            format!(
+                "Missing developer packaging inputs: horizon-wasm-std.wasm. {REMEDY} Generate the wasm standard library from the same checkout with cargo run --locked -p cargo-horizon-mod -- wasm-std {}",
+                expected_path.display()
+            )
+        );
+    }
+    #[test]
+    fn the_wasm_standard_library_is_reported_beside_the_other_missing_inputs() {
+        let (_folder, checkout, program) = packaging_inputs(&["horizon-ctl"]);
+        let error = install(&checkout, &program, true).unwrap_err();
+        let missing = [
+            format!("horizon-prepare{}", std::env::consts::EXE_SUFFIX),
+            format!("horizon-server{}", std::env::consts::EXE_SUFFIX),
+            "horizon-wasm-std.wasm".to_owned(),
+        ]
+        .join(", ");
+        assert!(
+            error.starts_with(&format!("Missing developer packaging inputs: {missing}. {REMEDY} Generate the wasm standard library")),
+            "{error}"
+        );
+    }
+    #[test]
+    fn a_present_wasm_standard_library_passes_the_preflight_without_a_hint() {
+        let (_folder, checkout, program) = packaging_inputs(&COMPANIONS);
+        fs::write(program.with_file_name("horizon-wasm-std.wasm"), "").unwrap();
+        // The checkout is no git repository, so the install stops at its snapshot, before the packager.
+        assert_eq!(
+            install(&checkout, &program, true).unwrap_err(),
+            "The developer checkout has no HEAD commit."
+        );
+        let (_other, checkout, program) = packaging_inputs(&["horizon-ctl", "horizon-prepare"]);
+        fs::write(program.with_file_name("horizon-wasm-std.wasm"), "").unwrap();
+        let error = install(&checkout, &program, true).unwrap_err();
+        assert!(
+            error.starts_with("Missing developer packaging inputs: horizon-server"),
+            "{error}"
+        );
+        assert!(
+            !error.contains("Generate the wasm standard library"),
+            "{error}"
+        );
     }
     #[test]
     fn consent_precedes_checkout_access() {

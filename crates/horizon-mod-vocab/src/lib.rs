@@ -1,6 +1,7 @@
 //! The API vocabulary re-exported by `horizon-mod-api`.
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
+#![deny(ambiguous_glob_reexports)]
 extern crate self as mod_api;
 
 use std::sync::{Arc, OnceLock};

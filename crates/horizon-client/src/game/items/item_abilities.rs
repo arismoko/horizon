@@ -4,14 +4,14 @@
 use super::Game;
 use horizon_client::items::{ItemInfo, ItemStack};
 
-/// The abilities the game asks, namespaced as a mod's own are.
+/// The abilities the game asks, plain case-sensitive names, like a mod's own.
 pub(in crate::game) mod ability {
     /// A raised item blocks attacks (`blocks_attacks`).
-    pub const SHIELD_BLOCK: &str = "minecraft:shield_block";
+    pub const SHIELD_BLOCK: &str = "shield_block";
     /// Shearing a mob, a bee nest's honeycombs, a dispenser's shears.
-    pub const SHEARS_HARVEST: &str = "minecraft:shears_harvest";
+    pub const SHEARS_HARVEST: &str = "shears_harvest";
     /// Carving a pumpkin.
-    pub const SHEARS_CARVE: &str = "minecraft:shears_carve";
+    pub const SHEARS_CARVE: &str = "shears_carve";
 }
 
 impl Game<'_> {
@@ -37,7 +37,7 @@ impl Game<'_> {
         self.stack_can_perform(stack, ability, &*stack.item == "minecraft:shears")
     }
 
-    /// Whether the held stack shears a mob (`minecraft:shears_harvest`): shears, or a stack whose
+    /// Whether the held stack shears a mob (`shears_harvest`): shears, or a stack whose
     /// item parts let it.
     pub(in crate::game) fn held_shears(&self) -> bool {
         self.held()
@@ -46,7 +46,7 @@ impl Game<'_> {
 
     /// Whether `stack` carries the `blocks_attacks` component (its own, or its item's unless
     /// removed) as `getUseDuration` and the use animation read it, once the stack's item parts
-    /// answered `minecraft:shield_block`.
+    /// answered `shield_block`.
     pub(in crate::game) fn stack_carries_blocks_attacks(
         &self,
         stack: &ItemStack,

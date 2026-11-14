@@ -119,6 +119,34 @@ impl Game<'_> {
             Body::Other(_) => None,
         }
     }
+    /// The fluids the entity touched at its last fluid update, each with how deep its box is in
+    /// it (`IEntityExtension.getFluidTypeHeight`), highest first; empty in no fluid. Players and
+    /// mobs: water and lava, the fluids Horizon's entity update tracks. Server only.
+    pub(super) fn entity_fluid_heights(&self, entity: EntityRef) -> Option<Vec<(String, f64)>> {
+        use horizon_client::motion::{LAVA, WATER};
+        Some(match self.native_entity_body(entity)? {
+            Body::Player(p) => touched_fluids(
+                (p.fluid_height(WATER), p.fluids.was_touching_water),
+                (p.fluid_height(LAVA), p.is_in_lava()),
+            ),
+            Body::Mob(m) => touched_fluids(
+                (m.fluids.water, m.fluids.in_water),
+                (m.fluids.lava, m.fluids.in_lava),
+            ),
+            Body::Other(_) => return None,
+        })
+    }
+    /// The fluid at the entity's eyes from its last fluid update
+    /// (`IEntityExtension.getFirstEyeInFluidType`): water or lava, none in air. Players and mobs.
+    /// Server only.
+    pub(super) fn entity_eye_fluid(&self, entity: EntityRef) -> Option<Option<String>> {
+        use horizon_client::motion::{LAVA, WATER};
+        Some(match self.native_entity_body(entity)? {
+            Body::Player(p) => eye_fluid(p.is_eye_in_fluid(WATER), p.is_eye_in_fluid(LAVA)),
+            Body::Mob(m) => eye_fluid(m.fluids.eye_in_water, m.fluids.eye_in_lava),
+            Body::Other(_) => return None,
+        })
+    }
     /// Whether the entity's type never burns (`EntityType.fireImmune`):
     /// players and mobs.
     pub(super) fn entity_fire_immune(&self, entity: EntityRef) -> Option<bool> {
@@ -183,6 +211,54 @@ impl Game<'_> {
             _ => return None,
         };
         Some(self.portals.entities.get(&id).map_or(0, |p| p.cooldown))
+    }
+    /// `Entity.setPortalCooldown`: writes the value `entity_portal_cooldown`
+    /// reads, where that read keeps it — the level's portal state for the
+    /// kinds its portal walk carries (mobs, items, experience orbs, boats,
+    /// minecarts, primed TNT, fireworks, tridents, arrows and the thrown
+    /// items and fireballs a chunk saves). Server-only; a negative value or a
+    /// client-side write is refused. A positive value blocks portal entry on
+    /// the next tick (and is refilled while the entity stands in a portal);
+    /// 0 lets it enter at once. The write refuses a player, an acting guest,
+    /// a falling block and an ender pearl: their cooldown lives in a store of
+    /// its own (the player and guest portal states, the falling block's saved
+    /// field, an End gateway traveller) that this write does not own, so it
+    /// needs its own owner decision before it can reach them. False for a kind
+    /// the read refuses or a stale handle.
+    pub(super) fn entity_set_portal_cooldown(&mut self, entity: EntityRef, ticks: i32) -> bool {
+        if ticks < 0 || !self.is_logical_server() {
+            return false;
+        }
+        match self.native_entity_target(entity) {
+            Some(Target::Projectile(id)) => {
+                let Some(projectile) = self.creatures.projectiles.iter().find(|p| p.id == id)
+                else {
+                    return false;
+                };
+                if matches!(
+                    projectile.kind,
+                    horizon_client::projectiles::ProjectileKind::EnderPearl
+                ) || (!super::nether_portal::is_arrow(projectile)
+                    && !super::nether_portal::is_portal_projectile(projectile))
+                {
+                    return false;
+                }
+                self.portals.entities.entry(id).or_default().cooldown = ticks;
+                true
+            }
+            Some(Target::Mob(id))
+            | Some(Target::Item(id))
+            | Some(Target::Orb(id))
+            | Some(Target::Boat(id))
+            | Some(Target::Cart(id))
+            | Some(Target::Tnt(id))
+            | Some(Target::Rocket(id))
+            | Some(Target::Trident(id)) => {
+                self.portals.entities.entry(id).or_default().cooldown = ticks;
+                true
+            }
+            _ => false,
+        }
     }
     /// Sets the remaining fire ticks (`Entity.setRemainingFireTicks`).
     pub(super) fn entity_set_remaining_fire_ticks(
@@ -435,9 +511,55 @@ impl Game<'_> {
     }
 }
 
+/// `(fluid, height)` for each fluid `(height, touched)` the entity touched, highest first;
+/// water before lava at the same height (`getMaxHeightFluidType`'s order).
+fn touched_fluids(water: (f64, bool), lava: (f64, bool)) -> Vec<(String, f64)> {
+    let mut heights: Vec<(String, f64)> = [("minecraft:water", water), ("minecraft:lava", lava)]
+        .into_iter()
+        .filter(|(_, (_, touched))| *touched)
+        .map(|(fluid, (height, _))| (fluid.to_owned(), height))
+        .collect();
+    // A stable sort keeps water first in a tie.
+    heights.sort_by(|a, b| b.1.total_cmp(&a.1));
+    heights
+}
+
+/// The first fluid at the eyes: water, then lava, as the trackers are kept.
+fn eye_fluid(water: bool, lava: bool) -> Option<String> {
+    let fluid = if water {
+        Some("minecraft:water")
+    } else {
+        lava.then_some("minecraft:lava")
+    };
+    fluid.map(str::to_owned)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The reads' order: highest first, water before lava in a tie, an untouched fluid left
+    /// out even with a height, and nothing for an entity in neither.
+    #[test]
+    fn fluid_reads_list_the_touched_fluids_highest_first() {
+        let (water, lava) = ("minecraft:water".to_owned(), "minecraft:lava".to_owned());
+        assert_eq!(
+            touched_fluids((0.5, true), (1.25, true)),
+            [(lava.clone(), 1.25), (water.clone(), 0.5)]
+        );
+        assert_eq!(
+            touched_fluids((0.75, true), (0.75, true)),
+            [(water.clone(), 0.75), (lava.clone(), 0.75)]
+        );
+        assert_eq!(
+            touched_fluids((0.4, true), (0.2, false)),
+            [(water.clone(), 0.4)]
+        );
+        assert!(touched_fluids((0.0, false), (0.0, false)).is_empty());
+        assert_eq!(eye_fluid(true, true), Some(water));
+        assert_eq!(eye_fluid(false, true), Some(lava));
+        assert_eq!(eye_fluid(false, false), None);
+    }
 
     #[test]
     fn poses_keep_vanillas_ids() {
@@ -812,6 +934,274 @@ mod tests {
             assert_eq!(mob.portal_cooldown(game), None);
             game.enter_level(Dim::Overworld).unwrap();
             assert_eq!(mob.portal_cooldown(game), Some(299));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_cooldown_write_blocks_entry_and_counts_down() {
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::chunk::Chunk;
+        use horizon_client::motion::PlayerMotion;
+        use horizon_core::geometry::Vec3;
+        use std::sync::Arc;
+
+        with_game(|game| {
+            game.world
+                .chunks
+                .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+            game.settings.simulation_distance = 4;
+            game.settings.render_distance = 12;
+            let registry = game.pack.assets.registry;
+            let stone = registry.default_state("minecraft:stone").unwrap();
+            let portal = registry.default_state("minecraft:nether_portal").unwrap();
+            let zombie = game
+                .res
+                .mob_types()
+                .get("minecraft:zombie")
+                .unwrap()
+                .clone();
+            game.player = Some(PlayerMotion::new(game.motion, Vec3::new(8.5, 65.0, 8.5)).unwrap());
+            for z in [8, 12] {
+                game.world.set(0, 63, z, stone).unwrap();
+            }
+            game.world.set(0, 64, 8, portal).unwrap();
+            game.world.set(0, 65, 8, portal).unwrap();
+            game.mobs
+                .push(Mob::new(40, zombie, Vec3::new(0.5, 64.0, 8.5), 0.0));
+            game.load_ticking_neighbourhood(0, 0);
+            game.update_chunk_tickets();
+            assert!(
+                game.entity_ticking_area()(0, 8),
+                "the mob's chunk ticks entities"
+            );
+            let mob = game.entity(40).unwrap();
+
+            // A written positive value blocks the portal: the mob stays, and
+            // standing in the portal refills the countdown.
+            assert!(mob.set_portal_cooldown(game, 40));
+            assert_eq!(mob.portal_cooldown(game), Some(40));
+            game.find_entity_portals();
+            game.handle_entity_portals();
+            assert!(
+                game.mobs.iter().any(|m| m.id == 40),
+                "the mob stays in its portal"
+            );
+            let held = mob.portal_cooldown(game).unwrap();
+            assert_eq!(
+                held,
+                horizon_client::nether_portal::ENTITY_DELAY - 1,
+                "standing in the portal refills the cooldown before the tick"
+            );
+
+            // Out of the portal, the value counts down one per tick.
+            game.mobs.iter_mut().find(|m| m.id == 40).unwrap().position =
+                Vec3::new(0.5, 64.0, 12.5);
+            game.handle_entity_portals();
+            assert_eq!(mob.portal_cooldown(game), Some(held - 1));
+
+            // A negative value is refused and leaves the value alone.
+            assert!(!mob.set_portal_cooldown(game, -1));
+            assert_eq!(mob.portal_cooldown(game), Some(held - 1));
+
+            // 0 lets it enter on the next tick.
+            game.mobs.iter_mut().find(|m| m.id == 40).unwrap().position = Vec3::new(0.5, 64.0, 8.5);
+            assert!(mob.set_portal_cooldown(game, 0));
+            assert_eq!(mob.portal_cooldown(game), Some(0));
+            game.find_entity_portals();
+            game.handle_entity_portals();
+            assert!(
+                !game.mobs.iter().any(|m| m.id == 40),
+                "0 lets the mob through"
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_cooldown_write_is_refused_for_a_player() {
+        with_player(|game, player| {
+            game.portals.player.cooldown = 7;
+            assert!(!player.set_portal_cooldown(game, 40));
+            assert_eq!(game.portals.player.cooldown, 7);
+            assert_eq!(player.portal_cooldown(game), Some(7));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_cooldown_write_is_refused_for_an_acting_guest() {
+        use super::super::native_guest_turn_tests::with_guests;
+
+        with_guests(|game| {
+            let host = game.lan.as_mut().unwrap();
+            host.play.entry(12).or_default().portal.cooldown = 7;
+            let guest = game.entity(12).unwrap();
+            assert!(!guest.set_portal_cooldown(game, 40));
+            assert_eq!(
+                game.lan
+                    .as_ref()
+                    .unwrap()
+                    .play
+                    .get(&12)
+                    .unwrap()
+                    .portal
+                    .cooldown,
+                7
+            );
+            assert_eq!(guest.portal_cooldown(game), Some(7));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_cooldown_write_is_refused_for_a_falling_block() {
+        use super::super::FallingBlock;
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::nether_portal::PortalState;
+        use horizon_core::{geometry::Vec3, position::BlockPos};
+
+        with_game(|game| {
+            let state = game
+                .pack
+                .assets
+                .registry
+                .default_state("minecraft:sand")
+                .unwrap();
+            game.next_entity += 1;
+            let id = game.next_entity;
+            game.falling.push(FallingBlock {
+                on_ground: false,
+                attachment_lifetime: Default::default(),
+                rotation: [0.0, 0.0],
+                join: Default::default(),
+                id,
+                state,
+                start_pos: BlockPos::default(),
+                position: Vec3::ZERO,
+                previous: Vec3::ZERO,
+                velocity: Vec3::ZERO,
+                age: 0,
+                no_gravity: false,
+                portal: PortalState {
+                    cooldown: 25,
+                    process: None,
+                },
+                drop_item: false,
+                fall_distance: 0.0,
+                stuck: Vec3::ZERO,
+                damage: horizon_client::falling_block::Damage::falling("minecraft:sand"),
+                saved: None,
+            });
+            let falling = game.entity(id).unwrap();
+            assert!(!falling.set_portal_cooldown(game, 40));
+            assert_eq!(
+                game.falling
+                    .iter()
+                    .find(|f| f.id == id)
+                    .unwrap()
+                    .portal
+                    .cooldown,
+                25
+            );
+            assert_eq!(falling.portal_cooldown(game), Some(25));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_cooldown_write_is_refused_on_a_client() {
+        use super::super::execution_role::ExecutionRole;
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_core::geometry::Vec3;
+        use horizon_protocol::connection::Pipe;
+
+        with_game(|game| {
+            game.options.execution_role = ExecutionRole::Client;
+            game.options.dedicated = None;
+            let (client, _server) = Pipe::pair();
+            game.connect_local(client, "PortalWriteTest").unwrap();
+            let remote = game.remote.as_mut().unwrap();
+            remote.logged_in = true;
+            remote.entity_id = 7;
+            remote.profile = 42;
+            game.player = Some(PlayerMotion::new(game.motion, Vec3::ZERO).unwrap());
+            game.spawn_entity(15, "minecraft:pig", [2.0, 0.0, 0.0], [0.0; 3]);
+            // A handle this client really shows, so the refusal is the client
+            // side's and not a fabricated id that never resolved.
+            let entity = game.entity(15).unwrap();
+            assert!(
+                entity.position(game).is_some(),
+                "the handle is live on this client"
+            );
+            assert!(!entity.set_portal_cooldown(game, 5));
+            assert!(!entity.set_portal_cooldown(game, 0));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_cooldown_write_reaches_an_item() {
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::items::ItemStack;
+
+        with_game(|game| {
+            game.spawn_item(
+                ItemStack {
+                    item: "minecraft:stone".into(),
+                    count: 1,
+                    damage: 0,
+                    extra: None,
+                },
+                [0.0; 3],
+                [0.0; 3],
+                0,
+            );
+            let item = game.entity(game.dropped[0].id).unwrap();
+            assert!(item.set_portal_cooldown(game, 40));
+            assert_eq!(item.portal_cooldown(game), Some(40));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_cooldown_write_reaches_an_arrow() {
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::projectiles::{Projectile, ProjectileKind};
+        use horizon_core::geometry::Vec3;
+
+        with_game(|game| {
+            game.add_projectile(Projectile::new(
+                ProjectileKind::Arrow {
+                    base_damage: 2.0,
+                    critical: false,
+                    effect: None,
+                },
+                Vec3::ZERO,
+                None,
+            ));
+            let arrow = game.entity(game.creatures.projectiles[0].id).unwrap();
+            assert!(arrow.set_portal_cooldown(game, 40));
+            assert_eq!(arrow.portal_cooldown(game), Some(40));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_cooldown_write_is_refused_for_a_non_portal_projectile() {
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::projectiles::{Projectile, ProjectileKind};
+        use horizon_core::geometry::Vec3;
+
+        with_game(|game| {
+            game.add_projectile(Projectile::new(
+                ProjectileKind::WindCharge,
+                Vec3::ZERO,
+                None,
+            ));
+            let charge = game.entity(game.creatures.projectiles[0].id).unwrap();
+            assert!(!charge.set_portal_cooldown(game, 40));
+            assert_eq!(charge.portal_cooldown(game), None);
         });
     }
 

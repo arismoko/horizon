@@ -82,6 +82,11 @@ pub struct BlockEntities {
     on_load_enabled: bool,
     attachments: FxHashMap<Pos, Attachments>,
     attachment_observer: Option<Arc<dyn AttachmentObserver<BlockEntityIdentity>>>,
+    /// While a transaction is open (`defer_retirement`): the maps of block entities it
+    /// removed or replaced, still bound to their index entries, by position and generation.
+    /// The root commit retires them (`publish_retirement`); an abort puts back the ones it
+    /// restores (`put_back_attachments`) first.
+    retiring: Option<Vec<(Pos, u64, Attachments)>>,
     /// `Level.blockEntityTickers`: positions and the slot each was given.
     tickers: Arc<Vec<(Pos, u32)>>,
     /// `LevelChunk.tickersInLevel`: the live slot of each ticking position.
@@ -179,6 +184,7 @@ fn retire_attachments(
 
 impl Drop for BlockEntities {
     fn drop(&mut self) {
+        self.publish_retirement();
         self.unload_attachments();
     }
 }
@@ -469,6 +475,104 @@ impl BlockEntities {
             }
         }
     }
+    /// Retires the map of the block entity leaving `pos`: at once, or, while a transaction
+    /// defers retirement, kept bound until it closes.
+    fn retire(&mut self, pos: Pos) {
+        if let Some(retiring) = &mut self.retiring {
+            if let (Some(map), Some(&generation)) =
+                (self.attachments.remove(&pos), self.generations.get(&pos))
+            {
+                retiring.push((pos, generation, map));
+            }
+            return;
+        }
+        retire_attachments(
+            &mut self.attachments,
+            self.attachment_observer.as_ref(),
+            &self.generations,
+            &pos,
+        );
+    }
+    /// From now until `publish_retirement`, a block entity that goes keeps its map bound to
+    /// its index entries: the root transaction opened, and only its commit publishes what it
+    /// removed.
+    pub fn defer_retirement(&mut self) {
+        self.retiring.get_or_insert_with(Vec::new);
+    }
+    /// Whether a transaction is open: between `defer_retirement` and `publish_retirement`.
+    pub fn defers_retirement(&self) -> bool {
+        self.retiring.is_some()
+    }
+    /// Retires every map kept since `defer_retirement`, and stops deferring: the root
+    /// transaction closed. What an abort did not put back goes: those of block entities a
+    /// committed transaction removed, and those of block entities an aborted one made.
+    pub fn publish_retirement(&mut self) {
+        for (pos, generation, map) in self.retiring.take().into_iter().flatten() {
+            if let Some(observer) = &self.attachment_observer {
+                observer.unload(BlockEntityIdentity {
+                    position: [pos.0, pos.1, pos.2],
+                    generation,
+                });
+            }
+            drop(map);
+        }
+    }
+    /// Gives the block entity of `generation` that stands at `pos` again the map it went with
+    /// in this transaction, as it was then, still bound: a removed block entity a later write
+    /// in the same transaction put back.
+    pub fn reattach_retired(&mut self, pos: Pos, generation: u64) {
+        if self.generation(&pos) != Some(generation) || self.attachments.contains_key(&pos) {
+            return;
+        }
+        let Some(retiring) = &mut self.retiring else {
+            return;
+        };
+        if let Some(at) = retiring
+            .iter()
+            .position(|(p, g, _)| *p == pos && *g == generation)
+        {
+            let (_, _, map) = retiring.swap_remove(at);
+            self.attachments.insert(pos, map);
+        }
+    }
+    /// Puts the attachment map of the block entity at `pos` back as a transaction kept it,
+    /// `data`, for the block entity of `generation` that stands there again: the very map it
+    /// had, still bound, where it went in this transaction, so its index entries never left.
+    pub fn put_back_attachments(
+        &mut self,
+        pos: Pos,
+        generation: Option<u64>,
+        data: Option<horizon_mod_runtime::attachments::Attachments>,
+    ) {
+        let kept = self.retiring.as_mut().and_then(|retiring| {
+            let at = retiring
+                .iter()
+                .position(|(p, g, _)| *p == pos && Some(*g) == generation)?;
+            Some(retiring.swap_remove(at).2)
+        });
+        match (kept, data) {
+            (Some(mut map), Some(data)) if self.generation(&pos) == generation => {
+                map.replace_contents(data);
+                if let Some(current) = self.attachments.insert(pos, map) {
+                    // A map the transaction made for the same block entity after it went:
+                    // never bound apart from this one, which holds the index entries.
+                    drop(current);
+                }
+            }
+            (Some(map), _) => {
+                if let (Some(observer), Some(generation)) = (&self.attachment_observer, generation)
+                {
+                    observer.unload(BlockEntityIdentity {
+                        position: [pos.0, pos.1, pos.2],
+                        generation,
+                    });
+                }
+                drop(map);
+                self.set_attachments(pos, None);
+            }
+            (None, data) => self.set_attachments(pos, data),
+        }
+    }
     /// Attachment maps in a loaded chunk, for a save snapshot.
     pub fn chunk_attachments(
         &self,
@@ -627,12 +731,7 @@ impl BlockEntities {
         };
         let new_identity = replace_identity || !self.map.get(&pos).is_some_and(same_type);
         if new_identity {
-            retire_attachments(
-                &mut self.attachments,
-                self.attachment_observer.as_ref(),
-                &self.generations,
-                &pos,
-            );
+            self.retire(pos);
             self.new_generation(pos);
         }
         self.replace_taken(pos);
@@ -667,12 +766,7 @@ impl BlockEntities {
         let absent = !self.map.contains_key(&pos);
         if absent {
             self.replace_taken(pos);
-            retire_attachments(
-                &mut self.attachments,
-                self.attachment_observer.as_ref(),
-                &self.generations,
-                &pos,
-            );
+            self.retire(pos);
             self.new_generation(pos);
             forget_mod(&mut self.mods, pos);
             self.boxes.remove(&pos);
@@ -694,12 +788,7 @@ impl BlockEntities {
     /// `LevelChunk.removeBlockEntity`: the block entity and its slot.
     pub fn remove(&mut self, pos: &Pos) -> Option<BlockEntity> {
         self.out.remove(pos);
-        retire_attachments(
-            &mut self.attachments,
-            self.attachment_observer.as_ref(),
-            &self.generations,
-            pos,
-        );
+        self.retire(*pos);
         self.generations.remove(pos);
         self.asleep.remove(pos);
         self.cancel(pos);

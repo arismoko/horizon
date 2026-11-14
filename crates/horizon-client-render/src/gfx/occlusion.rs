@@ -1333,6 +1333,7 @@ mod tests {
     /// The graph is vanilla's, cell for cell, near the camera and beyond the
     /// distant step test's 60 blocks.
     #[test]
+    #[ignore = "daily"]
     fn same_sections_as_vanilla() {
         let (mut hidden, mut rayed) = (0, 0);
         for seed in [0x9e37_79b9, 7, 0xdead_beef] {
@@ -1370,6 +1371,7 @@ mod tests {
     /// A clamped search may conservatively show sections above its searched
     /// box, but it must never hide one that the full-height search reaches.
     #[test]
+    #[ignore = "daily"]
     fn vertical_clamping_only_adds_overdraw() {
         let mut compared = 0;
         let mut overdraw = 0;

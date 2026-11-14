@@ -3,7 +3,7 @@
 //! the vanilla dispense behaviours Horizon has entities for, and container
 //! comparator signals (`AbstractContainerMenu.getRedstoneSignalFromContainer`).
 mod loot_access;
-use super::{Game, spill, storage::is_shulker_box};
+use super::{Game, composter::is_composter, spill, storage::is_shulker_box};
 use horizon_core::nbt::Tag;
 use mod_api::__private::game::*;
 
@@ -14,6 +14,7 @@ mod crafter;
 pub(in crate::game) mod native_energy;
 pub(in crate::game) mod native_fluids;
 pub(in crate::game) mod native_items;
+mod screen;
 #[cfg(test)]
 mod tank_reopen_tests;
 use horizon_client::{
@@ -175,7 +176,7 @@ impl View {
     /// bookshelf's books and a jukebox's disc, else vanilla's default.
     fn slot_limit(&self) -> u32 {
         match self.kind {
-            Kind::Bookshelf | Kind::Jukebox => 1,
+            Kind::Bookshelf | Kind::Jukebox | Kind::Composter(_) => 1,
             _ => 99,
         }
     }
@@ -185,9 +186,6 @@ impl View {
         } else {
             Slots::Range(0..self.len())
         }
-    }
-    fn slots_for_face(&self, face: Option<Direction>) -> Vec<usize> {
-        self.slots_for_face_iter(face).collect()
     }
     #[cfg(test)]
     fn slots_to_add(&self, face: Option<Direction>) -> Vec<usize> {
@@ -298,7 +296,7 @@ impl Containers<'_> {
     fn view(&self, pos: Pos, blocked_chests: bool) -> Option<View> {
         let state = self.world.block(pos.0, pos.1, pos.2);
         let name = self.name(state);
-        if name == "minecraft:composter" {
+        if is_composter(name) {
             let level = self.prop(state, "level").and_then(|l| l.parse().ok())?;
             return Some(View {
                 parts: vec![(pos, usize::from(level != 7))],
@@ -458,6 +456,15 @@ impl Containers<'_> {
             return c.inputs.contains(&slot);
         }
         match view.kind {
+            // ComposterBlock.InputContainer.canPlaceItemThroughFace; output never accepts.
+            Kind::Composter(level) => {
+                level < 7
+                    && slot == 0
+                    && self
+                        .items
+                        .get(&stack.item)
+                        .is_some_and(|i| i.compostable.is_some())
+            }
             // ShulkerBoxBlockEntity.canPlaceItemThroughFace
             Kind::Shulker => !is_shulker_box(&stack.item),
             Kind::Crafter => match self.world.block_entities.get(&view.parts[0].0) {
@@ -2142,71 +2149,6 @@ impl Game<'_> {
             ),
             _ => return None,
         })
-    }
-    /// HopperScreen / DispenserScreen background and labels; false for other containers.
-    pub(super) fn draw_machine_screen(
-        &self,
-        batch: &mut horizon_client::hud::HudBatch,
-        ox: f32,
-        oy: f32,
-    ) -> bool {
-        let Some(screen) = self.machine_screen() else {
-            return false;
-        };
-        let atlas = &self.gui.atlas;
-        let key_is_cart = self
-            .container
-            .is_some_and(|k| k.1 == super::minecarts::CART_KEY_Y);
-        let (texture, height, key, fallback) = match screen {
-            Screen::Hopper if key_is_cart => (
-                "gui/container/hopper",
-                133.0,
-                "entity.minecraft.hopper_minecart",
-                "Minecart with Hopper",
-            ),
-            Screen::Hopper => (
-                "gui/container/hopper",
-                133.0,
-                "container.hopper",
-                "Item Hopper",
-            ),
-            Screen::Dispenser => (
-                "gui/container/dispenser",
-                166.0,
-                "container.dispenser",
-                "Dispenser",
-            ),
-            Screen::Dropper => (
-                "gui/container/dispenser",
-                166.0,
-                "container.dropper",
-                "Dropper",
-            ),
-        };
-        if let Some(mut r) = atlas.sprites.get(texture).copied() {
-            let dv = (r.v1 - r.v0) / r.h as f32;
-            let du = (r.u1 - r.u0) / r.w as f32;
-            r.u1 = r.u0 + 176.0 * du;
-            r.v1 = r.v0 + height * dv;
-            batch.rect_uv(ox, oy, 176.0, height, r, u32::MAX);
-        }
-        let grey = horizon_client::hud::rgba(64, 64, 64, 255);
-        let title = &self.remote_menu_title().unwrap_or_else(|| {
-            horizon_client::text::Text::literal(
-                self.container_title(self.translate_with_fallback(key, fallback)),
-            )
-            .resolve_legacy()
-        });
-        super::screen_info::name_container(|| title.plain());
-        let title_x = if screen == Screen::Hopper {
-            8.0
-        } else {
-            (176.0 - atlas.font.width_text(title)) / 2.0
-        };
-        batch.text_styled(atlas, title, ox + title_x, oy + 6.0, grey, false);
-        let inventory = self.translate_with_fallback("container.inventory", "Inventory");
-        batch.text(atlas, &inventory, ox + 8.0, oy + height - 94.0, grey, false);
-        true
     }
 }
 

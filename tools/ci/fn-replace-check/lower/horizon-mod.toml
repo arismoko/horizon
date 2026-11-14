@@ -1,7 +1,7 @@
 id = "fnr_lower"
 name = "Function replacement check: a function below the game crate"
 version = "0.1.0"
-description = "fn-replace: HEAD on a listed horizon-client-lib function, copied into its own patch crate"
+description = "fn-replace: HEAD on listed functions below the game crate (horizon-client-lib, horizon-mod-render), each copied into its own patch crate"
 authors = []
 api = "0.2"
 side = "both"
@@ -23,3 +23,11 @@ id = "worldgen"
 target = "horizon_client_lib::vanillagen::shared_data_with"
 kind = "HEAD"
 helper = "src/mixins/worldgen.rs"
+
+# A free function in a crate whose library name differs from its package's: `horizon-mod-render`'s
+# library is `mod_render`, so the installer must name `::mod_render::render` (#4058).
+[[native.mixin]]
+id = "render"
+target = "horizon_mod_render::render::world_drawn"
+kind = "HEAD"
+helper = "src/mixins/render.rs"

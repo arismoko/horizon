@@ -1,7 +1,7 @@
 impl Game<'_> {
     pub(super) fn unscoped_level_all_entities(&self, level: LevelRef) -> Option<Vec<EntityRef>> {
         if !self.is_logical_server()
-            || self.native_lifecycle.epoch() != Some(level.epoch())
+            || !self.level_handle_current(level)
             || level.dimension() != self.dim.key()
         {
             return None;
@@ -31,7 +31,7 @@ impl Game<'_> {
     #[inline(never)]
     fn scoped_level_all_entities(&self, level: LevelRef) -> Option<Vec<EntityRef>> {
         if !self.is_logical_server()
-            || self.native_lifecycle.epoch() != Some(level.epoch())
+            || !self.level_handle_current(level)
             || level.dimension() != self.dim.key()
         {
             return None;

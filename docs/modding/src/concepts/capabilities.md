@@ -23,6 +23,9 @@ This registration corresponds to NeoForge's `RegisterCapabilitiesEvent`.
 | `r.block_capability(&ITEMS, &block, provider)` | The provider also receives the `BlockState` and `Option<BlockEntityRef>` at the position. Obtain `block` with `r.block_key("mymod:void_bin")`. |
 | `r.block_entity_capability_before_game(...)` / `r.block_capability_before_game(...)` | Register a provider ahead of the game's provider. |
 | `level.capability(host, &ITEMS, pos, side)` | Look up a handler on a `LevelRef`; `side` is `Option<Direction>`, with `None` meaning no particular side. The result is `Option<Capability<dyn ResourceHandler<ItemResource>>>`. |
+| `r.is_block_capability_registered(&KEY, &block)` | Whether any game or mod provider registered so far covers this block type. |
+| `r.is_entity_capability_registered(&KEY, &entity_type)` | The same type-coverage query for an `EntityTypeKey`, obtained with `r.entity_type_key("minecraft:pig")`. |
+| `r.is_item_capability_registered(&KEY, &item)` | The same query for an `ItemKey`, obtained with `r.item_key("minecraft:stick")`. |
 
 A block provider can expose a trash can that voids items or forward a multiblock port to its controller.
 A block with a block entity can have both kinds of provider.
@@ -31,7 +34,8 @@ Lookup uses this order:
 
 1. Providers registered with `_before_game`.
 2. The game's provider: for `ITEMS`, container slots exposed by side using the rules hoppers follow,
-   including a mod block entity's `block_entity_container`.
+   including slots declared with `r.block_container(&block, container)` (`ModContainer`)
+   and a composter's state-backed ports.
 3. Other registered providers.
 
 Within each mod-provider group, block and block entity type providers form one list in registration
@@ -40,6 +44,22 @@ the game's handler, but do not assume precedence over another mod at the same pr
 Disabled mods' providers are skipped. A stale level handle or a level that is not in place returns
 `None` without asking providers.
 
+Registration queries see the game's coverage, earlier mods in registration order, and providers already
+added by the current mod; they do not see later registrations. For example, `ITEMS` covers
+`minecraft:chest` without a mod provider. Use these queries to add a fallback only when no provider
+covers the type. This is type coverage, not a promise that a lookup at a particular position, side,
+entity or item place will return a handler.
+Declarations made in a later phase, such as `register_cauldron_fluid_content` after registry resolution,
+are not visible yet; these queries never run future registration callbacks.
+The same registrar owns default storage declarations: `block_container(&block, ModContainer)`,
+`block_fluids(&block, ModFluidTanks)`, `block_energy(&block, ModEnergyBuffer)` and
+`item_container(&item, provider)`. Their declarations supply both the game's runtime handlers and
+registration-time coverage; the item provider's dynamic slot callback is never invoked by a coverage query.
+The three block-storage declarations accept mod blocks only, not `minecraft` blocks; use
+`block_capability` to expose storage on a vanilla block. The first enabled declaration for a block
+type supplies its default storage. Item-container declarations may target vanilla items too, and
+their callbacks run in registration order until one returns `Some`.
+
 One capability supports at most 65,535 providers per block or block entity type. The next registration
 is refused at load with a message naming the mod, capability and target and stating that the target
 already has the most providers it may have.
@@ -47,6 +67,25 @@ already has the most providers it may have.
 Declare your own capability with `CapabilityKey::new("mymod:chemicals")`. Only registered providers
 answer it; it has no game-provided handler. A `Capability` wraps the handler and identifies its
 provider through `owner()`.
+
+## Proxy metadata
+
+Block capabilities are non-proxyable by default. The defining mod can call
+`r.set_capability_proxyable(&KEY, true)` to declare that requests can safely be forwarded to other
+blocks, or explicitly mark `false` when forwarding is unsafe. Repeating the same explicit value,
+including from another mod, is allowed; an opposite explicit value refuses registration rather than
+letting the last writer win. Merely reading the default `false` does not explicitly mark it.
+
+During registration, `r.block_capability_names()` and `r.block_capability_proxyable(name)` expose
+the capabilities discovered so far. After publication, use `block_capability_names(host)`,
+`block_capability_proxyable(host, name)` and `block_capability_proxyable_names(host)`; the last
+returns precisely the known names whose proxyability reads `true`. These owned snapshots use the
+same published metadata on native and wasm. Proxyability is metadata for forwarding mods, not a
+change to provider lookup order or a guarantee that a provider will answer.
+
+These rules follow NeoForge 26.3's
+[`BlockCapability`](https://aldak0.ru/javadoc/26.3.x/net/neoforged/neoforge/capabilities/BlockCapability.html)
+and [`RegisterCapabilitiesEvent`](https://aldak0.ru/javadoc/26.3.x/net/neoforged/neoforge/capabilities/RegisterCapabilitiesEvent.html).
 
 ## Read and move items
 
@@ -76,6 +115,26 @@ is undone and `Overanswered` identifies the provider in `owner`. Propagate the e
 There is no `simulate` parameter. To try an operation without keeping its changes, run it in a
 transaction and return `Err` to abort. See [Transactions](transactions.md).
 Hoppers use registered block and block entity type handlers, with each move in its own transaction.
+
+Composters need no block entity. Their top and unsided `ITEMS` ports each expose one empty input
+slot: below level seven, each insertion consumes **one** compostable item, even when offered a
+stack, and evaluates the same vanilla layers provider and random draw algorithm as hopper insertion.
+Their bottom port exposes one bone meal only at level eight; extraction empties the composter.
+Horizontal faces have no game-provided handler. Retained handlers recheck the current level.
+State changes are visible inside the transaction, but fill feedback, game events, maturation
+scheduling and outward block updates wait for the outermost commit. Aborting restores the
+level without those effects. The capability also journals its composter-local random stream,
+so an aborted transfer attempt and its retry have the same chance outcome, without rewinding
+unrelated world randomness. This ownership follows NeoForge's public
+[`TransactionalRandom` contract](https://aldak0.ru/javadoc/26.3.x/net/neoforged/neoforge/transfer/item/TransactionalRandom.html).
+Horizon initializes each position's stream once by copying the current level random state;
+capability composting then neither advances nor rewinds the ordinary level stream. This
+initialization is Horizon's mapping, not a claim about NeoForge's unspecified initial seed.
+Cached streams retire with their chunk or world epoch. Direct hand, villager and vanilla
+container paths keep their existing level-random behavior.
+
+Maturation still takes twenty server ticks after committing level seven. These ports have a
+fixed one-item limit and refuse `set_max_stack_size`.
 
 Look up a neighbour once per tick and reuse the `Capability` for that tick's moves. Look it up again
 on the next tick because the block entity may have been removed. Reusing a lookup also avoids repeated

@@ -1,12 +1,19 @@
 //! Fluid interaction helpers, as NeoForge 26.3's `FluidUtil`: the common
 //! case of a player right-clicking a tank with a bucket or any fluid container, in one call, with
-//! the bucket's sound and game event. Pure vocabulary over [`FLUIDS`], [`ITEM_FLUIDS`] at
-//! [`ItemPlace::PlayerHand`] and the move step of [`move_resources`](crate::move_resources): nothing changes until a mod calls them.
+//! the bucket's sound and game event, and a container picking up and placing fluid in the world
+//! as a bucket does. Vocabulary over [`FLUIDS`], [`ITEM_FLUIDS`] at an [`ItemPlace`], the move
+//! step of [`move_resources`](crate::move_resources) and the level's
+//! [`pickup_fluid`](LevelRef::pickup_fluid) and [`place_fluid`](LevelRef::place_fluid): nothing
+//! changes until a mod calls them.
 use crate::content::resource::{Ends, move_once};
 use crate::{
-    Capability, Direction, FLUIDS, FluidResource, GameEventContext, Hand, ITEM_FLUIDS, ItemPlace,
-    LevelRef, PlayerRef, ResourceHandler, ServerHost, SoundSource,
+    Capability, Direction, FLUIDS, FluidResource, FluidStack, GameEventContext, Hand,
+    HostTransaction, ITEM_FLUIDS, ItemPlace, LevelRef, PlayerRef, ResourceHandler, ServerHost,
+    SoundSource,
 };
+
+/// `FluidType.BUCKET_VOLUME`: what a source block holds, and what a placement takes.
+const BUCKET: u32 = 1000;
 
 /// `FluidUtil.interactWithFluidHandler` for a block: `player`'s `hand` against the tanks of the
 /// block at `pos` in `level` as `side` reaches them ([`FLUIDS`]), as
@@ -81,13 +88,14 @@ pub fn interact_with_handler(
         return false;
     };
     let moved = match move_first(host, handler, &item) {
-        Some(fluid) => (fluid, true),
+        Some(moved) => (moved, true),
         None => match move_first(host, &item, handler) {
-            Some(fluid) => (fluid, false),
+            Some(moved) => (moved, false),
             None => return false,
         },
     };
-    let (fluid, pickup) = moved;
+    let (moved, pickup) = moved;
+    let fluid = FluidResource::of(&moved);
     let at = match pos {
         Some([x, y, z]) => Some([x, y, z].map(|c| f64::from(c) + 0.5)),
         None => player
@@ -140,16 +148,120 @@ pub fn trigger_sound_and_game_event(
     level.game_event(host, event, at, context);
 }
 
+/// `FluidUtil.tryPickupFluid` with a side: [`try_pickup_world_fluid`] first, and where the
+/// block at `pos` has no fluid to give that way, one move of the first fluid its tanks give at
+/// `side` ([`FLUIDS`]) into `destination`, as much as fits in one go, in a transaction of its own
+/// (nested in one the caller has open, which then decides). What moved, or None with nothing
+/// changed. Either way the bucket's fill sound and `minecraft:fluid_pickup` go out at the
+/// block's centre at the outermost commit ([`LevelRef::play_fluid_effects`]), and not at all if
+/// it aborts.
+pub fn try_pickup_fluid(
+    host: &mut dyn ServerHost,
+    destination: &Capability<dyn ResourceHandler<FluidResource>>,
+    player: Option<PlayerRef>,
+    level: LevelRef,
+    pos: [i32; 3],
+    side: Option<Direction>,
+) -> Option<FluidStack> {
+    if let Some(picked) = try_pickup_world_fluid(host, destination, player, level, pos) {
+        return Some(picked);
+    }
+    let handler = level.capability(host, &FLUIDS, pos, side)?;
+    host.transaction(|host, tx| {
+        let moved = move_first(host, &handler, destination).ok_or(())?;
+        if let Some(fluid) = moved.key() {
+            level.play_fluid_effects(host, pos, fluid, true, player, tx);
+        }
+        Ok::<_, ()>(moved)
+    })
+    .ok()
+}
+
+/// `FluidUtil.tryPickupFluid` without a side: the fluid source at `pos` in `level`, a
+/// waterlogged block's water or a bubble column's ([`LevelRef::pickup_fluid`]), a bucket of it,
+/// into `destination`, all of it or none, in a transaction of its own (nested in one the caller
+/// has open, which then decides). What was picked up, or None with nothing changed: no source
+/// there, or `destination` doesn't take the whole bucket. The block's updates, the bucket's
+/// fill sound and `minecraft:fluid_pickup` follow at the outermost commit.
+pub fn try_pickup_world_fluid(
+    host: &mut dyn ServerHost,
+    destination: &Capability<dyn ResourceHandler<FluidResource>>,
+    player: Option<PlayerRef>,
+    level: LevelRef,
+    pos: [i32; 3],
+) -> Option<FluidStack> {
+    host.transaction(|host, tx| {
+        let picked = level.pickup_fluid(host, pos, player, tx).ok_or(())?;
+        let fluid = FluidResource::of(&picked);
+        match destination.insert_any(host, tx, &fluid, picked.amount) == picked.amount {
+            true => Ok(picked),
+            false => Err(()),
+        }
+    })
+    .ok()
+}
+
+/// `FluidUtil.tryPlaceFluid` with a handler: a bucket of the first fluid of `source`, index by
+/// index, that comes out whole and places at `pos` in `level` ([`LevelRef::place_fluid`]):
+/// into air or a block it replaces, water into a waterloggable block, or hissing away where
+/// water evaporates. `validate` refuses a waterloggable block that won't take it, which a
+/// bucket empties into all the same (NeoForge's `validatePlaced`). Each try is a transaction
+/// of its own (nested in one the caller has open, which then decides). What was placed, or
+/// None with nothing changed. The block's updates, the fluid tick, a replaced block's drops
+/// and the bucket's empty sound and `minecraft:fluid_place` follow at the outermost commit.
+pub fn try_place_fluid(
+    host: &mut dyn ServerHost,
+    source: &Capability<dyn ResourceHandler<FluidResource>>,
+    player: Option<PlayerRef>,
+    level: LevelRef,
+    pos: [i32; 3],
+    validate: bool,
+) -> Option<FluidStack> {
+    for index in 0..source.size(host) {
+        let Some(fluid) = source.resource(host, index) else {
+            continue;
+        };
+        let Some(key) = fluid.fluid().key() else {
+            continue;
+        };
+        let placed = host.transaction(|host, tx| {
+            if source.extract(host, tx, index, &fluid, BUCKET) != BUCKET {
+                return Err(());
+            }
+            match level.place_fluid(host, pos, key, player, validate, tx) {
+                true => Ok(fluid.to_stack(BUCKET)),
+                false => Err(()),
+            }
+        });
+        if let Ok(placed) = placed {
+            return Some(placed);
+        }
+    }
+    None
+}
+
+/// `FluidUtil.getFirstStackContained`: what the fluid container at `place` holds at its first
+/// index that holds any ([`ITEM_FLUIDS`]), whatever the count of the stack there; it may not
+/// come out, and the container may hold more. None where nothing there holds a fluid.
+pub fn first_stack_contained(host: &mut dyn ServerHost, place: &ItemPlace) -> Option<FluidStack> {
+    let item = place.capability(host, &ITEM_FLUIDS)?;
+    (0..item.size(host)).find_map(|index| {
+        let fluid = item.resource(host, index)?;
+        let amount = item.amount(host, index);
+        (amount > 0).then(|| fluid.to_stack(amount))
+    })
+}
+
 /// One move of the first fluid of `from`, index by index, that `to` takes any of, as much of it
 /// as `to` takes in one go (NeoForge's `ResourceHandlerUtil.moveFirst`), all or nothing in a
-/// transaction of its own: that fluid, or none, with nothing changed, where none moves or a
+/// transaction of its own: what moved, or none, with nothing changed, where none moves or a
 /// handler answers more than it was asked. One go, not [`move_resources`](crate::move_resources)' repeats: a stack of
 /// buckets has one filled, as vanilla's click fills one.
 fn move_first(
     host: &mut dyn ServerHost,
     from: &Capability<dyn ResourceHandler<FluidResource>>,
     to: &Capability<dyn ResourceHandler<FluidResource>>,
-) -> Option<FluidResource> {
+) -> Option<FluidStack> {
     for index in 0..from.size(host) {
         let Some(fluid) = from.resource(host, index) else {
             continue;
@@ -167,8 +279,10 @@ fn move_first(
             |host, tx, want| from.extract(host, tx, index, &fluid, want),
             |host, tx, out| to.insert_any(host, tx, &fluid, out),
         );
-        if moved.is_ok_and(|moved| moved > 0) {
-            return Some(fluid);
+        if let Ok(moved) = moved
+            && moved > 0
+        {
+            return Some(fluid.to_stack(moved));
         }
     }
     None

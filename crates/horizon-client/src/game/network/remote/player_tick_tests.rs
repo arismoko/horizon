@@ -269,3 +269,74 @@ fn client_player_ticks_on_the_death_screen_too() {
         })
     });
 }
+
+// `player_name_format` on the name tag over a player (`Player.getDisplayName`).
+/// Renames "Steve" and counts how often the hook is asked.
+struct Captain(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+#[mod_api::__subscriptions]
+impl mod_api::Hooks for Captain {
+    fn player_name_format(
+        &self,
+        _: &dyn mod_api::LoopContext,
+        event: &mut mod_api::PlayerNameFormatEvent<'_>,
+    ) {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if *event.username == mod_api::Text::literal("Steve") {
+            *event.displayname = mod_api::Text::literal("Captain Steve");
+        }
+    }
+}
+
+/// A client game with Steve (entity 66) in the level, and the names its tags show.
+fn tags_over_steve(mods: mod_api::Mods) -> Vec<String> {
+    let mut shown = Vec::new();
+    mod_platform::testing::with_mods(mods, || {
+        crate::entry::install_client_hooks();
+        with_game(|game| {
+            game.options.execution_role = super::super::execution_role::ExecutionRole::Client;
+            let (client, _server) = horizon_protocol::connection::Pipe::pair();
+            game.connect_local(client, "name-tag").unwrap();
+            let remote = game.remote.as_mut().unwrap();
+            remote.logged_in = true;
+            remote.profile = 456;
+            remote.entity_id = 42;
+            remote.level_players.insert(66, 789);
+            remote.level_player_names.insert(66, "Steve".into());
+            let kind = remote.player_type.as_ref().unwrap().clone();
+            game.mobs.push(horizon_client::mobs::Mob::new(
+                66,
+                kind,
+                horizon_core::geometry::Vec3::new(0.0, 64.0, 2.0),
+                0.0,
+            ));
+            shown = game.shown_name_tags(glam::DVec3::new(0.0, 64.0, 0.0));
+        });
+    });
+    shown
+}
+
+#[test]
+#[ignore = "needs prepared resources"]
+fn the_name_tag_over_a_player_shows_the_name_a_mod_formats() {
+    let asked = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mods = vec![mod_api::ModEntry::new(
+        "captain",
+        Box::new(Captain(asked.clone())),
+    )]
+    .into();
+    assert_eq!(tags_over_steve(mods), ["Captain Steve"]);
+    assert!(asked.load(std::sync::atomic::Ordering::Relaxed) > 0);
+}
+
+#[test]
+#[ignore = "needs prepared resources"]
+fn a_mod_that_does_not_listen_is_never_asked_for_the_name_tag() {
+    struct Other;
+    #[mod_api::__subscriptions]
+    impl mod_api::Hooks for Other {
+        fn register(&self, _: &mut dyn mod_api::Registrar, _: &mod_api::RegistrationContext) {}
+    }
+    let mods = vec![mod_api::ModEntry::new("other", Box::new(Other))].into();
+    assert_eq!(tags_over_steve(mods), ["Steve"]);
+}

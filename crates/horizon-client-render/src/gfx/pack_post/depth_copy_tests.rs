@@ -234,6 +234,7 @@ fn multisampled_targets_pass(device: &wgpu::Device, encoder: &mut wgpu::CommandE
 /// another after a multisampled two-target pass: the copy reads the same depths as the source.
 #[test]
 fn a_copied_depth_texture_keeps_its_depth() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else { return };
     let device = &gpu.device;
     for layers in [1, 2] {
