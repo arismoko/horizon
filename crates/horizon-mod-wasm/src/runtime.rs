@@ -1076,6 +1076,9 @@ impl WasmMod {
                     Err(std::sync::TryLockError::WouldBlock) => {
                         // A nested cross-group caller may never wait or become retryable:
                         // doing either can retain the enclosing group's loan indefinitely.
+                        // That holds for workers too: two workers whose groups lend to
+                        // each other would otherwise wait on each other forever. Only a
+                        // top-level worker waits without a deadline.
                         let nested = !LENT.get().is_null();
                         if payload && !nested {
                             return Err(Busy::Payload(
@@ -1084,8 +1087,7 @@ impl WasmMod {
                                     .map_or_else(|| OUTSIDE_GUEST.clone(), Holder::snapshot),
                             ));
                         }
-                        if (class != CallClass::Worker
-                            && nested
+                        if (nested
                             && (payload || self.running.lending.load(Ordering::Relaxed) != 0))
                             || (class != CallClass::Worker
                                 && (id == crate::prepared::RELEASE

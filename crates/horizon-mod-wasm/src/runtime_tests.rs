@@ -1603,6 +1603,68 @@ fn nested_busy_refusal_survives() {
     })
 }
 
+/// Two workers, each inside its own group's import and calling the other's group, refuse at
+/// once instead of waiting on each other forever.
+#[test]
+fn nested_workers_calling_each_others_group_refuse_instead_of_deadlocking() {
+    crate::test_stack::on_guest_stack(|| {
+        let first = module("i64.const 2199023255556");
+        let second = module("i64.const 2199023255556");
+        let both_hold = Arc::new(std::sync::Barrier::new(2));
+        let (send, receive) = std::sync::mpsc::channel();
+        let workers = [
+            (first.clone(), second.clone()),
+            (second.clone(), first.clone()),
+        ]
+        .map(|(own, other)| {
+            let (both_hold, send) = (both_hold.clone(), send.clone());
+            std::thread::spawn(move || {
+                crate::test_stack::on_guest_stack(|| {
+                    // Hold the own group and lend it to a synchronous import, as a worker
+                    // inside a guest export does.
+                    let guard = own.running.group.lock().unwrap();
+                    own.running.lending.fetch_add(1, Ordering::Relaxed);
+                    let loan = Loan {
+                        group: Arc::as_ptr(&own.running) as usize,
+                        lending: own.running.lending.clone(),
+                        context: Cell::new(std::ptr::null_mut()),
+                        previous: LENT.get(),
+                    };
+                    LENT.set(&loan);
+                    both_hold.wait();
+                    let result = other.call(
+                        CallClass::Worker,
+                        Frame::default(),
+                        0,
+                        None,
+                        |w| w.put(&42u32),
+                        |r| r.take::<u32>(),
+                    );
+                    send.send((result, take_refusal())).unwrap();
+                    // Both calls must have returned before either group is released.
+                    both_hold.wait();
+                    drop(loan);
+                    drop(guard);
+                })
+            })
+        });
+        for _ in &workers {
+            let (result, refusal) = receive
+                .recv_timeout(Duration::from_secs(2))
+                .expect("nested workers waited on each other's group");
+            assert_eq!(result, None);
+            assert!(refusal.starts_with(&Refusal::Busy.to_string()), "{refusal}");
+        }
+        for worker in workers {
+            worker.join().unwrap();
+        }
+        for module in [&first, &second] {
+            assert!(!module.is_stopped());
+            assert_eq!(call(module), Some(42));
+        }
+    })
+}
+
 /// A cut-off guest invalidates every member sharing memory, but no other group.
 #[test]
 fn trap_stops_group_not_independent_group() {
