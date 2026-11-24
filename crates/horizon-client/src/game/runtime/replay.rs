@@ -849,8 +849,119 @@ impl Game<'_> {
             );
             count += 1;
         }
+
+        // 4. Encode already-spawned resident mobs into AddEntity packets so entities present
+        // before recording starts still appear when playing back the `.mcpr` archive.
+        let mut mob_count = 0;
+        if let Some(entity_types) = r.builtin.get("minecraft:entity_type") {
+            for mob in &self.mobs {
+                if mob.id as i32 == r.entity_id {
+                    continue;
+                }
+                let uuid = self
+                    .persist
+                    .uuids
+                    .get(&mob.id)
+                    .copied()
+                    .map(horizon_client::lan::playerdata::ints_uuid)
+                    .unwrap_or(u128::from(mob.id));
+                if let Some(pkt) = build_mob_snapshot_packet(
+                    mob.id as i32,
+                    uuid,
+                    &mob.kind.id,
+                    [mob.position.x, mob.position.y, mob.position.z],
+                    [mob.velocity.x, mob.velocity.y, mob.velocity.z],
+                    mob.head_pitch,
+                    mob.yaw,
+                    mob.head_yaw,
+                    entity_types,
+                ) {
+                    record_cb(pkt);
+                    mob_count += 1;
+                }
+            }
+        }
         log::info!(
-            "Studio Recorder: Dumped initial world snapshot ({count} chunks) at timestamp 0ms"
+            "Studio Recorder: Dumped initial world snapshot ({count} chunks, {mob_count} mobs) at timestamp 0ms"
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_mob_snapshot_packet(
+    id: i32,
+    uuid: u128,
+    kind_id: &str,
+    position: [f64; 3],
+    velocity: [f64; 3],
+    pitch: f32,
+    yaw: f32,
+    head_yaw: f32,
+    entity_types: &horizon_protocol::registry::Ids,
+) -> Option<horizon_protocol::packets::play::Clientbound> {
+    let kind = entity_types.id(kind_id)?;
+    Some(horizon_protocol::packets::play::Clientbound::AddEntity(
+        horizon_protocol::packets::play::AddEntity {
+            id,
+            uuid,
+            kind,
+            position,
+            velocity,
+            pitch: horizon_protocol::buf::pack_degrees(pitch),
+            yaw: horizon_protocol::buf::pack_degrees(yaw),
+            head_yaw: horizon_protocol::buf::pack_degrees(head_yaw),
+            data: 0,
+        },
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mob_snapshot_packet_encodes_resident_mob_as_add_entity() {
+        let entity_types = horizon_protocol::registry::Ids::from_names(vec![
+            "minecraft:pig".into(),
+            "minecraft:iron_golem".into(),
+        ]);
+        let pkt = build_mob_snapshot_packet(
+            42,
+            0x1122_3344_5566_7788_99aa_bbcc_ddee_ff00,
+            "minecraft:iron_golem",
+            [10.5, 64.0, -3.25],
+            [0.0, -0.0784, 0.0],
+            15.0,
+            90.0,
+            180.0,
+            &entity_types,
+        )
+        .expect("known entity type must produce AddEntity");
+
+        let horizon_protocol::packets::play::Clientbound::AddEntity(add) = pkt else {
+            panic!("expected Clientbound::AddEntity");
+        };
+        assert_eq!(add.id, 42);
+        assert_eq!(add.uuid, 0x1122_3344_5566_7788_99aa_bbcc_ddee_ff00);
+        assert_eq!(add.kind, 1);
+        assert_eq!(add.position, [10.5, 64.0, -3.25]);
+        assert_eq!(add.yaw, horizon_protocol::buf::pack_degrees(90.0));
+        assert_eq!(add.head_yaw, horizon_protocol::buf::pack_degrees(180.0));
+
+        assert!(
+            build_mob_snapshot_packet(
+                43,
+                1,
+                "minecraft:nonexistent_mob",
+                [0.0; 3],
+                [0.0; 3],
+                0.0,
+                0.0,
+                0.0,
+                &entity_types,
+            )
+            .is_none(),
+            "unknown entity type must be skipped cleanly"
         );
     }
 }
