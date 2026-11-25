@@ -656,13 +656,7 @@ impl WorldDrawContext for GameWorldDrawContext<'_, '_> {
         pipeline: RenderPipelineRef,
     ) -> Result<PackOverrideState, RenderPipelineError> {
         let slot = self.game.pack.render.mod_pipelines.slot(pipeline)?;
-        Ok(self
-            .game
-            .renderer
-            .as_ref()
-            .map_or(PackOverrideState::NoPack, |renderer| {
-                renderer.pack_override_state(slot as usize)
-            }))
+        Ok(self.game.pack_override_state(slot as usize))
     }
 }
 /// The only mod surface that appends CPU geometry for named passes.
@@ -1007,7 +1001,7 @@ impl FrameGraphContext for GameFrameGraphContext<'_, '_> {
         &mut self,
         desc: &RenderTargetDescriptor,
     ) -> Result<TransientTargetId, RenderTargetError> {
-        let Some(renderer) = self.game.renderer.as_ref() else {
+        let Some(renderer) = self.game.mod_gpu() else {
             return Err(RenderTargetError::Unavailable);
         };
         desc.validate(renderer.max_texture_dimension_2d())?;
@@ -1026,7 +1020,7 @@ impl FrameGraphContext for GameFrameGraphContext<'_, '_> {
         desc: FramePassDescriptor,
         record: &mut dyn FnMut(&mut dyn OffscreenDrawContext),
     ) -> Result<FramePassId, FrameGraphError> {
-        let Some(renderer) = self.game.renderer.as_ref() else {
+        let Some(renderer) = self.game.mod_gpu() else {
             return Err(FrameGraphError::Unavailable);
         };
         let owner = mod_api::content::crash::current_native_mod();
@@ -1072,7 +1066,7 @@ impl FrameGraphContext for GameFrameGraphContext<'_, '_> {
         desc: ComputePassDescriptor,
         record: &mut dyn FnMut(&mut dyn ComputeDispatchContext),
     ) -> Result<FramePassId, FrameGraphError> {
-        let Some(renderer) = self.game.renderer.as_ref() else {
+        let Some(renderer) = self.game.mod_gpu() else {
             return Err(FrameGraphError::Unavailable);
         };
         let owner = mod_api::content::crash::current_native_mod();

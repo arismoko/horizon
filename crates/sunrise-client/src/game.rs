@@ -3675,6 +3675,14 @@ struct Game<'a> {
     window: Option<Arc<Window>>,
     /// What `window_resize` last reported: the physical size and the GUI settings behind the scaled size.
     resize_state: Option<ResizeState>,
+    /// The renderer's mod GPU tables and device handles, set with the renderer by `set_renderer`.
+    /// Declared before `renderer` so it drops first: its `Device` and `Queue` clones are gone
+    /// before the renderer's surface is, at `Game` drop. Invariant: it is `Some` exactly when a
+    /// renderer is installed or `Game::render` has it out; clear both through `clear_renderer`.
+    pub(in crate::game) mod_gpu: Option<sunrise_client::gfx::ModGpuResources>,
+    /// `None` while `Game::render` has the renderer out for `Renderer::render`, and so during every
+    /// frame hook a mod runs. Nothing a hook reaches may read it: state facing mods lives in
+    /// [`Self::mod_gpu`]'s `ModGpuResources`, and the per-frame values in `render_snapshot`.
     renderer: Option<Renderer>,
     /// Avoid an endless rebuild loop if the new device is lost as well.
     last_device_recovery: Option<Instant>,
@@ -12391,7 +12399,6 @@ impl Game<'_> {
                 self.render_snapshot.set(Some(RenderSnapshot {
                     framebuffer: [renderer.config.width, renderer.config.height],
                     prepared_generation: renderer.prepared_generation(),
-                    max_buffer_size: renderer.max_buffer_size(),
                     staged_prepared_draws: prepared_draws.len() as u64,
                 }));
                 self.pack_frame_state
@@ -12467,7 +12474,6 @@ impl Game<'_> {
 pub(super) struct RenderSnapshot {
     pub(super) framebuffer: [u32; 2],
     pub(super) prepared_generation: Option<u64>,
-    pub(super) max_buffer_size: u64,
     pub(super) staged_prepared_draws: u64,
 }
 
@@ -12492,14 +12498,29 @@ impl Game<'_> {
         )
     }
     pub(super) fn renderer_prepared_room_info(&self) -> Option<(u64, u64)> {
-        self.renderer
-            .as_ref()
-            .map(|r| (r.max_buffer_size(), 0))
-            .or_else(|| {
-                self.render_snapshot
-                    .get()
-                    .map(|s| (s.max_buffer_size, s.staged_prepared_draws))
-            })
+        let max_buffer_size = self.mod_gpu.as_ref()?.max_buffer_size();
+        let staged = match self.renderer {
+            Some(_) => 0,
+            None => self
+                .render_snapshot
+                .get()
+                .map_or(0, |s| s.staged_prepared_draws),
+        };
+        Some((max_buffer_size, staged))
+    }
+    /// The mod GPU handles: always there when a renderer is, also during `Renderer::render`.
+    pub(in crate::game) fn mod_gpu(&self) -> Option<&sunrise_client::gfx::ModGpuResources> {
+        self.mod_gpu.as_ref()
+    }
+    /// Drops the mod GPU handles and the renderer together.
+    pub(in crate::game) fn clear_renderer(&mut self) {
+        self.mod_gpu = None;
+        self.renderer = None;
+    }
+    /// Installs `renderer` and the handles mods reach it through.
+    pub(in crate::game) fn set_renderer(&mut self, renderer: Renderer) {
+        self.mod_gpu = Some(renderer.mod_gpu().clone());
+        self.renderer = Some(renderer);
     }
 }
 
@@ -14532,6 +14553,7 @@ impl<'a> Game<'a> {
             window: None,
             resize_state: None,
             renderer: None,
+            mod_gpu: None,
             last_device_recovery: None,
             entity_vertices: Vec::new(),
             dynamic_lights: Vec::new(),

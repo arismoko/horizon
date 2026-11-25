@@ -631,34 +631,37 @@ impl ModRenderTargets {
     }
 }
 
-impl super::Renderer {
-    /// The optional device features mods can ask about: one read of the adapter.
-    pub fn render_capabilities(&self) -> RenderCapabilities {
-        let read_write_storage = [
-            RenderTargetFormat::Rgba8Unorm,
-            RenderTargetFormat::Rgba16Float,
-            RenderTargetFormat::R32Float,
-        ]
-        .into_iter()
-        .filter(|&format| {
-            self.adapter
-                .get_texture_format_features(wgpu_color_format(format))
-                .flags
-                .contains(wgpu::TextureFormatFeatureFlags::STORAGE_READ_WRITE)
-        })
-        .collect();
-        mod_api::__private::built::render_capabilities(
-            self.device
-                .features()
-                .contains(wgpu::Features::FLOAT32_FILTERABLE),
-            read_write_storage,
-            self.device.features().contains(wgpu::Features::SUBGROUP),
-            self.device
-                .features()
-                .contains(wgpu::Features::INDIRECT_FIRST_INSTANCE),
-        )
-    }
+/// The optional device features mods can ask about: one read of the adapter.
+pub(super) fn probe_render_capabilities(
+    adapter: &wgpu::Adapter,
+    device: &wgpu::Device,
+) -> RenderCapabilities {
+    let read_write_storage = [
+        RenderTargetFormat::Rgba8Unorm,
+        RenderTargetFormat::Rgba16Float,
+        RenderTargetFormat::R32Float,
+    ]
+    .into_iter()
+    .filter(|&format| {
+        adapter
+            .get_texture_format_features(wgpu_color_format(format))
+            .flags
+            .contains(wgpu::TextureFormatFeatureFlags::STORAGE_READ_WRITE)
+    })
+    .collect();
+    mod_api::__private::built::render_capabilities(
+        device
+            .features()
+            .contains(wgpu::Features::FLOAT32_FILTERABLE),
+        read_write_storage,
+        device.features().contains(wgpu::Features::SUBGROUP),
+        device
+            .features()
+            .contains(wgpu::Features::INDIRECT_FIRST_INSTANCE),
+    )
+}
 
+impl super::mod_gpu::ModGpuResources {
     /// Allocate a mod-owned offscreen [`RenderTargetRef`] on this renderer's device. A storage
     /// access the adapter does not support for a colour format (`TextureFormatFeatures`
     /// `allowed_usages` without `STORAGE_BINDING`, or `flags` without the access's
@@ -690,7 +693,7 @@ impl super::Renderer {
                 return Err(RenderTargetError::UnsupportedStorage);
             }
         }
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .create(&self.device, owner, desc)
@@ -703,7 +706,7 @@ impl super::Renderer {
         target: RenderTargetRef,
         size: [u32; 2],
     ) -> Result<(), RenderTargetError> {
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resize(&self.device, owner, target, size)
@@ -715,7 +718,7 @@ impl super::Renderer {
         owner: Option<&'static str>,
         target: RenderTargetRef,
     ) -> Result<[u32; 2], RenderTargetError> {
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .size(owner, target)
@@ -727,7 +730,7 @@ impl super::Renderer {
         owner: Option<&'static str>,
         target: RenderTargetRef,
     ) -> Result<(), RenderTargetError> {
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .release(owner, target)
@@ -735,7 +738,7 @@ impl super::Renderer {
 
     /// Free the render targets of mods that unloaded.
     pub fn retire_unloaded_mod_render_targets(&self, unloaded: &BTreeSet<String>) {
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .retire_unloaded(unloaded);
@@ -784,7 +787,7 @@ impl super::Renderer {
             .device
             .features()
             .contains(wgpu::Features::FLOAT32_FILTERABLE);
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve_color(owner, target, attachment, filterable, float32_filterable)
@@ -801,7 +804,7 @@ impl super::Renderer {
             .device
             .features()
             .contains(wgpu::Features::FLOAT32_FILTERABLE);
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve_color_mips(owner, view, filterable, float32_filterable)
@@ -814,7 +817,7 @@ impl super::Renderer {
         access: StorageImageAccess,
         image: StorageImageBinding,
     ) -> Result<(u64, wgpu::TextureView, wgpu::TextureFormat, TargetMips), PipelineDrawError> {
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve_storage_image(owner, access, image)
@@ -827,7 +830,7 @@ impl super::Renderer {
         target: RenderTargetRef,
         filterable: bool,
     ) -> Result<(u64, wgpu::TextureView), PipelineDrawError> {
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve_depth(owner, target, filterable)
@@ -840,12 +843,22 @@ impl super::Renderer {
         target: RenderTargetRef,
         mip_level: u32,
     ) -> Result<ResolvedOffscreenTarget, RenderTargetError> {
-        self.mod_render_targets
+        self.render_targets
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve_target(owner, target, mip_level)
     }
 
+    /// The textures of render target attachments freed since the last call.
+    pub(super) fn take_released_mod_render_targets(&self) -> Vec<u64> {
+        self.render_targets
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take_released()
+    }
+}
+
+impl super::Renderer {
     /// Record an offscreen pass into an active `CommandEncoder` (shared seam for
     /// `frame_graph_setup` and picture-in-picture GUI renderers).
     #[allow(clippy::too_many_arguments)]
@@ -911,14 +924,6 @@ impl super::Renderer {
         )?;
         self.queue.submit([encoder.finish()]);
         Ok(())
-    }
-
-    /// The textures of render target attachments freed since the last call.
-    pub(super) fn take_released_mod_render_targets(&self) -> Vec<u64> {
-        self.mod_render_targets
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .take_released()
     }
 }
 

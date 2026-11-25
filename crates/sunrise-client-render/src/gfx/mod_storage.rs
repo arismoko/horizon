@@ -274,14 +274,14 @@ impl ModStorageBuffers {
     }
 }
 
-impl super::Renderer {
+impl super::mod_gpu::ModGpuResources {
     /// Allocate a retained GPU [`StorageBufferRef`] on this renderer's device.
     pub fn create_storage_buffer(
         &self,
         owner: Option<&'static str>,
         desc: &StorageBufferDescriptor,
     ) -> Result<StorageBufferRef, BufferError> {
-        self.mod_storage
+        self.storage
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .create(&self.device, owner, desc)
@@ -295,7 +295,7 @@ impl super::Renderer {
         offset: u64,
         data: &[u8],
     ) -> Result<(), BufferError> {
-        self.mod_storage
+        self.storage
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .write_range(owner, buffer, offset, data)
@@ -307,7 +307,7 @@ impl super::Renderer {
         owner: Option<&'static str>,
         buffer: StorageBufferRef,
     ) -> Result<u64, BufferError> {
-        self.mod_storage
+        self.storage
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .size(owner, buffer)
@@ -319,7 +319,7 @@ impl super::Renderer {
         owner: Option<&'static str>,
         buffer: StorageBufferRef,
     ) -> Result<(), BufferError> {
-        self.mod_storage
+        self.storage
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .release(owner, buffer)
@@ -327,7 +327,7 @@ impl super::Renderer {
 
     /// Free the retained storage buffers of mods that unloaded.
     pub fn retire_unloaded_mod_storage(&self, unloaded: &BTreeSet<String>) {
-        self.mod_storage
+        self.storage
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .retire_unloaded(unloaded);
@@ -340,7 +340,7 @@ impl super::Renderer {
         slice: StorageBufferSlice,
         min_size: u32,
     ) -> Result<ResolvedStorageRange, BufferError> {
-        self.mod_storage
+        self.storage
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve(&self.device.limits(), owner, slice, min_size)
@@ -352,7 +352,7 @@ impl super::Renderer {
         owner: Option<&'static str>,
         handle: StorageBufferRef,
     ) -> Result<wgpu::Buffer, BufferError> {
-        self.mod_storage
+        self.storage
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve_buffer(owner, handle)
@@ -360,7 +360,7 @@ impl super::Renderer {
 
     /// Apply the queued storage buffer writes, in order, before the frame draws.
     pub(super) fn flush_mod_storage(&self) {
-        self.mod_storage
+        self.storage
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .flush(&self.device, &self.queue);
@@ -368,7 +368,7 @@ impl super::Renderer {
 
     /// The generations of the storage buffers released since the last call.
     pub(super) fn take_released_mod_storage(&self) -> Vec<u64> {
-        self.mod_storage
+        self.storage
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .take_released()

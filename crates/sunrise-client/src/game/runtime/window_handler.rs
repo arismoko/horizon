@@ -526,7 +526,7 @@ impl ApplicationHandler for Game<'_> {
         } else {
             match renderer {
                 Ok(renderer) => {
-                    self.renderer = Some(renderer);
+                    self.set_renderer(renderer);
                     self.world_renderer_ready = true;
                 }
                 Err(error) => {

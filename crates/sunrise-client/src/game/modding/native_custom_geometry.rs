@@ -393,11 +393,8 @@ impl Game<'_> {
         &self,
         desc: &mod_api::MeshDescriptor<'_>,
     ) -> Result<mod_api::MeshRef, mod_api::MeshError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::MeshError::Unavailable)?;
-        renderer.create_mesh(mod_api::content::crash::current_native_mod(), desc)
+        let gpu = self.mod_gpu().ok_or(mod_api::MeshError::Unavailable)?;
+        gpu.create_mesh(mod_api::content::crash::current_native_mod(), desc)
     }
     /// Update vertex buffer `binding` of retained `mesh`.
     pub(super) fn mesh_write_vertices(
@@ -407,11 +404,8 @@ impl Game<'_> {
         byte_offset: u64,
         data: &[u8],
     ) -> Result<(), mod_api::MeshError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::MeshError::Unavailable)?;
-        renderer.mesh_write_vertices(
+        let gpu = self.mod_gpu().ok_or(mod_api::MeshError::Unavailable)?;
+        gpu.mesh_write_vertices(
             mod_api::content::crash::current_native_mod(),
             mesh,
             binding,
@@ -426,11 +420,8 @@ impl Game<'_> {
         byte_offset: u64,
         data: &[u8],
     ) -> Result<(), mod_api::MeshError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::MeshError::Unavailable)?;
-        renderer.mesh_write_indices(
+        let gpu = self.mod_gpu().ok_or(mod_api::MeshError::Unavailable)?;
+        gpu.mesh_write_indices(
             mod_api::content::crash::current_native_mod(),
             mesh,
             byte_offset,
@@ -443,30 +434,21 @@ impl Game<'_> {
         mesh: mod_api::MeshRef,
         desc: &mod_api::MeshDescriptor<'_>,
     ) -> Result<(), mod_api::MeshError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::MeshError::Unavailable)?;
-        renderer.mesh_replace(mod_api::content::crash::current_native_mod(), mesh, desc)
+        let gpu = self.mod_gpu().ok_or(mod_api::MeshError::Unavailable)?;
+        gpu.mesh_replace(mod_api::content::crash::current_native_mod(), mesh, desc)
     }
     /// Free retained `mesh`'s GPU buffers and retire the handle.
     pub(super) fn mesh_release(&self, mesh: mod_api::MeshRef) -> Result<(), mod_api::MeshError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::MeshError::Unavailable)?;
-        renderer.mesh_release(mod_api::content::crash::current_native_mod(), mesh)
+        let gpu = self.mod_gpu().ok_or(mod_api::MeshError::Unavailable)?;
+        gpu.mesh_release(mod_api::content::crash::current_native_mod(), mesh)
     }
-    /// Allocate a retained GPU [`mod_api::UniformBufferRef`] on the active renderer.
+    /// Allocate a retained GPU [`mod_api::UniformBufferRef`] on the active renderer's device.
     pub(super) fn create_uniform_buffer(
         &self,
         bytes: &[u8],
     ) -> Result<mod_api::UniformBufferRef, mod_api::BufferError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::BufferError::Unavailable)?;
-        renderer.create_uniform_buffer(mod_api::content::crash::current_native_mod(), bytes)
+        let gpu = self.mod_gpu().ok_or(mod_api::BufferError::Unavailable)?;
+        gpu.create_uniform_buffer(mod_api::content::crash::current_native_mod(), bytes)
     }
     /// Partially or fully update retained uniform `buffer` starting at `byte_offset`.
     pub(super) fn uniform_buffer_write(
@@ -475,11 +457,8 @@ impl Game<'_> {
         byte_offset: u32,
         bytes: &[u8],
     ) -> Result<(), mod_api::BufferError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::BufferError::Unavailable)?;
-        renderer.uniform_buffer_write(
+        let gpu = self.mod_gpu().ok_or(mod_api::BufferError::Unavailable)?;
+        gpu.uniform_buffer_write(
             mod_api::content::crash::current_native_mod(),
             buffer,
             byte_offset,
@@ -491,22 +470,16 @@ impl Game<'_> {
         &self,
         buffer: mod_api::UniformBufferRef,
     ) -> Result<(), mod_api::BufferError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::BufferError::Unavailable)?;
-        renderer.uniform_buffer_release(mod_api::content::crash::current_native_mod(), buffer)
+        let gpu = self.mod_gpu().ok_or(mod_api::BufferError::Unavailable)?;
+        gpu.uniform_buffer_release(mod_api::content::crash::current_native_mod(), buffer)
     }
-    /// Allocate a retained GPU [`mod_api::StorageBufferRef`] on the active renderer.
+    /// Allocate a retained GPU [`mod_api::StorageBufferRef`] on the active renderer's device.
     pub(super) fn create_storage_buffer(
         &self,
         desc: &mod_api::StorageBufferDescriptor,
     ) -> Result<mod_api::StorageBufferRef, mod_api::BufferError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::BufferError::Unavailable)?;
-        renderer.create_storage_buffer(mod_api::content::crash::current_native_mod(), desc)
+        let gpu = self.mod_gpu().ok_or(mod_api::BufferError::Unavailable)?;
+        gpu.create_storage_buffer(mod_api::content::crash::current_native_mod(), desc)
     }
     /// Queue `data` for `offset` of retained storage `buffer`.
     pub(super) fn storage_buffer_write_range(
@@ -515,11 +488,8 @@ impl Game<'_> {
         offset: u64,
         data: &[u8],
     ) -> Result<(), mod_api::BufferError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::BufferError::Unavailable)?;
-        renderer.storage_buffer_write_range(
+        let gpu = self.mod_gpu().ok_or(mod_api::BufferError::Unavailable)?;
+        gpu.storage_buffer_write_range(
             mod_api::content::crash::current_native_mod(),
             buffer,
             offset,
@@ -531,33 +501,26 @@ impl Game<'_> {
         &self,
         buffer: mod_api::StorageBufferRef,
     ) -> Result<u64, mod_api::BufferError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::BufferError::Unavailable)?;
-        renderer.storage_buffer_size(mod_api::content::crash::current_native_mod(), buffer)
+        let gpu = self.mod_gpu().ok_or(mod_api::BufferError::Unavailable)?;
+        gpu.storage_buffer_size(mod_api::content::crash::current_native_mod(), buffer)
     }
     /// Free retained storage `buffer` and retire the handle.
     pub(super) fn storage_buffer_release(
         &self,
         buffer: mod_api::StorageBufferRef,
     ) -> Result<(), mod_api::BufferError> {
-        let renderer = self
-            .renderer
-            .as_ref()
-            .ok_or(mod_api::BufferError::Unavailable)?;
-        renderer.storage_buffer_release(mod_api::content::crash::current_native_mod(), buffer)
+        let gpu = self.mod_gpu().ok_or(mod_api::BufferError::Unavailable)?;
+        gpu.storage_buffer_release(mod_api::content::crash::current_native_mod(), buffer)
     }
-    /// Allocate a mod-owned offscreen [`mod_api::RenderTargetRef`] on the active renderer.
+    /// Allocate a mod-owned offscreen [`mod_api::RenderTargetRef`] on the active renderer's device.
     pub(super) fn create_render_target(
         &self,
         desc: &mod_api::RenderTargetDescriptor,
     ) -> Result<mod_api::RenderTargetRef, mod_api::RenderTargetError> {
-        let renderer = self
-            .renderer
-            .as_ref()
+        let gpu = self
+            .mod_gpu()
             .ok_or(mod_api::RenderTargetError::Unavailable)?;
-        renderer.create_render_target(mod_api::content::crash::current_native_mod(), desc)
+        gpu.create_render_target(mod_api::content::crash::current_native_mod(), desc)
     }
     /// Resize mod-owned offscreen `target` (no-op if unchanged).
     pub(super) fn render_target_resize(
@@ -565,28 +528,26 @@ impl Game<'_> {
         target: mod_api::RenderTargetRef,
         size: [u32; 2],
     ) -> Result<(), mod_api::RenderTargetError> {
-        let renderer = self
-            .renderer
-            .as_ref()
+        let gpu = self
+            .mod_gpu()
             .ok_or(mod_api::RenderTargetError::Unavailable)?;
-        renderer.render_target_resize(mod_api::content::crash::current_native_mod(), target, size)
+        gpu.render_target_resize(mod_api::content::crash::current_native_mod(), target, size)
     }
     /// Query pixel dimensions of mod-owned offscreen `target`.
     pub(super) fn render_target_size(
         &self,
         target: mod_api::RenderTargetRef,
     ) -> Result<[u32; 2], mod_api::RenderTargetError> {
-        let renderer = self
-            .renderer
-            .as_ref()
+        let gpu = self
+            .mod_gpu()
             .ok_or(mod_api::RenderTargetError::Unavailable)?;
-        renderer.render_target_size(mod_api::content::crash::current_native_mod(), target)
+        gpu.render_target_size(mod_api::content::crash::current_native_mod(), target)
     }
-    /// The optional device features of the active renderer; all off without one.
+    /// The optional device features of the active device; all off without one.
     pub(super) fn render_capabilities(&self) -> mod_api::RenderCapabilities {
-        self.renderer.as_ref().map_or_else(
+        self.mod_gpu().map_or_else(
             || mod_api::__private::built::render_capabilities(false, Vec::new(), false, false),
-            |renderer| renderer.render_capabilities(),
+            |gpu| gpu.render_capabilities(),
         )
     }
     /// Free mod-owned offscreen `target` and retire the handle.
@@ -594,11 +555,10 @@ impl Game<'_> {
         &self,
         target: mod_api::RenderTargetRef,
     ) -> Result<(), mod_api::RenderTargetError> {
-        let renderer = self
-            .renderer
-            .as_ref()
+        let gpu = self
+            .mod_gpu()
             .ok_or(mod_api::RenderTargetError::Unavailable)?;
-        renderer.render_target_release(mod_api::content::crash::current_native_mod(), target)
+        gpu.render_target_release(mod_api::content::crash::current_native_mod(), target)
     }
     /// Validate and resolve per-draw set-1 [`mod_api::DrawBindings`] against pipeline `slot`'s
     /// declared `BindGroupLayout` and `push_constant_size`, refusing a mip level bound in ways one
@@ -682,12 +642,11 @@ impl Game<'_> {
         if bindings.entries.len() != layout.entries.len() {
             return Err(PipelineDrawError::InvalidBinding);
         }
-        let renderer = self
-            .renderer
-            .as_ref()
+        let gpu = self
+            .mod_gpu()
             .ok_or(PipelineDrawError::Buffer(mod_api::BufferError::Unavailable))?;
         let owner = mod_api::content::crash::current_native_mod();
-        let (max_uniform, max_texel) = renderer.mod_binding_limits();
+        let (max_uniform, max_texel) = gpu.mod_binding_limits();
         // A draw of an offscreen pass binds nothing of the level that pass renders into.
         if let Some((mod_api::FrameTarget::Mod(rt), mip)) = active_target
             && bindings.entries.iter().any(|(_, value)| match value {
@@ -763,7 +722,7 @@ impl Game<'_> {
                     mod_api::BindingValue::Uniform(mod_api::UniformValue::Buffer(handle)),
                 ) => {
                     let (id, buffer, byte_len) =
-                        renderer.resolve_mod_uniform_buffer(owner, *handle, min_size)?;
+                        gpu.resolve_mod_uniform_buffer(owner, *handle, min_size)?;
                     staged.push(StagedEntry::UniformBuffer {
                         id,
                         buffer,
@@ -798,7 +757,7 @@ impl Game<'_> {
                             desc,
                             *attachment,
                             filterable,
-                            renderer.float32_filterable(),
+                            gpu.float32_filterable(),
                         ) {
                             return Err(PipelineDrawError::InvalidBinding);
                         }
@@ -836,10 +795,10 @@ impl Game<'_> {
                                 {
                                     return Err(PipelineDrawError::InvalidBinding);
                                 }
-                                renderer.mod_atlas_texture_view()
+                                gpu.mod_atlas_texture_view()
                             }
                             mod_api::TextureSource::DynamicTexture(id) => {
-                                self.resolve_dynamic_texture_view(renderer, id)?
+                                self.resolve_dynamic_texture_view(gpu, id)?
                             }
                             mod_api::TextureSource::StandaloneTexture(id) => {
                                 let asset_path = if id.path().ends_with(".png") {
@@ -847,7 +806,7 @@ impl Game<'_> {
                                 } else {
                                     format!("assets/{}/textures/{}.png", id.namespace(), id.path())
                                 };
-                                renderer.resolve_mod_standalone_texture(id, || {
+                                gpu.resolve_mod_standalone_texture(id, || {
                                     self.pack.source.read(&asset_path).ok()
                                 })?
                             }
@@ -855,31 +814,27 @@ impl Game<'_> {
                                 if writes_depth {
                                     return Err(PipelineDrawError::InvalidBinding);
                                 }
-                                renderer.mod_world_depth_texture_view()
+                                gpu.mod_world_depth_texture_view()
                             }
-                            mod_api::TextureSource::Lightmap => {
-                                renderer.mod_lightmap_texture_view()
-                            }
+                            mod_api::TextureSource::Lightmap => gpu.mod_lightmap_texture_view(),
                             mod_api::TextureSource::RenderTargetColor(target, attachment) => {
                                 let filterable = filter == mod_api::SamplerFilter::Linear;
-                                let (id, view, target_mips) = renderer
-                                    .resolve_mod_render_target_color(
-                                        owner,
-                                        *target,
-                                        *attachment,
-                                        filterable,
-                                    )?;
+                                let (id, view, target_mips) = gpu.resolve_mod_render_target_color(
+                                    owner,
+                                    *target,
+                                    *attachment,
+                                    filterable,
+                                )?;
                                 mips = Some(target_mips);
                                 (id, view)
                             }
                             mod_api::TextureSource::RenderTargetDepth(target) => {
                                 let filterable = filter == mod_api::SamplerFilter::Linear;
-                                renderer
-                                    .resolve_mod_render_target_depth(owner, *target, filterable)?
+                                gpu.resolve_mod_render_target_depth(owner, *target, filterable)?
                             }
                             mod_api::TextureSource::RenderTargetColorMip(view) => {
                                 let filterable = filter == mod_api::SamplerFilter::Linear;
-                                let (id, view, target_mips) = renderer
+                                let (id, view, target_mips) = gpu
                                     .resolve_mod_render_target_color_mips(
                                         owner, *view, filterable,
                                     )?;
@@ -931,7 +886,7 @@ impl Game<'_> {
                     mod_api::BindingKind::StorageBuffer { min_size, .. },
                     mod_api::BindingValue::StorageBuffer(slice),
                 ) => {
-                    let range = renderer
+                    let range = gpu
                         .resolve_mod_storage_range(owner, *slice, min_size)
                         .map_err(PipelineDrawError::Buffer)?;
                     staged.push(StagedEntry::Storage(range));
@@ -941,7 +896,7 @@ impl Game<'_> {
                     mod_api::BindingValue::StorageImage(image),
                 ) => {
                     let (view_id, view, format, mips) =
-                        renderer.resolve_mod_storage_image(owner, access, *image)?;
+                        gpu.resolve_mod_storage_image(owner, access, *image)?;
                     staged.push(StagedEntry::StorageImage {
                         view_id,
                         view,
@@ -1083,19 +1038,14 @@ impl Game<'_> {
 
     fn resolve_dynamic_texture_view(
         &self,
-        renderer: &sunrise_client::gfx::Renderer,
+        gpu: &sunrise_client::gfx::ModGpuResources,
         id: &mod_api::Identifier,
     ) -> Result<(u64, wgpu::TextureView), mod_api::PipelineDrawError> {
         let Some((handle, _)) = self.dynamic_textures.get(id) else {
             return Err(mod_api::PipelineDrawError::InvalidBinding);
         };
-        let Some((view, revision)) = renderer.hud.dynamic().view(handle) else {
-            return Err(mod_api::PipelineDrawError::InvalidBinding);
-        };
-        Ok((
-            sunrise_client::gfx::mod_uniforms::DYNAMIC_VIEW_ID_BIT | revision,
-            view,
-        ))
+        gpu.dynamic_texture_view(handle)
+            .ok_or(mod_api::PipelineDrawError::InvalidBinding)
     }
 
     /// Submit quads drawn by a mod pipeline: shorthand over [`Self::native_world_draw_vertices`]
@@ -1190,12 +1140,11 @@ impl Game<'_> {
             .topology(slot)
             .unwrap_or(mod_api::PrimitiveTopology::Quads);
         let topology = draw.effective_topology(base_topology);
-        let renderer = self
-            .renderer
-            .as_ref()
+        let gpu = self
+            .mod_gpu()
             .ok_or(PipelineDrawError::Mesh(mod_api::MeshError::Unavailable))?;
-        check_generated_indices(topology, &mesh_draw, renderer.max_buffer_size())?;
-        let resolved = renderer.resolve_mod_mesh_draw(
+        check_generated_indices(topology, &mesh_draw, gpu.max_buffer_size())?;
+        let resolved = gpu.resolve_mod_mesh_draw(
             mod_api::content::crash::current_native_mod(),
             mesh,
             vertex_bindings,
@@ -1227,19 +1176,16 @@ impl Game<'_> {
         let vertex_bindings = self.pack.render.mod_pipelines.vertex_bindings(slot).ok_or(
             PipelineDrawError::Pipeline(mod_api::RenderPipelineError::Invalid),
         )?;
-        let renderer = self
-            .renderer
-            .as_ref()
+        let gpu = self
+            .mod_gpu()
             .ok_or(PipelineDrawError::Mesh(mod_api::MeshError::Unavailable))?;
         let owner = mod_api::content::crash::current_native_mod();
         let mesh = match draw.mesh {
-            Some(handle) => {
-                Some(renderer.resolve_mod_mesh_indirect(owner, handle, vertex_bindings)?)
-            }
+            Some(handle) => Some(gpu.resolve_mod_mesh_indirect(owner, handle, vertex_bindings)?),
             None if vertex_bindings.is_empty() => None,
             None => return Err(PipelineDrawError::VertexFormatMismatch),
         };
-        let buffer = renderer
+        let buffer = gpu
             .resolve_mod_storage_buffer(owner, draw.indirect_buffer)
             .map_err(PipelineDrawError::Buffer)?;
         sunrise_client::gfx::mod_pipelines::IndirectSource::new(
@@ -1337,9 +1283,7 @@ impl Game<'_> {
         check_generated_indices(
             topology,
             &mesh_draw,
-            self.renderer
-                .as_ref()
-                .map_or(u64::MAX, |r| r.max_buffer_size()),
+            self.mod_gpu().map_or(u64::MAX, |gpu| gpu.max_buffer_size()),
         )?;
         match &mesh_draw.range {
             mod_api::DrawRange::Vertices(range) => {
@@ -1400,7 +1344,7 @@ impl Game<'_> {
         use mod_api::ComputeDispatchError as Refused;
         use sunrise_client::gfx::mod_compute::{DispatchKind, RecordedDispatch};
         let dispatches = pass.dispatches.as_mut().ok_or(Refused::Unavailable)?;
-        let renderer = self.renderer.as_ref().ok_or(Refused::Unavailable)?;
+        let gpu = self.mod_gpu().ok_or(Refused::Unavailable)?;
         let compute = self.pack.render.mod_pipelines.compute();
         let slot = compute.slot(pipeline).map_err(Refused::Pipeline)?;
         let built = compute.built()[slot as usize]
@@ -1408,14 +1352,14 @@ impl Game<'_> {
             .ok_or(Refused::Pipeline(mod_api::ComputePipelineError::Invalid))?;
         let kind = match workgroups {
             Ok(counts) => {
-                let max = renderer.max_compute_workgroups_per_dimension();
+                let max = gpu.max_compute_workgroups_per_dimension();
                 if counts.iter().any(|&n| n > max) {
                     return Err(Refused::TooManyWorkgroups);
                 }
                 DispatchKind::Direct(counts)
             }
             Err((indirect, offset)) => {
-                let buffer = renderer
+                let buffer = gpu
                     .resolve_mod_storage_buffer(
                         mod_api::content::crash::current_native_mod(),
                         indirect,
@@ -1509,11 +1453,10 @@ impl Game<'_> {
             .mod_pipelines
             .topology(slot)
             .unwrap_or(mod_api::PrimitiveTopology::Quads);
-        let renderer = self
-            .renderer
-            .as_ref()
+        let gpu = self
+            .mod_gpu()
             .ok_or(PipelineDrawError::Mesh(mod_api::MeshError::Unavailable))?;
-        let resolved = renderer.resolve_mod_mesh_draw(
+        let resolved = gpu.resolve_mod_mesh_draw(
             mod_api::content::crash::current_native_mod(),
             mesh,
             vertex_bindings,
@@ -4465,5 +4408,177 @@ mod tests {
             .storage_image("R", mip(0))
             .storage_image("W", mip(1));
         assert!(!compute_bindings_alias(&images, &other, None));
+    }
+
+    /// The handles one mod makes in `frame_graph_setup` and `prepare_render_buffers`, and releases in
+    /// `render_level_stage`.
+    #[derive(Default)]
+    struct GpuHandles {
+        target: Option<mod_api::RenderTargetRef>,
+        mesh: Option<mod_api::MeshRef>,
+        uniform: Option<mod_api::UniformBufferRef>,
+        storage: Option<mod_api::StorageBufferRef>,
+        capacity: Option<sunrise_client::gfx::EntityQuadCapacity>,
+    }
+
+    /// Reaches the GPU through the host in the three frame hooks, each call unwrapped: a refusal
+    /// panics the hook, and the shared boundary reports it.
+    struct GpuProbe(std::sync::Arc<Mutex<GpuHandles>>);
+
+    #[mod_api::__subscriptions]
+    impl Hooks for GpuProbe {
+        fn frame_graph_setup(
+            &self,
+            host: &dyn ClientHost,
+            event: &mut mod_api::FrameGraphSetupEvent<'_>,
+        ) {
+            use mod_api::prelude::*;
+            let desc = mod_api::RenderTargetDescriptor::new([8, 8])
+                .color_target(mod_api::RenderTargetFormat::Rgba8Unorm);
+            let target = host.create_render_target(&desc).unwrap();
+            target.resize(host, [16, 16]).unwrap();
+            assert_eq!(target.size(host), Ok([16, 16]));
+            event
+                .graph
+                .add_pass(
+                    mod_api::FramePassDescriptor::new(
+                        "gpu_probe",
+                        mod_api::FrameTarget::Mod(target),
+                    ),
+                    &mut |_| {},
+                )
+                .unwrap();
+            self.0.lock().unwrap().target = Some(target);
+        }
+
+        fn prepare_render_buffers(
+            &self,
+            host: &dyn ClientHost,
+            _: &mut mod_api::PrepareRenderBuffersEvent<'_>,
+        ) {
+            use mod_api::prelude::*;
+            let init = [mod_api::MeshBufferInit::from_bytes(8, &[0; 32])];
+            let mesh = host
+                .create_mesh(&mod_api::MeshDescriptor::new(&init))
+                .unwrap();
+            let uniform = host.create_uniform_buffer(&[0; 16]).unwrap();
+            uniform.write(host, 0, &[1; 16]).unwrap();
+            let storage = host
+                .create_storage_buffer(&mod_api::StorageBufferDescriptor::new(64))
+                .unwrap();
+            storage.write_range(host, 0, &[1; 16]).unwrap();
+            let mut handles = self.0.lock().unwrap();
+            handles.mesh = Some(mesh);
+            handles.uniform = Some(uniform);
+            handles.storage = Some(storage);
+        }
+
+        fn render_level_stage(
+            &self,
+            host: &dyn ClientHost,
+            event: &mut mod_api::RenderLevelStageEvent<'_>,
+        ) {
+            if event.stage != RenderLevelStage::AfterOpaqueFeatures {
+                return;
+            }
+            let handles = self.0.lock().unwrap();
+            handles.mesh.unwrap().release(host).unwrap();
+            handles.uniform.unwrap().release(host).unwrap();
+            handles.storage.unwrap().release(host).unwrap();
+            handles.target.unwrap().release(host).unwrap();
+        }
+    }
+
+    /// `Game::render` takes the renderer out of the game for `Renderer::render`, so every frame hook
+    /// runs with `game.renderer` empty: the mod GPU handles must keep working then, and refuse only
+    /// once the game holds none.
+    #[test]
+    #[ignore = "daily"]
+    fn mod_gpu_handles_work_while_the_renderer_is_out_of_the_game() {
+        use mod_api::__private::take_hook_panics;
+        use mod_api::{BufferError, MeshError, RenderTargetError};
+        use sunrise_client::gfx::world_primitives::FrameHooks;
+
+        super::super::native_entity_refs::tests::with_client_game(|game| {
+            let (_event_loop, window) =
+                crate::game::native_hooks::particle_count_tests::hidden_window();
+            game.options.offscreen = true;
+            let renderer = game.new_renderer(window.clone()).unwrap();
+            let device_capacity = renderer.entity_quad_capacity();
+            game.set_renderer(renderer);
+            game.window = Some(window);
+
+            let handles = std::sync::Arc::new(Mutex::new(GpuHandles::default()));
+            mod_platform::__private::install(
+                vec![ModEntry::new(
+                    "gpu_probe",
+                    Box::new(GpuProbe(handles.clone())),
+                )]
+                .into(),
+            );
+            let _ = take_hook_panics();
+
+            // `game.rs`'s `Game::render`: the renderer is out while its frame is drawn, the mod
+            // GPU handles stay.
+            let renderer_slot = game.renderer.take();
+            assert!(game.renderer.is_none());
+            assert!(game.mod_gpu().is_some());
+            assert_eq!(game.entity_quad_capacity(), device_capacity);
+
+            let camera = test_camera([0.0; 3], Mat4::IDENTITY);
+            let mut draw = WorldGeometry::default();
+            draw.reset([0.0; 3], Mat4::IDENTITY, [0.0; 2]);
+            {
+                let mut driver = GameWorldStageDriver::new(game, &camera, 0.0, &mut draw);
+                driver.on_frame_graph_setup(&[], false);
+                driver.on_prepare_render_buffers(&[], false, &mut Default::default());
+                driver.on_render_stage(RenderLevelStage::AfterOpaqueFeatures, &[], false);
+            }
+            let panics = take_hook_panics();
+            assert!(panics.is_empty(), "{panics:?}");
+            let made = handles.lock().unwrap();
+            assert!(made.target.is_some() && made.mesh.is_some());
+            assert!(made.uniform.is_some() && made.storage.is_some());
+            let (mesh, uniform, storage, target) = (
+                made.mesh.unwrap(),
+                made.uniform.unwrap(),
+                made.storage.unwrap(),
+                made.target.unwrap(),
+            );
+            drop(made);
+
+            // The renderer's own textures that `TextureSource` binds resolve from the handles.
+            let gpu = game.mod_gpu().unwrap();
+            assert_eq!(
+                gpu.mod_world_depth_texture_view().0,
+                sunrise_client::gfx::mod_uniforms::WORLD_DEPTH_VIEW_ID
+            );
+            assert_eq!(
+                gpu.mod_lightmap_texture_view().0,
+                sunrise_client::gfx::mod_uniforms::LIGHTMAP_VIEW_ID
+            );
+            assert_eq!(
+                gpu.mod_atlas_texture_view().0,
+                sunrise_client::gfx::mod_uniforms::ATLAS_VIEW_ID
+            );
+            assert!(gpu.dynamic_texture_view(u64::MAX).is_none());
+
+            // Without the game's handles (the renderer still out), nothing resolves.
+            game.mod_gpu = None;
+            assert_eq!(
+                game.uniform_buffer_write(uniform, 0, &[1; 16]),
+                Err(BufferError::Unavailable)
+            );
+            assert_eq!(
+                game.storage_buffer_write_range(storage, 0, &[1; 16]),
+                Err(BufferError::Unavailable)
+            );
+            assert_eq!(
+                game.render_target_resize(target, [8, 8]),
+                Err(RenderTargetError::Unavailable)
+            );
+            assert_eq!(game.mesh_release(mesh), Err(MeshError::Unavailable));
+            game.renderer = renderer_slot;
+        });
     }
 }

@@ -120,10 +120,13 @@ impl Game<'_> {
     /// screen that asks for it) even if a loaded pack remains cached, matching the renderer,
     /// which suppresses the pack whenever `frame.title` is set.
     pub(in crate::game) fn shader_pack_active(&self) -> bool {
-        shader_pack_in_use(
-            self.shows_panorama(),
-            self.renderer.as_ref().and_then(|r| r.shader_pack_kind()),
-        )
+        match self.renderer.as_ref() {
+            Some(renderer) => {
+                shader_pack_in_use(self.shows_panorama(), renderer.shader_pack_kind())
+            }
+            // While `Renderer::render` has the renderer out, the frame's own state says it.
+            None => self.shader_pack_state().is_some(),
+        }
     }
     /// The active shader pack's cloud and shadow-pass state, as the latest frame's render
     /// callbacks read it; `None` while the panorama shows even when a pack remains loaded.
@@ -133,6 +136,23 @@ impl Game<'_> {
     /// Whether the active shader pack bound the mod pipeline in `slot` to one of its programs.
     pub(in crate::game) fn pack_slot_bound(&self, slot: usize) -> bool {
         self.shader_pack_state().is_some() && self.pack_frame_slots.borrow().contains(&slot)
+    }
+    /// How the active translated shader pack binds mod pipeline `slot`: the renderer's own answer,
+    /// or while `Renderer::render` has it out, the frame snapshot's.
+    pub(in crate::game) fn pack_override_state(&self, slot: usize) -> mod_api::PackOverrideState {
+        if let Some(renderer) = self.renderer.as_ref() {
+            return renderer.pack_override_state(slot);
+        }
+        if !self
+            .mod_gpu()
+            .is_some_and(sunrise_client::gfx::ModGpuResources::pack_iris)
+        {
+            mod_api::PackOverrideState::NoPack
+        } else if self.pack_frame_slots.borrow().contains(&slot) {
+            mod_api::PackOverrideState::Bound
+        } else {
+            mod_api::PackOverrideState::UnboundPack
+        }
     }
 }
 

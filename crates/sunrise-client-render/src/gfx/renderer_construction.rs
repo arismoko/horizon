@@ -2312,6 +2312,22 @@ impl Renderer {
         let core_particles =
             core_particles::CoreParticles::new(&device, &queue, (frame_format, linear_light));
         let views = world_views::Kept::new(flipped, translucent_flipped, entity_pipeline_with);
+        let mod_gpu = mod_gpu::ModGpuResources::new(
+            adapter.clone(),
+            device.clone(),
+            queue.clone(),
+            hud.dynamic().clone(),
+            mod_gpu::ModFrameState {
+                entity_atlas: atlas_view.clone(),
+                lightmap: lightmap_view.clone(),
+                world_depth: depth.clone(),
+                entity_quad_capacity: EntityQuadCapacity::from_limits(
+                    &device.limits(),
+                    entity_skin.is_some(),
+                ),
+                pack_iris: false,
+            },
+        );
         Ok(Self {
             display: None,
             reading: display,
@@ -2423,16 +2439,10 @@ impl Renderer {
             lightning: lightning::Renderer::new(),
             see_through_pipeline,
             world_primitives: Some(world_primitives),
-            mod_meshes: std::sync::Mutex::new(mod_meshes::ModMeshes::default()),
-            mod_uniforms: std::sync::Mutex::new(mod_uniforms::ModUniformBuffers::default()),
-            mod_storage: std::sync::Mutex::new(mod_storage::ModStorageBuffers::default()),
-            mod_render_targets: std::sync::Mutex::new(
-                mod_render_targets::ModRenderTargets::default(),
-            ),
+            mod_gpu,
             transient_targets: std::sync::Mutex::new(
                 mod_frame_graph::TransientTargetPool::default(),
             ),
-            warned_frame_graph_cycles: std::sync::Mutex::new(std::collections::HashSet::new()),
             text_polygon_offset_pipeline,
             world_text_pipeline,
             text_mark_pipelines,

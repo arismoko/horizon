@@ -1005,7 +1005,10 @@ fn screen_effect_quads_draw_over_the_level_and_under_the_gui() {
                     .unwrap(),
             );
             game.options.offscreen = true;
-            game.renderer = Some(game.new_renderer(window).unwrap());
+            {
+                let renderer = game.new_renderer(window).unwrap();
+                game.set_renderer(renderer);
+            }
             game.title = None;
             burning_player(game);
             game.previous_position = game.player.as_ref().unwrap().position;

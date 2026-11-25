@@ -37,6 +37,7 @@ impl Renderer {
         let mut laps = crate::spans::laps();
         let landing = Instant::now();
         self.land_frame();
+        self.refresh_mod_frame_views();
         if let Some(world_primitives) = self.world_primitives.as_mut() {
             world_primitives.pipelines.begin_frame();
         }
@@ -1591,6 +1592,7 @@ impl Renderer {
             && let Some(recorded) = hooks.take_frame_graph()
         {
             let mut warned = self
+                .mod_gpu
                 .warned_frame_graph_cycles
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
@@ -1652,7 +1654,7 @@ impl Renderer {
                 &self.queue,
                 &mut encoder,
                 self.world_primitives.as_mut(),
-                &self.mod_render_targets,
+                &self.mod_gpu.render_targets,
                 &self.transient_targets,
             );
             if sky_stage == Some(SkyStageOwner::Engine) {
@@ -1665,7 +1667,7 @@ impl Renderer {
                     &self.queue,
                     &mut encoder,
                     self.world_primitives.as_mut(),
-                    &self.mod_render_targets,
+                    &self.mod_gpu.render_targets,
                     &self.transient_targets,
                 );
             }
@@ -2826,7 +2828,7 @@ impl Renderer {
                     &self.queue,
                     &mut encoder,
                     self.world_primitives.as_mut(),
-                    &self.mod_render_targets,
+                    &self.mod_gpu.render_targets,
                     &self.transient_targets,
                 );
                 let mut resumed =
@@ -3218,7 +3220,7 @@ impl Renderer {
                     &self.queue,
                     &mut encoder,
                     self.world_primitives.as_mut(),
-                    &self.mod_render_targets,
+                    &self.mod_gpu.render_targets,
                     &self.transient_targets,
                 );
                 pass = plain_pass(&mut encoder);
@@ -3448,7 +3450,7 @@ impl Renderer {
                     &self.queue,
                     &mut encoder,
                     self.world_primitives.as_mut(),
-                    &self.mod_render_targets,
+                    &self.mod_gpu.render_targets,
                     &self.transient_targets,
                 );
                 pass = plain_pass(&mut encoder);
@@ -3723,7 +3725,7 @@ impl Renderer {
                     &self.queue,
                     &mut encoder,
                     self.world_primitives.as_mut(),
-                    &self.mod_render_targets,
+                    &self.mod_gpu.render_targets,
                     &self.transient_targets,
                 );
                 pass = plain_pass(&mut encoder);
@@ -3941,7 +3943,7 @@ impl Renderer {
                             &self.queue,
                             &mut encoder,
                             self.world_primitives.as_mut(),
-                            &self.mod_render_targets,
+                            &self.mod_gpu.render_targets,
                             &self.transient_targets,
                         );
                     }
@@ -4088,7 +4090,7 @@ impl Renderer {
                     &self.queue,
                     &mut encoder,
                     self.world_primitives.as_mut(),
-                    &self.mod_render_targets,
+                    &self.mod_gpu.render_targets,
                     &self.transient_targets,
                 );
                 pass = plain_pass(&mut encoder);
@@ -4192,7 +4194,7 @@ impl Renderer {
                     &self.queue,
                     &mut encoder,
                     self.world_primitives.as_mut(),
-                    &self.mod_render_targets,
+                    &self.mod_gpu.render_targets,
                     &self.transient_targets,
                 );
                 pass = plain_pass(&mut encoder);
@@ -4319,7 +4321,7 @@ impl Renderer {
                     &self.queue,
                     &mut encoder,
                     self.world_primitives.as_mut(),
-                    &self.mod_render_targets,
+                    &self.mod_gpu.render_targets,
                     &self.transient_targets,
                 );
                 pass = plain_pass(&mut encoder);
@@ -4403,7 +4405,7 @@ impl Renderer {
                 &self.queue,
                 &mut encoder,
                 self.world_primitives.as_mut(),
-                &self.mod_render_targets,
+                &self.mod_gpu.render_targets,
                 &self.transient_targets,
             );
         }

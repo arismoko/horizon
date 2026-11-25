@@ -326,7 +326,10 @@ pub(in crate::game) fn hidden_window() -> (
 pub(in crate::game) fn frame_scene(game: &mut super::Game<'_>) -> winit::event_loop::EventLoop<()> {
     let (event_loop, window) = hidden_window();
     game.options.offscreen = true;
-    game.renderer = Some(game.new_renderer(window).unwrap());
+    {
+        let renderer = game.new_renderer(window).unwrap();
+        game.set_renderer(renderer);
+    }
     game.title = None;
     game.settings.extras.dynamic_lights = true;
     game.settings.sunrise.particle_culling = sunrise_client::graphics::ParticleCullingMode::Off;

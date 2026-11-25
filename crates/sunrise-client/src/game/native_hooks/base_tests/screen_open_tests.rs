@@ -737,7 +737,10 @@ fn client_gui_state_matches_screen_init_hook() {
                     .unwrap(),
             );
             game.options.offscreen = true;
-            game.renderer = Some(game.new_renderer(window).unwrap());
+            {
+                let renderer = game.new_renderer(window).unwrap();
+                game.set_renderer(renderer);
+            }
             game.screen = Screen::Playing;
             assert!(mod_api::prelude::ScreensClientHost::observed_screen_id(game).is_none());
             game.set_screen(Screen::Inventory);
@@ -911,7 +914,10 @@ fn mod_screen_open_replaces_vanilla_screens_overlays_and_mod_screens() {
             );
             game.options.offscreen = true;
             game.window = Some(window.clone());
-            game.renderer = Some(game.new_renderer(window).unwrap());
+            {
+                let renderer = game.new_renderer(window).unwrap();
+                game.set_renderer(renderer);
+            }
             game.title = None;
             game.player = Some(
                 sunrise_client::motion::PlayerMotion::new(

@@ -30,7 +30,7 @@ impl Game<'_> {
             if let Some(old) = &self.renderer {
                 renderer.resize(old.config.width, old.config.height);
             }
-            self.renderer = Some(renderer);
+            self.set_renderer(renderer);
         }
         self.stitching_block_atlas = Some(atlas.clone());
         self.native_texture_atlas_stitched(mod_api::TextureAtlas::Blocks);

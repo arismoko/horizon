@@ -1578,9 +1578,9 @@ impl Game<'_> {
     }
     /// Device-derived combined entity quad capacity for this frame's renderer.
     pub(super) fn entity_quad_capacity(&self) -> sunrise_client::gfx::EntityQuadCapacity {
-        self.renderer.as_ref().map_or_else(
+        self.mod_gpu().map_or_else(
             sunrise_client::gfx::EntityQuadCapacity::default_device,
-            sunrise_client::gfx::Renderer::entity_quad_capacity,
+            sunrise_client::gfx::ModGpuResources::entity_quad_capacity,
         )
     }
 

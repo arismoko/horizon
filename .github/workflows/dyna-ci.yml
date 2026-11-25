@@ -957,6 +957,11 @@ jobs:
         id: nested_workspaces_lockfiles_are_current
         if: ${{ !cancelled() && steps.setup.outcome == 'success' && (needs.changes.outputs.rust_required != 'false') }}
         run: python3 tools/ci/check_nested_locks.py
+      # Frame hooks run with Game::renderer taken out (sunrise#5858): their files reach the GPU through Game::mod_gpu().
+      - name: Frame-hook files do not read the renderer
+        id: frame_hook_files_do_not_read_the_renderer
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: python3 tools/ci/check_mod_gpu_access.py
       # docs/layers.md: a crate depends only on its own layer or a lower one; today's exceptions only shrink.
       - name: Crates follow the layers
         id: crates_follow_the_layers
