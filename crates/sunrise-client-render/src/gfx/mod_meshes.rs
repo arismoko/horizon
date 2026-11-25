@@ -412,14 +412,14 @@ fn build_buffers(
     Ok((vertex_buffers, index_buffer))
 }
 
-impl super::Renderer {
+impl super::mod_gpu::ModGpuResources {
     /// Allocate a retained GPU [`MeshRef`] owned by `owner`.
     pub fn create_mesh(
         &self,
         owner: Option<&'static str>,
         desc: &MeshDescriptor<'_>,
     ) -> Result<MeshRef, MeshError> {
-        self.mod_meshes
+        self.meshes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .create_mesh(&self.device, &self.queue, owner, desc)
@@ -434,7 +434,7 @@ impl super::Renderer {
         byte_offset: u64,
         data: &[u8],
     ) -> Result<(), MeshError> {
-        self.mod_meshes
+        self.meshes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .write_vertices(&self.queue, owner, mesh, binding, byte_offset, data)
@@ -448,7 +448,7 @@ impl super::Renderer {
         byte_offset: u64,
         data: &[u8],
     ) -> Result<(), MeshError> {
-        self.mod_meshes
+        self.meshes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .write_indices(&self.queue, owner, mesh, byte_offset, data)
@@ -461,7 +461,7 @@ impl super::Renderer {
         mesh: MeshRef,
         desc: &MeshDescriptor<'_>,
     ) -> Result<(), MeshError> {
-        self.mod_meshes
+        self.meshes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .replace(&self.device, &self.queue, owner, mesh, desc)
@@ -473,7 +473,7 @@ impl super::Renderer {
         owner: Option<&'static str>,
         mesh: MeshRef,
     ) -> Result<(), MeshError> {
-        self.mod_meshes
+        self.meshes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .release(owner, mesh)
@@ -481,7 +481,7 @@ impl super::Renderer {
 
     /// Retire all retained GPU meshes (called on world close and resource reload).
     pub fn clear_mod_meshes(&self) {
-        self.mod_meshes
+        self.meshes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clear();
@@ -489,7 +489,7 @@ impl super::Renderer {
 
     /// Retire all retained GPU meshes owned by any mod in `disabled`.
     pub fn retire_disabled_mod_meshes(&self, disabled: &BTreeSet<String>) {
-        self.mod_meshes
+        self.meshes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .retire_disabled(disabled);
@@ -502,7 +502,7 @@ impl super::Renderer {
         mesh: MeshRef,
         bindings: &[(u8, VertexFormat)],
     ) -> Result<ResolvedMeshDraw, PipelineDrawError> {
-        self.mod_meshes
+        self.meshes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve_indirect(owner, mesh, bindings)
@@ -517,7 +517,7 @@ impl super::Renderer {
         topology: PrimitiveTopology,
         draw: &MeshDraw,
     ) -> Result<ResolvedMeshDraw, PipelineDrawError> {
-        self.mod_meshes
+        self.meshes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve_draw(owner, mesh, bindings, topology, draw)

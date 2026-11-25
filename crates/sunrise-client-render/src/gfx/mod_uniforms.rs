@@ -298,14 +298,14 @@ fn upload_rgba_texture(queue: &wgpu::Queue, texture: &wgpu::Texture, size: [u32;
     );
 }
 
-impl super::Renderer {
+impl super::mod_gpu::ModGpuResources {
     /// Allocate a retained GPU [`UniformBufferRef`] on this renderer's device.
     pub fn create_uniform_buffer(
         &self,
         owner: Option<&'static str>,
         bytes: &[u8],
     ) -> Result<UniformBufferRef, BufferError> {
-        self.mod_uniforms
+        self.uniforms
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .create_uniform_buffer(&self.device, &self.queue, owner, bytes)
@@ -319,7 +319,7 @@ impl super::Renderer {
         byte_offset: u32,
         bytes: &[u8],
     ) -> Result<(), BufferError> {
-        self.mod_uniforms
+        self.uniforms
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .write(&self.queue, owner, buffer, byte_offset, bytes)
@@ -331,7 +331,7 @@ impl super::Renderer {
         owner: Option<&'static str>,
         buffer: UniformBufferRef,
     ) -> Result<(), BufferError> {
-        self.mod_uniforms
+        self.uniforms
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .release(owner, buffer)
@@ -340,7 +340,7 @@ impl super::Renderer {
     /// Retire all retained uniform buffers and cached standalone textures (called on world
     /// close and resource reload).
     pub fn clear_mod_uniforms(&self) {
-        self.mod_uniforms
+        self.uniforms
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clear();
@@ -348,7 +348,7 @@ impl super::Renderer {
 
     /// Retire all retained uniform buffers owned by any mod in `disabled`.
     pub fn retire_disabled_mod_uniforms(&self, disabled: &BTreeSet<String>) {
-        self.mod_uniforms
+        self.uniforms
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .retire_disabled(disabled);
@@ -361,7 +361,7 @@ impl super::Renderer {
         handle: UniformBufferRef,
         min_size: u32,
     ) -> Result<(u64, wgpu::Buffer, u64), PipelineDrawError> {
-        self.mod_uniforms
+        self.uniforms
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve(owner, handle, min_size)
@@ -373,12 +373,14 @@ impl super::Renderer {
         id: &Identifier,
         read_png: impl FnOnce() -> Option<Vec<u8>>,
     ) -> Result<(u64, wgpu::TextureView), PipelineDrawError> {
-        self.mod_uniforms
+        self.uniforms
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .resolve_standalone_texture(&self.device, &self.queue, id, read_png)
     }
+}
 
+impl super::Renderer {
     /// Clone the block/item atlas texture view for `TextureSource::AtlasSprite`.
     pub fn mod_atlas_texture_view(&self) -> (u64, wgpu::TextureView) {
         (ATLAS_VIEW_ID, self.entity_atlas.clone())

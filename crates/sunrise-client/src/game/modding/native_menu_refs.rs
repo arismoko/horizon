@@ -1191,7 +1191,10 @@ mod tests {
     fn offscreen_window(game: &mut Game<'_>) -> winit::event_loop::EventLoop<()> {
         let (event_loop, window) = crate::game::native_entity_refs::tests::test_window([320, 240]);
         game.options.offscreen = true;
-        game.renderer = Some(game.new_renderer(window).unwrap());
+        {
+            let renderer = game.new_renderer(window).unwrap();
+            game.set_renderer(renderer);
+        }
         let remote = game.remote.as_mut().unwrap();
         remote.level_load.finish();
         let mut body = sunrise_client::motion::PlayerMotion::new(

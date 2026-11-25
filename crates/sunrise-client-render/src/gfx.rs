@@ -119,6 +119,7 @@ pub use entity_batch::{
 use external::{shadow_box, shadow_runs};
 pub use frustum::{Cull, Frusta, JoinedFrusta, ShadowCull};
 use frustum::{block_entities_within_reach, frustum, shadow_casters, taa_frustum};
+pub use mod_gpu::ModGpuResources;
 pub use section_fade::{CHUNK_VISIBILITY_THRESHOLD, chunk_visibility, fade_millis};
 use section_fade::{FadeInputs, compiled_and_visible, section_instance, section_visibility};
 #[doc(hidden)]
@@ -244,6 +245,7 @@ use frame_policy::{frame_configuration, overlay_format, sunrise_tone_curve};
 mod lod;
 pub mod mod_compute;
 pub mod mod_frame_graph;
+pub mod mod_gpu;
 pub mod mod_meshes;
 pub mod mod_pipelines;
 pub mod mod_render_targets;
@@ -876,21 +878,11 @@ impl Renderer {
     }
     /// Device `max_buffer_size`, for instance-room checks while `Renderer` is borrowed by `render`.
     pub fn max_buffer_size(&self) -> u64 {
-        self.device.limits().max_buffer_size
+        self.mod_gpu.max_buffer_size()
     }
-    /// The largest inline uniform and texel-buffer payloads a mod's set-1 draw may bind: the
-    /// device's `max_uniform_buffer_binding_size` and `max_storage_buffer_binding_size`, each
-    /// capped by `max_buffer_size`.
+    /// See [`ModGpuResources::mod_binding_limits`].
     pub fn mod_binding_limits(&self) -> (u64, u64) {
-        let limits = self.device.limits();
-        (
-            limits
-                .max_uniform_buffer_binding_size
-                .min(limits.max_buffer_size),
-            limits
-                .max_storage_buffer_binding_size
-                .min(limits.max_buffer_size),
-        )
+        self.mod_gpu.mod_binding_limits()
     }
     /// Render `frame`, optionally driving mod world-render hooks (`FrameHooks`) at the renderer's
     /// real visibility, sky, prepare, pass-stage, and post-world boundaries.

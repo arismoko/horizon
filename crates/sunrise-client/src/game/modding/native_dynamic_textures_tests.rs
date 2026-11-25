@@ -43,7 +43,10 @@ fn attach_renderer(game: &mut Game<'_>) -> winit::event_loop::EventLoop<()> {
     let (event_loop, window) = crate::game::native_entity_refs::tests::test_window([640, 480]);
     game.options.offscreen = true;
     game.window = Some(window.clone());
-    game.renderer = Some(game.new_renderer(window).unwrap());
+    {
+        let renderer = game.new_renderer(window).unwrap();
+        game.set_renderer(renderer);
+    }
     event_loop
 }
 

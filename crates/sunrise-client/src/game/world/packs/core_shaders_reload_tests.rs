@@ -155,7 +155,8 @@ fn the_device_refusing_a_drawn_pipeline_fails_the_reload() {
 fn window(game: &mut crate::game::Game<'_>) -> winit::event_loop::EventLoop<()> {
     let (event_loop, window) = crate::game::native_hooks::particle_count_tests::hidden_window();
     game.options.offscreen = true;
-    game.renderer = Some(game.new_renderer(window.clone()).unwrap());
+    let renderer = game.new_renderer(window.clone()).unwrap();
+    game.set_renderer(renderer);
     game.window = Some(window);
     event_loop
 }

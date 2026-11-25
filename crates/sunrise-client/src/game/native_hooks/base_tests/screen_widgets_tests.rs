@@ -54,7 +54,10 @@ fn attach_offscreen_window(game: &mut Game<'_>) -> (EventLoop<()>, winit::window
     game.options.offscreen = true;
     game.settings.gui_scale = 1;
     game.window = Some(window.clone());
-    game.renderer = Some(game.new_renderer(window).unwrap());
+    {
+        let renderer = game.new_renderer(window).unwrap();
+        game.set_renderer(renderer);
+    }
     game.title = None;
     game.player = Some(
         sunrise_client::motion::PlayerMotion::new(game.motion, sunrise_core::geometry::Vec3::ZERO)

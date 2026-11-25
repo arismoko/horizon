@@ -275,7 +275,7 @@ impl Game<'_> {
         // on their way carry them.
         self.border_renderer.invalidate();
         renderer.keep_pack_sources(self.streaming.shader_pack);
-        self.renderer = Some(renderer);
+        self.set_renderer(renderer);
         self.bind_dynamic_textures();
         self.forget_atlas_slots();
         if !world_kept {
