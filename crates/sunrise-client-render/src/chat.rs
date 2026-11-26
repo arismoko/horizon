@@ -421,8 +421,11 @@ impl Chat {
     /// A line a mod keeps under `key`, in the mod `owner`'s own keys: the line already added
     /// under it takes `content` in place (its position among the messages is kept; it counts as
     /// new for the fade, and the lines are wrapped again as `refreshTrimmedMessages` does) and
-    /// `true` is returned. With none, nothing changes and `false` is returned: the caller adds the
-    /// line after [`Chat::set_next_key`].
+    /// `true` is returned. Like a message added, it is logged as `[CHAT]` and counted in
+    /// [`Chat::received`]. A reader scrolled up keeps the line they were on, and a chat that is
+    /// `focused` and scrolled up notes a new message (`newMessageSinceScroll`), as
+    /// `addMessageToDisplayQueue` does. With no line under `key`, nothing changes and `false` is
+    /// returned: the caller adds the line after [`Chat::set_next_key`].
     pub fn replace_keyed(
         &mut self,
         atlas: &HudAtlas,
@@ -430,8 +433,9 @@ impl Chat {
         key: &str,
         content: Text,
         ticks: u64,
+        focused: bool,
     ) -> bool {
-        self.replace_keyed_with(&atlas.font, owner, key, content, ticks)
+        self.replace_keyed_with(&atlas.font, owner, key, content, ticks, focused)
     }
     fn replace_keyed_with(
         &mut self,
@@ -440,26 +444,50 @@ impl Chat {
         key: &str,
         content: Text,
         ticks: u64,
+        focused: bool,
     ) -> bool {
-        let time = self.now();
-        let Some(message) = self.messages.iter_mut().find(|m| {
+        let Some(index) = self.messages.iter().position(|m| {
             m.key
                 .as_ref()
                 .is_some_and(|k| &*k.0 == owner && &*k.1 == key)
         }) else {
             return false;
         };
+        self.log_message(&content);
+        self.received += 1;
+        let time = self.now();
+        // The lines newer than the message and the ones it had: where its lines start.
+        let newer: usize = self.messages[..index].iter().map(|m| m.wrapped).sum();
+        let old = self.messages[index].wrapped;
+        let message = &mut self.messages[index];
         message.content = content;
         message.added = ticks;
         message.time = time;
         message.inline_images = None;
         self.inline_images_pending = true;
         self.rewrap(font);
+        let new = self.messages[index].wrapped;
+        // A reader scrolled up keeps their view: a view that ends below the message's lines moves
+        // by the lines the message gained or lost, one that ends inside them stays inside, and a
+        // reader at the bottom stays there.
+        self.scroll = if self.scroll == 0 {
+            0
+        } else if self.scroll >= newer + old {
+            (self.scroll + new).saturating_sub(old)
+        } else {
+            self.scroll.min(newer + new)
+        };
+        if focused && self.scroll > 0 {
+            self.new_since_scroll = true;
+        }
+        // The lines may now be too few for the scroll position.
+        self.scroll_by(0, focused);
         true
     }
     /// Marks the next message added as `owner`'s line `key` (for [`Chat::replace_keyed`] and
-    /// [`Chat::remove_keyed`]). A message the Chat option hides is not added and not marked;
-    /// clear the mark afterwards with [`Chat::clear_next_key`].
+    /// [`Chat::remove_keyed`]). Clear the mark afterwards with [`Chat::clear_next_key`]: a
+    /// message that is not added (the Chat option hides it, or a mod replaced [`Chat::add`])
+    /// leaves it set.
     pub fn set_next_key(&mut self, owner: &str, key: &str) {
         self.next_key = Some((owner.into(), key.into()));
     }
@@ -589,12 +617,7 @@ impl Chat {
         if !self.abilities.shows(message.source) {
             return;
         }
-        // ChatComponent.logChatMessage: every message shown is in the log.
-        let plain = format!("[CHAT] {}", message.content.plain());
-        crate::logging::write_current(log::Level::Info, &plain, self.log);
-        if self.log {
-            println!("{plain}");
-        }
+        self.log_message(&message.content);
         message.time = self.now();
         message.key = self.next_key.take();
         self.received += 1;
@@ -624,6 +647,14 @@ impl Chat {
         self.inline_images_pending = true;
         self.messages.insert(0, message);
         self.messages.truncate(self.history_limit());
+    }
+    /// `ChatComponent.logChatMessage`: every message shown is in the log.
+    fn log_message(&self, content: &Text) {
+        let plain = format!("[CHAT] {}", content.plain());
+        crate::logging::write_current(log::Level::Info, &plain, self.log);
+        if self.log {
+            println!("{plain}");
+        }
     }
     fn now(&self) -> (u8, u8) {
         #[cfg(test)]

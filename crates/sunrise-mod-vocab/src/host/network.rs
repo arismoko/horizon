@@ -26,8 +26,9 @@ pub trait NetworkClientHost {
     /// a key of the calling mod's own (another mod's equal `tag` is another line). When this
     /// mod already has a line under `tag` in the chat, its text becomes `line` in place: the
     /// line keeps its position among the messages, counts as new for the HUD's fade, and the
-    /// chat wraps its lines again (`ChatComponent.refreshTrimmedMessages`). Otherwise `line` is
-    /// added as `chat_line` adds it. To move the line to the bottom, call
+    /// chat wraps its lines again (`ChatComponent.refreshTrimmedMessages`); a reader scrolled up
+    /// keeps their place, and the replacement is logged as `[CHAT]` and reaches the control
+    /// socket like a new message. Otherwise `line` is added as `chat_line` adds it. To move the line to the bottom, call
     /// [`chat_remove_tagged`](Self::chat_remove_tagged) first. A line that left the history
     /// (the cap, a clear) is no longer found, so the next call adds a new one. Outside a mod's
     /// own call it is `chat_line`. Returns an error, adding or changing nothing, if the text
