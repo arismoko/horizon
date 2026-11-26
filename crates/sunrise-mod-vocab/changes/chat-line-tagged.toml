@@ -1,0 +1,2 @@
+ids = ["method:prelude::NetworkClientHost::chat_line_tagged", "method:prelude::NetworkClientHost::chat_remove_tagged"]
+why = "A client mod keeps one status line current in the chat instead of adding a new line each time (Blood Magic's divination sigil does this with ChatUtil.sendNoSpam): chat_line_tagged replaces the calling mod's line under a tag in place, chat_remove_tagged removes it from the chat and its history (ChatComponent.addMessage and deleteMessage, #6038)."

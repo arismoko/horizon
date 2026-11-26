@@ -22,6 +22,24 @@ pub trait NetworkClientHost {
     /// nesting limits; rejected text is not added.
     fn chat_line(&mut self, line: Text) -> Result<(), TextFormError>;
     /// Side: client.
+    /// `chat_line` for a status line the calling mod keeps current: lines are named by `tag`,
+    /// a key of the calling mod's own (another mod's equal `tag` is another line). When this
+    /// mod already has a line under `tag` in the chat, its text becomes `line` in place: the
+    /// line keeps its position among the messages, counts as new for the HUD's fade, and the
+    /// chat wraps its lines again (`ChatComponent.refreshTrimmedMessages`). Otherwise `line` is
+    /// added as `chat_line` adds it. To move the line to the bottom, call
+    /// [`chat_remove_tagged`](Self::chat_remove_tagged) first. A line that left the history
+    /// (the cap, a clear) is no longer found, so the next call adds a new one. Outside a mod's
+    /// own call it is `chat_line`. Returns an error, adding or changing nothing, if the text
+    /// exceeds the boundary's size or nesting limits.
+    fn chat_line_tagged(&mut self, tag: &str, line: Text) -> Result<(), TextFormError>;
+    /// Side: client.
+    /// Removes the calling mod's lines under `tag` from the chat and its history, rewrapping what
+    /// is left (vanilla's `ChatComponent.deleteMessage` greys a signed message out; a mod's own
+    /// line just goes). Returns how many lines went: 0 when there were none. Another mod's lines
+    /// and lines added with `chat_line` are never removed.
+    fn chat_remove_tagged(&mut self, tag: &str) -> usize;
+    /// Side: client.
     /// How many messages, wrapped lines and sent lines (`recentChat`) the chat keeps
     /// (`ChatComponent.MAX_CHAT_HISTORY`): vanilla's 100 unless a mod set another cap.
     fn chat_history_limit(&self) -> u32;

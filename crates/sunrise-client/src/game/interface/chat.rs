@@ -1162,6 +1162,34 @@ impl Game<'_> {
             self.local_chat_line(text, Some(SYSTEM_INDICATOR), ChatSource::Client);
         }
     }
+    /// `chat_line` for a line the calling mod keeps under `tag` (its own keys): a line it added
+    /// under `tag` takes `text` in place, keeping its position; otherwise the line is added as
+    /// `chat_line` adds it. Outside a mod's call it is a plain `chat_line`.
+    pub(super) fn chat_line_tagged(&mut self, tag: &str, text: Text) {
+        let Some(owner) = mod_api::content::crash::current_native_mod() else {
+            self.chat_line(text);
+            return;
+        };
+        let ticks = self.visual_ticks();
+        if self
+            .ui
+            .chat
+            .replace_keyed(&self.gui.atlas, owner, tag, text.clone(), ticks)
+        {
+            return;
+        }
+        self.ui.chat.set_next_key(owner, tag);
+        self.chat_line(text);
+        self.ui.chat.clear_next_key();
+    }
+    /// Removes the calling mod's lines kept under `tag` from the chat and its history; how many
+    /// went. Another mod's lines are never touched.
+    pub(super) fn chat_remove_tagged(&mut self, tag: &str) -> usize {
+        let Some(owner) = mod_api::content::crash::current_native_mod() else {
+            return 0;
+        };
+        self.ui.chat.remove_keyed(&self.gui.atlas, owner, tag)
+    }
     /// A player's chat line on the window's own chat: a guest's message on
     /// the server's own chat. `ChatListener`
     /// checks `canReceivePlayerMessages` for these, so Commands Only and

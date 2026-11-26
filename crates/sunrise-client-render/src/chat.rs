@@ -226,6 +226,9 @@ struct Message {
     source: ChatSource,
     /// `GuiMessage.signature`: a signed player message's, for deletion.
     signature: Option<Box<Signature>>,
+    /// The mod and its key for a line a mod added to replace or remove later
+    /// ([`Chat::replace_keyed`]); the key is the mod's own, so two mods' equal keys are two lines.
+    key: Option<(Box<str>, Box<str>)>,
 }
 /// A wrapped line (`GuiMessage.Line`).
 #[derive(Clone, Debug)]
@@ -250,6 +253,8 @@ pub struct ChatQol {
 fn repeats(last: &Message, next: &Message) -> bool {
     last.signature.is_none()
         && next.signature.is_none()
+        && last.key.is_none()
+        && next.key.is_none()
         && last.source == next.source
         && last.tag == next.tag
         && last.content == next.content
@@ -364,6 +369,9 @@ pub struct Chat {
     search: Option<String>,
     /// A mod's chat history cap in place of `MAX_CHAT_HISTORY` ([`Chat::history_limit`]).
     history_limit: Option<usize>,
+    /// The mod and key the next message added carries ([`Chat::set_next_key`] sets it, the caller
+    /// clears it with [`Chat::clear_next_key`]).
+    next_key: Option<(Box<str>, Box<str>)>,
     /// The tests' clock in place of the local time.
     #[cfg(test)]
     clock: Option<(u8, u8)>,
@@ -409,6 +417,74 @@ impl Chat {
         let excess = self.recent.len().saturating_sub(limit);
         self.recent.drain(..excess);
         self.scroll = self.scroll.min(self.lines.len());
+    }
+    /// A line a mod keeps under `key`, in the mod `owner`'s own keys: the line already added
+    /// under it takes `content` in place (its position among the messages is kept; it counts as
+    /// new for the fade, and the lines are wrapped again as `refreshTrimmedMessages` does) and
+    /// `true` is returned. With none, nothing changes and `false` is returned: the caller adds the
+    /// line after [`Chat::set_next_key`].
+    pub fn replace_keyed(
+        &mut self,
+        atlas: &HudAtlas,
+        owner: &str,
+        key: &str,
+        content: Text,
+        ticks: u64,
+    ) -> bool {
+        self.replace_keyed_with(&atlas.font, owner, key, content, ticks)
+    }
+    fn replace_keyed_with(
+        &mut self,
+        font: &crate::font::Font,
+        owner: &str,
+        key: &str,
+        content: Text,
+        ticks: u64,
+    ) -> bool {
+        let time = self.now();
+        let Some(message) = self.messages.iter_mut().find(|m| {
+            m.key
+                .as_ref()
+                .is_some_and(|k| &*k.0 == owner && &*k.1 == key)
+        }) else {
+            return false;
+        };
+        message.content = content;
+        message.added = ticks;
+        message.time = time;
+        message.inline_images = None;
+        self.inline_images_pending = true;
+        self.rewrap(font);
+        true
+    }
+    /// Marks the next message added as `owner`'s line `key` (for [`Chat::replace_keyed`] and
+    /// [`Chat::remove_keyed`]). A message the Chat option hides is not added and not marked;
+    /// clear the mark afterwards with [`Chat::clear_next_key`].
+    pub fn set_next_key(&mut self, owner: &str, key: &str) {
+        self.next_key = Some((owner.into(), key.into()));
+    }
+    /// Drops the mark [`Chat::set_next_key`] left when no message took it.
+    pub fn clear_next_key(&mut self) {
+        self.next_key = None;
+    }
+    /// Removes `owner`'s lines kept under `key` from the messages and the wrapped lines; how
+    /// many messages went. Another mod's lines and unkeyed lines are never touched.
+    pub fn remove_keyed(&mut self, atlas: &HudAtlas, owner: &str, key: &str) -> usize {
+        self.remove_keyed_with(&atlas.font, owner, key)
+    }
+    fn remove_keyed_with(&mut self, font: &crate::font::Font, owner: &str, key: &str) -> usize {
+        let before = self.messages.len();
+        self.messages.retain(|m| {
+            !m.key
+                .as_ref()
+                .is_some_and(|k| &*k.0 == owner && &*k.1 == key)
+        });
+        let removed = before - self.messages.len();
+        if removed > 0 {
+            self.rewrap(font);
+            self.scroll = self.scroll.min(self.lines.len());
+        }
+        removed
     }
     pub fn lines_per_page(&self, focused: bool) -> usize {
         (self.options.height_px(focused) / self.options.line_height().max(1)) as usize
@@ -478,6 +554,7 @@ impl Chat {
                 tag: tag.map(std::sync::Arc::new),
                 source: ChatSource::Player,
                 signature: signature.map(Box::new),
+                key: None,
             },
             focused,
         );
@@ -503,6 +580,7 @@ impl Chat {
                 tag,
                 source,
                 signature: None,
+                key: None,
             },
             focused,
         );
@@ -518,6 +596,7 @@ impl Chat {
             println!("{plain}");
         }
         message.time = self.now();
+        message.key = self.next_key.take();
         self.received += 1;
         if self.qol.compact
             && let Some(last) = self.messages.first()
@@ -795,6 +874,7 @@ impl Chat {
             tag: Some(std::sync::Arc::new(Tag::system())),
             source: ChatSource::Server,
             signature: None,
+            key: None,
         };
         self.inline_images_pending = true;
         // refreshTrimmedMessages.

@@ -1311,3 +1311,139 @@ fn the_chat_history_cap_is_vanillas_100_until_a_mod_sets_another() {
     chat.set_history_limit(usize::MAX);
     assert_eq!(chat.history_limit(), MAX_CHAT_HISTORY_LIMIT);
 }
+
+/// A mod's keyed line (#6038): added once, a second call replaces its text in place, so the
+/// status line is not repeated; it keeps its place among the messages while others come after.
+#[test]
+fn a_keyed_chat_line_is_replaced_in_place_and_keeps_its_position() {
+    let font = font();
+    let mut chat = Chat::default();
+    let says = |chat: &mut Chat, owner: Option<&str>, text: &str| {
+        if let Some(owner) = owner {
+            chat.set_next_key(owner, "status");
+        }
+        chat.add_message(
+            &font,
+            Text::literal(text),
+            None,
+            ChatSource::Client,
+            0,
+            false,
+        );
+        chat.clear_next_key();
+    };
+    says(&mut chat, None, "before");
+    says(&mut chat, Some("bloodmagic"), "altar: 10");
+    says(&mut chat, None, "after");
+    assert_eq!(chat.recent_lines(5), ["after", "altar: 10", "before"]);
+    assert!(chat.replace_keyed_with(
+        &font,
+        "bloodmagic",
+        "status",
+        Text::literal("altar: 25"),
+        40
+    ));
+    assert_eq!(chat.recent_lines(5), ["after", "altar: 25", "before"]);
+    assert_eq!(chat.messages.len(), 3);
+    let shown: Vec<_> = chat.lines.iter().map(|l| l.content.plain()).collect();
+    assert_eq!(shown, ["after", "altar: 25", "before"]);
+    assert_eq!(
+        chat.messages[1].added, 40,
+        "a replaced line counts as new for the fade"
+    );
+    // No line under another key: nothing changes, the caller adds it.
+    assert!(!chat.replace_keyed_with(&font, "bloodmagic", "other", Text::literal("x"), 41));
+    assert_eq!(chat.messages.len(), 3);
+}
+
+/// `ChatComponent.deleteMessage` for a mod's own line: the line leaves the messages and the
+/// wrapped lines, the others stay, and a later keyed add starts a new line.
+#[test]
+fn a_keyed_chat_line_can_be_removed() {
+    let font = font();
+    let mut chat = Chat::default();
+    for (owner, text) in [(None, "a"), (Some("bloodmagic"), "status"), (None, "b")] {
+        if let Some(owner) = owner {
+            chat.set_next_key(owner, "status");
+        }
+        chat.add_message(
+            &font,
+            Text::literal(text),
+            None,
+            ChatSource::Client,
+            0,
+            false,
+        );
+        chat.clear_next_key();
+    }
+    assert_eq!(chat.remove_keyed_with(&font, "bloodmagic", "status"), 1);
+    assert_eq!(chat.recent_lines(5), ["b", "a"]);
+    let shown: Vec<_> = chat.lines.iter().map(|l| l.content.plain()).collect();
+    assert_eq!(shown, ["b", "a"]);
+    assert_eq!(chat.remove_keyed_with(&font, "bloodmagic", "status"), 0);
+    assert!(!chat.replace_keyed_with(&font, "bloodmagic", "status", Text::literal("x"), 1));
+}
+
+/// A mod may only replace or remove its own lines: the same key from another mod finds nothing,
+/// and unkeyed lines are never found.
+#[test]
+fn another_mods_chat_line_with_the_same_key_is_left_alone() {
+    let font = font();
+    let mut chat = Chat::default();
+    chat.set_next_key("bloodmagic", "status");
+    chat.add_message(
+        &font,
+        Text::literal("mine"),
+        None,
+        ChatSource::Client,
+        0,
+        false,
+    );
+    chat.add_message(
+        &font,
+        Text::literal("plain"),
+        None,
+        ChatSource::Client,
+        0,
+        false,
+    );
+    assert!(chat.next_key.is_none(), "the first message took the mark");
+    assert!(!chat.replace_keyed_with(&font, "othermod", "status", Text::literal("theirs"), 1));
+    assert_eq!(chat.remove_keyed_with(&font, "othermod", "status"), 0);
+    assert_eq!(chat.recent_lines(5), ["plain", "mine"]);
+}
+
+/// A keyed line is not merged into an equal line by compact chat, nor is an equal line merged
+/// into it, so replacing it never changes another message's count.
+#[test]
+fn compact_chat_does_not_merge_a_keyed_line() {
+    let font = font();
+    let mut chat = Chat::default();
+    chat.qol.compact = true;
+    chat.add_message(
+        &font,
+        Text::literal("same"),
+        None,
+        ChatSource::Client,
+        0,
+        false,
+    );
+    chat.set_next_key("bloodmagic", "status");
+    chat.add_message(
+        &font,
+        Text::literal("same"),
+        None,
+        ChatSource::Client,
+        0,
+        false,
+    );
+    chat.add_message(
+        &font,
+        Text::literal("same"),
+        None,
+        ChatSource::Client,
+        0,
+        false,
+    );
+    assert_eq!(chat.messages.len(), 3);
+}
