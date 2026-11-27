@@ -1,19 +1,19 @@
 RemotePlayer.shouldRenderAtSqrDistance	port	crates/sunrise-client-gameplay/src/entity_occlusion.rs::entity_view_scale	every entity's draw distance is scaled by the view scale and the limit, remote players included
-RemotePlayer.aiStep	inline	crates/sunrise-client/src/game/network/remote/tick.rs::Game::tick_remote_entities	gap: minor: the head yaws over its lerp steps; the smoothed delta movement and the push step are not ported
+RemotePlayer.aiStep	inline	crates/sunrise-client-gameplay/src/game/network/remote/tick_client.rs::Game::tick_remote_entities	gap: minor: the head yaws over its lerp steps; the smoothed delta movement and the push step are not ported
 RemotePlayer.lerpMotion	missing		unsure: no lerp of received remote-player motion found in game/network/remote/mod.rs
-Hotbar.storeFrom	port	crates/sunrise-client/src/game/items/creative_hotbar.rs::Game::hotbar_load_or_save	save copies the nine slots into the hotbar.nbt row
-Hotbar.isEmpty	inline	crates/sunrise-client/src/game/items/creative_hotbar.rs::Game::refresh_saved_hotbars	the empty creative hotbar row carries the inventory.hotbarInfo hint
+Hotbar.storeFrom	port	crates/sunrise-client-gameplay/src/game/items/creative_hotbar.rs::Game::hotbar_load_or_save	save copies the nine slots into the hotbar.nbt row
+Hotbar.isEmpty	inline	crates/sunrise-client-gameplay/src/game/items/creative_hotbar.rs::Game::refresh_saved_hotbars	the empty creative hotbar row carries the inventory.hotbarInfo hint
 ClientMetricsSamplersProvider.registerStaticSamplers	skip:debug		F3 metrics samplers
 ClientMetricsSamplersProvider.samplers	skip:debug		F3 metrics samplers
-QuickPlay.connect	port	crates/sunrise-client/src/game/launch_options.rs::Options::read	gap: minor: no Realms variant and no latest-world fallback
+QuickPlay.connect	port	crates/sunrise-gameplay-common/src/game/runtime/launch_options.rs::Options::read	gap: minor: no Realms variant and no latest-world fallback
 QuickPlay.getLatestSingleplayerWorld	missing		minor: a quick play with no world id does not pick the newest world
-QuickPlay.joinMultiplayerWorld	port	crates/sunrise-client/src/game/launch_options.rs::Options::read	gap: minor: the server is not added to the server list
+QuickPlay.joinMultiplayerWorld	port	crates/sunrise-gameplay-common/src/game/runtime/launch_options.rs::Options::read	gap: minor: the server is not added to the server list
 QuickPlay.joinRealmsWorld	skip:service		Realms
 QuickPlayLog.log	skip:other		writes the launcher's quick play session file; Sunrise keeps none
-FullTextSearchTree.searchIdentifier	port	crates/sunrise-client/src/recipe_book.rs::Book::collection_matches	recipe-book namespace:path search; the creative search is Creative::search_results
+FullTextSearchTree.searchIdentifier	port	crates/sunrise-sim/src/recipe_book.rs::Book::collection_matches	recipe-book namespace:path search; the creative search is Creative::search_results
 IdSearchTree.search	port	crates/sunrise-client/src/creative.rs::Creative::search_results	# tag branch; plain text goes to the name search
 IdSearchTree.searchIdentifier	port	crates/sunrise-client/src/creative.rs::Creative::search_results	#namespace:path tag search
-IdentifierSearchTree.create	inline	crates/sunrise-client/src/creative.rs::Creative::from_legacy	builds the search index with the item list
+IdentifierSearchTree.create	inline	crates/sunrise-client/src/creative.rs::Creative::index_search	builds the search index with the item list
 IntersectionIterator.computeNext	inline	crates/sunrise-client/src/creative.rs::Creative::search_results	namespace and path matches intersected by filter
 MergingUniqueIterator.computeNext	inline	crates/sunrise-client/src/creative.rs::Creative::search_results	one match per item, found by any/filter
 SearchTree.plainText	inline	crates/sunrise-client/src/creative.rs::Creative::search_results	name search over tooltip lines
@@ -23,22 +23,22 @@ SuffixArray.print	skip:debug		suffix array debug dump
 SuffixArray.getString	skip:debug		suffix array debug text
 SuffixArray.compare	skip:java		binary-search helper of the suffix array
 SuffixArray.search	port	crates/sunrise-client/src/creative.rs::Creative::search_results	substring match by linear scan, same matches in tab order
-IntegratedPlayerList.canPlayerLogin	inline	crates/sunrise-client/src/lan/mod.rs::Shared::try_admit	gap: minor: no owner-name check; duplicate logins are matched by uuid
+IntegratedPlayerList.canPlayerLogin	inline	crates/sunrise-sim/src/lan/mod.rs::Shared::try_admit	gap: minor: no owner-name check; duplicate logins are matched by uuid
 IntegratedServer.processPacketsAndTick	skip:debug		gizmo collector for debug draws
 IntegratedServer.fillServerSystemReport	skip:debug		system report for crash reports
-IntegratedServer.getPersonalGameMode	port	crates/sunrise-client/src/game/world/integrated.rs::Game::server_options	owner's game mode, read from the guest record
-IntegratedServer.updateGameModeBasedOnPermission	inline	crates/sunrise-client/src/game/network/lan/mod.rs::Game::lan_guest_joined	gap: player: a guest already in the world keeps their mode when force-gamemode or the default mode changes; only a join applies it
-IntegratedServer.updatePermissions	port	crates/sunrise-client/src/game/modding/native_server.rs::Game::resend_commands_filtered	permission level and commands sent to every guest
-IntegratedServer.setDefaultGameType	port	crates/sunrise-client/src/game/network/lan/mod.rs::Game::set_default_game_mode
-IntegratedServer.isSingleplayerOwner	port	crates/sunrise-client/src/lan/hub.rs::Hub::player_info	the owner is kept by uuid on the hub, and player_info marks the guest it names
-IntegratedServer.getScaledTrackingDistance	inline	crates/sunrise-client/src/game/network/lan/mod.rs::Game::tick_lan	the Entity Distance option becomes the hub's entity range percent for an integrated or LAN host
-IntegratedServer.getForcedGameType	inline	crates/sunrise-client/src/game/network/lan/mod.rs::Game::lan_guest_joined	forced mode is sent when a guest joins
+IntegratedServer.getPersonalGameMode	port	crates/sunrise-gameplay/src/game/world/integrated.rs::Game::server_options	owner's game mode, read from the guest record
+IntegratedServer.updateGameModeBasedOnPermission	inline	crates/sunrise-gameplay/src/game/network/lan/mod.rs::Game::lan_guest_joined	gap: player: a guest already in the world keeps their mode when force-gamemode or the default mode changes; only a join applies it
+IntegratedServer.updatePermissions	port	crates/sunrise-gameplay/src/game/modding/native_server_server.rs::ServerGame::resend_commands_filtered	permission level and commands sent to every guest
+IntegratedServer.setDefaultGameType	port	crates/sunrise-gameplay/src/game/network/lan/mod.rs::Game::set_default_game_mode
+IntegratedServer.isSingleplayerOwner	port	crates/sunrise-sim/src/lan/hub.rs::Hub::player_info	the owner is kept by uuid on the hub, and player_info marks the guest it names
+IntegratedServer.getScaledTrackingDistance	inline	crates/sunrise-gameplay/src/game/network/lan/mod.rs::Game::tick_lan	the Entity Distance option becomes the hub's entity range percent for an integrated or LAN host
+IntegratedServer.getForcedGameType	inline	crates/sunrise-gameplay/src/game/network/lan/mod.rs::Game::lan_guest_joined	forced mode is sent when a guest joins
 IntegratedServer.selectLevelLoadFocusPos	missing		unsure: no load focus at the owner's saved position found in game/world/integrated.rs open_integrated
-IntegratedServer.reportChunkLoadFailure	port	crates/sunrise-client/src/chunk_io.rs::load_failed	a failed load sets low_disk_space, which is warnOnLowDiskSpace plus reportChunkLoadFailure
-IntegratedServer.reportChunkSaveFailure	port	crates/sunrise-client/src/chunk_io.rs::SaveFailureReporter::report	an integrated server checks disk space again and queues a client toast after the server diagnostics
-LanServerDetection.LanServerDetector.run	port	crates/sunrise-client/src/lan/discovery.rs::listen	receive loop for LAN announcements
+IntegratedServer.reportChunkLoadFailure	port	crates/sunrise-sim/src/chunk_io.rs::load_failed	a failed load sets low_disk_space, which is warnOnLowDiskSpace plus reportChunkLoadFailure
+IntegratedServer.reportChunkSaveFailure	port	crates/sunrise-sim/src/chunk_io.rs::SaveFailureReporter::report	an integrated server checks disk space again and queues a client toast after the server diagnostics
+LanServerDetection.LanServerDetector.run	port	crates/sunrise-sim/src/lan/discovery.rs::listen	receive loop for LAN announcements
 LanServerDetection.LanServerList.takeDirtyServers	skip:java		dirty flag; Scanner::games returns a copy on each call
-LanServerPinger.run	port	crates/sunrise-client/src/lan/discovery.rs::Pinger::start	announce loop on a thread until dropped
+LanServerPinger.run	port	crates/sunrise-sim/src/lan/discovery.rs::Pinger::start	announce loop on a thread until dropped
 ChannelAccess.createHandle	port	crates/sunrise-client-render/src/audio.rs::MixerBackend::create	gap: minor: the streaming flag is ignored
 ChannelAccess.executeOnChannels	skip:other		sound executor thread; the mixer is shared under a lock
 ChannelAccess.ChannelHandle.execute	port	crates/sunrise-client-render/src/audio.rs::MixerBackend::with	runs the action on the channel when it exists
@@ -73,59 +73,59 @@ SoundEngine.updateSource	port	crates/sunrise-client-render/src/audio.rs::Audio::
 SoundEngineExecutor.createThread	skip:other		sound thread creation; Sunrise's audio runs on the cpal callback
 SoundEngineExecutor.run	skip:other		sound thread loop; Sunrise's audio runs on the cpal callback
 SoundEngineExecutor.shutDown	skip:other		sound thread shutdown; Sunrise's audio runs on the cpal callback
-SoundManager.prepare	port	crates/sunrise-client-render/src/sound_events.rs::SoundRegistry::load	reads sounds.json per namespace
+SoundManager.prepare	port	crates/sunrise-level/src/sound_events.rs::SoundRegistry::load	reads sounds.json per namespace
 SoundManager.apply	port	crates/sunrise-client-render/src/audio.rs::Audio::reload	applies the registry and reloads the engine
-SoundManager.validateSoundResource	inline	crates/sunrise-client-render/src/sound_events.rs::SoundRegistry::add_file	file existence check through the exists closure
-SoundManager.Preparations.handleRegistration	port	crates/sunrise-client-render/src/sound_events.rs::SoundRegistry::add_file	replace flag and sound entries
-SoundManager.Preparations.apply	inline	crates/sunrise-client-render/src/sound_events.rs::SoundRegistry::load	registry replaced with the prepared one
+SoundManager.validateSoundResource	inline	crates/sunrise-level/src/sound_events.rs::SoundRegistry::add_file	file existence check through the exists closure
+SoundManager.Preparations.handleRegistration	port	crates/sunrise-level/src/sound_events.rs::SoundRegistry::add_file	replace flag and sound entries
+SoundManager.Preparations.apply	inline	crates/sunrise-level/src/sound_events.rs::SoundRegistry::load	registry replaced with the prepared one
 SoundPreviewHandler.preview	port	crates/sunrise-client-render/src/audio.rs::preview	the pack screen's sound preview
 SoundPreviewHandler.stopOtherCategoryPreview	port	crates/sunrise-client-render/src/sound_preview.rs::SoundPreview::stop_other_category_preview
 WeighedSoundEvents.preloadIfRequired	skip:java		preload is a cache; Sunrise decodes on demand
-CraftPlanksTutorialStep.tick	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::tick	the CraftPlanks arm: a plank already held or crafted on the first tick ends the step; its toast is Tutorial::hint
-CraftPlanksTutorialStep.hasCraftedPlanksPreviously	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Game::tick_tutorial	Previous::crafted_plank: a planks item with a count in the player's minecraft:crafted stats
-FindTreeTutorialStepInstance.tick	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::tick	the FindTree arm: a tree item held or a tree already mined moves the step on to craft planks; its toast is Tutorial::hint
-FindTreeTutorialStepInstance.onLookAt	port	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::look_at_tree	looking at a block in completes_find_tree_tutorial moves the step on to punch tree
-FindTreeTutorialStepInstance.hasPunchedTreesPreviously	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Game::tick_tutorial	Previous::mined_tree: a block in completes_find_tree_tutorial with a count in the minecraft:mined stats
-MovementTutorialStepInstance.tick	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::tick	the Movement arm: 40 ticks moved and 40 ticks looked, then find-tree in survival and none in creative; the toasts are Tutorial::hint
-MovementTutorialStepInstance.clear	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::set_step	a new step starts from Tutorial::new, which zeroes the movement counters
-MovementTutorialStepInstance.onInput	port	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::input	a movement key held in the world marks the player as moved
-MovementTutorialStepInstance.onMouse	port	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::mouse	a mouse delta over 0.01 marks the player as turned
-OpenInventoryTutorialStep.tick	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::tick	the OpenInventory arm stops outside survival; the step itself ends in Tutorial::open_inventory, its toast is Tutorial::hint
-PunchTreeTutorialStepInstance.tick	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::tick	the PunchTree arm: the break progress and the reset count of bad breaks feed the hint
-PunchTreeTutorialStepInstance.onDestroyBlock	port	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::destroy	a log's break progress is kept and a finished break moves on to open inventory; anything else resets it
-Tutorial.onLookAt	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Game::tick_tutorial	the pick's block is tested against completes_find_tree_tutorial, then Tutorial::look_at_tree
-Tutorial.onDestroyBlock	port	crates/sunrise-client/src/game/interface/tutorial.rs::Game::tutorial_destroy	the broken block's log tag and break progress go to Tutorial::destroy
-Tutorial.stop	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::set_step	the step becomes None, which shows no hint
-Tutorial.start	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Game::reset_tutorial	a Tutorial built from the persisted tutorialStep option
-Tutorial.tick	port	crates/sunrise-client/src/game/interface/tutorial.rs::Game::tick_tutorial	the step's tick, the movement input, and the look-at pick, once per tick in the world
-Tutorial.setStep	port	crates/sunrise-client/src/game/interface/tutorial.rs::Tutorial::set_step	the step with a fresh state; Game::persist_tutorial_step writes it to options.txt
-Tutorial.isSurvival	inline	crates/sunrise-client/src/game/interface/tutorial.rs::Game::tick_tutorial	the game mode is read there and passed to Tutorial::tick, which stops the step outside survival
-TutorialSteps.getByName	port	crates/sunrise-client-render/src/options_file.rs::OptionsFile::try_apply	tutorialStep name read from options
+CraftPlanksTutorialStep.tick	inline	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::tick	the CraftPlanks arm: a plank already held or crafted on the first tick ends the step; its toast is Tutorial::hint
+CraftPlanksTutorialStep.hasCraftedPlanksPreviously	inline	crates/sunrise-client-gameplay/src/game/interface/tutorial.rs::Game::tick_tutorial	Previous::crafted_plank: a planks item with a count in the player's minecraft:crafted stats
+FindTreeTutorialStepInstance.tick	inline	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::tick	the FindTree arm: a tree item held or a tree already mined moves the step on to craft planks; its toast is Tutorial::hint
+FindTreeTutorialStepInstance.onLookAt	port	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::look_at_tree	looking at a block in completes_find_tree_tutorial moves the step on to punch tree
+FindTreeTutorialStepInstance.hasPunchedTreesPreviously	inline	crates/sunrise-client-gameplay/src/game/interface/tutorial.rs::Game::tick_tutorial	Previous::mined_tree: a block in completes_find_tree_tutorial with a count in the minecraft:mined stats
+MovementTutorialStepInstance.tick	inline	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::tick	the Movement arm: 40 ticks moved and 40 ticks looked, then find-tree in survival and none in creative; the toasts are Tutorial::hint
+MovementTutorialStepInstance.clear	inline	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::set_step	a new step starts from Tutorial::new, which zeroes the movement counters
+MovementTutorialStepInstance.onInput	port	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::input	a movement key held in the world marks the player as moved
+MovementTutorialStepInstance.onMouse	port	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::mouse	a mouse delta over 0.01 marks the player as turned
+OpenInventoryTutorialStep.tick	inline	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::tick	the OpenInventory arm stops outside survival; the step itself ends in Tutorial::open_inventory, its toast is Tutorial::hint
+PunchTreeTutorialStepInstance.tick	inline	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::tick	the PunchTree arm: the break progress and the reset count of bad breaks feed the hint
+PunchTreeTutorialStepInstance.onDestroyBlock	port	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::destroy	a log's break progress is kept and a finished break moves on to open inventory; anything else resets it
+Tutorial.onLookAt	inline	crates/sunrise-client-gameplay/src/game/interface/tutorial.rs::Game::tick_tutorial	the pick's block is tested against completes_find_tree_tutorial, then Tutorial::look_at_tree
+Tutorial.onDestroyBlock	port	crates/sunrise-client-gameplay/src/game/interface/tutorial.rs::Game::tutorial_destroy	the broken block's log tag and break progress go to Tutorial::destroy
+Tutorial.stop	inline	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::set_step	the step becomes None, which shows no hint
+Tutorial.start	inline	crates/sunrise-client-gameplay/src/game/interface/tutorial.rs::Game::reset_tutorial	a Tutorial built from the persisted tutorialStep option
+Tutorial.tick	port	crates/sunrise-client-gameplay/src/game/interface/tutorial.rs::Game::tick_tutorial	the step's tick, the movement input, and the look-at pick, once per tick in the world
+Tutorial.setStep	port	crates/sunrise-client-gameplay/src/tutorial.rs::Tutorial::set_step	the step with a fresh state; Game::persist_tutorial_step writes it to options.txt
+Tutorial.isSurvival	inline	crates/sunrise-client-gameplay/src/game/interface/tutorial.rs::Game::tick_tutorial	the game mode is read there and passed to Tutorial::tick, which stops the step outside survival
+TutorialSteps.getByName	port	crates/sunrise-level/src/options_file.rs::OptionsFile::try_apply	tutorialStep name read from options
 ClientWaypointManager.updateWaypoint	port	crates/sunrise-client/src/locator_bar.rs::ClientWaypoints::apply	updates a tracked waypoint by id
 ClientWaypointManager.forEachWaypoint	port	crates/sunrise-client/src/locator_bar.rs::ClientWaypoints::draw	drawn farthest first
-ArgumentVisitor.visitArguments	port	crates/sunrise-client/src/game/network/lan_chat.rs::Game::signable_arguments	collects the message arguments of a command
-ArgumentVisitor.visitNodeArguments	inline	crates/sunrise-client/src/game/network/lan_chat.rs::Game::signable_arguments	per-node walk folded into the collector
+ArgumentVisitor.visitArguments	port	crates/sunrise-gameplay/src/game/network/lan_chat.rs::Game::signable_arguments	collects the message arguments of a command
+ArgumentVisitor.visitNodeArguments	inline	crates/sunrise-gameplay/src/game/network/lan_chat.rs::Game::signable_arguments	per-node walk folded into the collector
 CacheableFunction.get	skip:java		caches the resolved function; no behaviour of its own
 CacheableFunction.equals	skip:java		identity helper for the function cache
-CommandResultCallback.chain	inline	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::deliver	callbacks are chained and called in deliver
-CommandSourceStack.withSource	port	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::with_source	source swapped for a call
-CommandSourceStack.withEntity	inline	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::modify	execute as
-CommandSourceStack.withPosition	inline	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::modify	execute at and positioned
-CommandSourceStack.withRotation	inline	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::modify	execute rotated
-CommandSourceStack.withCallback	inline	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::run_leaf	result callback set per leaf
+CommandResultCallback.chain	inline	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::deliver	callbacks are chained and called in deliver
+CommandSourceStack.withSource	port	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::with_source	source swapped for a call
+CommandSourceStack.withEntity	inline	crates/sunrise-gameplay/src/game/administration/commands/execute.rs::Game::modify	execute as
+CommandSourceStack.withPosition	inline	crates/sunrise-gameplay/src/game/administration/commands/execute.rs::Game::modify	execute at and positioned
+CommandSourceStack.withRotation	inline	crates/sunrise-gameplay/src/game/administration/commands/execute.rs::Game::modify	execute rotated
+CommandSourceStack.withCallback	inline	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::run_leaf	result callback set per leaf
 CommandSourceStack.withPermission	missing		minor: unsure: no per-source permission level found in execute.rs
-CommandSourceStack.withAnchor	inline	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::modify	execute anchored
+CommandSourceStack.withAnchor	inline	crates/sunrise-gameplay/src/game/administration/commands/execute.rs::Game::modify	execute anchored
 CommandSourceStack.withSigningContext	skip:service		chat message signing
-CommandSourceStack.getPlayer	port	crates/sunrise-client/src/game/administration/commands/players.rs::Game::source_entity	the source entity; callers check for a player
+CommandSourceStack.getPlayer	port	crates/sunrise-gameplay/src/game/administration/commands/players_server.rs::Game::source_entity	the source entity; callers check for a player
 CommandSourceStack.shouldFilterMessageTo	skip:service		chat text filtering
-CommandSourceStack.sendChatMessage	port	crates/sunrise-client/src/lan/hub/chat.rs::Hub::chat	gap: minor: console and command block sources are not sent here
+CommandSourceStack.sendChatMessage	port	crates/sunrise-sim/src/lan/hub/chat.rs::Hub::chat	gap: minor: console and command block sources are not sent here
 CommandSourceStack.suggestRegistryElements	port	crates/sunrise-command/src/args.rs::suggest_resources	registry tags and elements
 CommandSourceStack.getLookup	skip:data		registry lookup; registries come from tables
 Commands.<init>	port	crates/sunrise-command/src/vanilla.rs::build	registers the command tree
-Commands.mapSource	inline	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::with_source	source mapped onto the parse
-Commands.performPrefixedCommand	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::run_command	the leading slash is trimmed by the callers
-Commands.finishParsing	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::syntax_failure	parse error with the <--[HERE] context
-Commands.executeCommandInContext	port	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::run_chain	gap: minor: max_command_forks is not enforced
+Commands.mapSource	inline	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::with_source	source mapped onto the parse
+Commands.performPrefixedCommand	port	crates/sunrise-gameplay/src/game/administration/commands/mod_server.rs::Game::run_command	the leading slash is trimmed by the callers
+Commands.finishParsing	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::syntax_failure	parse error with the <--[HERE] context
+Commands.executeCommandInContext	port	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::run_chain	gap: minor: max_command_forks is not enforced
 Commands.validate	skip:debug		startup check of the command tree
 Commands.createCompilationContext	skip:data		datapack compile-time context
 ParserUtils.readWhile	port	crates/sunrise-command/src/lib.rs::Reader::read_unquoted_string	reads while characters are allowed
@@ -133,17 +133,17 @@ SharedSuggestionProvider.suggestRegistryElements	port	crates/sunrise-command/src
 SharedSuggestionProvider.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	suggestions per argument type
 SharedSuggestionProvider.suggest2DCoordinates	port	crates/sunrise-command/src/args.rs::suggest_coordinates	x z suggestions
 AngleArgument.SingleAngle.getAngle	port	crates/sunrise-command/src/args.rs::Coord::get	gap: minor: the wrap to -180..180 is not confirmed
-ArgumentSignatures.signCommand	port	crates/sunrise-client/src/game/network/remote_chat.rs::Game::send_command	each message argument at the next chain link
+ArgumentSignatures.signCommand	port	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::Game::send_command	each message argument at the next chain link
 DimensionArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	dimension suggestions
-DimensionArgument.getDimension	inline	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::modify	dimension resolved where execute in reads it
+DimensionArgument.getDimension	inline	crates/sunrise-gameplay/src/game/administration/commands/execute.rs::Game::modify	dimension resolved where execute in reads it
 EntityAnchorArgument.parse	port	crates/sunrise-command/src/args.rs::ArgType::parse	eyes or feet
 EntityArgument.parse	port	crates/sunrise-command/src/args.rs::ArgType::parse	the selector is read by selector.rs::parse
 EntityArgument.listSuggestions	port	crates/sunrise-command/src/selector.rs::suggest	selector and player name suggestions
-EntityArgument.Info.serializeToNetwork	port	crates/sunrise-client/src/lan/commands.rs::properties	entity flags: single and players only
+EntityArgument.Info.serializeToNetwork	port	crates/sunrise-sim/src/lan/commands.rs::properties	entity flags: single and players only
 EntityArgument.Info.deserializeFromNetwork	port	crates/sunrise-command/src/network.rs::argument_type	entity flags of a received command tree
 EntityArgument.Info.serializeToJson	skip:data		JSON of the argument template; Sunrise reads tree data from files
 GameModeArgument.parse	port	crates/sunrise-command/src/args.rs::ArgType::parse	game mode name
 GameModeArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	game mode suggestions
 GameProfileArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	player name suggestions
-GameProfileArgument.SelectorResult.getNames	port	crates/sunrise-client/src/game/administration/commands/profiles.rs::Game::game_profiles	the selector's players only, a playerless selector is `argument.entity.notfound.player`; op, deop, ban and pardon are in the tree, whitelist is not
+GameProfileArgument.SelectorResult.getNames	port	crates/sunrise-gameplay/src/game/administration/commands/profiles.rs::Game::game_profiles	the selector's players only, a playerless selector is `argument.entity.notfound.player`; op, deop, ban and pardon are in the tree, whitelist is not
 HeightmapTypeArgument.keptTypes	port	crates/sunrise-command/src/network.rs::argument_type	heightmap type choices

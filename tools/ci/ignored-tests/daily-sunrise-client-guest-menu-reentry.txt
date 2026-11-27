@@ -1,2 +1,2 @@
-sunrise-client game::mod_container_openers_tests::tests::a_replacement_reusing_the_block_menu_window_is_not_announced_twice lib daily child-process
-sunrise-client game::mod_container_openers_tests::tests::a_shulker_close_sounds_at_its_centre_when_the_listener_replaces_it lib daily child-process
+sunrise-client cut_layout::game::server_side::mod_container_openers_tests::tests::a_replacement_reusing_the_block_menu_window_is_not_announced_twice lib daily child-process
+sunrise-client cut_layout::game::server_side::mod_container_openers_tests::tests::a_shulker_close_sounds_at_its_centre_when_the_listener_replaces_it lib daily child-process

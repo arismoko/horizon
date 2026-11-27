@@ -20,7 +20,6 @@ use sunrise_client::{
     mobs::Who,
     motion::{LAVA, MotionResources, WATER},
     projectiles::{Hit, Projectile, ProjectileKind},
-    world::World,
 };
 use sunrise_core::{
     geometry::{Aabb, Vec3},
@@ -58,10 +57,11 @@ pub fn main() -> Result<()> {
     let root = PathBuf::from(&args[0]);
     let dir = PathBuf::from(&args[1]);
     let assets = Assets::load(&root)?;
-    let render = assets.reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-        root.to_path_buf(),
-    ))?;
-    let mut scene = World::test_scene(&assets, &render, 1)?;
+    let render = sunrise_client::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )?;
+    let mut scene = sunrise_client::assets::test_scene_world(&assets, &render, 1)?;
     fs::write(
         dir.join("scene.json"),
         serde_json::to_vec(

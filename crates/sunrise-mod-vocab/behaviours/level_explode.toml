@@ -2,6 +2,6 @@ version = 1
 handle = "handle:LevelRef::explode"
 doc = "LevelRef::explode runs ServerExplosion for the named open level, parked ones included, with no extent limit: an unloaded center explodes without loading chunks, and listeners of explosion_detonate see the entity and block lists the blast will apply."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_explosions_tests.rs::unloaded_centre_and_far_coordinates_still_explode_without_loading_chunks",
-    "crates/sunrise-client/src/game/modding/native_explosion_destroy_tests.rs::a_detonate_listener_edits_reorders_and_adds_positions",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_explosions_tests.rs::unloaded_centre_and_far_coordinates_still_explode_without_loading_chunks",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_explosion_destroy_tests.rs::a_detonate_listener_edits_reorders_and_adds_positions",
 ]

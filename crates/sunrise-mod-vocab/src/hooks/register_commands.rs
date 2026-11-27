@@ -32,7 +32,7 @@ pub trait Hooks {
 
 - `string` reads one word or one `"quoted"` / `'quoted'` phrase, as Brigadier's `StringArgumentType.string()` (`QUOTABLE_PHRASE`), and other arguments may follow it. A registered argument type reads the same with `CommandArgumentKind::Quotable` (otherwise one word, or the rest of the line with `Greedy`). Word, `string` and greedy text values are strings: a `string` arrives decoded as `CommandArgumentValue::String`, without its quotes and escapes, and a `Quotable` type's `parse` gets that decoded text. Clients receive both as `brigadier:string` mode 1."#]
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_register_commands",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_register_commands",
         dispatch = "flat",
         side = "server",
         contract = "collect",

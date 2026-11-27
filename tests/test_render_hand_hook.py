@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class RenderHandHookTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("rustc"), "requires Rust")
     def test_each_hand_can_be_cancelled_posed_or_drawn_in(self):
-        source = next(p.read_text() for p in [ROOT / "crates/sunrise-client/src/game.rs", *sorted((ROOT / "crates/sunrise-client/src/game").rglob("*.rs"))] if "fn hand_geometry(" in p.read_text())
+        source = (ROOT / "crates/sunrise-client-gameplay/src/game/interface/frame_geometry.rs").read_text(encoding="utf-8")
         start = source.index("            let snapshot =", source.index("fn hand_geometry("))
         end = source.index("            // No mod moved the hand", start)
         dispatch = source[start:end]
@@ -20,7 +20,7 @@ class RenderHandHookTests(unittest.TestCase):
         pitch = source[pitch_start:pitch_end]
         self.assertLess(source.index("if !shown[i]", source.index("fn hand_geometry(")), start)
         self.assertLess(end, source.index("let Some(stack) = item", end))
-        self.assertLess(end, source.index("if let Some(id) = maps::map_id", end))
+        self.assertLess(end, source.index("if let Some(id) = map_id(&stack)", end))
         fixture = r"""
 mod mod_api {
     pub enum HookId { RenderHand }
@@ -45,8 +45,10 @@ impl TryIntoApi for Option<&EngineStack> {
     }
 }
 struct Model { previous_head_pitch: f32 }
-struct Game { cancel: Option<usize>, calls: Vec<(usize, Option<i32>, f32, f32, f32)>, runs: Vec<(u32, i32)>, pitch: f32, player_model: Option<Model> }
-impl Game {
+struct ClientState { player_model: Option<Model> }
+struct CommonGame { pitch: f32 }
+struct ClientGame { cancel: Option<usize>, calls: Vec<(usize, Option<i32>, f32, f32, f32)>, runs: Vec<(u32, i32)>, common: CommonGame, client: ClientState }
+impl ClientGame {
     fn own_uuid(&self) -> u128 { 7 }
     fn own_entity_id(&self) -> i32 { 9 }
     // The real one hands the mods a draw at `to_world`, appends what they drew and says whether they cancelled.
@@ -78,7 +80,7 @@ impl Game {
 #[test]
 fn cancellation_and_pose_share_one_dispatch_for_each_hand() {
     for (cancel, hands) in [(None, vec![0, 1]), (Some(0), vec![1]), (Some(1), vec![0])] {
-        let mut game = Game { cancel, calls: Vec::new(), runs: Vec::new(), pitch: 3.0, player_model: Some(Model { previous_head_pitch: 1.0 }) };
+        let mut game = ClientGame { cancel, calls: Vec::new(), runs: Vec::new(), common: CommonGame { pitch: 3.0 }, client: ClientState { player_model: Some(Model { previous_head_pitch: 1.0 }) } };
         let expected = hands.into_iter().map(|h| (h, [2.0, 0.0, 0.0], [0.0, 15.0, 0.0], 2.0)).collect::<Vec<_>>();
         mod_api::__private::CONVERSIONS.set(0);
         assert_eq!(game.draw(), expected);
@@ -88,7 +90,7 @@ fn cancellation_and_pose_share_one_dispatch_for_each_hand() {
     }
     mod_api::__private::LISTENED.set(false);
     mod_api::__private::CONVERSIONS.set(0);
-    let mut game = Game { cancel: Some(0), calls: Vec::new(), runs: Vec::new(), pitch: 3.0, player_model: Some(Model { previous_head_pitch: 1.0 }) };
+    let mut game = ClientGame { cancel: Some(0), calls: Vec::new(), runs: Vec::new(), common: CommonGame { pitch: 3.0 }, client: ClientState { player_model: Some(Model { previous_head_pitch: 1.0 }) } };
     assert_eq!(game.draw(), vec![(0, [0.0; 3], [0.0; 3], 1.0), (1, [0.0; 3], [0.0; 3], 1.0)]);
     assert!(game.calls.is_empty());
     assert!(game.runs.is_empty());

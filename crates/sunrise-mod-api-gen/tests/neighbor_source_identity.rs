@@ -5,7 +5,7 @@ use syn::visit_mut::VisitMut;
 #[test]
 #[ignore = "daily"]
 fn neighbor_source_identity_and_early_routing() {
-    let source = include_str!("../../sunrise-client/src/game/blocks/level_access.rs");
+    let source = include_str!("../../sunrise-gameplay-common/src/game/blocks/level_access.rs");
     let file = syn::parse_file(source).unwrap();
     let method = file
         .items

@@ -72,7 +72,7 @@ def main():
                lab.ROOT / 'crates/sunrise-items/src/item_nbt.rs',
                lab.ROOT / 'crates/sunrise-core/src/nbt.rs',
                lab.ROOT / 'crates/sunrise-world/src/datafix/dynamic.rs',
-               lab.ROOT / 'crates/sunrise-client-core/src/lang.rs',
+               lab.ROOT / 'crates/sunrise-game-data/src/lang.rs',
                lab.ROOT / 'crates/sunrise-items/src/item_data.rs',
                lab.ROOT / 'crates/sunrise-items/src/enchant.rs']
     tested = base.source_hashes(sources)

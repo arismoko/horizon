@@ -1,12 +1,12 @@
 version = 1
 doc = "A mod collider that moves or turns shoves bodies in the simultaneous swept path of its boxes and applies one world-collided Carried move. After an actual mod-collider shove, only velocity pointing into the shove is cancelled; an upward shove raises vertical velocity to the collider's vertical speed but never lowers it. The server shoves non-player entities and never a player, a client predicts its own player's shove, riders are not shoved again, and vanilla pistons and shulkers are unchanged."
 tests = [
-  "crates/sunrise-client/src/game/blocks/piston_push/shoving_tests.rs::a_cancelled_turning_shove_leaves_velocity_alone",
-  "crates/sunrise-client/src/game/blocks/piston_push/shoving_tests.rs::an_upward_shove_leaves_the_colliders_vertical_speed",
-  "crates/sunrise-client/src/game/blocks/piston_push/shoving_tests.rs::a_server_side_turning_shove_never_moves_the_local_player",
-  "crates/sunrise-client/src/game/blocks/piston_push/shoving_tests.rs::a_client_side_turning_shove_moves_the_local_player",
-  "crates/sunrise-client/src/game/blocks/piston_push/shoving_tests.rs::a_rider_on_a_turning_collider_is_carried_and_not_shoved_again",
-  "crates/sunrise-client/src/game/blocks/piston_push/shoving_tests.rs::an_upward_shove_never_lowers_a_rising_bodys_vertical_speed",
-  "crates/sunrise-client/src/game/blocks/piston_push/shoving_tests.rs::a_descending_collider_does_not_set_a_downward_vertical_speed_on_a_rising_body",
-  "crates/sunrise-client/src/game/blocks/piston_push/shoving_tests.rs::a_vanilla_piston_shove_leaves_the_players_velocity_alone",
+  "crates/sunrise-client/src/cut_layout/game/blocks/piston_push/shoving_tests.rs::a_cancelled_turning_shove_leaves_velocity_alone",
+  "crates/sunrise-client/src/cut_layout/game/blocks/piston_push/shoving_tests.rs::an_upward_shove_leaves_the_colliders_vertical_speed",
+  "crates/sunrise-client/src/cut_layout/game/blocks/piston_push/shoving_tests.rs::a_server_side_turning_shove_never_moves_the_local_player",
+  "crates/sunrise-client/src/cut_layout/game/blocks/piston_push/shoving_tests.rs::a_client_side_turning_shove_moves_the_local_player",
+  "crates/sunrise-client/src/cut_layout/game/blocks/piston_push/shoving_tests.rs::a_rider_on_a_turning_collider_is_carried_and_not_shoved_again",
+  "crates/sunrise-client/src/cut_layout/game/blocks/piston_push/shoving_tests.rs::an_upward_shove_never_lowers_a_rising_bodys_vertical_speed",
+  "crates/sunrise-client/src/cut_layout/game/blocks/piston_push/shoving_tests.rs::a_descending_collider_does_not_set_a_downward_vertical_speed_on_a_rising_body",
+  "crates/sunrise-client/src/cut_layout/game/blocks/piston_push/shoving_tests.rs::a_vanilla_piston_shove_leaves_the_players_velocity_alone",
 ]

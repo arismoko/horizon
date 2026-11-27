@@ -1,2 +1,2 @@
-sunrise-client game::native_block_sounds::tests::a_block_part_answers_the_sound_type_a_block_plays lib daily child-process # also needs prepared resources
-sunrise-client game::remote::interaction_event_tests::powder_snow_placement_uses_the_bucket_event_and_contextual_levels lib daily child-process # also needs prepared resources
+sunrise-client cut_layout::game::native_block_sounds::tests::a_block_part_answers_the_sound_type_a_block_plays lib daily child-process # also needs prepared resources
+sunrise-client cut_layout::game::server_side::remote_server::interaction_event_tests::powder_snow_placement_uses_the_bucket_event_and_contextual_levels lib daily child-process # also needs prepared resources

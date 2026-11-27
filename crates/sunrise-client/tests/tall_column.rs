@@ -18,7 +18,9 @@ use sunrise_client::{
     light::LightTables,
     mesher::{MeshTables, Mesher, Region, SectionMesh, borrow},
     models,
-    streaming::{ChunkGenerator, Proto, Streaming, WorkerContext},
+    streaming::{
+        ChunkGenerator, ChunkWorkerContext, MeshStreamer, MeshWorkerContext, Proto, WorkerContext,
+    },
     world::World,
 };
 use sunrise_core::biome::BiomeZoom;
@@ -66,36 +68,40 @@ fn a_tall_column_streams_lights_and_meshes_to_its_top() {
     let layout = shape.column();
     let assets = Arc::new(Assets::load(&root).unwrap());
     let render = Arc::new(
-        assets
-            .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
+        sunrise_client::assets::RenderAssets::load(
+            &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
+        )
+        .unwrap(),
     );
     let facts = BlockFacts::load(&root, assets.registry).unwrap();
     let visibility = models::load_visibility(&root, assets.registry).unwrap();
     let context = Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-        biomes: Arc::new(
-            Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
-        ),
-        assets: assets.clone(),
-        render: render.clone(),
-        hidden_states: Arc::from([]),
-        part_tables: Default::default(),
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
+            biomes: Arc::new(
+                Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
+                    root.to_path_buf(),
+                ))
+                .unwrap(),
+            ),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
+            render: render.clone(),
+            hidden_states: Arc::from([]),
+            part_tables: Default::default(),
+        },
     });
     let state = |name: &str| assets.registry.default_state(name).unwrap().0;
     let (stone, torch) = (state("minecraft:stone"), state("minecraft:torch"));
-    let mut streaming = Streaming::new(Arc::new(Spires { stone, layout }), context.clone(), 2);
+    let mut streaming = MeshStreamer::new(Arc::new(Spires { stone, layout }), context.clone(), 2);
     streaming.radius = 2;
     let mut world = World::new(BlockStateId(0), 0);
     world.shape = shape;
     let mut meshes: HashMap<(i32, i32, i32), SectionMesh> = HashMap::new();
-    let settle = |streaming: &mut Streaming,
+    let settle = |streaming: &mut MeshStreamer,
                   world: &mut World,
                   meshes: &mut HashMap<(i32, i32, i32), SectionMesh>| {
         let deadline = Instant::now() + Duration::from_secs(120);
@@ -152,13 +158,13 @@ fn a_tall_column_streams_lights_and_meshes_to_its_top() {
             translucent_layers: &[],
             layer_overrides: &[],
             leaf_culling: LeafCullingMode::Off,
-            assets: &context.assets,
-            render: &context.render,
-            tables: &context.tables,
-            hidden_states: &context.hidden_states,
-            part_tables: &context.part_tables,
-            biomes: &context.biomes,
-            visibility: context.tables.visibility.clone(),
+            assets: &context.chunk.assets,
+            render: &context.mesh.render,
+            tables: &context.mesh.tables,
+            hidden_states: &context.mesh.hidden_states,
+            part_tables: &context.mesh.part_tables,
+            biomes: &context.chunk.biomes,
+            visibility: context.mesh.tables.visibility.clone(),
         };
         // The workers sort solid quads by side, as uploads expect.
         let mut fresh = mesher.mesh(&borrow(&region), sy);

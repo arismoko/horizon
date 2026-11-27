@@ -10,7 +10,7 @@ pub trait Hooks {
     /// owner of an integrated server as for anyone else, on a server, with no
     /// player's state swapped in. Not cancellable.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_load_from_file",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_load_from_file",
         dispatch = "flat",
         side = "server",
         contract = "listen",

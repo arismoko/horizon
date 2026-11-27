@@ -1,2 +1,2 @@
 # Saved utility entities exercise the resource-backed game and chunk entity load path.
-sunrise-client game::native_entities::tests::saved_display_and_utility_entities_join_once_and_are_queryable lib daily resources
+sunrise-client cut_layout::game::server_side::native_entities::tests::saved_display_and_utility_entities_join_once_and_are_queryable lib daily resources

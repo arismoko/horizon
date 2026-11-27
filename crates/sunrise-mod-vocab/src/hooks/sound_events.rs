@@ -13,7 +13,7 @@ pub trait Hooks {
         contract = "listen",
         neoforge = "PlaySoundEvent",
         cancellable = false,
-        target = "sunrise_client::game::native_hooks::play_sound::Game<'_>::native_play_sound",
+        target = "sunrise_client_gameplay::game::native_hooks::play_sound::ClientGame<'_>::native_play_sound",
         version = 3
     )]
     /// `instance` is an engine-local sound instance id, unchanged across its live updates.

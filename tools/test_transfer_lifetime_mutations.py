@@ -17,33 +17,41 @@ def terminate(signum, _frame):
 signal.signal(signal.SIGTERM, terminate)
 if not os.environ.get('SUNRISE_TEST_RESOURCES'):
     raise SystemExit('Set SUNRISE_TEST_RESOURCES')
-join = Path('crates/sunrise-client/src/join_seq.rs')
-travel = Path('crates/sunrise-client/src/game/world/server_travel.rs')
-levels = Path('crates/sunrise-client/src/game/world/levels.rs')
+join = Path('crates/sunrise-sim/src/join_seq.rs')
+travel = Path('crates/sunrise-gameplay/src/game/world/server_travel.rs')
+levels = Path('crates/sunrise-gameplay/src/game/world/levels.rs')
 originals = {p: p.read_text() for p in (join, travel, levels)}
 logs = Path('target/transfer-lifetime-proof')
 logs.mkdir(parents=True, exist_ok=True)
-command = ['cargo', 'test', '-p', 'sunrise-client', '--lib', '--no-default-features']
+commands = {
+    'removal': ['cargo', 'test', '-p', 'sunrise-gameplay', '--lib'],
+    'arrival': ['cargo', 'test', '-p', 'sunrise-client', '--lib', '--no-default-features'],
+}
 removal = 'transfer_removal_retires_before_returning_the_vehicle'
 arrival = 'transfer_arrival_rebinds_only_bound_owners_with_the_same_id'
 cases = [
     ('omit-removal-retire', join, 'entity.attachment_lifetime().retire();', ';', removal),
     ('wrong-arrival-epoch', levels, 'level.epoch(), id',
      'mod_api::WorldEpoch::new(level.epoch().get() + 1), id', arrival),
-    ('wrong-destination-index', levels, 'self.attachment_indexes.entry(self.dim)',
-     'self.attachment_indexes.entry(source)', arrival),
+    ('wrong-destination-index', levels, 'self.common.attachment_indexes.entry(self.common.dim)',
+     'self.common.attachment_indexes.entry(Dim::Overworld)', arrival),
     ('keep-source-join', travel,
-     'v.set_join_seq(sunrise_client::join_seq::JoinSeq::UNJOINED);', ';', arrival),
+     'v.set_join_seq(sunrise_sim::join_seq::JoinSeq::UNJOINED);', ';', arrival),
 ]
-for name, family in [('b', 'boats'), ('c', 'carts'), ('m', 'mobs')]:
-    line = f'self.rebind_transferred_entity(source, id, &mut {name});'
-    cases.append((f'omit-arrival-{name}', travel, line, ';', arrival))
-    line = f'self.{family}.push({name});'
-    cases.append((f'clone-arrival-{name}', travel, line,
-                  f'self.{family}.push({name}.clone());', arrival))
+for short, name, variant, family in [
+    ('b', 'boat', 'Boat', 'boats'),
+    ('c', 'cart', 'Cart', 'carts'),
+    ('m', 'mob', 'Mob', 'mobs'),
+]:
+    line = f'self.rebind_transferred_entity({name}.id, {name});'
+    cases.append((f'omit-arrival-{short}', levels, line, ';', arrival))
+    line = f'OffLevel::{variant}({name}) => self.common.{family}.push({name}),'
+    cases.append((f'clone-arrival-{short}', levels, line,
+                  f'OffLevel::{variant}({name}) => self.common.{family}.push({name}.clone()),', arrival))
 
 
 def run(label, test, ignored=False, kill=False):
+    command = commands['removal' if test == removal else 'arrival']
     args = command + [test, '--', '--nocapture'] + (['--ignored'] if ignored else [])
     result = subprocess.run(args, capture_output=True, text=True)
     output = result.stdout + result.stderr
@@ -69,7 +77,7 @@ try:
     for label, path, old, new, test in cases:
         content = originals[path]
         # The epoch expression also appears in other helpers: target this method only.
-        start = content.index('pub(super) fn rebind_transferred_entity') if path == levels else 0
+        start = content.index('pub(in crate::game::server_side) fn rebind_transferred_entity') if label in ('wrong-arrival-epoch', 'wrong-destination-index') else 0
         offset = content.index(old, start)
         path.write_text(content[:offset] + new + content[offset + len(old):])
         run(label, test, ignored=test == arrival, kill=True)

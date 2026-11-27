@@ -1,3 +1,3 @@
 version = 1
 doc = "ClientHost::create_fireworks passes the requested explosion list directly to ParticleEngine's firework starter without the 256-explosion Fireworks item-component limit; ParticleEngine's own admission and starter lifecycle still govern playback."
-tests = ["crates/sunrise-client/src/game/modding/native_client_particles.rs::a_client_mods_fireworks_sound_only_when_audible"]
+tests = ["crates/sunrise-client/src/cut_layout/game/modding/native_client_particles.rs::a_client_mods_fireworks_sound_only_when_audible"]

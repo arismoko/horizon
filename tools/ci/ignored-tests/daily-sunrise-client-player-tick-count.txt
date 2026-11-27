@@ -1,12 +1,12 @@
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
 # Player Entity.tickCount across body handoffs (#3890): need prepared resources.
-sunrise-client game::lan_actions::guest_body::tests::entity_tick_count_moves_through_teleport_bodies_but_respawn_starts_at_zero lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::credits_configured_respawn_keeps_permanent_player_attributes lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::credits_missing_respawn_point_resets_player_tick_count lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::credits_respawn_position_cross_dimension_resets_player_tick_count lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::credits_respawn_position_redirect_resets_player_tick_count lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::credits_respawn_position_unchanged_resets_player_tick_count lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::credits_world_spawn_fallback_resets_player_tick_count lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::death_respawn_starts_a_new_player_tick_count lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::ordinary_end_exit_with_configured_respawn_keeps_player_tick_count lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::player_tick_count_survives_teleports_and_deferred_arrivals lib daily resources
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::entity_tick_count_moves_through_teleport_bodies_but_respawn_starts_at_zero lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::credits_configured_respawn_keeps_permanent_player_attributes lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::credits_missing_respawn_point_resets_player_tick_count lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::credits_respawn_position_cross_dimension_resets_player_tick_count lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::credits_respawn_position_redirect_resets_player_tick_count lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::credits_respawn_position_unchanged_resets_player_tick_count lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::credits_world_spawn_fallback_resets_player_tick_count lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::death_respawn_starts_a_new_player_tick_count lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::ordinary_end_exit_with_configured_respawn_keeps_player_tick_count lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::player_tick_count_survives_teleports_and_deferred_arrivals lib daily resources

@@ -1,5 +1,5 @@
-sunrise-client game::nether_portal::tests::portal_arrivals_keep_the_live_opt_out_without_writing_a_waiting_entity lib daily resources
-sunrise-client game::persist::tests::transient_entities::a_persistence_write_refuses_players_stale_handles_clients_and_setup lib daily resources
-sunrise-client game::persist::tests::transient_entities::a_transient_display_is_live_and_can_resume_saving_with_its_uuid lib daily resources
-sunrise-client game::persist::tests::transient_entities::the_root_controls_chunk_and_player_vehicle_saves_but_not_logout_removal lib daily resources
-sunrise-client game::persist::tests::transient_entities::unloading_a_transient_display_erases_its_old_record lib daily resources
+sunrise-client cut_layout::game::server_side::nether_portal::tests::portal_arrivals_keep_the_live_opt_out_without_writing_a_waiting_entity lib daily resources
+sunrise-client cut_layout::game::server_side::persist::tests::transient_entities::a_persistence_write_refuses_players_stale_handles_clients_and_setup lib daily resources
+sunrise-client cut_layout::game::server_side::persist::tests::transient_entities::a_transient_display_is_live_and_can_resume_saving_with_its_uuid lib daily resources
+sunrise-client cut_layout::game::server_side::persist::tests::transient_entities::the_root_controls_chunk_and_player_vehicle_saves_but_not_logout_removal lib daily resources
+sunrise-client cut_layout::game::server_side::persist::tests::transient_entities::unloading_a_transient_display_erases_its_old_record lib daily resources

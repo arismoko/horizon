@@ -1,4 +1,4 @@
 # HUD parity cases: PACKAGE TEST TARGET daily REASON, sorted.
-sunrise-client game::remote::tests::client_hud_camera_tests::a_watched_rider_gets_hearts_for_the_dragon_and_local_player_but_not_a_boat lib daily child-process
-sunrise-client game::render_tick::tests::equipment_camera_overlays_emit_in_vanilla_slot_order lib daily child-process
-sunrise-client game::spectator::tests::an_unlisted_player_is_a_teleport_target_only_on_their_team_page lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::tests::client_hud_camera_tests::a_watched_rider_gets_hearts_for_the_dragon_and_local_player_but_not_a_boat lib daily child-process
+sunrise-client cut_layout::game::client_side::render_tick::tests::equipment_camera_overlays_emit_in_vanilla_slot_order lib daily child-process
+sunrise-client cut_layout::game::client_side::spectator::tests::an_unlisted_player_is_a_teleport_target_only_on_their_team_page lib daily child-process

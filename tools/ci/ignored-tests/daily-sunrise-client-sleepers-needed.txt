@@ -1,3 +1,3 @@
 # Daily rows for #5558: a mod's sleepers_needed count decides the night skip and the announcement; on the guest fixture.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::lan_actions::sleep::sleepers_needed_tests::a_mods_count_decides_the_skip_and_the_announcement lib daily resources
+sunrise-gameplay game::server_side::lan_actions_server::sleep::sleepers_needed_tests::a_mods_count_decides_the_skip_and_the_announcement lib daily resources

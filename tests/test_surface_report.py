@@ -197,7 +197,10 @@ class ReportTests(unittest.TestCase):
             if own_export is not None:
                 own_tool = python_stub(work / "own_stage.py", OWN_STUB, WORK=str(work), OWN_EXPORT=own_export)
                 own = lambda: own_tool  # noqa: E731
-            (work / "base").mkdir()
+            for side in ("base", "head"):
+                marker = work / side / surface_report.SOURCE_LAYOUT
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_text(surface_report.source_layout(surface_report.ROOT) + "\n")
             code, text = surface_report.report(tool, work / "base", work / "head", work, gate_on,
                                                with_internals=with_internals, own_base_tool=own)
             return code, text, (work / "calls").read_text()
@@ -212,6 +215,46 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(own[:2], ["own", "surface"])
         self.assertEqual(catalogs[1:], [*own[2:], "--with-internals"])
         self.assertLess(calls.index("surface-catalogs "), calls.index("surface-diff "))
+
+    def test_cross_layout_endpoints_use_their_own_catalog_reader(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            base, head = work / "base", work / "head"
+            marker = head / surface_report.SOURCE_LAYOUT
+            marker.parent.mkdir(parents=True)
+            marker.write_text("split\n")
+            for owner in ("common", "server", "client"):
+                game = head / "crates" / f"fixture-{owner}" / "src" / "game"
+                game.mkdir(parents=True)
+                (game / "mod.rs").write_text(f'include!("{owner}.rs");')
+                (game / f"{owner}.rs").write_text(f"pub fn {owner}() {{}}")
+            calls = []
+
+            def run(command, **kwargs):
+                tool, action, *args = command
+                calls.append((tool, action, args[0]))
+                if action == "surface":
+                    Path(args[1]).write_text('{"schema": 3}')
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with mock.patch.object(surface_report.subprocess, "run", side_effect=run), \
+                    mock.patch.object(surface_report, "tree_tool", return_value=["split-stage"]), \
+                    mock.patch.object(surface_report, "ROOT", base):
+                code, _ = surface_report.report(["legacy-stage"], base, head, work, False)
+                self.assertEqual(code, 0)
+                self.assertIn(("split-stage", "surface-catalogs", str(head)), calls)
+                self.assertEqual(calls[-1][:2], ("split-stage", "surface-diff"))
+
+            calls.clear()
+            with mock.patch.object(surface_report.subprocess, "run", side_effect=run), \
+                    mock.patch.object(surface_report, "ROOT", head):
+                code, _ = surface_report.report(
+                    ["split-stage"], base, head, work, False, own_base_tool=lambda: ["legacy-stage"],
+                    own_head_tool=lambda: ["split-stage"], landed="fixture")
+                self.assertEqual(code, 0)
+                self.assertIn(("legacy-stage", "surface-catalogs", str(base)), calls)
+                self.assertIn(("split-stage", "surface-catalogs", str(head)), calls)
+                self.assertEqual(calls[-1][:2], ("split-stage", "surface-diff"))
 
     def test_an_unreadable_base_fails_naming_the_selected_exporter(self):
         code, text, calls = self.run_report(own_export=1)
@@ -237,6 +280,9 @@ class ReportTests(unittest.TestCase):
             base, head = work / "old", work / "new"
             reset = head / surface_report.SCHEMA_RESET
             reset.parent.mkdir(parents=True)
+            marker = head / surface_report.SOURCE_LAYOUT
+            marker.parent.mkdir(parents=True)
+            marker.write_text(surface_report.source_layout(surface_report.ROOT) + "\n")
             audit = {
                 "checkpoint": "checked",
                 "plain": {"old": "old-hash", "new": "checkpoint-hash"},
@@ -321,9 +367,9 @@ class ReportTests(unittest.TestCase):
 @unittest.skipUnless(os.environ.get("SUNRISE_STAGE_TOOL"), "set SUNRISE_STAGE_TOOL to test the real gate")
 class EngineCatalogGateTests(unittest.TestCase):
     ITEMS = [
-        {"id": "loop:entities.tick", "kind": "loop", "hash": "loop-1", "entry": "Game::tick_entities",
+        {"id": "loop:entities.tick", "kind": "loop", "hash": "loop-1", "entry": "ServerGame::tick_entities",
          "generic": "tick_entities_with", "slot": "TickSlot", "side": "server"},
-        {"id": "internal:fn:sunrise_client::game::Game::tick [feature = \"fixture\"]",
+        {"id": "internal:fn:sunrise_gameplay::game::ServerGame::tick [feature = \"fixture\"]",
          "kind": "internal", "hash": "internal-1", "signature": "fn tick(&self)",
          "signature_hash": "old-internal"},
     ]
@@ -583,7 +629,9 @@ class MainTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 0, "", "")
 
         tree_tool = mock.Mock(return_value=["base-stage"])
-        with mock.patch.object(surface_report.subprocess, "run", side_effect=stage):
+        layout = surface_report.source_layout(surface_report.ROOT)
+        with mock.patch.object(surface_report.subprocess, "run", side_effect=stage), \
+             mock.patch.object(surface_report, "source_layout", return_value=layout):
             code, out, _ = self.run_main(argv=["--trees", "before", "after", *flags], tool="head-stage",
                                          tree_tool=tree_tool)
         return code, out, tree_tool, compared

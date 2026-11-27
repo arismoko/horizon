@@ -1,2 +1,2 @@
-sunrise-client game::remote::interaction_event_tests::mapping_press_tests::a_creative_drop_sends_no_creative_slot lib daily resources
-sunrise-client game::remote::interaction_event_tests::mapping_press_tests::a_toolbar_load_goes_out_before_a_drop_in_its_tick lib daily resources
+sunrise-client cut_layout::game::server_side::remote_server::interaction_event_tests::mapping_press_tests::a_creative_drop_sends_no_creative_slot lib daily resources
+sunrise-client cut_layout::game::server_side::remote_server::interaction_event_tests::mapping_press_tests::a_toolbar_load_goes_out_before_a_drop_in_its_tick lib daily resources

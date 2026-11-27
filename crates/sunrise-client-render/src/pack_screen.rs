@@ -8,94 +8,14 @@
 use crate::{
     font::Patch,
     hud::{HudAtlas, PACK_ICON_SIZE, PACK_ICON_SLOTS},
-    packs::{Position, Selectable, SelectionModel},
+    packs::SelectionModel,
     screen_draw::{self as d, Backdrop, Draw, Measure, TextField},
     text::{Style, Text},
 };
 use std::{collections::HashMap, sync::Arc};
 
-/// `PackCompatibility`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Compat {
-    Compatible,
-    TooOld,
-    TooNew,
-    Unknown,
-}
+pub use sunrise_level::pack_meta::{Compat, PackInfo, PackSource as Source};
 
-impl Compat {
-    fn key(self) -> &'static str {
-        match self {
-            Compat::TooOld => "old",
-            Compat::TooNew => "new",
-            Compat::Unknown => "unknown",
-            Compat::Compatible => "compatible",
-        }
-    }
-}
-/// `PackSource`: how the description is decorated.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Source {
-    Default,
-    BuiltIn,
-    Feature,
-    World,
-    Server,
-}
-
-/// A pack as the screen shows it.
-#[derive(Clone, Debug, PartialEq)]
-pub struct PackInfo {
-    pub id: String,
-    pub title: Text,
-    pub description: Text,
-    /// The description component's own (root) style.
-    pub description_style: Style,
-    pub source: Source,
-    pub compat: Compat,
-    /// The pack's `pack.png` ([`load_icon`]); none draws `unknown_pack`.
-    pub icon: Option<Arc<[u8]>>,
-    pub required: bool,
-    pub position: Position,
-    pub fixed: bool,
-    /// Left out of both lists (a mod's `PackRegistration::hidden`): the selection model still
-    /// holds it, so a selected hidden pack stays selected and loads.
-    pub hidden: bool,
-}
-impl PackInfo {
-    pub fn selectable(&self) -> Selectable {
-        Selectable {
-            id: self.id.clone(),
-            required: self.required,
-            position: self.position,
-            fixed: self.fixed,
-            compatible: self.compat == Compat::Compatible,
-        }
-    }
-    /// `PackSource.decorate` merged with the entry's grey
-    /// (`getExtendedDescription`, `ComponentUtils.mergeStyles`), and the style of
-    /// its root, which the ellipsis of a cut description takes.
-    fn extended_description(&self) -> (Text, Style) {
-        let gray = Style::color(0x808080);
-        let key = match self.source {
-            Source::Default => {
-                let mut root = self.description_style.clone();
-                root.inherit(&gray);
-                return (self.description.clone().with_style(&gray), root);
-            }
-            Source::BuiltIn => "pack.source.builtin",
-            Source::Feature => "pack.source.feature",
-            Source::World => "pack.source.world",
-            Source::Server => "pack.source.server",
-        };
-        let t = Text::translate(
-            "pack.nameAndSource",
-            &[self.description.clone(), Text::translate(key, &[])],
-        )
-        .with_color(d::GRAY);
-        (t, Style::color(d::GRAY))
-    }
-}
 /// A `pack.png` as the pack screen draws it: RGBA, stretched to a
 /// `PACK_ICON_SIZE` square by nearest texels, as vanilla's icon texture is
 /// sampled into its 32x32 square. None when it does not decode, where
@@ -1856,6 +1776,7 @@ impl PackScreen {
 #[cfg(test)]
 mod icon_tests {
     use super::*;
+    use crate::packs::Position;
 
     #[test]
     fn dropped_files_require_yes_and_keep_the_pending_selection() {
@@ -2384,6 +2305,7 @@ mod footer_label_tests {
 #[cfg(test)]
 mod icon_slot_tests {
     use super::*;
+    use crate::packs::Position;
 
     fn atlas() -> HudAtlas {
         HudAtlas::build(&sunrise_assets::resource_source::ResourceSource::directory(

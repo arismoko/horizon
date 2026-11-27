@@ -1,2 +1,2 @@
-sunrise-client game::native_render_pair_tests::a_canceled_pre_keeps_the_flames_and_the_shadow lib daily child-process
-sunrise-client game::native_render_pair_tests::a_canceled_pre_keeps_the_local_players_flames lib daily child-process
+sunrise-client-gameplay game::client_side::native_render_pair_tests::a_canceled_pre_keeps_the_flames_and_the_shadow lib daily child-process
+sunrise-client-gameplay game::client_side::native_render_pair_tests::a_canceled_pre_keeps_the_local_players_flames lib daily child-process

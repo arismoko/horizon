@@ -9,7 +9,7 @@ pub trait Hooks {
     /// Auto-jump can set the final jump flag. The sprint flag is a key press, not a switch
     /// for sprinting: vanilla eligibility, the sprint latch and double-tap still apply.
     #[hook(
-        target = "sunrise_client::game::native_hooks::movement_input::Game<'_>::native_movement_input_update",
+        target = "sunrise_client_gameplay::game::native_hooks::movement_input::ClientGame<'_>::native_movement_input_update",
         receiver = "read",
         dispatch = "api_carrier",
         side = "client",

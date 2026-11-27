@@ -1,8 +1,8 @@
-sunrise-client game::native_damage_tests::a_sweep_finishes_its_lethal_hit_before_the_next_hit lib daily resources
-sunrise-client game::native_damage_tests::borrowed_base_tick_damage_settles_before_the_next_mob_tick lib daily resources
-sunrise-client game::native_damage_tests::guest_burning_hit_posts_before_the_void_hurt_in_the_same_tick lib daily resources
-sunrise-client game::native_damage_tests::guest_protection_consumes_the_item_and_posts_inside_the_hit lib daily resources
-sunrise-client game::native_damage_tests::guest_strike_posts_before_returning_from_the_authoritative_death lib daily resources
-sunrise-client game::native_damage_tests::player_pre_keeps_live_damage_when_resistance_does_not_record_a_reduction lib daily resources
-sunrise-client game::native_damage_tests::splash_water_finishes_a_lethal_hit_before_the_next_target lib daily resources
-sunrise-client game::native_damage_tests::squid_finishes_the_lethal_hit_its_subclass_reports_false lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::a_sweep_finishes_its_lethal_hit_before_the_next_hit lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::borrowed_base_tick_damage_settles_before_the_next_mob_tick lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::guest_burning_hit_posts_before_the_void_hurt_in_the_same_tick lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::guest_protection_consumes_the_item_and_posts_inside_the_hit lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::guest_strike_posts_before_returning_from_the_authoritative_death lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::player_pre_keeps_live_damage_when_resistance_does_not_record_a_reduction lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::splash_water_finishes_a_lethal_hit_before_the_next_target lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::squid_finishes_the_lethal_hit_its_subclass_reports_false lib daily resources

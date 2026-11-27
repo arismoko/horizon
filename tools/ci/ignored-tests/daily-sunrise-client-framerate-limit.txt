@@ -1,2 +1,2 @@
 # Daily row for #5550: a mod's frame rate takes the game's place.
-sunrise-client game::native_hooks::framerate_limit_tests::a_mods_frame_rate_takes_the_games_place lib daily resources
+sunrise-client-gameplay game::native_hooks::framerate_limit_tests::a_mods_frame_rate_takes_the_games_place lib daily resources

@@ -3,23 +3,36 @@ mod catalog;
 mod dispatch_fixtures;
 mod exports;
 mod game_modules;
+mod gameplay;
+pub use gameplay::{GAMEPLAY_LAYOUT, GameplayAudit, GameplayPackage, RoutingIssue, audit_gameplay};
+#[cfg(test)]
+pub(crate) use source::LEGACY_LAYOUT;
+pub use source::SourceLayout;
 mod hook_wiring;
 pub use game_modules::materialize_generated_host;
+mod hook_fill;
 mod host;
+#[cfg(test)]
+mod layout;
 mod parts;
 pub use catalog::DECLARATIONS;
 use catalog::{Catalog, Contract, DrawContext, Hook, HostAccess, PartKind, PhaseContext, Side};
 use heck::ToSnakeCase;
-pub use hook_wiring::check_hook_wiring;
+pub use hook_wiring::{check_gameplay_hook_wiring, check_hook_wiring};
 use quote::ToTokens;
+#[cfg(test)]
+use std::path::PathBuf;
 use std::{
     collections::{BTreeMap, HashSet},
     fs,
     path::Path,
     process::Command,
 };
-use syn::{FnArg, ImplItem, Item, Pat, Type, visit_mut::VisitMut};
+#[cfg(test)]
+use syn::ImplItem;
+use syn::{FnArg, Item, Pat, Type, visit_mut::VisitMut};
 
+#[cfg(test)]
 fn impl_functions(item: syn::ItemImpl) -> impl Iterator<Item = syn::ItemFn> {
     item.items.into_iter().filter_map(|item| match item {
         ImplItem::Fn(method) => Some(syn::ItemFn {
@@ -281,6 +294,7 @@ fn free_function_source(target: &str) -> Option<(&'static str, &str)> {
         ("mod_render::", "sunrise-mod-render"),
         ("sunrise_client_lib::", "sunrise-client-lib"),
         ("sunrise_client_render::", "sunrise-client-render"),
+        ("sunrise_sim::", "sunrise-sim"),
     ];
     prefixes
         .into_iter()
@@ -351,6 +365,7 @@ struct Fill {
 
 /// `source` with each fill's placeholder statement replaced by its call,
 /// formatted as `cargo fmt` would.
+#[cfg(test)]
 fn filled_hooks(source: &str, fills: &[Fill]) -> Result<Vec<u8>, String> {
     let mut source = source.to_owned();
     for Fill { native, call } in fills {
@@ -409,20 +424,46 @@ const ENTITY_PART_DOCS: &str = "/// An entity type's part: code attached through
 pub enum Target {
     /// Engine vocabulary: hook and host traits, values, and dispatch.
     Vocab,
-    /// The game: the host traits' implementation on `Game`.
-    Client,
+    GameplayCommon,
+    GameplayServer,
+    GameplayClient,
 }
 
 /// Fill new hooks' placeholders in `game/native_hooks/`. This explicit authoring command
 /// reads game bodies; build scripts and API generation never do.
 pub fn fill_hooks(root: &Path) -> Result<(), String> {
+    let layout = SourceLayout::read(root)?;
+    if !layout.is_split() {
+        return Err("hook authoring requires a split gameplay source tree".into());
+    }
+    hook_fill::fill(root, layout)
+}
+
+#[cfg(test)]
+/// The hand-written sources, in deterministic order; `fire.rs` includes generated dispatch.
+fn native_hook_files(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let dir = root.join("crates/sunrise-client/src/game/native_hooks");
+    let mut paths = fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .map(|entry| entry.map(|entry| entry.path()).map_err(|e| e.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    paths.retain(|path| {
+        path.extension().is_some_and(|ext| ext == "rs")
+            && path.file_name().is_some_and(|name| name != "fire.rs")
+    });
+    paths.sort();
+    Ok(paths)
+}
+
+#[cfg(test)]
+fn fill_fixture_hooks(root: &Path) -> Result<(), String> {
     let fills: BTreeMap<_, _> = game_hook_sources(root)?
         .fills
         .into_iter()
         .map(|fill| (fill.native.clone(), fill))
         .collect();
     let mut outputs = Vec::new();
-    for path in sunrise_game_discovery::native_hook_files(root)? {
+    for path in native_hook_files(root)? {
         let source = fs::read_to_string(&path).map_err(|e| e.to_string())?;
         let file = syn::parse_file(&source).map_err(|e| e.to_string())?;
         let mut local = Vec::new();
@@ -449,6 +490,7 @@ pub fn fill_hooks(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 fn game_hook_sources(root: &Path) -> Result<dispatch::HookSources, String> {
     let catalog = Catalog::load(root)?;
     dispatch::emit(
@@ -459,6 +501,11 @@ fn game_hook_sources(root: &Path) -> Result<dispatch::HookSources, String> {
         &catalog.draw_contexts,
         true,
     )
+}
+
+#[cfg(test)]
+fn game_fire_source(root: &Path) -> Result<String, String> {
+    Ok(dispatch::render_fire(&game_hook_sources(root)?.fire))
 }
 
 #[derive(Debug)]
@@ -472,6 +519,10 @@ struct Sources {
 /// Generate the vocabulary from declarations without consulting their engine implementations.
 fn sources(root: &Path) -> Result<Sources, String> {
     let catalog = Catalog::load(root)?;
+    sources_from_catalog(root, &catalog)
+}
+
+fn sources_from_catalog(root: &Path, catalog: &Catalog) -> Result<Sources, String> {
     let dispatch::HookSources {
         traits,
         dispatch,
@@ -572,11 +623,16 @@ pub mod loops;
 pub mod notes;
 pub mod patch;
 pub mod replace;
+mod replace_resolve;
+#[cfg(test)]
+mod replace_resolve_tests;
 pub(crate) mod source;
 pub mod staging;
 pub mod surface;
 pub use api_reference::generate as generate_api_reference;
-pub use build::{generate, generate_api_parts, generate_render, write_if_changed};
+pub use build::{
+    generate, generate_api_parts, generate_gameplay_vocab, generate_render, write_if_changed,
+};
 pub use counterparts::generate as generate_counterparts;
 pub use notes::generate as generate_hook_notes;
 
@@ -584,8 +640,14 @@ pub use notes::generate as generate_hook_notes;
 #[doc(hidden)]
 pub fn generate_test_hooks(root: &Path, out_dir: &Path) -> Result<(), String> {
     build::track(root)?;
-    dispatch_fixtures::generate(root, out_dir)?;
-    let code = sources(root)?.hooks;
+    rerun_if_changed(&root.join(source::MARKER).display());
+    let catalog = if SourceLayout::read(root)?.is_split() {
+        gameplay::Routing::load(root)?.catalog(root)?
+    } else {
+        Catalog::load(root)?
+    };
+    dispatch_fixtures::generate(root, out_dir, &catalog)?;
+    let code = sources_from_catalog(root, &catalog)?.hooks;
     fs::write(out_dir.join("mod_api_generated.rs"), code).map_err(|e| e.to_string())
 }
 
@@ -596,7 +658,11 @@ mod tests {
     #[test]
     fn hooks_keep_their_versions_targets_and_scopes() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let points = super::Catalog::load(&root).unwrap().hooks;
+        let points = super::gameplay::Routing::load(&root)
+            .unwrap()
+            .catalog(&root)
+            .unwrap()
+            .hooks;
         let frame = points
             .iter()
             .find(|p| p.name == "render_frame_pre")
@@ -609,7 +675,7 @@ mod tests {
         assert_eq!(post.version, 2);
         assert_eq!(
             frame.target,
-            "sunrise_client::game::native_hooks::render_frame_pre::Game<'_>::native_render_frame_pre"
+            "sunrise_client_gameplay::game::native_hooks::render_frame_pre::ClientGame<'_>::native_render_frame_pre"
         );
         assert!(frame.scope.is_none());
         let scoped = points
@@ -680,29 +746,28 @@ mod tests {
             Side::Server,
         );
         let game = Hook::sample("sunrise_client::game::Game<'_>::native_test", Side::Both);
-        use super::host_param::{HostParam, host_param};
-        let param = |ty: &str, call| {
+        use super::host_param::{HostArgument::*, HostParam, host_param};
+        let param = |ty: &str, argument| {
             Some(HostParam {
                 ty: ty.into(),
-                call,
+                argument,
             })
         };
         assert_eq!(
             host_param(&level, Some(false), false),
-            param("&dyn LevelHost", "self")
+            param("&dyn LevelHost", Receiver)
         );
         assert_eq!(
             host_param(&level, Some(true), false),
-            param("&mut dyn LevelRandomHost", "self")
+            param("&mut dyn LevelRandomHost", Receiver)
         );
-        let ticks = "&mut super::mod_api_host::LevelTicks::new(self, ticks)";
         assert_eq!(
             host_param(&level, Some(false), true),
-            param("&mut dyn LevelTicksHost", ticks)
+            param("&mut dyn LevelTicksHost", LevelTicks)
         );
         assert_eq!(
             host_param(&level, Some(true), true),
-            param("&mut dyn LevelWriteHost", ticks)
+            param("&mut dyn LevelWriteHost", LevelTicks)
         );
         assert_eq!(host_param(&level, None, false), None);
         let level_both = Hook {
@@ -711,7 +776,7 @@ mod tests {
         };
         assert_eq!(
             host_param(&level_both, Some(false), false),
-            param("LevelSide", "super::mod_api_host::level_side(self)")
+            param("LevelSide", LevelSide)
         );
         for (mutable, ticks) in [(Some(true), false), (Some(false), true)] {
             assert_eq!(
@@ -721,7 +786,7 @@ mod tests {
         }
         assert_eq!(
             host_param(&game, Some(true), false),
-            param("HostSide", "super::execution_role::host_side(self)")
+            param("HostSide", GameSide)
         );
         assert_eq!(
             super::host_param::validate(&game, "test", false, Some(false), false).unwrap_err(),
@@ -733,7 +798,7 @@ mod tests {
         };
         assert_eq!(
             host_param(&read, Some(false), false),
-            param("&dyn Host", "&*self")
+            param("&dyn Host", SharedGame)
         );
         let client = Hook {
             side: Side::Client,
@@ -741,11 +806,11 @@ mod tests {
         };
         assert_eq!(
             host_param(&client, Some(false), false),
-            param("&dyn ClientHost", "&*self")
+            param("&dyn ClientHost", SharedReborrow)
         );
         assert_eq!(
             host_param(&client, Some(true), false),
-            param("&mut dyn ClientHost", "self")
+            param("&mut dyn ClientHost", Receiver)
         );
         let client_read = Hook {
             side: Side::Client,
@@ -771,7 +836,7 @@ mod tests {
         assert!(super::host_param::is_level(&hit));
         assert_eq!(
             host_param(&hit, Some(true), false),
-            param("&mut dyn LevelRandomHost", "self")
+            param("&mut dyn LevelRandomHost", Receiver)
         );
         super::host_param::validate(&hit, "test", true, Some(true), false).unwrap();
         // A read-only level view that is neither `GameLevel` nor a hit: a server `&self`
@@ -786,7 +851,7 @@ mod tests {
         assert!(super::host_param::is_level(&read_level));
         assert_eq!(
             host_param(&read_level, Some(false), false),
-            param("&dyn LevelHost", "self")
+            param("&dyn LevelHost", Receiver)
         );
         super::host_param::validate(&read_level, "test", true, Some(false), false).unwrap();
         // The hit capability: a server hit with a `&mut self` receiver only.
@@ -797,7 +862,7 @@ mod tests {
         assert!(super::host_param::is_level(&capable));
         assert_eq!(
             host_param(&capable, Some(true), false),
-            param("&mut dyn HitHost", "self")
+            param("&mut dyn HitHost", Receiver)
         );
         super::host_param::validate(&capable, "test", true, Some(true), false).unwrap();
         for (hook, mutable, ticks) in [
@@ -825,7 +890,7 @@ mod tests {
         super::host_param::validate(&hit_both, "test", true, Some(false), false).unwrap();
         assert_eq!(
             host_param(&hit_both, Some(false), false),
-            param("LevelSide", "super::mod_api_host::level_side(self)")
+            param("LevelSide", LevelSide)
         );
         assert_eq!(
             super::host_param::validate(&hit_both, "test", true, Some(false), true).unwrap_err(),
@@ -835,7 +900,7 @@ mod tests {
         // non-`GameLevel` level may take it.
         assert_eq!(
             host_param(&hit, Some(false), false),
-            param("&dyn LevelHost", "self")
+            param("&dyn LevelHost", Receiver)
         );
         super::host_param::validate(&hit, "test", true, Some(false), false).unwrap();
         for (hook, mutable) in [
@@ -959,25 +1024,44 @@ mod tests {
         .unwrap();
         assert_eq!(super::sources(&root).unwrap().hooks, without_counterparts);
         std::fs::write(&first, original).unwrap();
-        let hook_dir = "crates/sunrise-client/src/game/native_hooks";
-        copy(&real.join(hook_dir), &root.join(hook_dir));
+        let hook_dir = root.join("crates/sunrise-client/src/game/native_hooks");
+        std::fs::create_dir_all(&hook_dir).unwrap();
+        for (package, file) in [
+            ("sunrise-gameplay", "item_picked_up.rs"),
+            ("sunrise-client-gameplay", "client_tick_pre.rs"),
+        ] {
+            let source = std::fs::read_to_string(
+                real.join(format!("crates/{package}/src/game/native_hooks/{file}")),
+            )
+            .unwrap();
+            std::fs::write(hook_dir.join(file), super::rustfmt(&source).unwrap()).unwrap();
+        }
+        std::fs::write(
+            hook_dir.join("mod.rs"),
+            "mod item_picked_up; mod client_tick_pre;",
+        )
+        .unwrap();
         let client = root.join("crates/sunrise-client");
         std::fs::write(client.join("Cargo.toml"), "").unwrap();
         std::fs::write(client.join("src/lib.rs"), "mod game;").unwrap();
         std::fs::write(client.join("src/game.rs"), "mod native_hooks;").unwrap();
-        let hooks = root.join(hook_dir).join("item_picked_up.rs");
-        let pickup = catalog
+        let hooks = hook_dir.join("item_picked_up.rs");
+        let mut pickup = catalog
             .hooks
             .iter()
             .find(|hook| hook.name == "item_picked_up")
-            .unwrap();
+            .unwrap()
+            .clone();
+        pickup.target = pickup
+            .target
+            .replacen("sunrise_gameplay::", "sunrise_client::", 1);
         let shipped = std::fs::read_to_string(&hooks).unwrap();
         let call = "self.fire_item_picked_up(player, item, can_pickup);";
         assert_eq!(shipped.matches(call).count(), 1);
         let unfinished = shipped.replace(call, "let _ = (player, item);");
         std::fs::write(&hooks, &unfinished).unwrap();
         assert!(
-            super::fill_hooks(&root)
+            super::fill_fixture_hooks(&root)
                 .unwrap_err()
                 .starts_with("missing dispatch_item_picked_up call in native_item_picked_up: ")
         );
@@ -985,8 +1069,13 @@ mod tests {
         let placeholder = shipped.replace(call, "let _ = (player, item, can_pickup);");
         std::fs::write(&hooks, &placeholder).unwrap();
         assert_eq!(
-            super::hook_wiring::check(&root, std::slice::from_ref(pickup)).unwrap_err(),
-            "item_picked_up (sunrise_client::game::native_hooks::item_picked_up::Game<'_>::native_item_picked_up): target does not call fire_item_picked_up or Self::fire_item_picked_up"
+            super::hook_wiring::check(&root, std::slice::from_ref(&pickup)).unwrap_err(),
+            concat!(
+                "item_picked_up (sunrise_client::game::native_hooks::item_picked_up::ServerGame<'_>::native_item_picked_up): ",
+                "target does not call fire_item_picked_up or Self::fire_item_picked_up or ",
+                "super::fire::fire_item_picked_up or fire::fire_item_picked_up or ",
+                "crate::game::native_hooks::fire::fire_item_picked_up",
+            )
         );
         assert_eq!(std::fs::read_to_string(&hooks).unwrap(), placeholder);
         // A hook without its attribute fails by name.
@@ -1006,12 +1095,12 @@ mod tests {
         )
         .unwrap();
         assert!(
-            super::fill_hooks(&root)
+            super::fill_fixture_hooks(&root)
                 .unwrap_err()
                 .contains("item_picked_up: needs a #[hook(...)] attribute")
         );
         std::fs::write(&declared, shipped_declarations).unwrap();
-        let second = root.join("crates/sunrise-client/src/game/native_hooks/client_tick_pre.rs");
+        let second = hook_dir.join("client_tick_pre.rs");
         let second_shipped = std::fs::read_to_string(&second).unwrap();
         std::fs::write(
             &second,
@@ -1021,8 +1110,8 @@ mod tests {
         let decoy = hooks.with_file_name("decoy.rs");
         let decoy_source = "impl Game<'_> { /// mentions fn native_item_picked_up(\n fn unrelated(&self) { let _ = self; } }\n";
         std::fs::write(&decoy, decoy_source).unwrap();
-        super::fill_hooks(&root).unwrap();
-        super::hook_wiring::check(&root, std::slice::from_ref(pickup)).unwrap();
+        super::fill_fixture_hooks(&root).unwrap();
+        super::hook_wiring::check(&root, std::slice::from_ref(&pickup)).unwrap();
         // The generator writes LF; a Windows checkout (core.autocrlf) has CRLF.
         let lf = |s: &str| s.replace("\r\n", "\n");
         assert_eq!(
@@ -1108,6 +1197,14 @@ mod tests {
         assert_eq!(
             super::free_function_source("sunrise_client_lib::crafting::native_ingredient"),
             Some(("sunrise-client-lib", "crafting::native_ingredient"))
+        );
+        assert_eq!(
+            super::free_function_source("sunrise_sim::breathing::native_living_drown"),
+            Some(("sunrise-sim", "breathing::native_living_drown"))
+        );
+        assert_eq!(
+            super::free_function_source("sunrise_sim::crafting::native_hooks::native_ingredient"),
+            Some(("sunrise-sim", "crafting::native_hooks::native_ingredient"))
         );
         assert_eq!(
             super::free_function_source(

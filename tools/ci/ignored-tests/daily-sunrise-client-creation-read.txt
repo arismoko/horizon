@@ -1,1 +1,1 @@
-sunrise-client game::world_entry::creation_read_tests::the_creation_read_refuses_a_pack_with_an_empty_jukebox_song lib daily resources
+sunrise-gameplay game::server_side::creation_packs::tests::the_creation_read_refuses_a_pack_with_an_empty_jukebox_song lib daily resources

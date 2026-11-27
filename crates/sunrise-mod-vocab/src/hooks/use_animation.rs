@@ -13,7 +13,7 @@ pub trait Hooks {
     /// Contract version 3: version 2 asked no Part again for any read from inside the callback;
     /// version 1 was asked on the client only, with a `ClientHost`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_use_animation",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_use_animation",
         receiver = "read",
         dispatch = "flat",
         side = "both",

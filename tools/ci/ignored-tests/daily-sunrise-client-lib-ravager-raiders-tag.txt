@@ -1,1 +1,1 @@
-sunrise-client-lib mobs::riders::tests::a_ravagers_goals_follow_the_raiders_tag_of_its_rider lib daily resources
+sunrise-sim mobs::riders::tests::a_ravagers_goals_follow_the_raiders_tag_of_its_rider lib daily resources

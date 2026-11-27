@@ -2,12 +2,12 @@
 sunrise-client-render gfx::entity_batch::tests::benchmark_entity_batch by-hand manual # manual production-helper microbenchmark; opt-in measurement on an idle machine, not a daily correctness check
 sunrise-client-render gfx::resident::tests::column_walk_speed by-hand manual # timing, not a check; opt-in measurement on an idle machine, not a daily correctness check
 sunrise-client-render gfx::resident::tests::tight_bounds_benchmark by-hand manual # benchmark; opt-in measurement on an idle machine, not a daily correctness check
-sunrise-client-render light::tests::benchmark_light_chunk by-hand manual # benchmark; opt-in measurement on an idle machine, not a daily correctness check
-sunrise-client-render light::tests::benchmark_worker_light_results by-hand manual # microbenchmark; run with --ignored --nocapture; opt-in measurement on an idle machine, not a daily correctness check
+sunrise-level light::tests::benchmark_light_chunk by-hand manual # benchmark; opt-in measurement on an idle machine, not a daily correctness check
+sunrise-level light::tests::benchmark_worker_light_results by-hand manual # microbenchmark; run with --ignored --nocapture; opt-in measurement on an idle machine, not a daily correctness check
 sunrise-client-render mesher::leaf_culling::tests::mask_build_benchmark by-hand manual # microbenchmark; run with --ignored --nocapture; opt-in measurement on an idle machine, not a daily correctness check
 sunrise-client-render mesher::reuse_tests::benchmark_padded_reuse by-hand manual # opt-in scratch microbenchmark; run with --nocapture --test-threads=1; opt-in measurement on an idle machine, not a daily correctness check
 sunrise-client-render mesher::tint_tests::colormap_tint_cost by-hand manual # timing, not a check; opt-in measurement on an idle machine, not a daily correctness check
 sunrise-client-render mesher::visibility_tests::visibility_benchmark by-hand manual # opt-in microbenchmark: cargo test --profile fast ... visibility_benchmark -- --ignored --exact --nocapture; opt-in measurement on an idle machine, not a daily correctness check
 sunrise-client-render particles::tick_bench::particle_tick_cost by-hand manual # a measurement, not a check; opt-in measurement on an idle machine, not a daily correctness check
-sunrise-client-render streaming::forced_cover::tests::forced_cover_cost by-hand manual # timings; run with --release --ignored --nocapture; opt-in measurement on an idle machine, not a daily correctness check
-sunrise-client-render streaming::tests::generation_scan_benchmark by-hand manual # reproducible actual generation scheduler benchmark; run with --ignored --nocapture; opt-in measurement on an idle machine, not a daily correctness check
+sunrise-level chunk_streamer::forced_cover::tests::forced_cover_cost by-hand manual # timings; run with --release --ignored --nocapture; opt-in measurement on an idle machine, not a daily correctness check
+sunrise-level chunk_streamer::tests::generation_scan_benchmark by-hand manual # reproducible actual generation scheduler benchmark; run with --ignored --nocapture; opt-in measurement on an idle machine, not a daily correctness check

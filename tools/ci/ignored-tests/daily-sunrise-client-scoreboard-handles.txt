@@ -1,4 +1,4 @@
 # The scoreboard handles' tests that boot a server game (#1218).
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::native_scoreboard::tests::objectives_are_written_synced_saved_and_stale_once_removed lib daily resources
-sunrise-client game::native_scoreboard_teams::tests::teams_are_written_joined_synced_saved_and_stale_once_removed lib daily resources
+sunrise-client cut_layout::game::server_side::native_scoreboard::tests::objectives_are_written_synced_saved_and_stale_once_removed lib daily resources
+sunrise-gameplay game::server_side::native_scoreboard_teams::tests::teams_are_written_joined_synced_saved_and_stale_once_removed lib daily resources

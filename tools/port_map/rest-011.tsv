@@ -1,6 +1,6 @@
 ProtocolSwapHandler.handleInboundTerminalPacket	port	crates/sunrise-client/src/net.rs::configure	the configuration phase ends on FinishConfiguration and play starts in run; no Netty handler swap
 ProtocolSwapHandler.handleOutboundTerminalPacket	port	crates/sunrise-client/src/net.rs::configure	the client's FinishConfiguration reply is sent inside configure
-RateKickingConnection.tickSecond	inline	crates/sunrise-client/src/lan/conn.rs::PacketRate::received	the rate-limit window counts packets per second and the connection is dropped when it is exceeded
+RateKickingConnection.tickSecond	inline	crates/sunrise-sim/src/lan/conn.rs::PacketRate::received	the rate-limit window counts packets per second and the connection is dropped when it is exceeded
 UnconfiguredPipelineHandler.Inbound.channelRead	skip:other		Netty guard for packets before a protocol is set; Sunrise's connection loops only read their own phase
 UnconfiguredPipelineHandler.Inbound.write	skip:other		Netty guard for configuration tasks on the inbound pipeline; no pipeline in Sunrise
 UnconfiguredPipelineHandler.Outbound.write	skip:other		Netty guard for packets sent before a protocol is set; no pipeline in Sunrise
@@ -8,48 +8,48 @@ VarInt.getByteSize	port	crates/sunrise-core/src/vanilla_bytes.rs::varint_size
 VarLong.getByteSize	skip:java		byte-size helper with no caller here; Sunrise writes varlongs and measures the buffer
 Varint21FrameDecoder.copyVarint	inline	crates/sunrise-protocol/src/frame.rs::split	the 3-byte length read and the 'length wider than 21 bits' error
 Varint21FrameDecoder.decode	port	crates/sunrise-protocol/src/frame.rs::split	the length prefix is read by frame::header, which refuses a zero frame as corrupted, and split cuts the frame at it
-ChatType.bind	port	crates/sunrise-client/src/lan/hub/chat.rs::Hub::handle_chat	the bound takes the chat type and the sender's display name
+ChatType.bind	port	crates/sunrise-sim/src/lan/hub/chat.rs::Hub::handle_chat	the bound takes the chat type and the sender's display name
 ChatTypeDecoration.incomingDirectMessage	skip:data		chat_type registry bootstrap; the msg decorations come from the chat_type data
 ChatTypeDecoration.outgoingDirectMessage	skip:data		chat_type registry bootstrap; the msg decorations come from the chat_type data
-ChatTypeDecoration.decorate	port	crates/sunrise-client/src/game/network/remote/chat.rs::chat_type_decorate	the chat type's translation with its style, on the client when a PlayerChat or DisguisedChat arrives
-ChatTypeDecoration.resolveParameters	port	crates/sunrise-client/src/game/network/remote/chat.rs::chat_type_decorate	the parameter list (sender, target, content) built in format_chat
-ClickEvent.Action.filterForSerialization	port	crates/sunrise-client-core/src/component.rs::object_style	gap: minor: a disallowed action (open_file) is dropped; vanilla refuses the whole component
+ChatTypeDecoration.decorate	port	crates/sunrise-gameplay-common/src/game/network/remote/chat.rs::chat_type_decorate	the chat type's translation with its style, on the client when a PlayerChat or DisguisedChat arrives
+ChatTypeDecoration.resolveParameters	port	crates/sunrise-gameplay-common/src/game/network/remote/chat.rs::chat_type_decorate	the parameter list (sender, target, content) built in format_chat
+ClickEvent.Action.filterForSerialization	port	crates/sunrise-game-data/src/component.rs::object_style	gap: minor: a disallowed action (open_file) is dropped; vanilla refuses the whole component
 CommonComponents.optionStatus	port	crates/sunrise-client-render/src/options_ui_values.rs::on_off	options.on / options.off text
 CommonComponents.joinForNarration	port	crates/sunrise-client-render/src/widgets.rs::join_for_narration	the parts joined with ". " (NARRATION_SEPARATOR), as vanilla; every narrated title-and-message screen goes through it
 Component.tryCollapseToString	skip:java		JSON shape only: Text always writes the object form, which reads the same
 Component.copy	skip:java		clone; Text is Clone
-Component.visit	port	crates/sunrise-client-core/src/text.rs::Text::chars	gap: minor: no early exit on the first consumer result; the styled characters are the same
+Component.visit	port	crates/sunrise-game-data/src/text.rs::Text::chars	gap: minor: no early exit on the first consumer result; the styled characters are the same
 Component.contains	skip:other		no caller in the 26.3 sources; the only match is the definition
-Component.translatableEscape	port	crates/sunrise-client-core/src/text.rs::Text::tr	non-text arguments become literal strings
-Component.translatableWithFallback	inline	crates/sunrise-client-core/src/component.rs::to_text_with	the fallback key is read from the JSON and used when the key is missing
+Component.translatableEscape	port	crates/sunrise-game-data/src/text.rs::Text::tr	non-text arguments become literal strings
+Component.translatableWithFallback	inline	crates/sunrise-game-data/src/component.rs::to_text_with	the fallback key is read from the JSON and used when the key is missing
 Component.score	skip:java		builder of a score component; Sunrise reads score components from JSON in resolve_score_component
-Component.object	inline	crates/sunrise-client-core/src/component.rs::to_text_with	the object branch keeps the object's JSON on the span's style, and inline_object turns it into the fallback text
+Component.object	inline	crates/sunrise-game-data/src/component.rs::to_text_with	the object branch keeps the object's JSON on the span's style, and inline_object turns it into the fallback text
 Component.translationArg	skip:java		Date-to-text helper; Sunrise has no Date argument type
-ComponentSerialization.createFromList	port	crates/sunrise-client-core/src/component.rs::to_text_with	a list: the first element, then the rest as siblings in its style
+ComponentSerialization.createFromList	port	crates/sunrise-game-data/src/component.rs::to_text_with	a list: the first element, then the rest as siblings in its style
 ComponentSerialization.createLegacyComponentMatcher	skip:java		codec dispatch builder; to_text_with reads both forms directly
-ComponentSerialization.createCodec	port	crates/sunrise-client-core/src/component.rs::to_text_with	JSON to text for strings, lists and objects
-ComponentSerialization.FuzzyCodec.decode	port	crates/sunrise-client-core/src/component.rs::to_text_with	the first matching content key wins, as the object branch does
+ComponentSerialization.createCodec	port	crates/sunrise-game-data/src/component.rs::to_text_with	JSON to text for strings, lists and objects
+ComponentSerialization.FuzzyCodec.decode	port	crates/sunrise-game-data/src/component.rs::to_text_with	the first matching content key wins, as the object branch does
 ComponentSerialization.FuzzyCodec.encode	skip:java		encode side; Text::component writes the JSON
 ComponentSerialization.FuzzyCodec.keys	skip:java		codec key listing
-ComponentSerialization.StrictEither.decode	port	crates/sunrise-client-core/src/component.rs::to_text_with	gap: minor: an explicit type field is not read; the content is matched by its key
+ComponentSerialization.StrictEither.decode	port	crates/sunrise-game-data/src/component.rs::to_text_with	gap: minor: an explicit type field is not read; the content is matched by its key
 ComponentSerialization.StrictEither.keys	skip:java		codec key listing
-ComponentUtils.resolve	port	crates/sunrise-client/src/game/administration/commands/text_commands.rs::Game::component_arg	gap: minor: hover text selectors stay unresolved (resolveStyle is missing)
+ComponentUtils.resolve	port	crates/sunrise-gameplay/src/game/administration/commands/text_commands.rs::Game::component_arg	gap: minor: hover text selectors stay unresolved (resolveStyle is missing)
 ComponentUtils.resolveStyle	missing		minor: a selector inside a show_text hover is not resolved for the source
-ComponentUtils.formatAndSortList	port	crates/sunrise-client/src/scoreboard_cmd.rs::format_names	gap: minor: the name formatter is fixed (green names); the list is sorted with gray commas
-ComponentUtils.fromMessage	port	crates/sunrise-client-core/src/text.rs::Text::from	a plain message becomes a literal
-ComponentUtils.isTranslationResolvable	port	crates/sunrise-client-core/src/lang.rs::has	gap: minor: the fallback case is handled in component.rs to_text_with, not here
+ComponentUtils.formatAndSortList	port	crates/sunrise-sim/src/scoreboard_cmd.rs::format_names	gap: minor: the name formatter is fixed (green names); the list is sorted with gray commas
+ComponentUtils.fromMessage	port	crates/sunrise-game-data/src/text.rs::Text::from	a plain message becomes a literal
+ComponentUtils.isTranslationResolvable	port	crates/sunrise-game-data/src/lang.rs::has	gap: minor: the fallback case is handled in component.rs to_text_with, not here
 FilterMask.apply	missing		minor: the server's text-filter masks are ignored, so filtered words show in full (only a text filter service sends masks)
 FilterMask.applyWithFormatting	missing		minor: masks are ignored, so filtered words are not replaced with # in gray (only a text filter service sends masks)
 FilterMask.equals	skip:java		value equality
 FilterMask.hashCode	skip:java		hashing
 FormattedText.of	skip:java		adapter from a String to FormattedText
-FormattedText.getString	port	crates/sunrise-client-core/src/text.rs::Text::plain
-HoverEvent.Action.filterForSerialization	port	crates/sunrise-client-core/src/component.rs::object_style	show_text, show_item and show_entity are kept; a show_entity hover draws its tooltip in chat with advanced item tooltips on
-HoverEvent.EntityTooltipInfo.getTooltipLines	port	crates/sunrise-client/src/game/interface/chat.rs::Game::entity_tooltip_lines	the name when the event has one, then the entity type and the uuid, for a show_entity hover
+FormattedText.getString	port	crates/sunrise-game-data/src/text.rs::Text::plain
+HoverEvent.Action.filterForSerialization	port	crates/sunrise-game-data/src/component.rs::object_style	show_text, show_item and show_entity are kept; a show_entity hover draws its tooltip in chat with advanced item tooltips on
+HoverEvent.EntityTooltipInfo.getTooltipLines	port	crates/sunrise-client-gameplay/src/game/interface/chat.rs::Game::entity_tooltip_lines	the name when the event has one, then the entity type and the uuid, for a show_entity hover
 HoverEvent.EntityTooltipInfo.equals	skip:java		value equality
 HoverEvent.EntityTooltipInfo.hashCode	skip:java		hashing
 LastSeenMessages.updateSignature	inline	crates/sunrise-protocol/src/secure_chat.rs::signed_payload	the last-seen list written into the signed payload
-LastSeenMessages.Packed.unpack	inline	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_player_chat_packet	PlayerChat arm
+LastSeenMessages.Packed.unpack	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_player_chat_packet	PlayerChat arm
 LastSeenMessages.Update.verifyChecksum	inline	crates/sunrise-protocol/src/secure_chat.rs::LastSeenValidator::apply_update	the checksum check; 0 means not checked
 LastSeenMessagesTracker.addPending	port	crates/sunrise-protocol/src/secure_chat.rs::LastSeenTracker::add_pending
 LastSeenMessagesTracker.addEntry	port	crates/sunrise-protocol/src/secure_chat.rs::LastSeenTracker::add_pending	inlined
@@ -60,25 +60,25 @@ LocalChatSession.createMessageEncoder	port	crates/sunrise-protocol/src/secure_ch
 MessageSignature.equals	skip:java		value equality
 MessageSignature.Packed.unpack	port	crates/sunrise-protocol/src/secure_chat.rs::SignatureCache::unpack
 MessageSignatureCache.push	port	crates/sunrise-protocol/src/secure_chat.rs::SignatureCache::push
-MutableComponent.withColor	port	crates/sunrise-client-core/src/text.rs::Text::with_color
+MutableComponent.withColor	port	crates/sunrise-game-data/src/text.rs::Text::with_color
 MutableComponent.getVisualOrderText	skip:ui		bidi reordering for drawing; Sunrise lays text out in logical order
 MutableComponent.equals	skip:java		value equality
 MutableComponent.hashCode	skip:java		hashing
 MutableComponent.toString	skip:debug		debug text
-OutgoingChatMessage.create	port	crates/sunrise-client/src/game/network/lan_chat.rs::Game::lan_broadcast_command_chat	a message without signing context goes out as a disguised chat; a signed one as player chat
-OutgoingChatMessage.Player.sendToPlayer	port	crates/sunrise-client/src/lan/hub/chat.rs::Hub::send_chat	gap: minor: the filter is always pass-through; the message goes to players who show chat
+OutgoingChatMessage.create	port	crates/sunrise-gameplay/src/game/network/lan_chat.rs::ServerGame::lan_broadcast_command_chat	a message without signing context goes out as a disguised chat; a signed one as player chat
+OutgoingChatMessage.Player.sendToPlayer	port	crates/sunrise-sim/src/lan/hub/chat.rs::Hub::send_chat	gap: minor: the filter is always pass-through; the message goes to players who show chat
 PlayerChatMessage.withUnsignedContent	missing		minor: the hub never sets unsigned content (there is no chat decorator), so decorated text is not sent
 PlayerChatMessage.removeUnsignedContent	missing		minor: unsigned content is never set, so there is nothing to remove
 PlayerChatMessage.filter	missing		minor: the hub sends pass-through filter masks; there is no text filter
-PlayerChatMessage.removeSignature	port	crates/sunrise-client/src/lan/hub/chat.rs::ChatMessage::new	the unsigned branch keeps the content and drops the signature and the last seen
+PlayerChatMessage.removeSignature	port	crates/sunrise-sim/src/lan/hub/chat.rs::ChatMessage::new	the unsigned branch keeps the content and drops the signature and the last seen
 PlayerChatMessage.verify	port	crates/sunrise-protocol/src/secure_chat.rs::MessageValidator::update_and_validate	the signature over the link and body; also the chain check of Chain::unpack on the server
 PlayerChatMessage.hasSignatureFrom	missing		minor: only decides whether a text filter runs for the message; Sunrise runs no text filter
 PlayerChatMessage.describeSigned	skip:debug		log text for a rejected message
 RemoteChatSession.createMessageValidator	port	crates/sunrise-protocol/src/secure_chat.rs::MessageValidator::keyed	the expiry takes the 8 hour grace period (EXPIRY_GRACE_PERIOD)
 ResolutionContext.Builder.build	skip:java		builder
-SignableCommand.getArgument	port	crates/sunrise-client/src/lan/hub/chat.rs::Hub::signed_arguments	the command's message arguments, looked up by name
+SignableCommand.getArgument	port	crates/sunrise-sim/src/lan/hub/chat.rs::Hub::signed_arguments	the command's message arguments, looked up by name
 SignedMessageBody.updateSignature	inline	crates/sunrise-protocol/src/secure_chat.rs::signed_payload	salt, time, content and last seen in the signed payload
-SignedMessageBody.Packed.unpack	inline	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_player_chat_packet	PlayerChat arm: the last seen only, the body is not kept
+SignedMessageBody.Packed.unpack	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_player_chat_packet	PlayerChat arm: the last seen only, the body is not kept
 SignedMessageChain.encoder	port	crates/sunrise-protocol/src/secure_chat.rs::Encoder::sign
 SignedMessageChain.Decoder.unsigned	port	crates/sunrise-protocol/src/secure_chat.rs::Chain::unpack	no session: unsigned, or refused when the server enforces secure chat
 SignedMessageLink.updateSignature	inline	crates/sunrise-protocol/src/secure_chat.rs::signed_payload	sender, session and index in the signed payload
@@ -89,55 +89,55 @@ SignedMessageValidator.KeyBased.validate	port	crates/sunrise-protocol/src/secure
 SignedMessageValidator.KeyBased.updateAndValidate	port	crates/sunrise-protocol/src/secure_chat.rs::MessageValidator::update_and_validate	a failed message breaks the chain: nothing more is accepted
 Style.create	skip:java		builder from optionals; Style is a plain struct
 Style.checkEmptyAfterChange	skip:java		canonical empty style instance
-Style.withShadowColor	port	crates/sunrise-client-core/src/component.rs::shadow_color	the style's shadow colour is kept on Style (text.rs:92) as packed ARGB, read from a packed int or a normalized RGBA array and written back out
-Style.withBold	port	crates/sunrise-client-core/src/text.rs::Text::bold	gap: minor: sets true only; a null or false setter is not kept
-Style.withItalic	port	crates/sunrise-client-core/src/text.rs::Text::italic	gap: minor: sets true only; a null or false setter is not kept
-Style.withUnderlined	port	crates/sunrise-client-core/src/text.rs::Text::underlined	gap: minor: sets true only; a null or false setter is not kept
+Style.withShadowColor	port	crates/sunrise-game-data/src/component.rs::shadow_color	the style's shadow colour is kept on Style (text.rs:92) as packed ARGB, read from a packed int or a normalized RGBA array and written back out
+Style.withBold	port	crates/sunrise-game-data/src/text.rs::Text::bold	gap: minor: sets true only; a null or false setter is not kept
+Style.withItalic	port	crates/sunrise-game-data/src/text.rs::Text::italic	gap: minor: sets true only; a null or false setter is not kept
+Style.withUnderlined	port	crates/sunrise-game-data/src/text.rs::Text::underlined	gap: minor: sets true only; a null or false setter is not kept
 Style.withStrikethrough	skip:java		field setter; the field is set in object_style and legacy
 Style.withObfuscated	skip:java		field setter; the field is parsed but nothing draws it
 Style.withClickEvent	skip:java		field setter; the click field is set in object_style
 Style.withHoverEvent	skip:java		field setter; the hover field is set in object_style
 Style.withInsertion	skip:java		field setter; the insertion field is set in object_style
 Style.withFont	skip:java		field setter; the font field is set in object_style
-Style.applyFormat	port	crates/sunrise-client-core/src/text.rs::Text::with_style	gap: minor: the format is a style over the text; fields already set are kept, not overwritten
-Style.applyFormats	port	crates/sunrise-client-core/src/text.rs::Text::with_style	gap: minor: the formats are a style over the text; fields already set are kept, not overwritten
+Style.applyFormat	port	crates/sunrise-game-data/src/text.rs::Text::with_style	gap: minor: the format is a style over the text; fields already set are kept, not overwritten
+Style.applyFormats	port	crates/sunrise-game-data/src/text.rs::Text::with_style	gap: minor: the formats are a style over the text; fields already set are kept, not overwritten
 Style.toString	skip:debug		debug text
 Style.equals	skip:java		value equality
 Style.hashCode	skip:java		hashing
 SubStringSource.substring	skip:ui		splits text into style runs for drawing; the HUD draws each span with its own style
 SubStringSource.create	skip:ui		builds the per-character styles for drawing
 TextColor.named	skip:data		named colour table (COLORS)
-TextColor.formatValue	port	crates/sunrise-client-core/src/text.rs::style_json	a colour is written as its name or #RRGGBB
+TextColor.formatValue	port	crates/sunrise-game-data/src/text.rs::style_json	a colour is written as its name or #RRGGBB
 TextColor.equals	skip:java		value equality
 TextColor.hashCode	skip:java		hashing
 TextColor.fromLegacyFormat	port	crates/sunrise-core/src/text.rs::named_color	looked up by name: formatting names are the colour names
-TextColor.parseColor	port	crates/sunrise-client-core/src/component.rs::object_style	gap: minor: no range check on #hex; vanilla rejects values above #FFFFFF
-KeybindContents.getNestedComponent	port	crates/sunrise-client-core/src/key_display.rs::display_name	the key's display text
-KeybindContents.visit	port	crates/sunrise-client-core/src/key_display.rs::display_name	visits the nested key text
+TextColor.parseColor	port	crates/sunrise-game-data/src/component.rs::object_style	gap: minor: no range check on #hex; vanilla rejects values above #FFFFFF
+KeybindContents.getNestedComponent	port	crates/sunrise-game-data/src/key_display.rs::display_name	the key's display text
+KeybindContents.visit	port	crates/sunrise-game-data/src/key_display.rs::display_name	visits the nested key text
 KeybindContents.equals	skip:java		value equality
-ObjectContents.resolve	inline	crates/sunrise-client-core/src/component.rs::inline_object	the object's own fallback text: '[sprite]' for a sprite and '[name head]' for a player head, replaced by the drawn sprite
+ObjectContents.resolve	inline	crates/sunrise-game-data/src/component.rs::inline_object	the object's own fallback text: '[sprite]' for a sprite and '[name head]' for a player head, replaced by the drawn sprite
 ObjectContents.visit	port	crates/sunrise-client-render/src/hud/batch.rs::draw_inline_object	the sprite or player head is drawn at the text's U+FFFC placeholder span, with the hat toggle and the span's tint
 PlainTextContents.LiteralContents.visit	skip:java		leaf of the visit walk; Text holds the literal in its spans
-ScoreContents.findTargetName	inline	crates/sunrise-client/src/game/administration/commands/text_commands.rs::Game::resolve_score_component	a selector matching one entity is that entity, none is the name, more than one is an error
-ScoreContents.getScore	port	crates/sunrise-client/src/game/administration/commands/text_commands.rs::Game::resolve_score_component	the objective's value in the holder's format; empty when there is none
-SelectorContents.resolve	port	crates/sunrise-client/src/game/administration/commands/text_commands.rs::Game::component_arg	gap: minor: the separator is always ', '
-SelectorContents.visit	port	crates/sunrise-client-core/src/component.rs::to_text	with a literal resolver the selector text is shown, as visit does
+ScoreContents.findTargetName	inline	crates/sunrise-gameplay/src/game/administration/commands/text_commands.rs::Game::resolve_score_component	a selector matching one entity is that entity, none is the name, more than one is an error
+ScoreContents.getScore	port	crates/sunrise-gameplay/src/game/administration/commands/text_commands.rs::Game::resolve_score_component	the objective's value in the holder's format; empty when there is none
+SelectorContents.resolve	port	crates/sunrise-gameplay/src/game/administration/commands/text_commands.rs::Game::component_arg	gap: minor: the separator is always ', '
+SelectorContents.visit	port	crates/sunrise-game-data/src/component.rs::to_text	with a literal resolver the selector text is shown, as visit does
 TranslatableContents.filterAllowedArguments	skip:java		codec filter; Text arguments are typed
 TranslatableContents.isAllowedPrimitiveArgument	skip:java		Text arguments are typed
 TranslatableContents.adjustArgs	skip:java		argument list builder
 TranslatableContents.create	skip:java		codec factory
-TranslatableContents.decompose	port	crates/sunrise-client-core/src/text.rs::format_translation	the template parsed into parts; the fallback is handled in to_text_with
-TranslatableContents.getArgument	inline	crates/sunrise-client-core/src/text.rs::format_translation	a missing argument index shows the raw template
-TranslatableContents.visit	inline	crates/sunrise-client-core/src/text.rs::format_translation	the parts in order; no reference-cycle guard is needed for eager text
-TranslatableContents.resolve	port	crates/sunrise-client/src/game/administration/commands/text_commands.rs::Game::component_arg	the arguments are resolved with the rest of the tree
+TranslatableContents.decompose	port	crates/sunrise-game-data/src/text.rs::format_translation	the template parsed into parts; the fallback is handled in to_text_with
+TranslatableContents.getArgument	inline	crates/sunrise-game-data/src/text.rs::format_translation	a missing argument index shows the raw template
+TranslatableContents.visit	inline	crates/sunrise-game-data/src/text.rs::format_translation	the parts in order; no reference-cycle guard is needed for eager text
+TranslatableContents.resolve	port	crates/sunrise-gameplay/src/game/administration/commands/text_commands.rs::Game::component_arg	the arguments are resolved with the rest of the tree
 TranslatableContents.equals	skip:java		value equality
 TranslatableContents.hashCode	skip:java		hashing
 TranslatableContents.toString	skip:debug		debug text
-BlockDataSource.getData	inline	crates/sunrise-client/src/game/administration/commands/text_commands.rs::Game::resolve_nbt_component	the block branch: the block's data for an nbt component
-EntityDataSource.getData	inline	crates/sunrise-client/src/game/administration/commands/text_commands.rs::Game::resolve_nbt_component	the entity branch: the entity's data for an nbt component
-AtlasSprite.toShortName	inline	crates/sunrise-client-core/src/component.rs::inline_object	a minecraft id drops its namespace, any other id keeps it
-AtlasSprite.defaultFallback	inline	crates/sunrise-client-core/src/component.rs::inline_object	'[sprite]', or '[sprite@atlas]' when the atlas is not minecraft:blocks
-PlayerSprite.defaultFallback	inline	crates/sunrise-client-core/src/component.rs::inline_object	'[name head]', or '[unknown player head]' for a profile with no name
+BlockDataSource.getData	inline	crates/sunrise-gameplay/src/game/administration/commands/text_commands.rs::Game::resolve_nbt_component	the block branch: the block's data for an nbt component
+EntityDataSource.getData	inline	crates/sunrise-gameplay/src/game/administration/commands/text_commands.rs::Game::resolve_nbt_component	the entity branch: the entity's data for an nbt component
+AtlasSprite.toShortName	inline	crates/sunrise-game-data/src/component.rs::inline_object	a minecraft id drops its namespace, any other id keeps it
+AtlasSprite.defaultFallback	inline	crates/sunrise-game-data/src/component.rs::inline_object	'[sprite]', or '[sprite@atlas]' when the atlas is not minecraft:blocks
+PlayerSprite.defaultFallback	inline	crates/sunrise-game-data/src/component.rs::inline_object	'[name head]', or '[unknown player head]' for a profile with no name
 NumberFormatTypes.bootstrap	skip:data		registry bootstrap of number format types
 ByteBufCodecs.compoundTagCodec	port	crates/sunrise-protocol/src/buf.rs::Nbt::read	gap: minor: any NBT tag is accepted where a compound is required
 ByteBufCodecs.fromCodec	skip:java		generic codec adapter

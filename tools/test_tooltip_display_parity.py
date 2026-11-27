@@ -158,7 +158,7 @@ def main():
         'tooltip-display-parity', 'VanillaTooltipDisplayOracle', 'tooltip_display_fixture', cases,
         'Tooltip visibility, styled custom-name inheritance, and 26.3 tooltip_style sprite selection',
         sources=[
-            lab.ROOT / 'crates/sunrise-client/src/game/blocks/stations.rs',
+            lab.ROOT / 'crates/sunrise-client-gameplay/src/game/blocks/stations.rs',
             lab.ROOT / 'crates/sunrise-client/src/item_tooltip.rs',
             lab.ROOT / 'crates/sunrise-client-render/src/ui.rs',
             lab.ROOT / 'crates/sunrise-items/src/item_data.rs',

@@ -1,4 +1,4 @@
-<!-- Generated from crates/sunrise-client/src/game/runtime/launch_api.rs; a test fails when this file is out of date. Update it with: SUNRISE_WRITE_DOCS=1 cargo test -p sunrise-client --lib launch_api -->
+<!-- Generated from crates/sunrise-gameplay-common/src/game/runtime/launch_api.rs; a test fails when this file is out of date. Update it with: SUNRISE_WRITE_DOCS=1 cargo test -p sunrise-gameplay-common --lib launch_api -->
 # Launch API reference
 
 What `sunrise-client` promises a launcher that starts it, Launch API 0.1.1. The guide: [launch.md](launch.md); stability and versions: [stability.md](stability.md).

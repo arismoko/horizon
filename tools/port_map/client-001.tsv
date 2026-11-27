@@ -7,17 +7,17 @@ AccountProfileKeyPairManager.fetchProfileKeyPair	port	crates/sunrise-client-rend
 AccountProfileKeyPairManager.parsePublicKey	port	crates/sunrise-client-render/src/auth.rs::parse_certificates	publicKeySignatureV2, expiresAt
 CacheSlot.compute	skip:java		memo slot for a computed value; Sunrise has no per-context cache slot
 ChunkBatchSizeCalculator.onBatchFinished	port	crates/sunrise-protocol/src/chunk_batch.rs::ChunkBatchSize::on_batch_finished	timed on the network thread; the load bots share it
-ClientAdvancements.setSelectedTab	port	crates/sunrise-client/src/game/interface/advancements_screen.rs::Game::select_advancement_tab	reports the selected tab and keeps its root ID on the connection
+ClientAdvancements.setSelectedTab	port	crates/sunrise-client-gameplay/src/game/interface/advancements_screen.rs::Game::select_advancement_tab	reports the selected tab and keeps its root ID on the connection
 ClientAdvancements.setListener	skip:ui		the open screen handles update callbacks directly; packet-backed opening clears the screen tab and replays roots so the first tab is selected
-ClientAdvancements.get	port	crates/sunrise-client/src/advancements.rs::Tree::get	returns the advancement by id; holder wrapper is not needed
+ClientAdvancements.get	port	crates/sunrise-sim/src/advancements.rs::Tree::get	returns the advancement by id; holder wrapper is not needed
 ClientChunkCache.isValidChunk	skip:other		chunks are stored by position, so there is no ring slot to check
-ClientChunkCache.drop	port	crates/sunrise-client-render/src/streaming.rs::Streaming::forget_columns	Game::client_chunk_unload tells mods (client_chunk_unload) before the column is freed; block entities and renderer columns are cleared in Game::apply_forget_level_chunk_packet
+ClientChunkCache.drop	port	crates/sunrise-client-render/src/streaming.rs::MeshStreamer::forget_columns	Game::client_chunk_unload tells mods (client_chunk_unload) before the column is freed; block entities and renderer columns are cleared in Game::apply_forget_level_chunk_packet
 ClientChunkCache.getChunk	skip:java		lookup of a loaded chunk; Sunrise reads world.chunks directly
-ClientChunkCache.replaceBiomes	port	crates/sunrise-client/src/game/network/remote_chunks.rs::Game::remote_chunks_biomes	each loaded column takes the packet's biomes per section, then it and its neighbours are marked dirty so their sections are drawn again (/fillbiome reaches the client)
+ClientChunkCache.replaceBiomes	port	crates/sunrise-client-gameplay/src/game/network/remote_chunks.rs::Game::remote_chunks_biomes	each loaded column takes the packet's biomes per section, then it and its neighbours are marked dirty so their sections are drawn again (/fillbiome reaches the client)
 ClientChunkCache.flipUpdateTrackingSets	skip:other		double-buffered change lists for LevelRenderer; Sunrise hands changed columns to the renderer directly
 ClientChunkCache.Storage.getIndex	skip:java		ring-buffer index into the view range; Sunrise keys chunks by position
-ClientChunkCache.Storage.replace	port	crates/sunrise-client/src/game/network/remote_chunks.rs::Game::remote_chunk	gap: minor: old chunk unload is in Streaming::forget, not here
-ClientChunkCache.Storage.drop	port	crates/sunrise-client-render/src/streaming.rs::Streaming::forget_columns	forgets the chunk at the index
+ClientChunkCache.Storage.replace	port	crates/sunrise-client-gameplay/src/game/network/remote_chunks.rs::Game::remote_chunk	gap: minor: old chunk unload is in MeshStreamer::forget, not here
+ClientChunkCache.Storage.drop	port	crates/sunrise-client-render/src/streaming.rs::MeshStreamer::forget_columns	forgets the chunk at the index
 ClientChunkCache.Storage.onSectionEmptinessChanged	skip:java		empty-section sets for the renderer's culling; Sunrise's mesher works from block data
 ClientChunkCache.Storage.onChunkRemoved	skip:java		empty-section bookkeeping when a chunk leaves; see Storage.onSectionEmptinessChanged
 ClientChunkCache.Storage.onChunkAdded	skip:java		empty-section bookkeeping when a chunk arrives; see Storage.onSectionEmptinessChanged
@@ -31,22 +31,22 @@ ClientCommonPacketListenerImpl.storeDisconnectionReport	skip:debug		writes the d
 ClientCommonPacketListenerImpl.shouldHandleMessage	inline	crates/sunrise-client/src/net.rs::receive_play	minor: receive_play returns at Transfer, so nothing else is read after a transfer starts
 ClientCommonPacketListenerImpl.handleKeepAlive	port	crates/sunrise-client/src/net.rs::receive_play	gap: minor: the keep-alive reply is sent at once; vanilla defers it while the game is frozen at poll events
 ClientCommonPacketListenerImpl.handleCustomPayload	port	crates/sunrise-client/src/net.rs::receive_brand	gap: minor: reads the brand only; other custom payloads go to the game and are ignored
-ClientCommonPacketListenerImpl.handleResourcePackPush	port	crates/sunrise-client/src/game/world/server_packs.rs::Game::handle_pack_push
-ClientCommonPacketListenerImpl.handleResourcePackPop	port	crates/sunrise-client/src/game/world/server_packs.rs::Game::handle_pack_pop
-ClientCommonPacketListenerImpl.handlePostEffects	inline	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet
-ClientCommonPacketListenerImpl.preparePackPrompt	port	crates/sunrise-client/src/game/world/server_packs.rs::PackPrompt::texts	builds the server prompt line from the header and the server's prompt
+ClientCommonPacketListenerImpl.handleResourcePackPush	port	crates/sunrise-client-gameplay/src/game/world/server_packs.rs::Game::handle_pack_push
+ClientCommonPacketListenerImpl.handleResourcePackPop	port	crates/sunrise-client-gameplay/src/game/world/server_packs.rs::Game::handle_pack_pop
+ClientCommonPacketListenerImpl.handlePostEffects	inline	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet
+ClientCommonPacketListenerImpl.preparePackPrompt	port	crates/sunrise-client-gameplay/src/game/world/server_packs.rs::PackPrompt::texts	builds the server prompt line from the header and the server's prompt
 ClientCommonPacketListenerImpl.handleStoreCookie	port	crates/sunrise-client/src/net.rs::receive_play	stores the cookie for a later transfer or cookie request
 ClientCommonPacketListenerImpl.handleCustomReportDetails	skip:debug		extra lines for crash reports only
-ClientCommonPacketListenerImpl.showDialog	port	crates/sunrise-client/src/game/interface/dialogs.rs::Game::show_play_dialog	shows a direct or registry dialog
-ClientCommonPacketListenerImpl.clearDialog	port	crates/sunrise-client/src/game/interface/dialogs.rs::Game::clear_dialog	closes the dialog screen
+ClientCommonPacketListenerImpl.showDialog	port	crates/sunrise-client-gameplay/src/game/interface/dialogs.rs::Game::show_play_dialog	shows a direct or registry dialog
+ClientCommonPacketListenerImpl.clearDialog	port	crates/sunrise-client-gameplay/src/game/interface/dialogs.rs::Game::clear_dialog	closes the dialog screen
 ClientCommonPacketListenerImpl.sendDeferredPackets	missing		minor: no deferred-packet queue; keep-alive and other packets are sent at once
-ClientCommonPacketListenerImpl.onDisconnect	port	crates/sunrise-client/src/game/network/remote/session.rs::Game::leave_server	shows the disconnect reason on the multiplayer screen; no telemetry
+ClientCommonPacketListenerImpl.onDisconnect	port	crates/sunrise-client-gameplay/src/game/network/remote/session_client.rs::Game::leave_server	shows the disconnect reason on the multiplayer screen; no telemetry
 ClientCommonPacketListenerImpl.fillListenerSpecificCrashDetails	skip:debug		crash report details only
-ClientCommonPacketListenerImpl.createDisconnectScreen	port	crates/sunrise-client/src/game/network/remote/session.rs::Game::leave_server	disconnected view with the reason (Screen::Disconnected)
+ClientCommonPacketListenerImpl.createDisconnectScreen	port	crates/sunrise-client-gameplay/src/game/network/remote/session_client.rs::Game::leave_server	disconnected view with the reason (Screen::Disconnected)
 ClientCommonPacketListenerImpl.sendWhen	missing		minor: no deferred sends; packets go out at once (see handleKeepAlive)
-ClientCommonPacketListenerImpl.addOrUpdatePackPrompt	port	crates/sunrise-client/src/game/world/server_packs.rs::Game::handle_pack_push	one prompt holds every pack pushed before it is answered
-ClientCommonPacketListenerImpl.PackConfirmScreen.<init>	port	crates/sunrise-client/src/game/world/server_packs.rs::Game::handle_pack_push	creates the prompt with its pending requests
-ClientCommonPacketListenerImpl.PackConfirmScreen.update	port	crates/sunrise-client/src/game/world/server_packs.rs::Game::handle_pack_push	adds the new request to the open prompt
+ClientCommonPacketListenerImpl.addOrUpdatePackPrompt	port	crates/sunrise-client-gameplay/src/game/world/server_packs.rs::Game::handle_pack_push	one prompt holds every pack pushed before it is answered
+ClientCommonPacketListenerImpl.PackConfirmScreen.<init>	port	crates/sunrise-client-gameplay/src/game/world/server_packs.rs::Game::handle_pack_push	creates the prompt with its pending requests
+ClientCommonPacketListenerImpl.PackConfirmScreen.update	port	crates/sunrise-client-gameplay/src/game/world/server_packs.rs::Game::handle_pack_push	adds the new request to the open prompt
 ClientConfigurationPacketListenerImpl.handleRegistryData	port	crates/sunrise-client/src/net.rs::configure	registry entries are collected in configuration
 ClientConfigurationPacketListenerImpl.handleUpdateTags	port	crates/sunrise-client/src/net.rs::configure	UpdateTags fills the registry's tags before the play state, so a datapack's tags are the server's
 ClientConfigurationPacketListenerImpl.handleSelectKnownPacks	port	crates/sunrise-client/src/net.rs::configure	gap: minor: always answers with no known packs, so the server sends every registry entry
@@ -55,8 +55,8 @@ ClientConfigurationPacketListenerImpl.handleCodeOfConduct	port	crates/sunrise-cl
 ClientConfigurationPacketListenerImpl.handleConfigurationFinished	port	crates/sunrise-client/src/net.rs::configure	gap: minor: no registry filter for an integrated server (see filterRegistries)
 ClientConfigurationPacketListenerImpl.filterRegistries	skip:data		Sunrise's registries come from its own data; nothing to filter
 ClientDebugSubscriber.requestedSubscriptions	port	crates/sunrise-client/src/debug_chart.rs::DebugCharts::subscription_request	only the tick time while the F3+2 charts show
-ClientDebugSubscriber.tick	port	crates/sunrise-client/src/game/interface/debug_keys.rs::Game::tick_debug_charts	sends the request when the set changes; no other subscriptions to purge
-ClientDebugSubscriber.onSubscriptionsChanged	port	crates/sunrise-client/src/game/interface/debug_keys.rs::Game::tick_debug_charts	sends ServerboundDebugSubscriptionRequest
+ClientDebugSubscriber.tick	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::Game::tick_debug_charts	sends the request when the set changes; no other subscriptions to purge
+ClientDebugSubscriber.onSubscriptionsChanged	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::Game::tick_debug_charts	sends ServerboundDebugSubscriptionRequest
 ClientDebugSubscriber.initializeSubscriptions	skip:java		creates empty value maps per subscription
 ClientDebugSubscriber.getValueMap	skip:java		map accessor for debug values
 ClientDebugSubscriber.getValue	skip:java		value accessor for debug values
@@ -71,8 +71,8 @@ ClientDebugSubscriber.ValueMap.forEach	skip:java		iteration helper
 ClientDebugSubscriber.ValueMaps.purgeExpired	missing		minor: expiry of server debug values; none are received
 ClientDebugSubscriber.ValueMaps.dropChunkAndBlocks	missing		minor: drops server debug values per chunk; none are received
 ClientDebugSubscriber.ValueWrapper.hasExpired	skip:java		timestamp check on a debug value wrapper
-ClientExplosionTracker.track	port	crates/sunrise-client-render/src/particles.rs::ParticleEngine::track_explosion	gap: minor: queues explosions for debris generation during ClientExplosionTracker.tick
-ClientExplosionTracker.addParticle	inline	crates/sunrise-client-render/src/particles.rs::ParticleEngine::tick_explosions_with	gap: minor: always the default poof and smoke list; the explode packet's own block particle list is not read
+ClientExplosionTracker.track	port	crates/sunrise-client-render/src/particles/explosions.rs::ParticleEngine::track_explosion	gap: minor: queues explosions for debris generation during ClientExplosionTracker.tick
+ClientExplosionTracker.addParticle	inline	crates/sunrise-client-render/src/particles/explosions.rs::ParticleEngine::tick_explosions_with	gap: minor: always the default poof and smoke list; the explode packet's own block particle list is not read
 ClientHandshakePacketListenerImpl.switchState	inline	crates/sunrise-client/src/net.rs::run	login steps run in packet order in run(); no state machine
 ClientHandshakePacketListenerImpl.handleHello	port	crates/sunrise-client/src/net.rs::run	gap: minor: the session join and server check are in auth.rs (join_server); the encryption setup is in run
 ClientHandshakePacketListenerImpl.setEncryption	port	crates/sunrise-client/src/net.rs::run	enables the connection cipher
@@ -81,37 +81,37 @@ ClientHandshakePacketListenerImpl.onDisconnect	port	crates/sunrise-client/src/ne
 ClientHandshakePacketListenerImpl.handleCompression	port	crates/sunrise-client/src/net.rs::run	sets the compression threshold
 ClientHandshakePacketListenerImpl.handleCustomQuery	port	crates/sunrise-client/src/net.rs::run	answers an unknown custom query with no data
 ClientHandshakePacketListenerImpl.fillListenerSpecificCrashDetails	skip:debug		crash report details only
-ClientLevel.handleBlockChangedAck	port	crates/sunrise-client/src/game/network/remote/break_prediction.rs::Game::end_predictions	settles the predicted block actions up to the sequence
-ClientLevel.onBlockEntityAdded	port	crates/sunrise-client/src/game.rs::Game::entity_geometry	off-screen block entities (beacon, end gateway, structure and test blocks) are drawn without a view test
-ClientLevel.syncBlockState	port	crates/sunrise-client/src/game/network/remote/break_prediction.rs::Game::end_predictions	gap: minor: writes the server's state but does not move the player out when the block would sit on them (absSnapTo)
-ClientLevel.setBlock	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::set_block	gap: minor: the prediction bookkeeping is in Game::server_block
-ClientLevel.<init>	port	crates/sunrise-client/src/game/network/remote/session.rs::Game::enter_remote_dimension	gap: minor: the environment layers are applied in Game::render
-ClientLevel.addEnvironmentAttributeLayers	port	crates/sunrise-client/src/game.rs::Game::render	sky colour and sky light move during a lightning flash
+ClientLevel.handleBlockChangedAck	port	crates/sunrise-client-gameplay/src/game/network/remote/break_prediction_client.rs::Game::end_predictions	settles the predicted block actions up to the sequence
+ClientLevel.onBlockEntityAdded	port	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::entity_geometry	off-screen block entities (beacon, end gateway, structure and test blocks) are drawn without a view test
+ClientLevel.syncBlockState	port	crates/sunrise-client-gameplay/src/game/network/remote/break_prediction_client.rs::Game::end_predictions	gap: minor: writes the server's state but does not move the player out when the block would sit on them (absSnapTo)
+ClientLevel.setBlock	port	crates/sunrise-world/src/level/mod.rs::Game::set_block	gap: minor: the prediction bookkeeping is in Game::server_block
+ClientLevel.<init>	port	crates/sunrise-client-gameplay/src/game/network/remote/session_client.rs::Game::enter_remote_dimension	gap: minor: the environment layers are applied in Game::render
+ClientLevel.addEnvironmentAttributeLayers	port	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::render	sky colour and sky light move during a lightning flash
 ClientLevel.pollLightUpdates	skip:other		light is applied when it arrives or relit at once (light.rs relight); there is no queue to poll
-ClientLevel.getPrecipitationAt	port	crates/sunrise-client/src/game/world/weather.rs::precipitation_at	requires a loaded column, then uses the seeded block biome and the joined level's sea level
-ClientLevel.removeBlockBreakingProgress	inline	crates/sunrise-client/src/game/modding/client_cracks.rs::Game::destroy_block_progress	minor: the 400-tick expiry runs on every update, not every 20 ticks
-ClientLevel.removeProgress	inline	crates/sunrise-client/src/game/modding/client_cracks.rs::Game::destroy_block_progress	cracks are keyed by breaker id, so there are no per-position sets to tidy
+ClientLevel.getPrecipitationAt	port	crates/sunrise-gameplay-common/src/game/world/weather.rs::precipitation_at	requires a loaded column, then uses the seeded block biome and the joined level's sea level
+ClientLevel.removeBlockBreakingProgress	inline	crates/sunrise-client-gameplay/src/game/blocks/block_breaking.rs::ClientGame::destroy_block_progress	minor: the 400-tick expiry runs on every update, not every 20 ticks
+ClientLevel.removeProgress	inline	crates/sunrise-client-gameplay/src/game/blocks/block_breaking.rs::ClientGame::destroy_block_progress	cracks are keyed by breaker id, so there are no per-position sets to tidy
 ClientLevel.shouldTickDeath	missing		minor: death animations tick for every remote mob held; no simulation-distance check
-ClientLevel.tickNonPassenger	port	crates/sunrise-client/src/game/network/remote/tick.rs::Game::tick_remote_entities	ticks each remote entity
-ClientLevel.tickPassenger	port	crates/sunrise-client/src/game/entities/passengers.rs::Game::position_riders	gap: minor: passengers are placed on their vehicle; no per-passenger tick
+ClientLevel.tickNonPassenger	port	crates/sunrise-client-gameplay/src/game/network/remote/tick_client.rs::Game::tick_remote_entities	ticks each remote entity
+ClientLevel.tickPassenger	port	crates/sunrise-gameplay-common/src/game/entities/passengers_common.rs::Game::position_riders	gap: minor: passengers are placed on their vehicle; no per-passenger tick
 ClientLevel.update	skip:other		runs the light queue each tick; Sunrise relights when changes arrive
-ClientLevel.unload	inline	crates/sunrise-client/src/game/network/remote/packets_world.rs::Game::apply_forget_level_chunk_packet	minor: the ForgetLevelChunk arm clears block entities and renderer columns; light and entity ticking are not toggled
-ClientLevel.onChunkLoaded	inline	crates/sunrise-client/src/game/network/remote_chunks.rs::Game::remote_chunk	minor: chunks are meshed on arrival; no tint cache to clear and no entity-ticking gate
-ClientLevel.removeEntity	port	crates/sunrise-client/src/game/network/remote_removal.rs::Game::remove_entity	removes the entity and its passengers
+ClientLevel.unload	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_world_client.rs::Game::apply_forget_level_chunk_packet	minor: the ForgetLevelChunk arm clears block entities and renderer columns; light and entity ticking are not toggled
+ClientLevel.onChunkLoaded	inline	crates/sunrise-client-gameplay/src/game/network/remote_chunks.rs::Game::remote_chunk	minor: chunks are meshed on arrival; no tint cache to clear and no entity-ticking gate
+ClientLevel.removeEntity	port	crates/sunrise-client-gameplay/src/game/network/remote_removal.rs::Game::remove_entity	removes the entity and its passengers
 ClientLevel.getPushableEntities	missing		minor: the client does not push the local player with nearby mobs or boats; the server's position correction moves it
-ClientLevel.disconnect	port	crates/sunrise-client/src/game/network/remote/session.rs::Game::leave_server	gap: minor: no presence update
+ClientLevel.disconnect	port	crates/sunrise-client-gameplay/src/game/network/remote/session_client.rs::Game::leave_server	gap: minor: no presence update
 ClientLevel.spawnParticle	port	crates/sunrise-client/src/animate_tick.rs::try_spawn_drip	drip particle from a block shape (doAnimateTick)
 ClientLevel.spawnFluidParticle	port	crates/sunrise-client/src/animate_tick.rs::try_spawn_drip	drip particle over a solid top (doAnimateTick)
 ClientLevel.fillReportDetails	skip:debug		crash report details only
 ClientLevel.playPlayerSound	skip:other		no caller in the 26.3 client sources
 ClientLevel.playSound	port	crates/sunrise-client-render/src/audio.rs::Audio::play_distance_delayed	a sound over 10 blocks from the camera starts sqrt(distance)/40 s later (Audio::play_after)
 ClientLevel.getRelativeTickSpeed	skip:other		no caller in the 26.3 client sources
-ClientLevel.destroyBlockProgress	port	crates/sunrise-client/src/game/modding/client_cracks.rs::Game::destroy_block_progress	sets or clears another player's crack on a block
+ClientLevel.destroyBlockProgress	port	crates/sunrise-client-gameplay/src/game/blocks/block_breaking.rs::ClientGame::destroy_block_progress	sets or clears another player's crack on a block
 ClientLevel.addAlwaysVisibleParticle	port	crates/sunrise-client-render/src/particles.rs::ParticleEngine::add_with	always-show flag set
 ClientLevel.doAddParticle	port	crates/sunrise-client-render/src/particles.rs::ParticleEngine::add_with	drops particles beyond 32 blocks and at minimal particle level
-ClientLevel.getSkyFlashTime	inline	crates/sunrise-client/src/game.rs::Game::render	the flash check with the hideLightningFlashes option
+ClientLevel.getSkyFlashTime	inline	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::render	the flash check with the hideLightningFlashes option
 ClientLevel.calculateBlockTint	port	crates/sunrise-client-render/src/mesher.rs::MeshTables::terrain_particle_tint	gap: minor: returns none for grass-block tints
-ClientLevel.playBreakingSound	port	crates/sunrise-client/src/game/interface/level_particles.rs::Game::breaking_block_effects	the block's hit sound while digging
+ClientLevel.playBreakingSound	port	crates/sunrise-client-gameplay/src/game/interface/level_particles_client.rs::Game::breaking_block_effects	the block's hit sound while digging
 ClientLevel.getClientLeafTintColor	port	crates/sunrise-client/src/animate_tick.rs::AnimateContext::foliage	leaf tint for tinted leaves particles; the caller is TintedParticleLeavesBlock
-ClientLevel.EntityCallbacks.onTrackingStart	inline	crates/sunrise-client/src/game/network/remote/tracking.rs::Game::spawn_entity	minor: ender dragon parts are placed by the dragon module, with no tracked parts list
-ClientLevel.EntityCallbacks.onTrackingEnd	port	crates/sunrise-client/src/game/network/remote_removal.rs::Game::remove_entity	minor: detaches passengers and removes the dragon's parts; the leave-level event is not posted
+ClientLevel.EntityCallbacks.onTrackingStart	inline	crates/sunrise-client-gameplay/src/game/network/remote/tracking_client.rs::Game::spawn_entity	minor: ender dragon parts are placed by the dragon module, with no tracked parts list
+ClientLevel.EntityCallbacks.onTrackingEnd	port	crates/sunrise-client-gameplay/src/game/network/remote_removal.rs::Game::remove_entity	minor: detaches passengers and removes the dragon's parts; the leave-level event is not posted

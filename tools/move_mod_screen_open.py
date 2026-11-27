@@ -2,7 +2,7 @@
 """Pure-move mod screen construction out of the shared gameplay module."""
 from pathlib import Path
 root = Path(__file__).resolve().parents[1]
-p = root / 'crates/sunrise-client/src/game/native_hooks/shared.rs'
+p = root / 'crates/sunrise-gameplay-common/src/game/native_hooks/shared.rs'
 s = p.read_text()
 a = s.index('    /// The container slots (of `size`)')
 b = s.index('    /// A data slot of window', a)

@@ -34,7 +34,7 @@ pub trait Hooks {
         key = "state",
         host = "level",
         version = 4,
-        target = "sunrise_client::game::native_hooks::sound_type::FrictionView<'_>::native_sound_type",
+        target = "sunrise_gameplay_common::game::native_hooks::sound_type::FrictionView<'_>::native_sound_type",
         neoforge = "IBlockExtension.getSoundType"
     )]
     fn sound_type(

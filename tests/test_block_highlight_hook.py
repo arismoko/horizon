@@ -13,13 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 class BlockHighlightHookTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("rustc"), "requires Rust")
     def test_cancel_and_camera_outline_gates(self):
-        source = (ROOT / "crates/sunrise-client/src/game.rs").read_text(encoding="utf-8")
+        source = (ROOT / "crates/sunrise-client-gameplay/src/game/game_client.rs").read_text(encoding="utf-8")
         call = source.index("self.native_block_highlight(")
         start = source.rindex(".filter(|h| {", 0, call)
         end = source.index(".map(|h| {", call)
         self.assertLess(source.index(".block_outline_hit()"), start)
-        gate_hit = rust_fn("block_outline_hit", owner="Game")
-        gate_fn = rust_fn("should_render_block_outline_for_hit", owner="Game")
+        gate_hit = rust_fn("block_outline_hit", owner="sunrise-client-gameplay")
+        gate_fn = rust_fn("should_render_block_outline_for_hit", owner="sunrise-client-gameplay")
         fixture = r"""
 use std::cell::Cell;
 
@@ -35,14 +35,16 @@ struct Hit { pos: [i32; 3] }
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct BlockStateId(u32);
 
-mod hud_render {
-    pub fn block_outline_drawn(
-        hide_gui: bool,
-        entity_targeted: bool,
-        can_build: bool,
-        panorama: bool,
-    ) -> bool {
-        !hide_gui && !entity_targeted && can_build && !panorama
+mod sunrise_client_gameplay {
+    pub mod hud_gates {
+        pub fn block_outline_drawn(
+            hide_gui: bool,
+            entity_targeted: bool,
+            can_build: bool,
+            panorama: bool,
+        ) -> bool {
+            !hide_gui && !entity_targeted && can_build && !panorama
+        }
     }
 }
 
@@ -81,7 +83,20 @@ struct DetachedPlayerHud {
     main_hand: Option<ItemStack>,
 }
 
-struct Ui { hide_gui: bool }
+struct ChatUi { hide_gui: bool }
+struct ClientState { chat_ui: ChatUi }
+
+struct CommonGame {
+    world: World,
+    mobs: Vec<Mob>,
+    mob_index: MobIndex,
+    spectator_mode: bool,
+    local_held: Option<ItemStack>,
+}
+impl CommonGame {
+    fn spectator(&self) -> bool { self.spectator_mode }
+    fn held(&self) -> Option<&ItemStack> { self.local_held.as_ref() }
+}
 
 #[derive(Clone)]
 struct ResolvedCameraEntity {
@@ -95,30 +110,24 @@ struct ResolvedCameraEntity {
 mod game_impl {
     use super::*;
 
-    pub struct Game {
-        pub world: World,
-        pub ui: Ui,
-        pub mobs: Vec<Mob>,
-        pub mob_index: MobIndex,
+    pub struct ClientGame {
+        pub common: CommonGame,
+        pub client: ClientState,
         pub camera: Option<ResolvedCameraEntity>,
         pub hit: Option<Hit>,
         pub entity_hit: bool,
         pub panorama: bool,
-        pub spectator_mode: bool,
         pub interactable: bool,
-        pub local_held: Option<ItemStack>,
         pub cancel: bool,
         pub calls: Cell<usize>,
     }
 
-    impl Game {
+    impl ClientGame {
         fn camera_subject(&self) -> Option<ResolvedCameraEntity> { self.camera.clone() }
         fn entity_targeted(&self) -> bool { self.entity_hit }
         fn pick(&self) -> Option<Hit> { self.hit }
         fn shows_panorama(&self) -> bool { self.panorama }
-        fn spectator(&self) -> bool { self.spectator_mode }
         fn block_interactable_for_spectator(&self, _hit: &Hit) -> bool { self.interactable }
-        fn held(&self) -> Option<&ItemStack> { self.local_held.as_ref() }
         fn stack_adventure_predicate(&self, stack: &ItemStack, component: &str, _pos: [i32; 3]) -> bool {
             match component {
                 "minecraft:can_break" => stack.can_break,
@@ -142,14 +151,18 @@ GATE_FN
     }
 }
 
-use game_impl::Game;
+use game_impl::ClientGame;
 
-fn base_game() -> Game {
-    Game {
-        world: World,
-        ui: Ui { hide_gui: false },
-        mobs: Vec::new(),
-        mob_index: MobIndex,
+fn base_game() -> ClientGame {
+    ClientGame {
+        common: CommonGame {
+            world: World,
+            mobs: Vec::new(),
+            mob_index: MobIndex,
+            spectator_mode: false,
+            local_held: None,
+        },
+        client: ClientState { chat_ui: ChatUi { hide_gui: false } },
         camera: Some(ResolvedCameraEntity {
             entity_id: 1,
             is_local_player: true,
@@ -160,9 +173,7 @@ fn base_game() -> Game {
         hit: Some(Hit { pos: [1, 2, 3] }),
         entity_hit: false,
         panorama: false,
-        spectator_mode: false,
         interactable: false,
-        local_held: None,
         cancel: false,
         calls: Cell::new(0),
     }
@@ -197,7 +208,7 @@ fn camera_entity_and_mode_gate_block_outline_before_hook() {
     // Local spectator outlines only interactable blocks.
     let mut game = base_game();
     game.camera.as_mut().unwrap().may_build = false;
-    game.spectator_mode = true;
+    game.common.spectator_mode = true;
     game.interactable = false;
     assert_eq!(game.run_outline(), None);
     game.interactable = true;
@@ -207,12 +218,12 @@ fn camera_entity_and_mode_gate_block_outline_before_hook() {
     let mut game = base_game();
     game.camera.as_mut().unwrap().may_build = false;
     assert_eq!(game.run_outline(), None);
-    game.local_held = Some(ItemStack { can_break: false, can_place_on: true });
+    game.common.local_held = Some(ItemStack { can_break: false, can_place_on: true });
     assert_eq!(game.run_outline(), game.hit);
 
     // Spectating a remote player uses remote player's may_build (true) even when viewer is spectator.
     let mut game = base_game();
-    game.spectator_mode = true;
+    game.common.spectator_mode = true;
     game.interactable = false;
     game.camera = Some(ResolvedCameraEntity {
         entity_id: 22,
@@ -224,7 +235,7 @@ fn camera_entity_and_mode_gate_block_outline_before_hook() {
     assert_eq!(game.run_outline(), game.hit);
 
     // Hidden HUD suppresses outline.
-    game.ui.hide_gui = true;
+    game.client.chat_ui.hide_gui = true;
     assert_eq!(game.run_outline(), None);
 }
 """.replace("GATE_HIT", gate_hit).replace("GATE_FN", gate_fn).replace("FILTER", source[start:end])

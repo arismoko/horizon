@@ -51,26 +51,3 @@ writes each name the PR added to the old `crates/sunrise-mod-vocab/src/exports/p
 `exports/parts_<file>.rs`, the fragment of the parts file that defines it on the PR's head, in the same scope and
 `#[cfg]`; run `rustfmt --edition 2024` on the files it names. Taking main's side alone would drop the export, so a
 forgotten carry fails to compile.
-
-## `game.rs` sync remnants
-
-After resolving a sync, run `python3 tools/hotspots/game_rs.py <sync-branch> <upstream-commit>`.
-`--repo` defaults to this checkout. Use the upstream commit actually being synced, not its later head.
-This is intentionally not wired into CI: CI need not have that ref.
-
-The report separates genuine remnants and classified name-only matches, with function and line counts,
-plus unchanged, changed-in-place, fork-only and missing-from-fork sections. Exit 1 means genuine remnants
-or stale classifications; exit 0 means neither. No automatic rename or move is performed.
-
-The parser records impl target types (`impl Trait for Type` is owned by `Type`), or `free` for free
-functions, by brace depth. It is approximate: comments, strings, macros, cfg branches and complex or
-multiline impl headers are not Rust-parsed. Counts are a sync aid, not a semantic equivalence proof.
-
-`game_rs.txt` is a whitespace table: fork owner, name, upstream owner, upstream path, then a reason.
-Each row pins both sides of a verified name-only collision. A same-owner destination method always
-counts as genuine, even if a row matches an unrelated destination. Free functions have no type owner:
-for them a destination inside `game/` overrides a row, while an explicitly pinned helper outside
-`game/` may be classified. Unclassified collisions conservatively count as genuine. Thus adding a
-real `Game` method move with any classified name cannot be hidden by that classification. Rows that
-match nothing (including rows superseded by genuine moves) fail with a request to delete them.
-This table only shrinks or stays true; new remnants must not be classified away.

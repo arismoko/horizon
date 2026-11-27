@@ -12,7 +12,7 @@ BoundingBox.encapsulatingBoxes	port	crates/sunrise-world/src/worldgen/structure/
 BoundingBox.encapsulating	port	crates/sunrise-core/src/bounding_box.rs::BoundingBox::encapsulate	mutates self instead of returning a new box
 BoundingBox.move	port	crates/sunrise-core/src/bounding_box.rs::BoundingBox::moved	returns a new box; vanilla mutates in place
 BoundingBox.inflatedBy	port	crates/sunrise-core/src/bounding_box.rs::BoundingBox::inflated	takes xz and y amounts; vanilla callers all pass equal x and z
-BoundingBox.getLength	inline	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::cmd_clone	size vector computed inline for clone; no execute-if-blocks port
+BoundingBox.getLength	inline	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::cmd_clone	size vector computed inline for clone; no execute-if-blocks port
 BoundingBox.getCenter	port	crates/sunrise-core/src/bounding_box.rs::BoundingBox::center
 BoundingBox.forAllCorners	port	crates/sunrise-core/src/bounding_box.rs::BoundingBox::corners	corner order differs; the empty-corner count lives in FossilFeature::place
 BoundingBox.toString	skip:debug		debug string

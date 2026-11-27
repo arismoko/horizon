@@ -1,2 +1,2 @@
 # Daily row for #5555: a mod reads whether the reload overlay is up.
-sunrise-client game::packs::tests::a_mod_reads_whether_the_reload_overlay_is_up lib daily resources
+sunrise-client cut_layout::game::client_side::packs::tests::a_mod_reads_whether_the_reload_overlay_is_up lib daily resources

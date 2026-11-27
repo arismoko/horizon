@@ -1,1 +1,1 @@
-sunrise-client game::item_abilities_tests::parts_answer_the_abilities_at_every_site lib daily resources
+sunrise-client cut_layout::game::server_side::item_abilities_tests::parts_answer_the_abilities_at_every_site lib daily resources

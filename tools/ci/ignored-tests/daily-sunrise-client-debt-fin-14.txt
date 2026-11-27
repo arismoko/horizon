@@ -1,1 +1,1 @@
-sunrise-client game::dispense_container_tests::a_transaction_in_the_fluid_pickup_listener_does_not_delay_later_attachment_removal lib daily child-process
+sunrise-client cut_layout::game::dispense_container_tests::a_transaction_in_the_fluid_pickup_listener_does_not_delay_later_attachment_removal lib daily child-process

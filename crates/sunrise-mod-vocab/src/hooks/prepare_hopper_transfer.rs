@@ -5,7 +5,7 @@ pub trait Hooks {
     /// cooldown and enabled checks, before pushing or pulling any items.
     /// Server-side, including the single-player server.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_prepare_hopper_transfer",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_prepare_hopper_transfer",
         dispatch = "flat",
         side = "server",
         contract = "listen",

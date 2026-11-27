@@ -59,6 +59,7 @@ blocks blend over, so a resolver keeps no mutable state and gets no `Host`. Its 
 one section only: a resource or pack reload, a biome colour refresh and a block change all mesh the section again
 and ask the resolver again."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_color_resolvers::native_register_color_resolvers",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

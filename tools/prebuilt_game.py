@@ -43,6 +43,11 @@ import time
 import urllib.request
 from pathlib import Path
 
+if __package__:
+    from .ci.surface_report import source_layout
+else:
+    from ci.surface_report import source_layout
+
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -623,6 +628,54 @@ def native_links(metadata: dict, root: str) -> list[dict]:
             for package in metadata["packages"] if package["id"] in runtime and package.get("links")]
 
 
+def runtime_role_facts(metadata: dict, root: str, artifacts: list[dict], target_dir: Path, side: str) -> dict:
+    packages = {package["id"]: package for package in metadata["packages"]}
+    runtime = runtime_packages(metadata, root)
+    nodes = {node["id"]: node for node in metadata["resolve"]["nodes"]}
+    libraries = {}
+    compiled = {}
+    files: dict[str, set[str]] = {}
+    for artifact in artifacts:
+        package = artifact.get("package_id")
+        if artifact["reason"] != "compiler-artifact" or package not in runtime:
+            continue
+        target = artifact["target"]
+        if (not set(target["kind"]) & {"lib", "rlib", "dylib"}
+                or not any(Path(path).is_relative_to(target_dir) for path in artifact["filenames"])):
+            continue
+        features = sorted(artifact["features"])
+        identity = (target["name"], features)
+        if package in compiled and compiled[package] != identity:
+            raise ValueError(f"{side} SDK has conflicting runtime artifacts for {package}")
+        compiled[package] = identity
+        files.setdefault(package, set()).update(
+            Path(filename).name for filename in artifact["filenames"]
+            if Path(filename).is_relative_to(target_dir)
+            and Path(filename).suffix in (".rmeta", ".so", ".dll", ".dylib")
+        )
+    if not any(packages[package]["name"] == root for package in compiled):
+        raise ValueError(f"{side} SDK is missing the {root} runtime library")
+    identities = {
+        package: f"{packages[package]['name']}@{packages[package]['version']}:{library}"
+        for package, (library, _) in compiled.items()
+    }
+    if len(set(identities.values())) != len(identities):
+        raise ValueError(f"{side} SDK has ambiguous runtime package identities")
+    for package in sorted(compiled):
+        library, features = compiled[package]
+        aliases = {}
+        for dep in nodes[package]["deps"]:
+            if dep["pkg"] in compiled and any(kind["kind"] is None for kind in dep["dep_kinds"]):
+                extern = identities[dep["pkg"]]
+                if aliases.setdefault(dep["name"], extern) != extern:
+                    raise ValueError(f"{side} SDK has conflicting dependency alias {dep['name']} in {library}")
+        libraries[identities[package]] = {
+            "package": packages[package]["name"], "library": library, "features": features,
+            "aliases": dict(sorted(aliases.items())), "artifacts": sorted(files[package]),
+        }
+    return {"side": side, "libraries": dict(sorted(libraries.items()))}
+
+
 def facade_crates(deps: Path, runtime: set[str]) -> list[str]:
     """Only runtime crates with a unique extern can be exposed by an internals facade."""
     eligible = []
@@ -655,6 +708,25 @@ def build(out: Path, server: bool) -> None:
         if not file_lock.lock(lock, wait=False):
             sys.exit(f"Cannot acquire the SDK build lock in {target_dir}. Use a separate CARGO_TARGET_DIR.")
         _build_locked(output, server, target_dir)
+
+
+def runtime_feature_fields(root: Path, metadata: dict, artifacts: list[dict], target_dir: Path, server: bool) -> dict:
+    layout = source_layout(root)
+    if layout == "split":
+        side = "server" if server else "client"
+        role = runtime_role_facts(metadata, GAME, artifacts, target_dir, side)
+        shells = [library for library in role["libraries"].values() if library["package"] == "sunrise-client"]
+        if len(shells) != 1:
+            raise ValueError(f"{side} SDK needs exactly one sunrise-client runtime library, found {len(shells)}")
+        return {"game_features": shells[0]["features"], "source_layout": layout, "runtime_role": role}
+    if layout != "legacy":
+        raise ValueError(f"unknown SDK source layout: {layout}")
+    return {"game_features": sorted(next(
+        message["features"] for message in artifacts
+        if message["reason"] == "compiler-artifact"
+        and message["package_id"].split("#")[0].endswith("/sunrise-client")
+        and "lib" in message["target"]["kind"]
+    ))}
 
 
 def _build_locked(out: Path, server: bool, target_dir: Path) -> None:
@@ -747,12 +819,7 @@ def _build_locked(out: Path, server: bool, target_dir: Path) -> None:
         "facade_crates": eligible,
         # The game crate's features: a `[[native.mixin]]` build compiles functions copied out of its source
         # under the same cfgs (function replacement).
-        "game_features": sorted(next(
-            message["features"] for message in artifacts
-            if message["reason"] == "compiler-artifact"
-            and message["package_id"].split("#")[0].endswith("/sunrise-client")
-            and "lib" in message["target"]["kind"]
-        )),
+        **runtime_feature_fields(staged, metadata, artifacts, target_dir / host, server),
         # The common function index covers all legs; each leg's identity says which of its
         # declarations actually exist in the lower libraries this patch can link against.
         "lower_crate_cfg": lower_crate_cfgs(metadata, artifacts, staged, target_dir / host,

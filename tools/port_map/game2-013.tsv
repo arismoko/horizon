@@ -6,16 +6,16 @@ CopperBulbBlock.onPlace	inline	crates/sunrise-world/src/level/hooks.rs::Sim::on_
 CopperBulbBlock.neighborChanged	inline	crates/sunrise-world/src/level/hooks.rs::Sim::neighbor_changed	arm calls copper_bulb_check (checkAndFlip) on neighbour change
 CopperBulbBlock.createBlockStateDefinition	skip:data		lit and powered properties come from the block state tables
 CopperBulbBlock.getAnalogOutputSignal	port	crates/sunrise-world/src/level/redstone.rs::Sim::analog_output	CopperBulb arm: 15 when lit, else 0
-CopperChestBlock.getHingeSound	inline	crates/sunrise-client/src/mobs/transport_items.rs::open_or_close	weathered, oxidized and plain open and close sound ids are chosen inside open_or_close
+CopperChestBlock.getHingeSound	inline	crates/sunrise-sim/src/mobs/transport_items.rs::open_or_close	weathered, oxidized and plain open and close sound ids are chosen inside open_or_close
 CopperGolemStatueBlock.createBlockStateDefinition	skip:data		facing, pose and waterlogged properties come from the block state tables
 CopperGolemStatueBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	facing opposite the player and waterlogged when the spot is water
 CopperGolemStatueBlock.rotate	skip:data		rotation results come from the exported BlockState rotate table (worldgen/structure.rs)
 CopperGolemStatueBlock.updatePose	inline	crates/sunrise-world/src/level/interact.rs::Behaviours::turn_statue	become-statue sound, pose cycle and block_change game event are folded into turn_statue
 CopperGolemStatueBlock.isPathfindable	skip:data		path types come from the per-state path data (mobs/path.rs)
-CopperGolemStatueBlock.getCloneItemStack	port	crates/sunrise-client/src/game/blocks/block_items.rs::Game::picked_stack	the statue's pose goes into the item's block_state (copper_golem_pose), picked with or without the block data
+CopperGolemStatueBlock.getCloneItemStack	port	crates/sunrise-gameplay-common/src/game/blocks/block_items.rs::Game::picked_stack	the statue's pose goes into the item's block_state (copper_golem_pose), picked with or without the block data
 CopperGolemStatueBlock.getFluidState	skip:data		waterlogged water source comes from the per-state fluid facts table (Level::fluid)
 CopperGolemStatueBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	statue arm runs waterlogged_tick then the default shape update
-CrafterBlock.getAnalogOutputSignal	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::Containers::signal	crafter signal is the filled or disabled slot count from the block entity
+CrafterBlock.getAnalogOutputSignal	port	crates/sunrise-gameplay-common/src/game/blocks/machine_containers.rs::Containers::signal	crafter signal is the filled or disabled slot count from the block entity
 CrafterBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	Crafter arm sets orientation from look direction and triggered from neighbour signal
 CrafterBlock.setPlacedBy	port	crates/sunrise-world/src/level/place.rs::Sim::set_placed_by	schedules the 4-tick crafter tick when triggered
 CrafterBlock.rotate	skip:data		rotation results come from the exported BlockState rotate table (worldgen/structure.rs)
@@ -25,23 +25,23 @@ CraftingTableBlock.useWithoutItem	port	crates/sunrise-world/src/level/interact.r
 CreakingHeartBlock.getTicker	port	crates/sunrise-world/src/level/creaking.rs::Sim::heart_tick	scheduled heart tick; the uprooted check is done inside heart_update_state
 CreakingHeartBlock.animateTick	port	crates/sunrise-client/src/animate_tick.rs::step	ticked in #3516; `CreakingHeartBlock.animateTick` is cited at crates/sunrise-client/src/animate_tick.rs:104
 CreakingHeartBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	CreakingHeart arm schedules the 1-tick heart update then the default shape
-CreakingHeartBlock.isSurroundedByLogs	port	crates/sunrise-client/src/mobs/creaking_heart.rs::has_required_logs	the six sides must be pale oak logs; a heart without them spawns no creaking
+CreakingHeartBlock.isSurroundedByLogs	port	crates/sunrise-sim/src/mobs/creaking_heart.rs::has_required_logs	the six sides must be pale oak logs; a heart without them spawns no creaking
 CreakingHeartBlock.createBlockStateDefinition	skip:data		axis, creaking_heart_state and natural properties come from the block state tables
-CreakingHeartBlock.tryAwardExperience	inline	crates/sunrise-client/src/game/mobs/creaking.rs::Game::creaking_heart_broken	natural heart drops 20-24 xp orbs when broken by a player outside creative and spectator
-CreakingHeartBlock.getAnalogOutputSignal	port	crates/sunrise-client/src/mobs/creaking_heart.rs::output_signal	gap: minor: distance-based signal, no explicit uprooted check; a heart with no creaking or protector gives 0
+CreakingHeartBlock.tryAwardExperience	inline	crates/sunrise-gameplay/src/game/mobs/creaking.rs::Game::creaking_heart_broken	natural heart drops 20-24 xp orbs when broken by a player outside creative and spectator
+CreakingHeartBlock.getAnalogOutputSignal	port	crates/sunrise-sim/src/mobs/creaking_heart.rs::output_signal	gap: minor: distance-based signal, no explicit uprooted check; a heart with no creaking or protector gives 0
 CropBlock.growCrops	inline	crates/sunrise-world/src/level/bonemeal.rs::Sim::perform_bonemeal	crop arm adds the bonemeal age increase capped at max age and sets the state
 CropBlock.canSurvive	port	crates/sunrise-world/src/level/survive.rs::Sim::can_survive_class	Crop arm: raw light of at least 8 and the supports_crops ground check
-CropBlock.entityInside	port	crates/sunrise-client/src/mobs/ravager.rs::ai_step	ticked in #3516; `CropBlock.entityInside` is cited at crates/sunrise-client/src/mobs/ravager.rs:134 (in a comment, so `where` names the enclosing fn)
+CropBlock.entityInside	port	crates/sunrise-sim/src/mobs/ravager.rs::ai_step	ticked in #3516; `CropBlock.entityInside` is cited at crates/sunrise-client/src/mobs/ravager.rs:134 (in a comment, so `where` names the enclosing fn)
 DaylightDetectorBlock.useWithoutItem	port	crates/sunrise-world/src/level/interact.rs::Sim::use_without_item	DaylightDetector arm checks mayBuild, cycles inverted, sends block change and updates the signal
 DaylightDetectorBlock.getTicker	port	crates/sunrise-world/src/level/mod.rs::Behaviours::tick_daylight_detector	only where the dimension type has sky light (`dimension_type().height.has_skylight`: neither the Nether nor the End), then every 20 game ticks
 DaylightDetectorBlock.createBlockStateDefinition	skip:data		power and inverted properties come from the block state tables
 DecoratedPotBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	DecoratedPot arm: waterlogged tick then the default shape update
 DecoratedPotBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	DecoratedPot arm: facing from the player, waterlogged from the spot, cracked false
-DecoratedPotBlock.useWithoutItem	port	crates/sunrise-client/src/game/blocks/decorated_pot.rs::Game::use_decorated_pot	empty-hand path plays insert_fail, negative wobble and block change
+DecoratedPotBlock.useWithoutItem	port	crates/sunrise-gameplay/src/game/blocks/decorated_pot_server.rs::Game::use_decorated_pot	empty-hand path plays insert_fail, negative wobble and block change
 DecoratedPotBlock.createBlockStateDefinition	skip:data		facing, waterlogged and cracked properties come from the block state tables
 DecoratedPotBlock.getFluidState	skip:data		waterlogged water source comes from the per-state fluid facts table (Level::fluid)
-DecoratedPotBlock.onProjectileHit	port	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::projectile_breaks_block	the pot is cracked first, then shattered
-DecoratedPotBlock.getCloneItemStack	port	crates/sunrise-client/src/game/blocks/block_items.rs::Game::picked_stack	ticked in #3516; `DecoratedPotBlock.getCloneItemStack` is cited at crates/sunrise-client/src/game/blocks/block_items.rs:135 (in a comment, so `where` names the enclosing fn)
+DecoratedPotBlock.onProjectileHit	port	crates/sunrise-gameplay/src/game/mobs/creatures/mod_server.rs::Game::projectile_breaks_block	the pot is cracked first, then shattered
+DecoratedPotBlock.getCloneItemStack	port	crates/sunrise-gameplay-common/src/game/blocks/block_items.rs::Game::picked_stack	ticked in #3516; `DecoratedPotBlock.getCloneItemStack` is cited at crates/sunrise-client/src/game/blocks/block_items.rs:135 (in a comment, so `where` names the enclosing fn)
 DecoratedPotBlock.rotate	skip:data		rotation results come from the exported BlockState rotate table (worldgen/structure.rs)
 DetectorRailBlock.entityInside	port	crates/sunrise-world/src/level/hooks.rs::Sim::entity_inside	when not powered, checks for minecarts inside the search box
 DetectorRailBlock.tick	port	crates/sunrise-world/src/level/tick.rs::Sim::tick_block	when powered, rechecks the minecart presence
@@ -60,13 +60,13 @@ DiodeBlock.getSignal	skip:data		the facing check and output per side come from t
 DiodeBlock.setPlacedBy	port	crates/sunrise-world/src/level/place.rs::Sim::set_placed_by	schedules the 1-tick update when the diode should turn on
 DiodeBlock.updateNeighborsInFront	port	crates/sunrise-world/src/level/redstone.rs::Sim::diode_update_neighbors_in_front	neighbour notify on the block behind the output
 DiodeBlock.shouldPrioritize	port	crates/sunrise-world/src/level/redstone.rs::Sim::diode_should_prioritize	checks for a diode facing back at it
-DispenserBlock.registerProjectileBehavior	inline	crates/sunrise-client/src/game/blocks/dispenser.rs::Game::dispense_item	egg, snowball and wind charge dispense as projectiles in dispense_item
+DispenserBlock.registerProjectileBehavior	inline	crates/sunrise-gameplay/src/game/blocks/dispenser.rs::Game::dispense_item	egg, snowball and wind charge dispense as projectiles in dispense_item
 DispenserBlock.neighborChanged	port	crates/sunrise-world/src/level/redstone.rs::Sim::dispenser_neighbor_changed	a signal at the block or above starts a 4-tick dispense and sets triggered
 DispenserBlock.rotate	skip:data		rotation results come from the exported BlockState rotate table (worldgen/structure.rs)
 DispenserBlock.createBlockStateDefinition	skip:data		facing and triggered properties come from the block state tables
 DoorBlock.getShape	skip:data		outline shapes come from the per-state shape table (facts shape index)
 DoorBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	Door arm: the other half follows, and the lower half breaks when unsupported
-DoorBlock.onExplosionHit	port	crates/sunrise-client/src/game/interface/wind.rs::Game::wind_trigger_block	a can-trigger-blocks burst swings a wooden door and leaves iron ones shut
+DoorBlock.onExplosionHit	port	crates/sunrise-gameplay/src/game/interface/wind.rs::Game::wind_trigger_block	a can-trigger-blocks burst swings a wooden door and leaves iron ones shut
 DoorBlock.playerWillDestroy	port	crates/sunrise-world/src/level/hooks.rs::Sim::player_destroy	creative break of the upper half removes the lower half without drops
 DoorBlock.isPathfindable	skip:data		path types come from the per-state path data (mobs/path.rs)
 DoorBlock.setPlacedBy	port	crates/sunrise-world/src/level/place.rs::Sim::set_placed_by	Door branch places the upper half
@@ -92,11 +92,11 @@ DriedGhastBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.r
 DriedGhastBlock.getFluidState	skip:data		waterlogged water source comes from the per-state fluid facts table (Level::fluid)
 DriedGhastBlock.placeLiquid	port	crates/sunrise-world/src/level/fluids.rs::Sim::place_liquid	waterlogged through the generic path, then its own block.dried_ghast.place_in_water sound
 DriedGhastBlock.setPlacedBy	port	crates/sunrise-world/src/level/place.rs::Sim::set_placed_by
-EndGatewayBlock.getPortalDestination	port	crates/sunrise-client/src/game/world/end.rs::Game::gateway_job	gap: minor: the thrown ender pearl branch (no relative flags) is not read, only the player travels through gateways here
+EndGatewayBlock.getPortalDestination	port	crates/sunrise-gameplay/src/game/world/end.rs::Game::gateway_job	gap: minor: the thrown ender pearl branch (no relative flags) is not read, only the player travels through gateways here
 EndPortalFrameBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	EndPortalFrame arm: facing opposite the player and eye set to false
 EndPortalFrameBlock.rotate	skip:data		rotation results come from the exported BlockState rotate table (worldgen/structure.rs)
 EndPortalFrameBlock.createBlockStateDefinition	skip:data		facing and eye properties come from the block state tables
-EntityBlock.getListener	inline	crates/sunrise-client/src/game/blocks/sculk.rs::Game::post_game_event	gap: minor: listeners within reach are found in post_game_event, which reads only the sculk listener tables
+EntityBlock.getListener	inline	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::post_game_event	gap: minor: listeners within reach are found in post_game_event, which reads only the sculk listener tables
 EyeblossomBlock.randomTick	port	crates/sunrise-world/src/level/timeline.rs::Sim::eyeblossom_tick	random tick runs tryChangingState and picks the long switch sound
 FaceAttachedHorizontalDirectionalBlock.canAttach	inline	crates/sunrise-world/src/level/survive.rs::Sim::can_survive_class	the sturdy-face test on the attached side is inline in the FaceAttached arm
 FaceAttachedHorizontalDirectionalBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	FaceAttached arm: tries the nearest looking directions and keeps the first that survives
@@ -126,7 +126,7 @@ FireBlock.setFlammable	skip:data		flammability odds are data (burn odds table re
 FireBlock.bootStrap	skip:data		registry bootstrap of the flammable blocks; Sunrise reads the odds from data tables
 FlowerPotBlock.useItemOn	port	crates/sunrise-world/src/level/interact.rs::Behaviours::use_item_on	a plant on an empty flower pot pots it, awarding pot_flower and consuming 1 plant; non-empty pot with a plant CONSUMEs
 FlowerPotBlock.useWithoutItem	port	crates/sunrise-world/src/level/interact.rs::Sim::use_without_item	FlowerPot arm: non-empty pot gives the plant back and resets to flower_pot; empty pot CONSUMEs
-FlowerPotBlock.getCloneItemStack	port	crates/sunrise-client/src/game/blocks/block_items.rs::Game::picked_stack	potted plant picks as the plant item, empty pot as flower_pot
+FlowerPotBlock.getCloneItemStack	port	crates/sunrise-gameplay-common/src/game/blocks/block_items.rs::Game::picked_stack	potted plant picks as the plant item, empty pot as flower_pot
 FlowerPotBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	FlowerPot arm: breaks when the block under it stops supporting it
 GrassBlock.isValidBonemealTarget	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::bonemeal_valid	grass arm: air above and inside build height
 GrassBlock.stopBonemealSpread	inline	crates/sunrise-world/src/level/bonemeal.rs::Sim::grass_bonemeal	the per-step stop test (grass below, full collision at the spot) is inline in the attempt loop

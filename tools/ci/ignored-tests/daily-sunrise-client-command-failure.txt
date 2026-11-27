@@ -1,1 +1,1 @@
-sunrise-client game::native_server::command_failure_tests::executor_failure_respects_source_silence_and_stores_zero lib daily child-process
+sunrise-client cut_layout::game::native_server::command_failure_tests::executor_failure_respects_source_silence_and_stores_zero lib daily child-process

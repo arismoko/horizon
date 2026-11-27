@@ -11,7 +11,7 @@ pub trait Hooks {
     /// knockback, the frame keeps its item). Server-side, for every player of
     /// the world (`host.players().acting_player()` says who).
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_attack_entity",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_attack_entity",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

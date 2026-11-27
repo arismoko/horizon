@@ -1,2 +1,2 @@
 # Daily row for #5597: a server mod cancels a level event.
-sunrise-client game::native_hooks::server_level_event_tests::a_mod_cancels_a_level_event_before_it_goes_out lib daily resources
+sunrise-gameplay game::native_hooks::server_level_event_tests::a_mod_cancels_a_level_event_before_it_goes_out lib daily resources

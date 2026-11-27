@@ -1,2 +1,2 @@
-sunrise-client game::integrated::tests::a_quit_while_the_world_loads_waits_for_its_server lib daily child-process
-sunrise-client game::native_hooks::base::screen_open_tests::title_hook_requests_one_orderly_quit lib daily child-process
+sunrise-client cut_layout::game::server_side::integrated::tests::a_quit_while_the_world_loads_waits_for_its_server lib daily child-process
+sunrise-client cut_layout::game::native_hooks::base::screen_open_tests::title_hook_requests_one_orderly_quit lib daily child-process

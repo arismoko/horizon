@@ -32,7 +32,7 @@ def main():
     env["SUNRISE_MOUNT_CONTROL_REFERENCE"] = str(reference)
     env["SUNRISE_TEST_RESOURCES"] = os.environ.get("SUNRISE_TEST_RESOURCES", str(lab.RESOURCES))
     subprocess.run([lab.parity_fixtures(),
-                    "game::remote_vehicles::tests::steering_mount_control_matches_vanilla",
+                    "game::client_side::remote_vehicles::tests::steering_mount_control_matches_vanilla",
                     "--exact", "--ignored"], cwd=lab.ROOT, env=env, check=True)
     print("mount control: 32 vanilla cases match; four controllers predict forward movement and send MoveVehicle")
 

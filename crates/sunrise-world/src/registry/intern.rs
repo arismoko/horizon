@@ -87,6 +87,19 @@ impl BlockRegistry {
         }
         registry
     }
+
+    /// Tiny leaked wrapper sharing `self`'s immutable payload with fresh worker metadata slots.
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn fork_wrapper(&self) -> &'static Self {
+        Box::leak(Box::new(Self {
+            mod_worker_resource: std::sync::OnceLock::new(),
+            structure_block_entity_transform: std::sync::OnceLock::new(),
+            data: self.data.clone(),
+            shared_workers: self.shared_workers.clone(),
+            saved_states: std::sync::RwLock::new(sunrise_core::fast_hash::FxHashMap::default()),
+        }))
+    }
 }
 
 #[cfg(test)]

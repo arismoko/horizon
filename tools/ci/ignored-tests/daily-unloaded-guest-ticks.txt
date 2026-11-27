@@ -1,2 +1,2 @@
 # ServerPlayer.doTick keeps running before PlayerLoaded (#4612).
-sunrise-client game::remote::player_tick_tests::guest_ticks_before_player_loaded_and_after_its_timeout lib daily resources
+sunrise-client cut_layout::game::remote::player_tick_tests::guest_ticks_before_player_loaded_and_after_its_timeout lib daily resources

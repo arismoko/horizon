@@ -1,16 +1,18 @@
 //! Startup shared by the gameplay library and its executable.
+#[cfg(not(feature = "client"))]
+#[path = "crash_retention.rs"]
+mod crash_retention;
+#[cfg(feature = "client")]
 #[path = "sunrise_look.rs"]
 mod sunrise_look;
 use crate::{crash, game, logging};
 use mod_api::__private::game::TicketActivation;
 use std::sync::OnceLock;
+use sunrise_level::runtime_env::runtime_environment;
 use sunrise_mod_package::selection::{Argument, LaunchArguments};
-pub(crate) mod dedicated_arguments;
-pub(crate) mod runtime_environment;
 
 static TICKET_ACTIVATION: OnceLock<TicketActivation> = OnceLock::new();
 
-#[cfg(not(test))]
 pub(crate) fn ticket_activation() -> &'static TicketActivation {
     TICKET_ACTIVATION
         .get()
@@ -36,7 +38,7 @@ impl Startup {
 /// Account IO, cwd changes and command registration remain in Options::read, after leases.
 pub fn prepare() -> Startup {
     sunrise_mod_package::holder::enter();
-    let result: crate::Result<_> = (|| {
+    let result: sunrise_game_data::Result<_> = (|| {
         let mut command = std::process::Command::new(std::env::current_exe()?);
         command.args(std::env::args_os().skip(1));
         let launch = LaunchArguments::for_command(&command)?;
@@ -97,23 +99,40 @@ pub fn start(
     } = startup;
     runtime_environment::capture(&launch);
     sunrise_threads::configure_allocator();
+    #[cfg(feature = "client")]
     sunrise_look::give();
     // OptiFine's and Polytone's pack formats (platform, docs/layers.md), before any pack loads.
+    #[cfg(feature = "client")]
     sunrise_client::pack_formats::install();
     // sunrise-extras (docs/forking.md): without the feature, no Sunrise Settings or Mods page.
+    #[cfg(feature = "client")]
     if !cfg!(feature = "sunrise-extras") {
         sunrise_client::options_ui::SUNRISE_EXTRAS
             .store(false, std::sync::atomic::Ordering::Relaxed);
     }
+    #[cfg(feature = "client")]
     sunrise_client::telemetry::mark_start();
     // Opt-in telemetry keeps each crash report (docs/telemetry.md), whatever the mode.
+    #[cfg(feature = "client")]
     crash::on_report(sunrise_client::telemetry::keep_crash);
+    #[cfg(not(feature = "client"))]
+    crash::on_report(|home, report| {
+        crash_retention::keep_crash(
+            home,
+            report,
+            || {
+                let cwd = std::env::current_dir().ok();
+                sunrise_telemetry::payload::System::detect_in(cwd.as_deref())
+            },
+            game::benchmark_retention::version,
+        );
+    });
     // Crates above the engine registered their hooks before this (sunrise-official's `main`);
     // none registers after this point.
     sunrise_hooks::engine::seal();
     // The text crates ship (`sunrise_hooks::lang`), loaded with the game's own languages.
-    sunrise_client::lang::install_crate_files(sunrise_hooks::lang::engine::all());
-    sunrise_client::spans::startup::init(std::time::Instant::now());
+    sunrise_game_data::lang::install_crate_files(sunrise_hooks::lang::engine::all());
+    sunrise_level::spans::startup::init(std::time::Instant::now());
     logging::set_game_home(
         launch.context.home.clone(),
         launch.cache_home().to_path_buf(),
@@ -154,14 +173,15 @@ pub fn start(
     if sunrise_world::native_load_hooks::install(
         sunrise_world::native_load_hooks::NativeLoadHooks {
             item_ability_default: sunrise_items::item_abilities::vanilla_can_perform,
-            loot_ability: crate::game::api_values::loot_values::dispatch_loot_ability,
+            loot_ability:
+                sunrise_gameplay_common::game::api_values::loot_values::dispatch_loot_ability,
             loot_table_load: |context, id, table| {
                 if !mod_api::__private::listened(mod_api::HookId::LootTableLoad) {
                     return;
                 }
-                let reader = sunrise_client_render::api_context::LoadReader(context);
+                let reader = sunrise_level::api_context::LoadReader(context);
                 let context = mod_api::OwningLoad::new(
-                    sunrise_client_render::api_context::load_origin(context.origin()),
+                    sunrise_level::api_context::load_origin(context.origin()),
                     &reader,
                 );
                 mod_api::dispatch_loot_table_load(&context, id, table);
@@ -170,7 +190,7 @@ pub fn start(
                 if !mod_api::__private::listened(mod_api::HookId::ModifyDefaultComponents) {
                     return;
                 }
-                let reader = sunrise_client_render::api_context::LoadReader(context);
+                let reader = sunrise_level::api_context::LoadReader(context);
                 let context = reader.context();
                 mod_api::dispatch_modify_default_components(&context, item, components);
             },
@@ -182,10 +202,10 @@ pub fn start(
     }
     if sunrise_world::native_worldgen_hooks::install(
         sunrise_world::native_worldgen_hooks::NativeWorldgenHooks {
-            alter_ground: crate::game::api_values::alter_ground,
+            alter_ground: sunrise_gameplay_common::game::native_ground::alter_ground,
             on_tree_grow: crate::game::native_tree_grow::on_tree_grow,
-            mirror: crate::game::native_rotate::mirror,
-            rotate: crate::game::native_rotate::rotate,
+            mirror: sunrise_gameplay_common::game::native_rotate::mirror,
+            rotate: sunrise_gameplay_common::game::native_rotate::rotate,
             feature: crate::game::native_worldgen_parts::feature,
         },
     )
@@ -194,7 +214,7 @@ pub fn start(
         log::warn!("Native worldgen hooks already installed; keeping the first callbacks");
     }
     if sunrise_items::native_enchantment_hooks::install(
-        crate::enchantment_levels::get_enchantment_level,
+        sunrise_sim::enchantment_levels::get_enchantment_level,
     )
     .is_err()
     {
@@ -216,7 +236,9 @@ pub fn start(
         // A bad command line is the caller's mistake, not a crash: no report.
         let missing_mods = game::dedicated::is_missing_mods_refusal(error.as_ref());
         let usage = error.is::<game::UsageError>() || missing_mods;
-        if let Some(refusals) = error.downcast_ref::<game::mods::DeclarationFailures>() {
+        if let Some(refusals) =
+            error.downcast_ref::<sunrise_gameplay_common::game::mods::DeclarationFailures>()
+        {
             for line in refusals.lines() {
                 log::error!("Sunrise: {line}");
             }
@@ -247,209 +269,7 @@ pub fn start(
     logging::flush();
 }
 
-pub(crate) fn install_client_hooks() {
-    game::api_values::install_stack_hooks();
-    if !crate::native_client_hooks::install(crate::native_client_hooks::NativeClientHooks {
-        menu_still_valid: game::api_values::menu_still_valid,
-        menu_still_valid_listens: |menu| {
-            mod_api::__private::menu_listens(mod_api::HookId::MenuStillValid, menu)
-        },
-        living_heal: |context, healed, amount, cancel| {
-            if !mod_api::__private::listened(mod_api::HookId::LivingHeal) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            game::with_lent_view(healed, |view| {
-                mod_api::dispatch_living_heal(&context, healed.id(), view, amount, cancel);
-            });
-        },
-        living_breathe_heard: || mod_api::__private::listened(mod_api::HookId::LivingBreathe),
-        has_mods: || !mod_api::__private::mods().is_empty(),
-        player_name_format: |context, username, displayname| {
-            use game::api_values::TryIntoApi;
-            if !mod_api::__private::listened(mod_api::HookId::PlayerNameFormat) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            let Ok(username) = username.try_into_api() else {
-                return;
-            };
-            let Ok(mut converted) = displayname.try_into_api() else {
-                return;
-            };
-            mod_api::dispatch_player_name_format(&context, &username, &mut converted);
-            if let Ok(converted) = sunrise_client_lib::api_text::to_serialized_engine(&converted) {
-                *displayname = converted;
-            }
-        },
-        player_tab_list_name_format: |context, player, name, display_name| {
-            use game::api_values::TryIntoApi;
-            if !mod_api::__private::listened(mod_api::HookId::PlayerTabListNameFormat) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            let Ok(mut converted) = display_name.try_into_api() else {
-                return;
-            };
-            mod_api::dispatch_player_tab_list_name_format(&context, player, name, &mut converted);
-            if let Ok(converted) = converted
-                .as_ref()
-                .map(sunrise_client_lib::api_text::to_serialized_engine)
-                .transpose()
-            {
-                *display_name = converted;
-            }
-        },
-        living_drown: |context, entity, kind, is_drowning, damage_amount, bubble_count, cancel| {
-            if !mod_api::__private::listened(mod_api::HookId::LivingDrown) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            mod_api::dispatch_living_drown(
-                &context,
-                entity,
-                kind,
-                is_drowning,
-                damage_amount,
-                bubble_count,
-                cancel,
-            );
-        },
-        living_fall: |context, entity, kind, distance, multiplier, cancel| {
-            if !mod_api::__private::listened(mod_api::HookId::LivingFall) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            mod_api::dispatch_living_fall(&context, entity, kind, distance, multiplier, cancel);
-        },
-        living_jump: |context, entity, kind, velocity| {
-            if !mod_api::__private::listened(mod_api::HookId::LivingJump) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            mod_api::dispatch_living_jump(&context, entity, kind, velocity);
-        },
-        living_model_posed: |context, entity, layer, model| {
-            if !mod_api::__private::listened(mod_api::HookId::LivingModelPosed) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            mod_api::dispatch_living_model_posed(&context, entity, layer, model);
-        },
-        living_jump_power: |context, living, power| {
-            if !mod_api::__private::listened(mod_api::HookId::LivingJumpPower) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            game::with_lent_view(living, |view| {
-                mod_api::dispatch_living_jump_power(
-                    &context,
-                    living.id(),
-                    living.kind(),
-                    view,
-                    power,
-                );
-            });
-        },
-        living_speed: |context, living, speed| {
-            if !mod_api::__private::listened(mod_api::HookId::LivingSpeed) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            game::with_lent_view(living, |view| {
-                mod_api::dispatch_living_speed(&context, living.id(), living.kind(), view, speed);
-            });
-        },
-        living_flying_speed: |context, living, speed| {
-            if !mod_api::__private::listened(mod_api::HookId::LivingFlyingSpeed) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            game::with_lent_view(living, |view| {
-                mod_api::dispatch_living_flying_speed(
-                    &context,
-                    living.id(),
-                    living.kind(),
-                    view,
-                    speed,
-                );
-            });
-        },
-        block_jump_factor: |context, state, factor| {
-            crate::game::block_jump_factor(context, state, factor);
-        },
-        block_speed_factor: |context, state, factor| {
-            crate::game::block_speed_factor(context, state, factor);
-        },
-        is_ladder: |context, entity, pos, state, ladder| {
-            crate::game::is_ladder(context, entity, pos, state, ladder);
-        },
-        block_interaction_range: |context, player, pos, buffer, within| {
-            if !mod_api::__private::listened(mod_api::HookId::BlockInteractionRange) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            mod_api::dispatch_block_interaction_range(
-                &reader.context(),
-                player,
-                pos,
-                buffer,
-                within,
-            );
-        },
-        is_scaffolding: |context, entity, pos, state, scaffolding| {
-            crate::game::is_scaffolding(context, entity, pos, state, scaffolding);
-        },
-        makes_open_trapdoor_above_climbable:
-            crate::game::native_trapdoor_ladder::makes_open_trapdoor_above_climbable,
-        friction: crate::game::native_surface::friction,
-        collision_shape: |context, pos, state, query, shape| {
-            crate::game::native_collision_shape::collision_shape(context, pos, state, query, shape);
-        },
-        player_stays_on_ground_surface: |context, entity, staying| {
-            if !mod_api::__private::listened(mod_api::HookId::PlayerStaysOnGroundSurface) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            mod_api::dispatch_player_stays_on_ground_surface(&context, entity, staying);
-        },
-        ender_entity_teleport: |context, entity, kind, from, target, cancel| {
-            if !mod_api::__private::listened(mod_api::HookId::EnderEntityTeleport) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            mod_api::dispatch_ender_entity_teleport(&context, entity, kind, from, target, cancel);
-        },
-        fluid_flow: |context, fluid, pos, flow| {
-            if !mod_api::__private::listened(mod_api::HookId::FluidFlow) {
-                return;
-            }
-            let reader = sunrise_client_render::api_context::LoopReader(context);
-            let context = reader.context();
-            mod_api::dispatch_fluid_flow(&context, fluid, pos, flow);
-        },
-        sound_type: crate::game::native_block_sounds::sound_type,
-        can_grindstone_repair: crate::game::native_item_menu_parts::can_grindstone_repair,
-        is_combine_repairable: crate::game::native_item_menu_parts::is_combine_repairable,
-        can_fit_inside_container_items:
-            crate::game::native_item_menu_parts::can_fit_inside_container_items,
-        item_name: crate::game::native_item_menu_parts::item_name,
-    }) {
-        log::warn!("Native client hooks already installed; keeping the first callbacks");
-    }
-}
+pub(crate) use sunrise_gameplay_common::game::native_hooks::install_client_hooks;
 
 /// The JVM raises its open-file limit to the hard limit as it starts
 /// (`-XX:+MaxFDLimit`, on by default), so a vanilla server may hold as many
@@ -510,7 +330,7 @@ mod name_conversion_tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
-    use sunrise_client_core::text::Text;
+    use sunrise_game_data::text::Text;
     use sunrise_world::native_load_context::{DataLoadOrigin, LoadContext, LoadInputs, LoopSide};
 
     // Engine -> API rejects unrepresentable opaque metadata (NestedNull);

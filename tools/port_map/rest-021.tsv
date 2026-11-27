@@ -1,6 +1,6 @@
-BinaryAnimator.tick	port	crates/sunrise-client/src/mobs/axolotl.rs::Animation::tick	one axolotl Animation holds the four animators; old/value pair and the clamp to 10 as vanilla
-BinaryAnimator.getFactor	port	crates/sunrise-client/src/mobs/axolotl.rs::Animation::factor	lerp of old and value over 10, then the IN_OUT_SINE curve as vanilla
-BlockUtil.packDifferenceInPositionInternal	port	crates/sunrise-client/src/mobs/shulker.rs::pack_diff	gap: minor: radius fixed at 8 on each axis; the dragon egg packs (16, 8, 16) inline in crates/sunrise-world/src/level/interact.rs::Sim::dragon_egg_teleport
+BinaryAnimator.tick	port	crates/sunrise-sim/src/mobs/axolotl.rs::Animation::tick	one axolotl Animation holds the four animators; old/value pair and the clamp to 10 as vanilla
+BinaryAnimator.getFactor	port	crates/sunrise-sim/src/mobs/axolotl.rs::Animation::factor	lerp of old and value over 10, then the IN_OUT_SINE curve as vanilla
+BlockUtil.packDifferenceInPositionInternal	port	crates/sunrise-sim/src/mobs/shulker.rs::pack_diff	gap: minor: radius fixed at 8 on each axis; the dragon egg packs (16, 8, 16) inline in crates/sunrise-world/src/level/interact.rs::Sim::dragon_egg_teleport
 BlockUtil.checkDifferenceInBounds	skip:other		range guard inside packDifferenceInPosition; radii of 8 and 16 cannot exceed 127
 ByIdMap.createMap	skip:java		id-to-value lookup table; Sunrise enums match their own ids
 ByIdMap.sparse	skip:java		id-to-value lookup table; Sunrise enums match their own ids
@@ -15,7 +15,7 @@ ClassTreeIdRegistry.define	skip:java		synched entity data slot allocator by clas
 CommonLinks.extendRealms	skip:service		Realms upgrade link
 CompilableString.codec	skip:java		codec
 CompilableString.equals	skip:java		value equality on the source string
-CompilableString.CommandParserHelper.apply	inline	crates/sunrise-client/src/game/administration/commands/text_commands.rs::invalid_selector	a selector and an nbt component's entity are parsed when the component is decoded, and text after them is command.trailing_data, as the codec does through the selector
+CompilableString.CommandParserHelper.apply	inline	crates/sunrise-gameplay/src/game/administration/commands/text_commands.rs::invalid_selector	a selector and an nbt component's entity are parsed when the component is decoded, and text after them is command.trailing_data, as the codec does through the selector
 CrudeIncrementalIntIdentityHashBiMap.byId	skip:java		identity bimap over registry ids; Sunrise uses its own id tables
 CrudeIncrementalIntIdentityHashBiMap.contains	skip:java		identity bimap over registry ids; Sunrise uses its own id tables
 CrudeIncrementalIntIdentityHashBiMap.nextId	skip:java		identity bimap over registry ids; Sunrise uses its own id tables
@@ -57,12 +57,12 @@ CubicSpline.Multipoint.packToPoints	skip:java		codec helper: nodes to a point li
 CubicSpline.Multipoint.createFromPoints	skip:java		codec helper: point list to nodes
 CubicSpline.Multipoint.Point.codec	skip:java		codec
 DelegateDataOutput.write	skip:java		stream delegate
-DependencySorter.visitDependenciesAndElement	port	crates/sunrise-world/src/worldgen/tags.rs::visit	depth-first walk that emits dependencies before the element
-DependencySorter.isCyclic	port	crates/sunrise-world/src/worldgen/tags.rs::reaches	reach test used to refuse a cyclic edge
+DependencySorter.visitDependenciesAndElement	port	crates/sunrise-world/src/tag_layers/order.rs::dependency_order	depth-first walk that emits dependencies before the element
+DependencySorter.isCyclic	port	crates/sunrise-world/src/tag_layers/order.rs::dependency_order	reach test used to refuse a cyclic edge
 DependencySorter.addDependencyIfNotCyclic	inline	crates/sunrise-world/src/worldgen/tags.rs::TagDefinitions::build	adds the edge only when reaches is false
 DependencySorter.orderByDependencies	inline	crates/sunrise-world/src/worldgen/tags.rs::TagDefinitions::build	required edges first, then optional ones, then the visit order
-DirectoryLock.create	port	crates/sunrise-client/src/save/session.rs::SessionLock::acquire	exclusive file lock on session.lock with the two-byte snowman content
-DirectoryLock.isLocked	port	crates/sunrise-client/src/save/session.rs::SessionLock::is_locked	trying for the world's session.lock tells a locked world; title.rs uses it to flag the entry
+DirectoryLock.create	port	crates/sunrise-sim/src/save/session.rs::SessionLock::acquire	exclusive file lock on session.lock with the two-byte snowman content
+DirectoryLock.isLocked	port	crates/sunrise-sim/src/save/session.rs::SessionLock::is_locked	trying for the world's session.lock tells a locked world; title.rs uses it to flag the entry
 Ease.inBack	missing		a named easing only a datapack's timeline can reach: the four shipped timelines ask for constant, cubic_bezier or no ease, and environment.rs::Environment::load_dimension reads those two
 Ease.inElastic	missing		a named easing only a datapack's timeline can reach: the four shipped timelines ask for constant, cubic_bezier or no ease, and environment.rs::Environment::load_dimension reads those two
 Ease.inExpo	missing		a named easing only a datapack's timeline can reach: the four shipped timelines ask for constant, cubic_bezier or no ease, and environment.rs::Environment::load_dimension reads those two
@@ -74,7 +74,7 @@ Ease.inOutQuint	missing		a named easing only a datapack's timeline can reach: th
 Ease.outBounce	missing		a named easing only a datapack's timeline can reach: the four shipped timelines ask for constant, cubic_bezier or no ease, and environment.rs::Environment::load_dimension reads those two
 Ease.outElastic	missing		a named easing only a datapack's timeline can reach: the four shipped timelines ask for constant, cubic_bezier or no ease, and environment.rs::Environment::load_dimension reads those two
 Ease.outExpo	missing		a named easing only a datapack's timeline can reach: the four shipped timelines ask for constant, cubic_bezier or no ease, and environment.rs::Environment::load_dimension reads those two
-EasingType.cubicBezier	inline	crates/sunrise-client-render/src/environment.rs::Environment::load_dimension	reads the four control points of a cubic_bezier ease; gap: minor: no range check, see CubicBezierControls.validate
+EasingType.cubicBezier	inline	crates/sunrise-level/src/environment.rs::Environment::load_dimension	reads the four control points of a cubic_bezier ease; gap: minor: no range check, see CubicBezierControls.validate
 EasingType.CubicBezier.curveFromControls	inline	crates/sunrise-client-render/src/environment.rs::Easing::apply	the curve coefficients closure
 EasingType.CubicBezier.solveT	inline	crates/sunrise-client-render/src/environment.rs::Easing::apply	Newton steps with the 1e-5 tolerance
 EasingType.CubicBezier.solveTBisect	inline	crates/sunrise-client-render/src/environment.rs::Easing::apply	bisection fallback when Newton does not converge
@@ -117,7 +117,7 @@ FastBufferedInputStream.skip	skip:java		buffered stream helper; Rust readers do 
 FastBufferedInputStream.fill	skip:java		buffered stream helper; Rust readers do their own buffering
 FileSystemUtil.safeGetPath	skip:other		opens a jar or zip filesystem for a URI; Sunrise reads archives with the zip crate
 FileUtil.sanitizeName	port	crates/sunrise-client/src/title.rs::Title::target_folder	gap: minor: replaces every non-alphanumeric character with _; vanilla only replaces illegal file characters, dots, slashes and quotes
-FileUtil.isPathPortable	port	crates/sunrise-gameplay/src/structure_blocks.rs::portable_path	the structure path's check: no empty, `.` or `..` segment; vanilla also tests the part's characters (isPathPartPortable)
+FileUtil.isPathPortable	port	crates/sunrise-gameplay-common/src/structure_blocks.rs::portable_path	the structure path's check: no empty, `.` or `..` segment; vanilla also tests the part's characters (isPathPartPortable)
 FileUtil.decomposePath	skip:data		resource path handling; Sunrise reads its data from tables and files
 FileUtil.resolvePath	skip:data		resource path handling; Sunrise reads its data from tables and files
 FileUtil.isValidPathSegment	skip:data		resource path handling; Sunrise reads its data from tables and files
@@ -126,11 +126,11 @@ FileUtil.createDirectoriesSafe	skip:other		directory creation; save.rs uses crea
 FileUtil.isEmptyPath	skip:data		resource path handling; Sunrise reads its data from tables and files
 FileZipper.add	skip:debug		profiling report archive (Minecraft.archiveProfilingReport, PerfCommand); Sunrise writes no zip report
 FileZipper.close	skip:debug		profiling report archive (Minecraft.archiveProfilingReport, PerfCommand); Sunrise writes no zip report
-FormattedCharSequence.forward	port	crates/sunrise-client-core/src/text.rs::Text::styled	styled text object; the per-character walk is Text::chars
+FormattedCharSequence.forward	port	crates/sunrise-game-data/src/text.rs::Text::styled	styled text object; the per-character walk is Text::chars
 FormattedCharSequence.backward	skip:other		the reverse walk SubStringSource.substring does, which is skip:ui (the HUD draws each span with its own style)
-FormattedCharSequence.decorateOutput	inline	crates/sunrise-client-render/src/bidi.rs::reorder	the mirror a right-to-left character is drawn as; vanilla's sink mirrors every code point when the language reads right to left, here only the code points in a right-to-left run
-FormattedCharSequence.composite	port	crates/sunrise-client-core/src/text.rs::Text::empty	zero parts give the empty sequence
-FormattedCharSequence.fromPair	port	crates/sunrise-client-core/src/text.rs::Text::append	concatenation of two sequences
+FormattedCharSequence.decorateOutput	inline	crates/sunrise-level/src/bidi.rs::reorder	the mirror a right-to-left character is drawn as; vanilla's sink mirrors every code point when the language reads right to left, here only the code points in a right-to-left run
+FormattedCharSequence.composite	port	crates/sunrise-game-data/src/text.rs::Text::empty	zero parts give the empty sequence
+FormattedCharSequence.fromPair	port	crates/sunrise-game-data/src/text.rs::Text::append	concatenation of two sequences
 FutureChain.append	skip:other		ordering helper for the async chat-signature checks in ServerGamePacketListenerImpl; a scheduling wrapper, no game behaviour of its own
 Graph.depthFirstSearch	inline	crates/sunrise-world/src/worldgen/feature_sort.rs::build_features_per_step	iterative DFS with colours; finds the cycle and emits the reverse topological order
 Weapon.<clinit>	skip:java		constructs the Java persistent and stream codecs; record validation and values are implemented natively

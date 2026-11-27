@@ -7,6 +7,41 @@ rust-version.workspace = true
 description = "Client-only gameplay: what vanilla's client jar adds to the logical side"
 
 [dependencies]
+wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "metal", "wgsl", "naga-ir"], optional = true }
+sunrise-theme = { path = "../sunrise-theme", optional = true }
+sunrise-optifine = { path = "../sunrise-optifine", optional = true }
+sunrise-friends = { path = "../sunrise-friends", optional = true }
+sunrise-dualsense = { path = "../sunrise-dualsense", optional = true }
+pollster = { version = "0.4", optional = true }
+naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out"], optional = true }
+gilrs = { version = "0.11", optional = true }
+bytemuck = { version = "1.24", features = ["derive"], optional = true }
+ab_glyph = { version = "0.2.32", optional = true }
+chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"] }
+indexmap = "2"
+mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab" }
+sunrise-mod-api-macros = { path = "../sunrise-mod-api-macros", optional = true }
+png = "0.18"
+sunrise-assets = { path = "../sunrise-assets" }
+sunrise-bench = { path = "../sunrise-bench" }
+sunrise-client-input = { path = "../sunrise-client-input" }
+sunrise-client-render = { path = "../sunrise-client-render" }
+sunrise-command = { path = "../sunrise-command" }
+sunrise-game-data = { path = "../sunrise-game-data" }
+sunrise-hooks = { path = "../sunrise-hooks" }
+sunrise-items = { path = "../sunrise-items" }
+sunrise-java-properties = { path = "../sunrise-java-properties" }
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["index-read", "runtime-process"] }
+sunrise-mod-runtime = { path = "../sunrise-mod-runtime" }
+sunrise-narrator = { path = "../sunrise-narrator" }
+sunrise-perf-format = { path = "../sunrise-perf-format" }
+sunrise-server-files = { path = "../sunrise-server-files" }
+sunrise-server-profiles-http = { path = "../sunrise-server-profiles-http" }
+sunrise-shaders = { path = "../sunrise-shaders" }
+sunrise-system = { path = "../sunrise-system" }
+sunrise-telemetry = { path = "../sunrise-telemetry", default-features = false }
+zip = { version = "9.1.3", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+sunrise-gameplay-common = { path = "../sunrise-gameplay-common" }
 glam = "0.30"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
@@ -16,10 +51,43 @@ sunrise-core = { path = "../sunrise-core" }
 sunrise-protocol = { path = "../sunrise-protocol" }
 sunrise-threads = { path = "../sunrise-threads" }
 sunrise-world = { path = "../sunrise-world" }
+sunrise-sim = { path = "../sunrise-sim" }
+sunrise-level = { path = "../sunrise-level" }
 winit = "0.30.13"
 
 [dev-dependencies]
-sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false, features = ["test-mob-kind"] }
+mod_platform = { package = "sunrise-mod-api", path = "../sunrise-mod-api", features = ["engine-test-platform"] }
+tempfile = "3"
+sunrise-gameplay-common = { path = "../sunrise-gameplay-common", features = ["test-support"] }
+sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false, features = ["test-dry-side", "test-menu-validity", "test-mob-kind", "test-pack-feedback", "test-payload-probe", "test-publication-scope", "test-residency-observer", "test-resource-cache", "test-still-clock", "test-tooltip-factories"] }
+sunrise-client-render = { path = "../sunrise-client-render", features = ["test-support"] }
+sunrise-hooks = { path = "../sunrise-hooks", features = ["test-support"] }
+sunrise-game-data = { path = "../sunrise-game-data", features = ["test-language-publication", "test-effect-registry"] }
+sunrise-mod-runtime = { path = "../sunrise-mod-runtime", features = ["test-work-count"] }
+sunrise-threads = { path = "../sunrise-threads", features = ["test-allocation-count", "test-game-dir"] }
+mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab", features = ["testing"] }
+sunrise-items = { path = "../sunrise-items", features = ["test-support"] }
+sunrise-world = { path = "../sunrise-world", features = ["test-support"] }
 
 [lints]
 workspace = true
+
+[build-dependencies]
+sunrise-mod-api-gen = { path = "../sunrise-mod-api-gen" }
+
+[features]
+parity-fixtures = []
+rng-trace = ["sunrise-client-lib/rng-trace"]
+sunrise-extras = ["client", "friends"]
+friends = ["dep:sunrise-friends"]
+controllers = ["client", "sunrise-client-lib/controllers", "sunrise-client-input/controllers", "dep:gilrs", "dep:sunrise-dualsense"]
+audio = ["client", "sunrise-client-lib/audio", "sunrise-client-render/audio"]
+test-support = ["sunrise-gameplay-common/test-support", "sunrise-level/test-support", "sunrise-client-render/test-support", "sunrise-hooks/test-support", "sunrise-game-data/test-language-publication", "sunrise-game-data/test-effect-registry", "sunrise-client-lib/test-menu-validity", "sunrise-client-lib/test-payload-probe", "sunrise-client-lib/test-publication-scope", "sunrise-client-lib/test-residency-observer", "sunrise-client-lib/test-dry-side", "sunrise-client-lib/test-tooltip-factories", "sunrise-client-lib/test-pack-feedback", "sunrise-client-lib/test-resource-cache", "sunrise-client-lib/test-still-clock", "sunrise-mod-runtime/test-work-count", "sunrise-threads/test-allocation-count", "sunrise-threads/test-game-dir", "mod_api/testing", "sunrise-items/test-support", "sunrise-world/test-support"]
+client = ["dep:sunrise-theme", "dep:sunrise-optifine", "dep:wgpu", "dep:pollster", "dep:bytemuck", "dep:naga", "dep:ab_glyph", "dep:sunrise-mod-api-macros"]
+default = ["client"]
+
+[target."cfg(windows)".dependencies]
+wgpu = { version = "30.0.1", default-features = false, features = ["dx12"], optional = true }
+
+[target."cfg(not(target_os = \"macos\"))".dependencies]
+wgpu = { version = "30.0.1", default-features = false, features = ["gles"], optional = true }

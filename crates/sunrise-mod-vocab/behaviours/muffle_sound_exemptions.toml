@@ -1,6 +1,6 @@
 version = 1
 doc = "ClientHost::muffle_sounds accepts a list of namespaced sound events with no fixed count limit. Every listed event is exempt from the muffle on the direct sound of new and already playing channels."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_local_sounds.rs::a_client_muffle_accepts_more_than_sixty_four_exempt_events",
+    "crates/sunrise-client-gameplay/src/game/modding/native_local_sounds.rs::a_client_muffle_accepts_more_than_sixty_four_exempt_events",
     "crates/sunrise-client-render/src/audio.rs::a_mods_muffle_fades_with_the_game_ticks_and_spares_its_exempt_sounds",
 ]

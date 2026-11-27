@@ -1,6 +1,6 @@
 version = 1
 doc = "When a registered HUD layer painter or wrapper panics, its lexical draw scopes close any open clips and completed primitives stay in the HUD batch without rolling back or replaying earlier bodies. The shared panic path reports and disables only that callback for the session. A disabled wrapper delegates directly to its previous body, and subsequent HUD hooks and layers still run independently. A drawing method's returned error neither rolls back earlier paint nor disables the callback."
 tests = [
-    "crates/sunrise-client/src/game/modding/gui_layer_tests.rs::failed_gui_layer_keeps_completed_paint_and_isolates_following_layers",
-    "crates/sunrise-client/src/game/modding/gui_layer_tests.rs::a_gui_wrapper_panic_is_contained_but_delegated_engine_paint_is_fatal",
+    "crates/sunrise-client/src/cut_layout/game/modding/gui_layer_tests.rs::failed_gui_layer_keeps_completed_paint_and_isolates_following_layers",
+    "crates/sunrise-client/src/cut_layout/game/modding/gui_layer_tests.rs::a_gui_wrapper_panic_is_contained_but_delegated_engine_paint_is_fatal",
 ]

@@ -10,7 +10,7 @@ pub trait Hooks {
     /// only Parts of the original `item` are called for this tick. Server-side,
     /// including player ticks while the world is frozen.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_inventory_tick",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_inventory_tick",
         dispatch = "flat",
         side = "server",
         contract = "listen",

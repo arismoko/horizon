@@ -1,1 +1,1 @@
-sunrise-client game::remote::tests::client_menu_tests::retained_effects_rebind_on_reconfiguration_and_refusals_do_not_block_clicks lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_menu_tests::retained_effects_rebind_on_reconfiguration_and_refusals_do_not_block_clicks lib daily resources

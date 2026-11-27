@@ -1,68 +1,68 @@
-ServerPlayerGameMode.changeGameModeForPlayer	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::set_game_mode	same-mode check, mode switch, abilities; a LAN guest goes through Hub::set_game_mode which also broadcasts PlayerInfo UPDATE_GAME_MODE
-ServerPlayerGameMode.setGameModeForPlayer	port	crates/sunrise-client/src/game/interface/game_mode.rs::Game::set_mode	previous mode kept, GameType.updatePlayerAbilities applied
+ServerPlayerGameMode.changeGameModeForPlayer	port	crates/sunrise-gameplay/src/game/administration/commands/mod_server.rs::Game::set_game_mode	same-mode check, mode switch, abilities; a LAN guest goes through Hub::set_game_mode which also broadcasts PlayerInfo UPDATE_GAME_MODE
+ServerPlayerGameMode.setGameModeForPlayer	port	crates/sunrise-gameplay/src/game/interface/game_mode.rs::Game::set_mode	previous mode kept, GameType.updatePlayerAbilities applied
 ServerPlayerGameMode.isInRangeOfGround	port	crates/sunrise-world/src/world_movement.rs::in_range_of_ground	the body and the block under it are free of colliders, so a game mode change to spectator stops flying when the player stands on the ground (game/interface/game_mode.rs set_mode, lan/hub.rs); entity colliders stay out
-ServerPlayerGameMode.incrementDestroyProgress	port	crates/sunrise-client/src/game/network/lan_actions/mining.rs::Game::guest_dig_feedback	the stage is `(int)(progress * 10)` (the per-tick progress times the ticks since the START), sent only when it changes as `lastSentState` does; the old `- 1` is gone
+ServerPlayerGameMode.incrementDestroyProgress	port	crates/sunrise-gameplay/src/game/network/lan_actions/mining_server.rs::Game::guest_dig_feedback	the stage is `(int)(progress * 10)` (the per-tick progress times the ticks since the START), sent only when it changes as `lastSentState` does; the old `- 1` is gone
 ServerPlayerGameMode.debugLogging	skip:debug		DEBUG_BLOCK_BREAK logging
-ServerPlayerGameMode.abortDestroyBlock	inline	crates/sunrise-client/src/game/network/lan_actions/packets.rs::Game::lan_guest_packet	the abort action clears the guest's crack for everyone; no separate check of a mismatched destroy position
-ServerPlayerGameMode.destroyAndAck	inline	crates/sunrise-client/src/game/network/lan_actions/mod.rs::Game::lan_guest_packet	the sequence ack every PlayerAction arm sends first (Hub::ack -> ClientboundBlockChangedAck in tick_level) takes a vanilla client's predicted block back, and the ABORT arm also sends the state
-SimulationChunkTracker.getLevel	port	crates/sunrise-client/src/ticket_levels.rs::Map::get	simulation level per chunk, 33 where no ticket reaches
-SimulationChunkTracker.setLevel	inline	crates/sunrise-client/src/ticket_levels.rs::compute	the whole level map is rebuilt from player and forced tickets instead of updated per node
-ThreadedLevelLightEngine.checkBlock	inline	crates/sunrise-client-render/src/light.rs::relight	a block change relights resident chunks directly, no queued PRE_UPDATE task
+ServerPlayerGameMode.abortDestroyBlock	inline	crates/sunrise-gameplay/src/game/network/lan_actions/packets_server.rs::Game::lan_guest_packet	the abort action clears the guest's crack for everyone; no separate check of a mismatched destroy position
+ServerPlayerGameMode.destroyAndAck	inline	crates/sunrise-gameplay/src/game/network/lan_actions/packets_server.rs::ServerGame::lan_guest_packet	the sequence ack every PlayerAction arm sends first (Hub::ack -> ClientboundBlockChangedAck in tick_level) takes a vanilla client's predicted block back, and the ABORT arm also sends the state
+SimulationChunkTracker.getLevel	port	crates/sunrise-sim/src/ticket_levels.rs::Map::get	simulation level per chunk, 33 where no ticket reaches
+SimulationChunkTracker.setLevel	inline	crates/sunrise-sim/src/ticket_levels.rs::compute	the whole level map is rebuilt from player and forced tickets instead of updated per node
+ThreadedLevelLightEngine.checkBlock	inline	crates/sunrise-level/src/light.rs::relight	a block change relights resident chunks directly, no queued PRE_UPDATE task
 ThreadedLevelLightEngine.updateChunkStatus	skip:other		Sunrise lights a chunk in one flood fill and keeps no per-section light state to reset
 ThreadedLevelLightEngine.updateSectionStatus	skip:other		no per-section empty flags: light_chunk reads the sections directly
-ThreadedLevelLightEngine.propagateLightSources	inline	crates/sunrise-client-render/src/light.rs::light_chunk	light_chunk seeds sky and block sources and propagates in one pass
+ThreadedLevelLightEngine.propagateLightSources	inline	crates/sunrise-level/src/light.rs::light_chunk	light_chunk seeds sky and block sources and propagates in one pass
 ThreadedLevelLightEngine.setLightEnabled	skip:other		no light-enabled flag per chunk; relight only touches resident, lit chunks
-ThreadedLevelLightEngine.queueSectionData	inline	crates/sunrise-client-render/src/light.rs::update_light_layers	light layers from a chunk packet are applied at once, not queued
+ThreadedLevelLightEngine.queueSectionData	inline	crates/sunrise-level/src/light.rs::update_light_layers	light layers from a chunk packet are applied at once, not queued
 ThreadedLevelLightEngine.addTask	skip:java		light thread task queue
 ThreadedLevelLightEngine.retainData	skip:other		no retained light data between chunk statuses
 ThreadedLevelLightEngine.initializeLight	skip:other		INITIALIZE_LIGHT step marks sections and enables light; Sunrise has no such step before light_chunk
-ThreadedLevelLightEngine.lightChunk	port	crates/sunrise-client-render/src/light.rs::light_chunk	the chunk's light is computed from its 3x3 neighbourhood
+ThreadedLevelLightEngine.lightChunk	port	crates/sunrise-level/src/light.rs::light_chunk	the chunk's light is computed from its 3x3 neighbourhood
 ThreadedLevelLightEngine.tryScheduleUpdate	skip:java		schedules the light thread
-ThreadedLevelLightEngine.runUpdate	inline	crates/sunrise-client-render/src/light.rs::relight	runLightUpdates: decrease then increase passes, run directly on the changed positions
+ThreadedLevelLightEngine.runUpdate	inline	crates/sunrise-level/src/light.rs::relight	runLightUpdates: decrease then increase passes, run directly on the changed positions
 ThreadedLevelLightEngine.waitForPendingTasks	skip:java		future that completes when the light queue drains
 ThrottlingChunkTaskDispatcher.popTasks	skip:other		caps chunk tasks in flight; Sunrise schedules chunk work on its own worker pool
 ThrottlingChunkTaskDispatcher.getDebugStatus	skip:debug
 Ticket.toString	skip:debug
-Ticket.decreaseTicksLeft	inline	crates/sunrise-client/src/game/world/end.rs::Game::keep_gateway_destinations	an End portal ticket (300, ThrownEnderpearl.placePortalTicket) counts down once a tick while its pearl waits; the ender pearl 40 and post-teleport 5 tickets are not modelled
-Ticket.isTimedOut	inline	crates/sunrise-client/src/game/world/end.rs::Game::keep_gateway_destinations	the portal ticket is dropped when its count reaches 0 (vanilla waits for a negative tick); no other ticket type times out
+Ticket.decreaseTicksLeft	inline	crates/sunrise-gameplay/src/game/world/end.rs::Game::keep_gateway_destinations	an End portal ticket (300, ThrownEnderpearl.placePortalTicket) counts down once a tick while its pearl waits; the ender pearl 40 and post-teleport 5 tickets are not modelled
+Ticket.isTimedOut	inline	crates/sunrise-gameplay/src/game/world/end.rs::Game::keep_gateway_destinations	the portal ticket is dropped when its count reaches 0 (vanilla waits for a negative tick); no other ticket type times out
 WorldGenRegion.<init>	port	crates/sunrise-world/src/worldgen/feature_region.rs::TerrainRegion::new	the region is a set of chunks around the centre
 WorldGenRegion.hasChunk	port	crates/sunrise-world/src/worldgen/feature_region.rs::TerrainRegion::chunk	a chunk is there when it is in the region's index, not by the step's dependency distance
 WorldGenRegion.warnIfReadOutsideWriteZone	skip:debug		logs an unsafe terrain read
 WorldGenRegion.findBlocksIn	skip:debug		only adds the read-zone warnings to the default scan
 WorldGenRegion.isWithinWriteZone	port	crates/sunrise-world/src/worldgen/write_zone.rs::GenerationWriteZone::contains_block	Chebyshev distance to the centre chunk within the write radius
-LevelLoadProgressTracker.start	inline	crates/sunrise-client-render/src/level_loading.rs::progress	weights 10 + player chunks; no persistent (forced) chunk stage
-LevelLoadProgressTracker.update	inline	crates/sunrise-client-render/src/level_loading.rs::progress	player chunks ready out of 49
-LevelLoadProgressTracker.finishSegment	inline	crates/sunrise-client-render/src/level_loading.rs::progress	the 10 weight prepare segment counts as finished
-LevelLoadProgressTracker.tracksStage	inline	crates/sunrise-client-render/src/level_loading.rs::progress	both stages tracked, player chunks included
-LevelLoadProgressTracker.updateProgress	port	crates/sunrise-client-render/src/level_loading.rs::progress
+LevelLoadProgressTracker.start	inline	crates/sunrise-level/src/level_loading.rs::progress	weights 10 + player chunks; no persistent (forced) chunk stage
+LevelLoadProgressTracker.update	inline	crates/sunrise-level/src/level_loading.rs::progress	player chunks ready out of 49
+LevelLoadProgressTracker.finishSegment	inline	crates/sunrise-level/src/level_loading.rs::progress	the 10 weight prepare segment counts as finished
+LevelLoadProgressTracker.tracksStage	inline	crates/sunrise-level/src/level_loading.rs::progress	both stages tracked, player chunks included
+LevelLoadProgressTracker.updateProgress	port	crates/sunrise-level/src/level_loading.rs::progress
 LoggingLevelLoadListener	skip:server		console progress log of a dedicated server or integrated server start
-CompoundContainer.isEmpty	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::Containers::is_empty	a View of both halves is empty when every slot is
-CompoundContainer.contains	inline	crates/sunrise-client/src/game/blocks/block_entity_anims.rs::Game::container_openers_changed	an opener of a chest counts on both halves (chest_other_half)
-CompoundContainer.getItem	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::Containers::get	View::locate picks the half; lan/menu.rs Slots::get does the same for a guest's menu
-CompoundContainer.removeItem	inline	crates/sunrise-client/src/game/blocks/machines/mod.rs::Game::slot_mut_at	View::locate picks the half, the caller splits the stack
-CompoundContainer.removeItemNoUpdate	inline	crates/sunrise-client/src/game/blocks/machines/mod.rs::Game::slot_mut_at	View::locate picks the half, the caller takes the slot
-CompoundContainer.setItem	inline	crates/sunrise-client/src/game/blocks/machines/mod.rs::Game::slot_mut_at	View::locate picks the half
-CompoundContainer.stillValid	port	crates/sunrise-client/src/lan/menu.rs::Slots::still_valid	both halves must still be there and in reach
-CompoundContainer.canPlaceItem	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::Containers::can_place
-Container.countItem	port	crates/sunrise-client/src/mobs/villager.rs::Ext::count_item	villager inventory only, the one caller that needs it
-Container.hasAnyOf	inline	crates/sunrise-client/src/mobs/villager.rs::Ext::take_half_stack	TradeWithVillager's hasAnyOf gate: no wanted item in the inventory, nothing is thrown
-Container.hasAnyMatching	inline	crates/sunrise-client/src/mobs/villager_brain.rs::harvest_tick	Villager.hasFarmSeeds gate: a farmer sows only when a plantable seed is in the inventory; the hopper checks of chiseled bookshelf and jukebox canTakeItem are not ported as such
-Container.getSlot	port	crates/sunrise-client/src/game/administration/commands/items.rs::Game::slot_get	/item and execute if items read a container slot by number
+CompoundContainer.isEmpty	port	crates/sunrise-gameplay-common/src/game/blocks/machine_containers.rs::Containers::is_empty	a View of both halves is empty when every slot is
+CompoundContainer.contains	inline	crates/sunrise-gameplay/src/game/blocks/block_entity_anims.rs::Game::container_openers_changed	an opener of a chest counts on both halves (chest_other_half)
+CompoundContainer.getItem	port	crates/sunrise-gameplay-common/src/game/blocks/machine_containers.rs::Containers::get	View::locate picks the half; lan/menu.rs Slots::get does the same for a guest's menu
+CompoundContainer.removeItem	inline	crates/sunrise-gameplay/src/game/blocks/machines/mod.rs::Game::slot_mut_at	View::locate picks the half, the caller splits the stack
+CompoundContainer.removeItemNoUpdate	inline	crates/sunrise-gameplay/src/game/blocks/machines/mod.rs::Game::slot_mut_at	View::locate picks the half, the caller takes the slot
+CompoundContainer.setItem	inline	crates/sunrise-gameplay/src/game/blocks/machines/mod.rs::Game::slot_mut_at	View::locate picks the half
+CompoundContainer.stillValid	port	crates/sunrise-sim/src/lan/menu.rs::Slots::still_valid	both halves must still be there and in reach
+CompoundContainer.canPlaceItem	port	crates/sunrise-gameplay-common/src/game/blocks/machine_containers.rs::Containers::can_place
+Container.countItem	port	crates/sunrise-sim/src/mobs/villager.rs::Ext::count_item	villager inventory only, the one caller that needs it
+Container.hasAnyOf	inline	crates/sunrise-sim/src/mobs/villager.rs::Ext::take_half_stack	TradeWithVillager's hasAnyOf gate: no wanted item in the inventory, nothing is thrown
+Container.hasAnyMatching	inline	crates/sunrise-sim/src/mobs/villager_brain.rs::harvest_tick	Villager.hasFarmSeeds gate: a farmer sows only when a plantable seed is in the inventory; the hopper checks of chiseled bookshelf and jukebox canTakeItem are not ported as such
+Container.getSlot	port	crates/sunrise-gameplay/src/game/administration/commands/items_server.rs::Game::slot_get	/item and execute if items read a container slot by number
 Container.ContainerIterator.next	skip:java		iterator over slots
 ContainerHelper.removeItem	skip:java		NonNullList helper: split a stack in a slot Vec; block entities take from their own slot vector
 ContainerHelper.takeItem	skip:java		NonNullList helper: Option::take on the slot
-ContainerHelper.clearOrCountMatchingItems	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::clear_matching	/clear over main, armor, offhand, crafting grid and carried stack, count only when max is 0
+ContainerHelper.clearOrCountMatchingItems	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::clear_matching	/clear over main, armor, offhand, crafting grid and carried stack, count only when max is 0
 DifficultyInstance.isHard	skip:other		no vanilla caller (isHarderThan is what Illusioner uses)
-DifficultyInstance.getSpecialMultiplier	port	crates/sunrise-client/src/mobs/spawning.rs::LocalDifficulty::special
-DifficultyInstance.calculateDifficulty	port	crates/sunrise-client/src/mobs/spawning.rs::LocalDifficulty::new
-InteractionHand.asArm	inline	crates/sunrise-client/src/mobs/ai.rs::Mob::swing_hand	off_hand != main arm left; the player's first person hand does the same in game/frame_geometry.rs hand_geometry
+DifficultyInstance.getSpecialMultiplier	port	crates/sunrise-sim/src/mobs/spawning.rs::LocalDifficulty::special
+DifficultyInstance.calculateDifficulty	port	crates/sunrise-sim/src/mobs/spawning.rs::LocalDifficulty::new
+InteractionHand.asArm	inline	crates/sunrise-sim/src/mobs/ai.rs::Mob::swing_hand	off_hand != main arm left; the player's first person hand does the same in game/frame_geometry.rs hand_geometry
 InteractionResult.Success.heldItemTransformedTo	skip:java		result builder; Sunrise replaces the held item in place where the item is used
-ItemStackWithSlot.isValidInContainer	port	crates/sunrise-client-core/src/block_entity_nbt.rs::items	slots outside 0..size are dropped when items load
-LockCode.canUnlock	port	crates/sunrise-client/src/advancements.rs::can_unlock	checked when a container opens (game/interface/advancements/mod.rs container_locked_for from lan_actions.rs): a spectator opens any container, otherwise the main hand must match the lock predicate
+ItemStackWithSlot.isValidInContainer	port	crates/sunrise-game-data/src/block_entity_nbt.rs::items	slots outside 0..size are dropped when items load
+LockCode.canUnlock	port	crates/sunrise-sim/src/advancements.rs::can_unlock	checked when a container opens (game/interface/advancements/mod.rs container_locked_for from lan_actions.rs): a spectator opens any container, otherwise the main hand must match the lock predicate
 RandomSequences.createSequence	port	crates/sunrise-items/src/random_sequences.rs::create
 RandomSequences.DirtyMarkingRandomSource.nextInt	skip:java		marks the saved data dirty on each draw; Sunrise saves every sequence
 RandomSequences.DirtyMarkingRandomSource.equals	skip:java		wrapper equality
-RandomizableContainer.trySaveLootTable	port	crates/sunrise-client-core/src/block_entity_nbt.rs::Fields::loot_table	saves LootTable and a non-zero seed, no items
+RandomizableContainer.trySaveLootTable	port	crates/sunrise-game-data/src/block_entity_nbt.rs::Fields::loot_table	saves LootTable and a non-zero seed, no items
 SimpleContainer.getItem	port	crates/sunrise-world/src/simple_container.rs::SimpleContainer::get	library port; villager and piglin inventories are plain vectors
 SimpleContainer.removeAllItems	port	crates/sunrise-world/src/simple_container.rs::SimpleContainer::remove_all
 SimpleContainer.removeItemNoUpdate	port	crates/sunrise-world/src/simple_container.rs::SimpleContainer::remove_no_update
@@ -73,19 +73,19 @@ SimpleContainer.toString	skip:debug
 SimpleContainer.moveItemToEmptySlots	inline	crates/sunrise-world/src/simple_container.rs::SimpleContainer::add	second pass of addItem; the villager's Ext::add_item does the same
 SimpleContainer.moveItemToOccupiedSlotsWithSameType	inline	crates/sunrise-world/src/simple_container.rs::SimpleContainer::add	first pass of addItem
 SimpleContainer.moveItemsBetweenStacks	inline	crates/sunrise-world/src/simple_container.rs::SimpleContainer::add	the grow and shrink with the per-stack limit
-SimpleContainer.fromItemList	inline	crates/sunrise-client/src/entity_nbt/mob_load.rs::mob_from_nbt	villager and piglin Inventory read; the piglin list is cut to 8 instead of re-added
-SimpleContainer.storeAsItemList	inline	crates/sunrise-client/src/entity_nbt/mob_write.rs::mob_to_nbt	villager and piglin Inventory written
-Stopwatches.unpack	port	crates/sunrise-client/src/stopwatches.rs::Stopwatches::load
-Stopwatches.pack	port	crates/sunrise-client/src/stopwatches.rs::Stopwatches::save
-Stopwatches.add	port	crates/sunrise-client/src/stopwatches.rs::Stopwatches::create
-Stopwatches.update	port	crates/sunrise-client/src/stopwatches.rs::Stopwatches::restart	only the restart update that /stopwatch uses
-Stopwatches.remove	port	crates/sunrise-client/src/stopwatches.rs::Stopwatches::remove
-Stopwatches.isDirty	inline	crates/sunrise-client/src/stopwatches.rs::Stopwatches::save	save skips the write when not dirty and empty
+SimpleContainer.fromItemList	inline	crates/sunrise-sim/src/entity_nbt/mob_load.rs::mob_from_nbt	villager and piglin Inventory read; the piglin list is cut to 8 instead of re-added
+SimpleContainer.storeAsItemList	inline	crates/sunrise-sim/src/entity_nbt/mob_write.rs::mob_to_nbt	villager and piglin Inventory written
+Stopwatches.unpack	port	crates/sunrise-sim/src/stopwatches.rs::Stopwatches::load
+Stopwatches.pack	port	crates/sunrise-sim/src/stopwatches.rs::Stopwatches::save
+Stopwatches.add	port	crates/sunrise-sim/src/stopwatches.rs::Stopwatches::create
+Stopwatches.update	port	crates/sunrise-sim/src/stopwatches.rs::Stopwatches::restart	only the restart update that /stopwatch uses
+Stopwatches.remove	port	crates/sunrise-sim/src/stopwatches.rs::Stopwatches::remove
+Stopwatches.isDirty	inline	crates/sunrise-sim/src/stopwatches.rs::Stopwatches::save	save skips the write when not dirty and empty
 AttributeType.ofInterpolated	skip:data		attribute type definitions and codecs
 AttributeType.ofNotInterpolated	skip:data		attribute type definitions and codecs
 AttributeType.createModifierCodec	skip:data		attribute type definitions and codecs
 AttributeType.checkAllowedModifier	skip:data		attribute type definitions and codecs
-BedRule.Rule.test	inline	crates/sunrise-client/src/game.rs::Game::try_sleep	WHEN_DARK is the hard-coded night or thunder check; ALWAYS and NEVER are in bed_sets_spawn and the dimension checks
+BedRule.Rule.test	inline	crates/sunrise-gameplay/src/game/game_server.rs::Game::try_sleep	WHEN_DARK is the hard-coded night or thunder check; ALWAYS and NEVER are in bed_sets_spawn and the dimension checks
 EnvironmentAttribute.valueCodec	skip:data		codec
 EnvironmentAttribute.Builder.build	skip:data		attribute definition builder
 EnvironmentAttributeMap.applyModifier	inline	crates/sunrise-client-render/src/environment.rs::Environment::value	gap: minor: only multiply and override are applied for visual tracks; and, or and maximum tracks are read by their own users
@@ -95,52 +95,52 @@ EnvironmentAttributeMap.Builder.build	skip:java		builder
 EnvironmentAttributeMap.Entry.createCodec	skip:data		codec
 EnvironmentAttributeMap.Entry.createFullCodec	skip:data		codec
 EnvironmentAttributeProbe.reset	skip:other		Sunrise keeps no probe state: render recomputes the biome weights each frame
-EnvironmentAttributeProbe.getValue	inline	crates/sunrise-client/src/game.rs::Game::render	sky, fog and water fog are blended from Gaussian biome weights at the camera each frame, no last and new tick lerp
+EnvironmentAttributeProbe.getValue	inline	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::render	sky, fog and water fog are blended from Gaussian biome weights at the camera each frame, no last and new tick lerp
 EnvironmentAttributeProbe.ValueProbe.getValueFromLevel	inline	crates/sunrise-client-render/src/environment.rs::Environment::sample	dimension and timeline value; biome blend is applied by the caller
-EnvironmentAttributeProbe.ValueProbe.tick	port	crates/sunrise-client-render/src/biome.rs::gaussian_weights	the per-tick Gaussian sampling of noise biomes around the camera
-EnvironmentAttributeProbe.ValueProbe.get	inline	crates/sunrise-client/src/game.rs::Game::render	per frame values from the camera position instead of lerping last and new tick values
+EnvironmentAttributeProbe.ValueProbe.tick	port	crates/sunrise-level/src/biome.rs::gaussian_weights	the per-tick Gaussian sampling of noise biomes around the camera
+EnvironmentAttributeProbe.ValueProbe.get	inline	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::render	per frame values from the camera position instead of lerping last and new tick values
 EnvironmentAttributeReader.getValue	skip:java		overload that centres a BlockPos and passes no interpolator
 EnvironmentAttributeSystem.bakeLayerSampler	skip:java		folds leading constant layers into the base value; load_dimension builds its base values the same way
-EnvironmentAttributeSystem.addStaticLayers	inline	crates/sunrise-client-render/src/environment.rs::Environment::load_dimension	dimension attributes become base values; biome attributes are read in Biomes::load
+EnvironmentAttributeSystem.addStaticLayers	inline	crates/sunrise-level/src/environment.rs::Environment::load_dimension	dimension attributes become base values; biome attributes are read in Biomes::load
 EnvironmentAttributeSystem.addDynamicLayers	inline	crates/sunrise-client-render/src/environment.rs::Environment::sample	gap: minor: only day.json drives the visual attributes here; moon, early game and villager timelines are read by moon, patrol and villager code; weather is apply_weather
-EnvironmentAttributeSystem.addBiomeLayer	inline	crates/sunrise-client-render/src/biome.rs::Biomes::load	biome attributes (sky, fog, water fog, spawns, fire burnout) are read into BiomeInfo
-EnvironmentAttributeSystem.addBiomeLayerForAttribute	inline	crates/sunrise-client-render/src/biome.rs::blend_rgb	gap: minor: only sky, fog and water fog colours are blended by Gaussian weights; other biome attributes use the biome at the position
+EnvironmentAttributeSystem.addBiomeLayer	inline	crates/sunrise-level/src/biome.rs::Biomes::load	biome attributes (sky, fog, water fog, spawns, fire burnout) are read into BiomeInfo
+EnvironmentAttributeSystem.addBiomeLayerForAttribute	inline	crates/sunrise-level/src/biome.rs::blend_rgb	gap: minor: only sky, fog and water fog colours are blended by Gaussian weights; other biome attributes use the biome at the position
 EnvironmentAttributeSystem.getDimensionValue	inline	crates/sunrise-client-render/src/environment.rs::Environment::sample
 EnvironmentAttributeSystem.getValue	inline	crates/sunrise-client-render/src/environment.rs::Environment::sample	the sky state at a time of day; other attributes are read straight from dimension and biome data by their users
 EnvironmentAttributeSystem.getConstantBaseValue	skip:debug		VisibleForTesting
 EnvironmentAttributeSystem.isAffectedByPosition	skip:debug		VisibleForTesting
-EnvironmentAttributeSystem.Builder.addConstantLayer	inline	crates/sunrise-client-render/src/environment.rs::Environment::load_dimension	dimension attributes inserted as base values
-EnvironmentAttributeSystem.Builder.addConstantEntry	inline	crates/sunrise-client-render/src/environment.rs::Environment::load_dimension
+EnvironmentAttributeSystem.Builder.addConstantLayer	inline	crates/sunrise-level/src/environment.rs::Environment::load_dimension	dimension attributes inserted as base values
+EnvironmentAttributeSystem.Builder.addConstantEntry	inline	crates/sunrise-level/src/environment.rs::Environment::load_dimension
 EnvironmentAttributeSystem.Builder.addLayer	skip:java		builder
-EnvironmentAttributeSystem.Builder.addTimelineLayer	inline	crates/sunrise-client-render/src/environment.rs::Environment::load_dimension	day timeline tracks loaded (overworld only)
-EnvironmentAttributeSystem.Builder.addTimelineLayerForAttribute	inline	crates/sunrise-client-render/src/environment.rs::Environment::load_dimension	one Track per attribute with its easing
+EnvironmentAttributeSystem.Builder.addTimelineLayer	inline	crates/sunrise-level/src/environment.rs::Environment::load_dimension	day timeline tracks loaded (overworld only)
+EnvironmentAttributeSystem.Builder.addTimelineLayerForAttribute	inline	crates/sunrise-level/src/environment.rs::Environment::load_dimension	one Track per attribute with its easing
 EnvironmentAttributeSystem.ValueSampler.getDimensionValue	inline	crates/sunrise-client-render/src/environment.rs::Environment::sample	no per-tick cache: recomputed per frame
 EnvironmentAttributeSystem.ValueSampler.getValue	inline	crates/sunrise-client-render/src/environment.rs::Environment::sample
-EnvironmentAttributeSystem.ValueSampler.computeValuePositional	inline	crates/sunrise-client/src/game.rs::Game::render	base, timeline track, then biome blend, then weather, in that order
+EnvironmentAttributeSystem.ValueSampler.computeValuePositional	inline	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::render	base, timeline track, then biome blend, then weather, in that order
 EnvironmentAttributeSystem.ValueSampler.computeValueNotPositional	inline	crates/sunrise-client-render/src/environment.rs::Environment::sample	base then timeline track
 EnvironmentAttributes.register	skip:data		attribute registry
 WeatherAttributes.addBuiltinLayers	port	crates/sunrise-world/src/environment_system.rs::Builder::weather_layers	rain and thunder layers over sky, fog, cloud, sky light, stars and sunrise; bees staying in the hive is bees_stay_in_hive in bee.rs
 WeatherAttributes.addLayer	port	crates/sunrise-world/src/environment_system.rs::Builder::weather_layer	rain level minus thunder level, then thunder level, each lerped by the attribute's state-change function in `weather`
-BooleanModifier.apply	port	crates/sunrise-client/src/patrol.rs::BoolTrack::apply	and, or, xor, nand, nor, xnor over the timeline track value
+BooleanModifier.apply	port	crates/sunrise-sim/src/patrol.rs::BoolTrack::apply	and, or, xor, nand, nor, xnor over the timeline track value
 ColorModifier.BlendToGray.lerp	skip:other		only lerps blend_to_gray arguments between keyframes; no timeline uses that modifier
 ListModifier.Append.apply	inline	crates/sunrise-world/src/environment_attributes.rs::Entry::apply	the append arm: the subject list then the argument, either one alone when the other is empty
-MobSpawnSettingsModifier.Overlay.apply	inline	crates/sunrise-client-render/src/biome.rs::Biomes::load	no dimension sets natural_mob_spawns, so the overlay over the empty default is the biome's own spawns
+MobSpawnSettingsModifier.Overlay.apply	inline	crates/sunrise-level/src/biome.rs::Biomes::load	no dimension sets natural_mob_spawns, so the overlay over the empty default is the biome's own spawns
 ClockTimeMarker.getRepetitionCount	skip:other		no vanilla caller
-ClockTimeMarker.resolveTimeToMoveTo	port	crates/sunrise-client/src/game/interface/chat.rs::TimeMarker::resolve
-ClockTimeMarker.occursAt	port	crates/sunrise-client/src/game/interface/chat.rs::TimeMarker::occurs_at
-ClockTimeMarker.durationToNext	inline	crates/sunrise-client/src/game/interface/chat.rs::TimeMarker::resolve	the d > 0 else period + d step
-ServerClockManager.init	inline	crates/sunrise-client/src/game/interface/chat.rs::Game::build_registries	overworld timelines and time markers are loaded; gap: minor: command-only End state is independent, while running/network/save clock initialization remains separate
-ServerClockManager.getInstance	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::command_clock_time	clock-keyed command values/state; Overworld stays tied to world.day_time; gap: minor: non-Overworld running clocks, network and save lifecycle remain separate
-ServerClockManager.setTotalTicks	inline	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::cmd_time	/time set <ticks>
-ServerClockManager.moveToTimeMarker	inline	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::cmd_time	/time set <marker>: not found, already there, or moved
-ServerClockManager.addTicks	inline	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::cmd_time	/time add, floored at 0
+ClockTimeMarker.resolveTimeToMoveTo	port	crates/sunrise-gameplay-common/src/world_clock.rs::TimeMarker::resolve
+ClockTimeMarker.occursAt	port	crates/sunrise-gameplay-common/src/world_clock.rs::TimeMarker::occurs_at
+ClockTimeMarker.durationToNext	inline	crates/sunrise-gameplay-common/src/world_clock.rs::TimeMarker::resolve	the d > 0 else period + d step
+ServerClockManager.init	inline	crates/sunrise-gameplay-common/src/game/interface/chat_common.rs::Game::build_registries	overworld timelines and time markers are loaded; gap: minor: command-only End state is independent, while running/network/save clock initialization remains separate
+ServerClockManager.getInstance	port	crates/sunrise-gameplay-common/src/game/world/clocks.rs::CommonGame::command_clock_time	clock-keyed command values/state; Overworld stays tied to world.day_time; gap: minor: non-Overworld running clocks, network and save lifecycle remain separate
+ServerClockManager.setTotalTicks	inline	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::cmd_time	/time set <ticks>
+ServerClockManager.moveToTimeMarker	inline	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::cmd_time	/time set <marker>: not found, already there, or moved
+ServerClockManager.addTicks	inline	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::cmd_time	/time add, floored at 0
 ServerClockManager.isAtTimeMarker	inline	crates/sunrise-gameplay/src/village_siege.rs::VillageSiege::tick	ROLL_VILLAGE_SIEGE marker as tick 18000 of the day
-ServerClockManager.commandTimeMarkersForClock	inline	crates/sunrise-client/src/game/interface/chat.rs::Game::build_registries	markers with show_in_commands go to the command suggestions
-ServerClockManager.ServerClockInstance.loadFrom	port	crates/sunrise-client/src/game/interface/chat.rs::Game::load_world_state	total ticks come from level data; rate, partial tick and paused are read from world_clocks.dat
-ServerClockManager.ServerClockInstance.packState	port	crates/sunrise-client/src/game/interface/chat.rs::Game::save_world_state
+ServerClockManager.commandTimeMarkersForClock	inline	crates/sunrise-gameplay-common/src/game/interface/chat_common.rs::Game::build_registries	markers with show_in_commands go to the command suggestions
+ServerClockManager.ServerClockInstance.loadFrom	port	crates/sunrise-gameplay/src/game/interface/chat_server.rs::Game::load_world_state	total ticks come from level data; rate, partial tick and paused are read from world_clocks.dat
+ServerClockManager.ServerClockInstance.packState	port	crates/sunrise-gameplay/src/game/interface/chat_server.rs::Game::save_world_state
 WorldClocks.bootstrap	skip:data		clock registration
-CombatTracker.getMessageForAssistedFall	port	crates/sunrise-client/src/game/items/combat.rs::Game::combat_death_message_for	the assist and finish messages take the .item form with the killer's custom-named main-hand item (death_message_args)
+CombatTracker.getMessageForAssistedFall	port	crates/sunrise-gameplay/src/game/items/combat.rs::Game::combat_death_message_for	the assist and finish messages take the .item form with the killer's custom-named main-hand item (death_message_args)
 CombatTracker.getCombatDuration	skip:other		only feeds ClientboundPlayerCombatEndPacket, which the client ignores
-DamageSource.getLocalizedDeathMessage	port	crates/sunrise-client/src/game/items/combat.rs::Game::combat_death_message_for	the cause's custom-named main-hand item gives the <id>.item message with its name as the third argument (death_message_args)
+DamageSource.getLocalizedDeathMessage	port	crates/sunrise-gameplay/src/game/items/combat.rs::Game::combat_death_message_for	the cause's custom-named main-hand item gives the <id>.item message with its name as the third argument (death_message_args)
 DamageSource.isCreativePlayer	port	crates/sunrise-world/src/damage_source.rs::DamageSource::creative_player
 DamageSource.is	port	crates/sunrise-world/src/damage_source.rs::DamageSource::in_tag	tag form; the key form is is_type

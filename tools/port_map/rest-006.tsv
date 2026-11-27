@@ -1,9 +1,9 @@
-MessageArgument.getMessage	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::expand_selectors	gap: minor: plain text only, no chat signing
-MessageArgument.resolveChatMessage	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::cmd_say	gap: minor: no chat signing or decorator
+MessageArgument.getMessage	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::expand_selectors	gap: minor: plain text only, no chat signing
+MessageArgument.resolveChatMessage	port	crates/sunrise-gameplay/src/game/administration/commands/mod_server.rs::Game::cmd_say	gap: minor: no chat signing or decorator
 MessageArgument.resolveSignedMessage	missing		minor: no signed chat (signature, ChatDecorator); /say sends plain text
-MessageArgument.resolveDisguisedMessage	inline	crates/sunrise-client/src/game/network/lan_chat.rs::Game::lan_broadcast_command_chat	the /say of a source with no player: a disguised chat of type say_command named after the source
+MessageArgument.resolveDisguisedMessage	inline	crates/sunrise-gameplay/src/game/network/lan_chat.rs::ServerGame::lan_broadcast_command_chat	the /say of a source with no player: a disguised chat of type say_command named after the source
 MessageArgument.filterPlainText	skip:service		external chat filter service (text-filtering-config); Sunrise has no text filter
-MessageArgument.Message.toComponent	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::expand_selectors	@-selector expansion into names
+MessageArgument.Message.toComponent	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::expand_selectors	@-selector expansion into names
 NbtPathArgument.readUnquotedName	port	crates/sunrise-world/src/nbt_path.rs::parse_node	unquoted node name read in the bare-name arm of parse_node
 NbtPathArgument.isAllowedInUnquotedName	inline	crates/sunrise-world/src/nbt_path.rs::parse_node	the excluded-character set of parse_node's bare-name arm
 NbtPathArgument.AllElementsNode.getTag	port	crates/sunrise-world/src/nbt_path.rs::NbtPath::step	Node::AllElements arm of step
@@ -23,21 +23,21 @@ NbtPathArgument.NbtPath.apply	inline	crates/sunrise-world/src/nbt_path.rs::NbtPa
 NbtPathArgument.NbtPath.isTooDeep	port	crates/sunrise-world/src/nbt_path.rs::too_deep
 NbtPathArgument.Node.getOrCreate	inline	crates/sunrise-world/src/nbt_path.rs::NbtPath::descend	walk that creates missing tags node by node
 NbtPathArgument.Node.collect	inline	crates/sunrise-world/src/nbt_path.rs::NbtPath::read_steps	per-node collection loop of the read walk
-ObjectiveArgument.getObjective	port	crates/sunrise-client/src/scoreboard_cmd.rs::objective_name
-ObjectiveArgument.getWritableObjective	port	crates/sunrise-client/src/scoreboard_cmd.rs::writable_objective
+ObjectiveArgument.getObjective	port	crates/sunrise-sim/src/scoreboard_cmd.rs::objective_name
+ObjectiveArgument.getWritableObjective	port	crates/sunrise-sim/src/scoreboard_cmd.rs::writable_objective
 ObjectiveArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	ArgType::Objective arm
 ObjectiveCriteriaArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	ArgType::Criteria arm: custom, team kill and stat criteria
-OperationArgument.getOperation	port	crates/sunrise-client/src/scoreboard_cmd.rs::players	gap: minor: the operation string is read inside players, no separate accessor
+OperationArgument.getOperation	port	crates/sunrise-sim/src/scoreboard_cmd.rs::players	gap: minor: the operation string is read inside players, no separate accessor
 OperationArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	ArgType::Operation arm (OPERATIONS)
-OperationArgument.getSimpleOperation	port	crates/sunrise-client/src/scoreboard_cmd.rs::apply_operation	floor division and positive modulo as in Mth
+OperationArgument.getSimpleOperation	port	crates/sunrise-sim/src/scoreboard_cmd.rs::apply_operation	floor division and positive modulo as in Mth
 ParticleArgument.readParticleType	port	crates/sunrise-command/src/args.rs::ArgType::parse	ArgType::Particle arm: id, registry check, options
 ParticleArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	ArgType::Particle arm
 ResourceArgument.getResource	port	crates/sunrise-command/src/args.rs::ArgType::parse	ArgType::Resource arm checks the registry
 ResourceKeyArgument.key	skip:java		builder: Sunrise names the registry in the ArgType::ResKey variant
 ResourceKeyArgument.getRegistryKey	port	crates/sunrise-command/src/args.rs::ArgType::parse	gap: minor: ResKey arm does not check membership; consumers do
 ResourceKeyArgument.resolveKey	port	crates/sunrise-command/src/args.rs::ArgType::parse	gap: minor: registry lookup is done by the consumer (cmd_recipe, cmd_advancement)
-ResourceKeyArgument.getRecipe	port	crates/sunrise-client/src/game/administration/commands/world_cmds.rs::Game::cmd_recipe	gap: minor: checks learnable recipes, not every non-special recipe
-ResourceKeyArgument.getAdvancement	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::cmd_advancement	advancementNotFound lookup
+ResourceKeyArgument.getRecipe	port	crates/sunrise-gameplay/src/game/administration/commands/world_cmds.rs::Game::cmd_recipe	gap: minor: checks learnable recipes, not every non-special recipe
+ResourceKeyArgument.getAdvancement	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::cmd_advancement	advancementNotFound lookup
 ResourceOrIdArgument.createGrammar	port	crates/sunrise-command/src/codec.rs::resource_or_id	id or inline value
 ResourceOrTagArgument.getResourceOrTag	port	crates/sunrise-command/src/args.rs::ArgType::parse	ArgType::ResOrTag arm
 ResourceOrTagArgument.ResourceResult.cast	skip:java		generic unchecked cast; the registry check is in the ArgType::ResOrTag arm
@@ -45,24 +45,24 @@ ResourceOrTagArgument.TagResult.cast	skip:java		generic unchecked cast; the regi
 ResourceOrTagKeyArgument.getResourceOrTagKey	port	crates/sunrise-command/src/args.rs::ArgType::parse	ArgType::ResOrTagKey arm (key only)
 ResourceSelectorArgument.readPattern	port	crates/sunrise-command/src/args.rs::ArgType::parse	ArgType::ResourceSelector arm reads the pattern
 ResourceSelectorArgument.isAllowedPatternCharacter	inline	crates/sunrise-command/src/args.rs::ArgType::parse	the id-char or * or ? test in the ResourceSelector arm
-ScoreHolderArgument.getNamesWithDefaultWildcard	port	crates/sunrise-client/src/scoreboard_cmd.rs::holders	default_wildcard true
-ScoreHolderArgument.Info.serializeToNetwork	port	crates/sunrise-client/src/lan/commands.rs::properties	score_holder flag written as u8
+ScoreHolderArgument.getNamesWithDefaultWildcard	port	crates/sunrise-sim/src/scoreboard_cmd.rs::holders	default_wildcard true
+ScoreHolderArgument.Info.serializeToNetwork	port	crates/sunrise-sim/src/lan/commands.rs::properties	score_holder flag written as u8
 ScoreHolderArgument.Info.deserializeFromNetwork	port	crates/sunrise-command/src/network.rs::argument_type	score_holder multiple flag read from the packet
-ScoreHolderArgument.SelectorResult.getNames	port	crates/sunrise-client/src/scoreboard_cmd.rs::resolve_holders	selector holders; empty is an error
+ScoreHolderArgument.SelectorResult.getNames	port	crates/sunrise-sim/src/scoreboard_cmd.rs::resolve_holders	selector holders; empty is an error
 SlotSourceArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	ArgType::SlotSource arm
 StringRepresentableArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	ArgType::Enum and StrEnum arms
 StringRepresentableArgument.getExamples	skip:other		Brigadier examples API; no player-visible output in vanilla play
 SwingAnimationArgument.parse	port	crates/sunrise-command/src/args.rs::ArgType::parse	StrEnum arm with argument.swing_animation.invalid
 SwingAnimationArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	StrEnum arm
-TeamArgument.getTeam	port	crates/sunrise-client/src/scoreboard_cmd.rs::team_name
+TeamArgument.getTeam	port	crates/sunrise-sim/src/scoreboard_cmd.rs::team_name
 TeamArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	ArgType::Team arm
 TimeArgument.time	skip:java		builder: Sunrise names ArgType::Time in the command tree
 TimeArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::ArgType::suggest	ArgType::Time arm
-BlockInput.test	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::block_matches	gap: minor: block-entity NBT of the input is not compared
-BlockInput.overwriteWithDefinedProperties	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::block_input_state	/setblock normalizes neighbour shapes, then reapplies explicit properties; strict skips normalization; gap: /fill still places resolved input directly
+BlockInput.test	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::block_matches	gap: minor: block-entity NBT of the input is not compared
+BlockInput.overwriteWithDefinedProperties	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::block_input_state	/setblock normalizes neighbour shapes, then reapplies explicit properties; strict skips normalization; gap: /fill still places resolved input directly
 BlockPredicateArgument.parse	port	crates/sunrise-command/src/block.rs::parse
-BlockPredicateArgument.BlockPredicate.test	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::block_matches	gap: minor: block-entity NBT is not compared
-BlockPredicateArgument.TagPredicate.test	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::block_matches	gap: minor: block-entity NBT is not compared
+BlockPredicateArgument.BlockPredicate.test	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::block_matches	gap: minor: block-entity NBT is not compared
+BlockPredicateArgument.TagPredicate.test	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::block_matches	gap: minor: block-entity NBT is not compared
 BlockStateArgument.parse	port	crates/sunrise-command/src/block.rs::parse
 BlockStateParser.parseForTesting	port	crates/sunrise-command/src/block.rs::parse	for_testing = true, tags allowed
 BlockStateParser.suggestPropertyNameOrEnd	inline	crates/sunrise-command/src/block.rs::BlockParser::fill_suggestions	property name suggestions and ]
@@ -78,14 +78,14 @@ BlockStateParser.suggestOpenVaguePropertiesOrNbt	inline	crates/sunrise-command/s
 BlockStateParser.suggestOpenPropertiesOrNbt	inline	crates/sunrise-command/src/block.rs::BlockParser::fill_suggestions
 BlockStateParser.suggestBlockIdOrTag	inline	crates/sunrise-command/src/block.rs::BlockParser::fill_suggestions	BlockIdOrTag suggestion
 BlockStateParser.setValue	inline	crates/sunrise-command/src/block.rs::BlockParser::read_properties	value check and store into properties
-BlockStateParser.serialize	port	crates/sunrise-client/src/game/runtime/blockctl.rs::Game::state_text	name[prop=value,...]
+BlockStateParser.serialize	port	crates/sunrise-gameplay-common/src/game/runtime/blockctl.rs::Game::state_text	name[prop=value,...]
 BlockPosArgument.getSpawnablePos	missing		minor: no spawnable-bounds check for /spawnpoint and /setworldspawn positions
 BlockPosArgument.parse	port	crates/sunrise-command/src/args.rs::ArgType::parse	ArgType::BlockPos arm
 BlockPosArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::suggest_coordinates	3D block coordinates
-ColumnPosArgument.getColumnPos	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::block_pos_arg	gap: minor: returns the full block position; callers drop y
+ColumnPosArgument.getColumnPos	port	crates/sunrise-gameplay/src/game/administration/commands/position_args_server.rs::ServerGame::block_pos_arg	gap: minor: returns the full block position; callers drop y
 ColumnPosArgument.listSuggestions	port	crates/sunrise-command/src/args.rs::suggest_coordinates	2D coordinates
 LocalCoordinates.apply	port	crates/sunrise-command/src/args.rs::Coordinates::position	Local arm: ^ offsets from the source position and rotation
-Vec2Argument.getVec2	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::resolve_coords	gap: minor: returns the 3D position; callers keep x and z
+Vec2Argument.getVec2	port	crates/sunrise-gameplay/src/game/administration/commands/mod_server.rs::Game::resolve_coords	gap: minor: returns the 3D position; callers keep x and z
 Vec2Argument.listSuggestions	port	crates/sunrise-command/src/args.rs::suggest_coordinates	2D coordinates
 Vec3Argument.vec3	skip:java		builder: Sunrise names ArgType::Vec3 in the command tree
 Vec3Argument.parse	port	crates/sunrise-command/src/args.rs::ArgType::parse	ArgType::Vec3 arm (local or world)
@@ -97,9 +97,9 @@ WorldCoordinates.getRotation	port	crates/sunrise-command/src/args.rs::Coordinate
 WorldCoordinates.parseInt	port	crates/sunrise-command/src/args.rs::parse_world	block = true
 WorldCoordinates.parseDouble	port	crates/sunrise-command/src/args.rs::parse_world	block = false, center per axis
 WorldCoordinates.absolute	skip:java		builder: Sunrise constructs Coordinates::World with absolute Coord values
-FunctionArgument.getFunction	port	crates/sunrise-client/src/game/administration/functions.rs::Game::functions_named	arguments.function.unknown
-FunctionArgument.getFunctionTag	port	crates/sunrise-client/src/game/administration/functions.rs::Game::functions_named	player: an unknown #tag is empty here, so /function says no functions; vanilla says arguments.function.tag.unknown
-ItemInput.createItemStack	port	crates/sunrise-client/src/game/administration/commands/items.rs::Game::item_from_input
+FunctionArgument.getFunction	port	crates/sunrise-gameplay/src/game/administration/functions.rs::Game::functions_named	arguments.function.unknown
+FunctionArgument.getFunctionTag	port	crates/sunrise-gameplay/src/game/administration/functions.rs::Game::functions_named	player: an unknown #tag is empty here, so /function says no functions; vanilla says arguments.function.tag.unknown
+ItemInput.createItemStack	port	crates/sunrise-gameplay/src/game/administration/commands/items.rs::Game::item_from_input
 ItemParser.State.readItem	port	crates/sunrise-command/src/item.rs::ItemState::parse	item id check
 ItemParser.State.readComponent	inline	crates/sunrise-command/src/item.rs::ItemState::read_components	component value decode and malformed error
 ItemParser.State.suggestStartComponents	inline	crates/sunrise-command/src/item.rs::ItemState::fill	[ suggestion
@@ -109,24 +109,24 @@ ItemParser.State.suggestComponentAssignmentOrRemoval	port	crates/sunrise-command
 ItemPredicateArgument.createComponentExistencePredicate	port	crates/sunrise-command/src/item.rs::predicate_grammar	exists: predicate for a component id
 ItemPredicateArgument.ComponentWrapper.create	port	crates/sunrise-command/src/item.rs::predicate_grammar	component value predicate built from the codec
 ItemPredicateArgument.ComponentWrapper.decode	port	crates/sunrise-command/src/item.rs::decode_component
-ItemPredicateArgument.Context.forElementType	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::item_matches	item id match
-ItemPredicateArgument.Context.forTagType	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::item_matches	item tag match
+ItemPredicateArgument.Context.forElementType	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::item_matches	item id match
+ItemPredicateArgument.Context.forTagType	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::item_matches	item tag match
 ItemPredicateArgument.Context.lookupComponentType	port	crates/sunrise-command/src/item.rs::lookup	component id lookup and validation
 ItemPredicateArgument.Context.lookupPredicateType	port	crates/sunrise-command/src/item.rs::lookup	predicate id lookup and validation
 ItemPredicateArgument.Context.listComponentTypes	port	crates/sunrise-command/src/item.rs::ItemState::suggest_component	persistent (non-transient) component names
 ItemPredicateArgument.PredicateWrapper.decode	port	crates/sunrise-command/src/item.rs::decode_predicate
 net/minecraft/commands/arguments/selector/EntitySelector#checkPermissions	inline	crates/sunrise-command/src/selector.rs::SelectorParser::parse	@ selectors refused without permission, checked at parse time
-net/minecraft/commands/arguments/selector/EntitySelector#findSingleEntity	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::entities	gap: minor: no single-entity check here; callers check argument.entity.toomany
-net/minecraft/commands/arguments/selector/EntitySelector#findEntities	port	crates/sunrise-client/src/game/administration/commands/selectors.rs::Game::select
-net/minecraft/commands/arguments/selector/EntitySelector#addEntities	inline	crates/sunrise-client/src/game/administration/commands/selectors.rs::Game::select	per-level collection with the result limit
-net/minecraft/commands/arguments/selector/EntitySelector#findSinglePlayer	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::entities	gap: minor: no single-player check here
-net/minecraft/commands/arguments/selector/EntitySelector#findPlayers	port	crates/sunrise-client/src/game/administration/commands/selectors.rs::Game::select	players only when the selector has no entities
-net/minecraft/commands/arguments/selector/EntitySelector#getPredicate	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::select_in_level	type, name, gamemode, level, distance and box filters
-net/minecraft/commands/arguments/selector/EntitySelector#sortAndLimit	inline	crates/sunrise-client/src/game/administration/commands/selectors.rs::Game::select	sort kinds and the limit
+net/minecraft/commands/arguments/selector/EntitySelector#findSingleEntity	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::entities	gap: minor: no single-entity check here; callers check argument.entity.toomany
+net/minecraft/commands/arguments/selector/EntitySelector#findEntities	port	crates/sunrise-gameplay/src/game/administration/commands/selectors_server.rs::Game::select
+net/minecraft/commands/arguments/selector/EntitySelector#addEntities	inline	crates/sunrise-gameplay/src/game/administration/commands/selectors_server.rs::Game::select	per-level collection with the result limit
+net/minecraft/commands/arguments/selector/EntitySelector#findSinglePlayer	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::entities	gap: minor: no single-player check here
+net/minecraft/commands/arguments/selector/EntitySelector#findPlayers	port	crates/sunrise-gameplay/src/game/administration/commands/selectors_server.rs::Game::select	players only when the selector has no entities
+net/minecraft/commands/arguments/selector/EntitySelector#getPredicate	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::select_in_level	type, name, gamemode, level, distance and box filters
+net/minecraft/commands/arguments/selector/EntitySelector#sortAndLimit	inline	crates/sunrise-gameplay/src/game/administration/commands/selectors_server.rs::Game::select	sort kinds and the limit
 EntitySelectorParser.allowSelectors	inline	crates/sunrise-command/src/args.rs::ArgType::parse	reg.permission >= 2 at each selector call site
-EntitySelectorParser.createAabb	inline	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::select_in_level	dx, dy, dz box from the origin
-EntitySelectorParser.finalizePredicates	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::select_in_level	player: x_rotation and y_rotation are parsed but never filter the selection; the level filter is here
-EntitySelectorParser.createRotationPredicate	inline	crates/sunrise-client/src/game/administration/commands/mod.rs::rotation_in	x_rotation is the pitch and y_rotation the yaw, wrapped and compared with the wrapped range that runs through 180 when its minimum is above its maximum
+EntitySelectorParser.createAabb	inline	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::select_in_level	dx, dy, dz box from the origin
+EntitySelectorParser.finalizePredicates	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::select_in_level	player: x_rotation and y_rotation are parsed but never filter the selection; the level filter is here
+EntitySelectorParser.createRotationPredicate	inline	crates/sunrise-gameplay-common/src/game/administration/commands_common.rs::rotation_in	x_rotation is the pitch and y_rotation the yaw, wrapped and compared with the wrapped range that runs through 180 when its minimum is above its maximum
 EntitySelectorParser.shouldInvertValue	port	crates/sunrise-command/src/selector.rs::SelectorParser::should_invert
 EntitySelectorParser.fillSelectorSuggestions	port	crates/sunrise-command/src/selector.rs::SelectorParser::fill_selectors
 EntitySelectorParser.suggestNameOrSelector	inline	crates/sunrise-command/src/selector.rs::SelectorParser::fill_suggestions
@@ -137,14 +137,14 @@ EntitySelectorParser.suggestOptionsNextOrClose	inline	crates/sunrise-command/src
 EntitySelectorOptions.register	skip:data		option table is a const list (OPTIONS) in selector.rs
 EntitySelectorOptions.rollbackAndThrow	port	crates/sunrise-command/src/selector.rs::rollback
 EntitySelectorOptions.get	inline	crates/sunrise-command/src/selector.rs::SelectorParser::parse_options	unknown and inapplicable option checks via can_use
-ChainModifiers.setFlag	inline	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::run_execute	forked flag set while walking the chain
-CustomCommandExecutor.WithErrorHandling.run	port	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::run_leaf	error sends failure to the store callbacks
+ChainModifiers.setFlag	inline	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::run_execute	forked flag set while walking the chain
+CustomCommandExecutor.WithErrorHandling.run	port	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::run_leaf	error sends failure to the store callbacks
 ExecutionContext.createTopFrame	skip:java		frame object of the queue; Sunrise keeps the return value and depth in exec state
-ExecutionContext.queueInitialFunctionCall	port	crates/sunrise-client/src/game/administration/functions.rs::Game::run_function_by_id
-ExecutionContext.queueInitialCommandExecution	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::run_command
+ExecutionContext.queueInitialFunctionCall	port	crates/sunrise-gameplay/src/game/administration/functions.rs::Game::run_function_by_id
+ExecutionContext.queueInitialCommandExecution	port	crates/sunrise-gameplay/src/game/administration/commands/mod_server.rs::Game::run_command
 ExecutionContext.queueNext	skip:java		work queue of the 26.x engine; Sunrise recurses through run_chain
-ExecutionContext.discardAtDepthOrHigher	port	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::finish_return	return discards the rest of the frame
-ExecutionContext.runCommandQueue	port	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::run_chain	gap: minor: stops with command.failed at max_command_sequence_length; no queue overflow limit
+ExecutionContext.discardAtDepthOrHigher	port	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::finish_return	return discards the rest of the frame
+ExecutionContext.runCommandQueue	port	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::run_chain	gap: minor: stops with command.failed at max_command_sequence_length; no queue overflow limit
 ExecutionContext.pushNewCommands	skip:java		queue bookkeeping of the 26.x engine
-BuildContexts.execute	port	crates/sunrise-client/src/game/administration/commands/execute.rs::Game::run_execute	walk of the execute modifiers, then the leaf command
+BuildContexts.execute	port	crates/sunrise-gameplay/src/game/administration/commands/execute_server.rs::Game::run_execute	walk of the execute modifiers, then the leaf command
 BuildContexts.traceCommandStart	skip:debug		command tracer callback

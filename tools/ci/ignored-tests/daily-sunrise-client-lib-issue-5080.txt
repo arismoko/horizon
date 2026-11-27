@@ -1,1 +1,1 @@
-sunrise-client-lib mod_content::tests::content_block_face_rules_reach_the_mesher_visibility lib daily resources
+sunrise-client-lib mod_content_client::tests::content_block_face_rules_reach_the_mesher_visibility lib daily resources

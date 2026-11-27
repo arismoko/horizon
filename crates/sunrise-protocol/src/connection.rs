@@ -94,6 +94,8 @@ pub enum Socket {
 #[derive(Debug, Default)]
 pub struct Counters {
     pub received: AtomicI64,
+    #[cfg(feature = "test-receive-progress")]
+    pub play_ingress_received: AtomicI64,
     pub sent: AtomicI64,
     pub bytes_in: AtomicI64,
     pub bytes_out: AtomicI64,

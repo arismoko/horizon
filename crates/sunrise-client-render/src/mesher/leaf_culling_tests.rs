@@ -32,11 +32,11 @@ fn fixture() -> Fixture {
         root.to_path_buf(),
     ))
     .unwrap();
-    let render = assets
-        .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-            root.to_path_buf(),
-        ))
-        .unwrap();
+    let render = crate::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )
+    .unwrap();
     let visibility = models::load_visibility(&root, assets.registry).unwrap();
     let tables = MeshTables::new(&assets, &render, &facts, visibility.clone(), None).unwrap();
     Fixture {

@@ -1,3 +1,3 @@
 # Left screen room and the mod menu book toggle open a game, whose process-wide tables need their own process.
-sunrise-client game::native_hooks::book_screen::lifecycle_tests::screen_room_keeps_a_mod_menus_book_toggle_painted_and_reachable lib daily child-process
-sunrise-client game::screen_build::tests::room_on_the_left_moves_the_window_right_and_clears_the_book lib daily child-process
+sunrise-client-gameplay game::client_side::recipe_book::tests::screen_room_keeps_a_mod_menus_book_toggle_painted_and_reachable lib daily child-process
+sunrise-client cut_layout::game::client_side::screen_build::tests::room_on_the_left_moves_the_window_right_and_clears_the_book lib daily child-process

@@ -28,7 +28,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         host = "level",
-        target = "sunrise_client::game::native_hooks::bounce_restitution::FrictionView<'_>::native_bounce_restitution",
+        target = "sunrise_gameplay_common::game::native_hooks::bounce_restitution::FrictionView<'_>::native_bounce_restitution",
         neoforge = "IBlockExtension.getBounceRestitution"
     )]
     fn bounce_restitution(

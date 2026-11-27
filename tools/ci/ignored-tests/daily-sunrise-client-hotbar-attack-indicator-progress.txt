@@ -1,1 +1,1 @@
-sunrise-client game::gui_layer_tests::hotbar_attack_indicator_progress_edits_only_stock_hotbar_paint lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::hotbar_attack_indicator_progress_edits_only_stock_hotbar_paint lib daily child-process

@@ -1,3 +1,3 @@
 # Level.getChunk for mods (LevelRef::load_chunk, #4550): a lit FULL chunk and its chunk_load before the call returns, the one-tick UNKNOWN ticket, its expiry and unload; a parked custom level stays open for a live ticket.
-sunrise-client game::native_level_refs::tests::load_chunk_brings_a_lit_full_chunk_under_a_ticket_that_expires_after_a_tick lib daily child-process
-sunrise-client game::runtime_levels_tests::a_live_loading_ticket_keeps_an_idle_custom_level_open_until_it_expires lib daily child-process
+sunrise-client cut_layout::game::server_side::native_level_refs::tests::load_chunk_brings_a_lit_full_chunk_under_a_ticket_that_expires_after_a_tick lib daily child-process
+sunrise-client cut_layout::game::server_side::runtime_levels_tests::a_live_loading_ticket_keeps_an_idle_custom_level_open_until_it_expires lib daily child-process

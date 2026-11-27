@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::live_damage_tests::production_crash_hook_contains_reduction_panics_on_server_thread lib daily child-process
+sunrise-gameplay-common game::native_hooks::live_damage_tests::production_crash_hook_contains_reduction_panics_on_server_thread lib daily child-process

@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A server player completed an advancement, after progress was recorded.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_advancement_done",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_advancement_done",
         dispatch = "flat",
         side = "server",
         contract = "listen",

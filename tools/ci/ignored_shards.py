@@ -28,8 +28,22 @@ ROOT = Path(__file__).resolve().parents[2]
 # One package per shard, balanced on the measured test times of the single-job run this
 # plan replaced (dyna-ci run #952, e8752e146f: sunrise-client 380s, sunrise-client-render
 # 279s, sunrise-client-lib 189s, 16m53s wall); sunrise-world and sunrise-items joined when every library
-# test started running with the data, not only the #[ignore]d ones. Rebalance by editing this tuple only.
-SHARDS = ("sunrise-client", "sunrise-client-lib", "sunrise-client-render", "sunrise-world", "sunrise-items")
+# test started running with the data, not only the #[ignore]d ones, and the three gameplay crates
+# (sunrise-gameplay-common, sunrise-gameplay, sunrise-client-gameplay) joined when gameplay split out of
+# sunrise-client so their library tests keep running with prepared vanilla data. Rebalance by editing
+# this tuple only.
+SHARDS = (
+    "sunrise-client",
+    "sunrise-gameplay-common",
+    "sunrise-gameplay",
+    "sunrise-client-gameplay",
+    "sunrise-client-lib",
+    "sunrise-client-render",
+    "sunrise-world",
+    "sunrise-items",
+    "sunrise-level",
+    "sunrise-sim",
+)
 # The leg that runs the daily rows (tools/ci/ignored-tests/daily-*.txt) that no package shard above runs: the moved
 # tests of every other package, and of the shard packages' targets their shard does not build (tools/ci/ignored_tests.py
 # daily_rows_groups). Coverage, not speed: without it those tests would run nowhere. Main's full matrix only.
@@ -48,7 +62,9 @@ PREPARE = {
                                   "--example", "shader_fuzz"],
 }
 # A package too big for one test process's memory runs as several legs, `PACKAGE#NofM` (tools/ci/ignored_tests.py
-# gives each test to exactly one leg). sunrise-client's single process was killed (signal 9) on three main runs.
+# gives each test to exactly one leg). sunrise-client's single process was killed (signal 9) on three main runs;
+# after the gameplay split it still holds ~4,437 tests (4,114 ignored game-boot/resource tests), so it keeps 2 legs,
+# whereas each gameplay crate (<900 tests each) fits comfortably in a single leg on dyna-large.
 LEGS = {"sunrise-client": 2}
 
 # Files at the repository root that every package's build reads.

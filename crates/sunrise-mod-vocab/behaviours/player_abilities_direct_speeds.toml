@@ -1,3 +1,3 @@
 version = 1
 doc = "PlayerRef::set_abilities stores fly_speed and walk_speed as supplied, including non-finite floats, matching vanilla Abilities.setFlyingSpeed and setWalkingSpeed without refusing the write for speed values."
-tests = ["crates/sunrise-client/src/game/modding/native_entity_refs.rs::acting_guest_handles_resolve_during_guest_turns"]
+tests = ["crates/sunrise-client/src/cut_layout/game/modding/native_entity_refs.rs::acting_guest_handles_resolve_during_guest_turns"]

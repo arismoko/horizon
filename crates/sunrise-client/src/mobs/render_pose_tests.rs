@@ -2,7 +2,7 @@ fn pose_test_cube(x: f32) -> serde_json::Value {
     serde_json::json!({ "pose": [x, 0.0, 0.0], "polygons": [[[x, 0.0, 0.0, 0.0, 0.0], [x + 1.0, 0.0, 0.0, 1.0, 0.0], [x + 1.0, 1.0, 0.0, 1.0, 1.0], [x, 1.0, 0.0, 0.0, 1.0]]] })
 }
 
-fn quadruped_fixture() -> Mob {
+fn quadruped_fixture() -> (Mob, ClientMobVisuals) {
     let cube = pose_test_cube;
     let mut head = cube(0.0);
     head["pose"] = serde_json::json!([3.5, -2.5, 1.0, 0.0, 0.0, 0.25, 2.0, 0.5, 1.0]);
@@ -14,7 +14,12 @@ fn quadruped_fixture() -> Mob {
     let mut kind = (*crate::mobs::sensor_scan_tests::kind()).clone();
     kind.species = Species::Cow;
     kind.anim = super::super::Anim::Quadruped;
-    kind.model = std::sync::Arc::new(Part::parse("root", &quadruped));
+    let visuals = ClientMobVisuals {
+        shadow: None,
+        model: std::sync::Arc::new(Part::parse("root", &quadruped)),
+        layers: Default::default(),
+        texture: String::new(),
+    };
     let mut cow = Mob::new(
         2,
         std::sync::Arc::new(kind),
@@ -22,18 +27,27 @@ fn quadruped_fixture() -> Mob {
         0.0,
     );
     cow.age = 37;
-    cow
+    (cow, visuals)
 }
 
 #[test]
 fn frame_model_lends_the_drawn_pose_without_changing_geometry() {
     use std::f32::consts::FRAC_PI_2;
 
-    let mut cow = quadruped_fixture();
+    let (mut cow, cow_visuals) = quadruped_fixture();
     cow.head_pitch = 90.0;
     cow.previous_head_pitch = 90.0;
-    let (_, mut data) = humanoid_zombie();
-    data.frame_models = BakedFrameModels::bake([cow.kind.as_ref()]);
+    let mut models = ClientMobModels::default();
+    models.insert(cow.kind.id.clone(), cow_visuals);
+    let data = ClientMobData {
+        frame_models: BakedFrameModels::bake(models.types.values()),
+        ..Default::default()
+    };
+    let source = ClientMobRender {
+        models: &models,
+        data: &data,
+    };
+    let cow_model = models.model(&cow.kind.id).unwrap();
     let atlas = |_: &str| Some([0.0, 0.0, 1.0, 1.0]);
     let check = |model: &dyn mod_api::FrameModel| {
         // The empty root still leads to its children. The head's pitch is animated on this
@@ -85,7 +99,7 @@ fn frame_model_lends_the_drawn_pose_without_changing_geometry() {
         let mut out = Vec::new();
         if layers_only {
             let extra = [(
-                WornModel::Vanilla(&cow.kind.model),
+                WornModel::Vanilla(cow_model),
                 [0.0, 0.0, 1.0, 1.0],
                 0xFFFF_FFFF,
                 0,
@@ -97,7 +111,7 @@ fn frame_model_lends_the_drawn_pose_without_changing_geometry() {
                 glam::DVec3::ZERO,
                 &atlas,
                 0xf0f0,
-                &data,
+                &source,
                 &extra,
                 &mut frame,
                 &mut out,
@@ -109,7 +123,7 @@ fn frame_model_lends_the_drawn_pose_without_changing_geometry() {
                 glam::DVec3::ZERO,
                 &atlas,
                 0xf0f0,
-                &data,
+                &source,
                 &[],
                 &mut frame,
                 &mut out,
@@ -131,9 +145,9 @@ fn frame_model_lends_the_drawn_pose_without_changing_geometry() {
 
     // The skinned path keeps the same local pose and submits the same GPU jobs and matrices.
     let gpu = |capture_model| {
-        let mut models = super::super::skin::SkinModels::default();
+        let mut skin_models = super::super::skin::SkinModels::default();
         let mut skin_frame = crate::gfx::entity_skin::SkinFrame::default();
-        let mut skin = super::super::skin::Skin::new(&mut models, &mut skin_frame);
+        let mut skin = super::super::skin::Skin::new(&mut skin_models, &mut skin_frame);
         let mut frame = FrameDraw::new(capture_model);
         let mut out = Vec::new();
         render_skinned(
@@ -142,7 +156,7 @@ fn frame_model_lends_the_drawn_pose_without_changing_geometry() {
             glam::DVec3::ZERO,
             &atlas,
             0xf0f0,
-            &data,
+            &source,
             &mut frame,
             &mut out,
             &mut skin,
@@ -173,8 +187,7 @@ fn frame_model_lends_the_drawn_pose_without_changing_geometry() {
 fn pre_lends_the_bind_pose_and_edits_more_than_eight_parts_for_one_draw() {
     use std::f32::consts::FRAC_PI_2;
 
-    let mut cow = quadruped_fixture();
-    let mut kind = (*cow.kind).clone();
+    let (mut cow, mut cow_visuals) = quadruped_fixture();
     let mut head = pose_test_cube(0.0);
     head["children"] = serde_json::json!({"jaw": pose_test_cube(0.0)});
     let mut children = serde_json::Map::new();
@@ -186,15 +199,22 @@ fn pre_lends_the_bind_pose_and_edits_more_than_eight_parts_for_one_draw() {
         }
         children.insert(format!("named_part_{i}"), part);
     }
-    kind.model = std::sync::Arc::new(Part::parse(
+    cow_visuals.model = std::sync::Arc::new(Part::parse(
         "root",
         &serde_json::json!({"children": children}),
     ));
-    cow.kind = std::sync::Arc::new(kind);
     cow.head_pitch = 90.0;
     cow.previous_head_pitch = 90.0;
-    let (_, mut data) = humanoid_zombie();
-    data.frame_models = BakedFrameModels::bake([cow.kind.as_ref()]);
+    let mut models = ClientMobModels::default();
+    models.insert(cow.kind.id.clone(), cow_visuals);
+    let data = ClientMobData {
+        frame_models: BakedFrameModels::bake(models.types.values()),
+        ..Default::default()
+    };
+    let source = ClientMobRender {
+        models: &models,
+        data: &data,
+    };
     let atlas = |_: &str| Some([0.0, 0.0, 1.0, 1.0]);
     let draw = |frame: &mut FrameDraw<'_>| {
         let mut out = Vec::new();
@@ -204,7 +224,7 @@ fn pre_lends_the_bind_pose_and_edits_more_than_eight_parts_for_one_draw() {
             glam::DVec3::ZERO,
             &atlas,
             0xf0f0,
-            &data,
+            &source,
             &[],
             frame,
             &mut out,
@@ -213,7 +233,7 @@ fn pre_lends_the_bind_pose_and_edits_more_than_eight_parts_for_one_draw() {
     };
 
     let mut frame = FrameDraw::new(true);
-    let pre = frame.prepare(&cow, &data).unwrap();
+    let pre = frame.prepare(&cow, &data, &models).unwrap();
     let head = pre.part("head").unwrap();
     let (head_index, jaw_index) = (head.index, head.first_child.unwrap());
     assert_eq!(head.pose().x_rot, 0.0, "Pre sees bind pose, not setupAnim");
@@ -247,7 +267,7 @@ fn pre_lends_the_bind_pose_and_edits_more_than_eight_parts_for_one_draw() {
     drop(frame);
 
     let mut fresh = FrameDraw::new(true);
-    let pre = fresh.prepare(&cow, &data).unwrap();
+    let pre = fresh.prepare(&cow, &data, &models).unwrap();
     assert!(pre.part_at(jaw_index).unwrap().visible);
     assert_eq!(
         draw(&mut fresh),
@@ -257,8 +277,14 @@ fn pre_lends_the_bind_pose_and_edits_more_than_eight_parts_for_one_draw() {
     assert!(fresh.model().unwrap().part_at(jaw_index).unwrap().visible);
 }
 
-fn hide_in_draw<'m>(frame: &mut FrameDraw<'m>, mob: &'m Mob, data: &MobData, names: &[&str]) {
-    let model = frame.prepare(mob, data).unwrap();
+fn hide_in_draw<'m>(
+    frame: &mut FrameDraw<'m>,
+    mob: &'m Mob,
+    data: &ClientMobData,
+    models: &'m ClientMobModels,
+    names: &[&str],
+) {
+    let model = frame.prepare(mob, data, models).unwrap();
     for name in names {
         let index = model.part(name).unwrap().index;
         assert!(model.hide(index));
@@ -267,43 +293,71 @@ fn hide_in_draw<'m>(frame: &mut FrameDraw<'m>, mob: &'m Mob, data: &MobData, nam
 
 #[test]
 fn named_hidden_parts_leave_the_body_and_its_overlays_but_not_armour() {
-    let cow = quadruped_fixture();
+    let (cow, cow_visuals) = quadruped_fixture();
     let cube = pose_test_cube;
     let mut hat = cube(0.0);
     hat["children"] = serde_json::json!({"hat_rim": cube(0.0)});
     let mut head = cube(0.0);
     head["children"] = serde_json::json!({"hat": hat, "nose": cube(0.0)});
     let tree = serde_json::json!({"children": {"head": head, "body": cube(0.0)}});
+    let villager_model = std::sync::Arc::new(Part::parse("root", &tree));
     let mut kind = (*cow.kind).clone();
     kind.id = "minecraft:villager".into();
     kind.species = Species::Villager;
     kind.anim = super::super::Anim::Villager;
-    kind.model = std::sync::Arc::new(Part::parse("root", &tree));
+    let villager_kind = std::sync::Arc::new(kind);
     let villager = Mob::new(
         3,
-        std::sync::Arc::new(kind),
+        villager_kind.clone(),
         sunrise_core::geometry::Vec3::ZERO,
         0.0,
     );
-    let mut kind = (*villager.kind).clone();
-    kind.layers
-        .insert("villager#main".into(), kind.model.clone());
-    let mut layered = Mob::new(
-        4,
-        std::sync::Arc::new(kind),
-        sunrise_core::geometry::Vec3::ZERO,
-        0.0,
+    let mut layered = Mob::new(4, villager_kind, sunrise_core::geometry::Vec3::ZERO, 0.0);
+    let mut models = ClientMobModels::default();
+    models.insert(cow.kind.id.clone(), cow_visuals);
+    models.insert(
+        "minecraft:villager".into(),
+        ClientMobVisuals {
+            shadow: None,
+            model: villager_model.clone(),
+            layers: Default::default(),
+            texture: String::new(),
+        },
     );
-    let (_, mut data) = humanoid_zombie();
-    data.frame_models = BakedFrameModels::bake([&*cow.kind, &*villager.kind, &*layered.kind]);
+    let mut layered_models = ClientMobModels::default();
+    layered_models.insert(
+        "minecraft:villager".into(),
+        ClientMobVisuals {
+            shadow: None,
+            model: villager_model.clone(),
+            layers: [("villager#main".into(), villager_model.clone())]
+                .into_iter()
+                .collect(),
+            texture: String::new(),
+        },
+    );
+    let data = ClientMobData {
+        frame_models: BakedFrameModels::bake(
+            models.types.values().chain(layered_models.types.values()),
+        ),
+        ..Default::default()
+    };
     let atlas = |_: &str| Some([0.0, 0.0, 1.0, 1.0]);
-    let draw = |mob: &Mob, names: &[&str], gpu: bool, extra: &[WornLayer<'_>]| {
+    let draw = |mob: &Mob,
+                mob_models: &ClientMobModels,
+                names: &[&str],
+                gpu: bool,
+                extra: &[WornLayer<'_>]| {
         let mut out = Vec::new();
-        let mut models = super::super::skin::SkinModels::default();
+        let mut skin_models = super::super::skin::SkinModels::default();
         let mut skin_frame = crate::gfx::entity_skin::SkinFrame::default();
-        let mut skin = super::super::skin::Skin::new(&mut models, &mut skin_frame);
+        let mut skin = super::super::skin::Skin::new(&mut skin_models, &mut skin_frame);
         let mut frame = FrameDraw::default();
-        hide_in_draw(&mut frame, mob, &data, names);
+        hide_in_draw(&mut frame, mob, &data, mob_models, names);
+        let source = ClientMobRender {
+            models: mob_models,
+            data: &data,
+        };
         render_visible(
             mob,
             0.5,
@@ -311,7 +365,7 @@ fn named_hidden_parts_leave_the_body_and_its_overlays_but_not_armour() {
             [glam::Mat4::IDENTITY],
             &atlas,
             0xf0f0,
-            &data,
+            &source,
             extra,
             Some(body_color(mob, 0.5)),
             &mut frame,
@@ -323,34 +377,33 @@ fn named_hidden_parts_leave_the_body_and_its_overlays_but_not_armour() {
             skin_frame.jobs.iter().map(|job| job.count).sum::<u32>(),
         )
     };
-    let armour = [(
-        WornModel::Vanilla(&villager.kind.model),
-        [0.0, 0.0, 1.0, 1.0],
-        0xf0f0,
-        0,
-        false,
-    )];
-    let cpu = |mob: &Mob, names: &[&str]| draw(mob, names, false, &[]).0;
-    let gpu = |mob: &Mob, names: &[&str]| {
-        let (cpu, gpu) = draw(mob, names, true, &[]);
+    let armour = [(WornModel::Vanilla(&villager_model), [0.0, 0.0, 1.0, 1.0], 0xf0f0, 0, false)];
+    let cpu = |mob: &Mob, mob_models: &ClientMobModels, names: &[&str]| {
+        draw(mob, mob_models, names, false, &[]).0
+    };
+    let gpu = |mob: &Mob, mob_models: &ClientMobModels, names: &[&str]| {
+        let (cpu, gpu) = draw(mob, mob_models, names, true, &[]);
         assert_eq!(cpu, 0, "the whole body takes the GPU path");
         gpu
     };
-    for route in [&cpu as &dyn Fn(&Mob, &[&str]) -> u32, &gpu] {
-        let whole = route(&cow, &[]);
+    for route in [
+        &cpu as &dyn Fn(&Mob, &ClientMobModels, &[&str]) -> u32,
+        &gpu,
+    ] {
+        let whole = route(&cow, &models, &[]);
         assert!(whole > 0);
-        assert_eq!(route(&cow, &["right_hind_leg"]), whole - 4);
-        let whole = route(&villager, &[]);
-        assert_eq!(route(&villager, &["hat_rim", "nose"]), whole - 8);
+        assert_eq!(route(&cow, &models, &["right_hind_leg"]), whole - 4);
+        let whole = route(&villager, &models, &[]);
+        assert_eq!(route(&villager, &models, &["hat_rim", "nose"]), whole - 8);
         assert_eq!(
-            route(&villager, &["hat"]),
+            route(&villager, &models, &["hat"]),
             whole - 8,
             "the hat rim goes with it"
         );
     }
     for gpu_path in [false, true] {
         let draw_armoured = |names: &[&str], extra: &[WornLayer<'_>]| {
-            let (cpu, gpu) = draw(&villager, names, gpu_path, extra);
+            let (cpu, gpu) = draw(&villager, &models, names, gpu_path, extra);
             cpu + gpu
         };
         let bare = draw_armoured(&[], &[]);
@@ -368,8 +421,14 @@ fn named_hidden_parts_leave_the_body_and_its_overlays_but_not_armour() {
     super::villager_client::install(&table, &Default::default());
     layered.extra.profession = super::super::villager::ProfessionState::Vanilla(5);
     assert_eq!(layers(&layered, 0.0).len(), 3, "type, profession and level");
-    assert_eq!(cpu(&layered, &["nose"]), cpu(&layered, &[]) - 16);
-    assert_eq!(gpu(&layered, &["nose"]), gpu(&layered, &[]) - 16);
+    assert_eq!(
+        cpu(&layered, &layered_models, &["nose"]),
+        cpu(&layered, &layered_models, &[]) - 16
+    );
+    assert_eq!(
+        gpu(&layered, &layered_models, &["nose"]),
+        gpu(&layered, &layered_models, &[]) - 16
+    );
     // A full profession hat makes the type overlay use the no-hat poses.
     // Its head (including nose) is absent even before the mod hides the nose;
     // the body, profession and level each lose one four-vertex polygon.
@@ -393,21 +452,31 @@ fn named_hidden_parts_leave_the_body_and_its_overlays_but_not_armour() {
         false,
         layered.extra.variant
     ));
-    assert_eq!(cpu(&layered, &["nose"]), cpu(&layered, &[]) - 12);
-    assert_eq!(gpu(&layered, &["nose"]), gpu(&layered, &[]) - 12);
+    assert_eq!(
+        cpu(&layered, &layered_models, &["nose"]),
+        cpu(&layered, &layered_models, &[]) - 12
+    );
+    assert_eq!(
+        gpu(&layered, &layered_models, &["nose"]),
+        gpu(&layered, &layered_models, &[]) - 12
+    );
     super::villager_client::install(&table, &Default::default());
 }
 
 #[test]
 fn equipment_model_override_draws_with_body_poses_and_inventory_does_not_dispatch_it() {
     struct Source {
-        data: MobData,
+        models: ClientMobModels,
+        data: ClientMobData,
         model: std::sync::Arc<EquipmentModel>,
         calls: std::cell::Cell<usize>,
     }
     impl RenderDataSource for Source {
-        fn mob_data(&self) -> &MobData {
-            &self.data
+        fn mob_tables(&self) -> ClientMobRender<'_> {
+            ClientMobRender {
+                models: &self.models,
+                data: &self.data,
+            }
         }
         fn equipment_layers(&self, _: &Mob) -> Vec<Layer> {
             self.calls.set(self.calls.get() + 1);
@@ -425,12 +494,13 @@ fn equipment_model_override_draws_with_body_poses_and_inventory_does_not_dispatc
             Vec::new()
         }
     }
-    let (mob, data) = humanoid_zombie();
-    let mut reference = (*mob.kind.model).clone();
+    let (mob, models, data) = humanoid_zombie();
+    let mut reference = (**models.model(&mob.kind.id).unwrap()).clone();
     reference.children.retain(|node| node.name == "body");
     let reference = std::sync::Arc::new(reference);
     let baked = EquipmentModel::bake(&crate::mobs::model_layers::from_part(&reference)).unwrap();
     let source = Source {
+        models,
         model: std::sync::Arc::new(baked),
         data,
         calls: std::cell::Cell::new(0),
@@ -465,13 +535,14 @@ fn equipment_model_override_draws_with_body_poses_and_inventory_does_not_dispatc
         &mut actual,
     );
     let mut expected = Vec::new();
+    let plain = source.mob_tables();
     render_with(
         &mob,
         0.5,
         glam::DVec3::ZERO,
         &atlas,
         0xF0F0,
-        &source.data,
+        &plain,
         &[(
             WornModel::Vanilla(&reference),
             uv,

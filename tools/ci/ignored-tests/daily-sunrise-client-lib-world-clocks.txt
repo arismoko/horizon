@@ -1,2 +1,2 @@
 # #2506: a world pack's clock reaches the clients; reads the prepared resources.
-sunrise-client-lib lan::data::tests::world_packs_supply_world_clocks lib daily resources
+sunrise-sim lan::data::tests::world_packs_supply_world_clocks lib daily resources

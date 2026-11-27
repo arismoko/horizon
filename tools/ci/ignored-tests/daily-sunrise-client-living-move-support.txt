@@ -1,2 +1,2 @@
-sunrise-client game::piston_push::lid_push_tests::forced_living_moves_land_booted_bodies_on_powder_snow lib daily resources
-sunrise-client game::piston_push::lid_push_tests::shulker_push_updates_stand_support_in_both_join_orders lib daily resources
+sunrise-client cut_layout::game::server_side::piston_push_server::lid_push_tests::forced_living_moves_land_booted_bodies_on_powder_snow lib daily resources
+sunrise-client cut_layout::game::server_side::piston_push_server::lid_push_tests::shulker_push_updates_stand_support_in_both_join_orders lib daily resources

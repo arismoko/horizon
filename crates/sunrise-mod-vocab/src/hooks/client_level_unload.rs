@@ -11,7 +11,7 @@ pub trait Hooks {
     /// When quitting single player, this fires before halting its server.
     /// Client-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_client_level_unload",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_client_level_unload",
         dispatch = "flat",
         side = "client",
         contract = "listen",

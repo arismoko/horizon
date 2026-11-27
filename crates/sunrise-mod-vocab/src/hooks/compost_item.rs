@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A player added a compostable item to the composter at `pos`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_compost_item",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_compost_item",
         dispatch = "flat",
         side = "server",
         contract = "listen",

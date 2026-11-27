@@ -1,6 +1,6 @@
 # Base Entity physics on general entity rows (#1340).
-sunrise-client game::native_entity_move_sweep_tests::a_general_rows_collided_move_writes_its_flags_for_every_cause lib daily resources
-sunrise-client game::remote::general::tests::a_general_rows_synced_no_gravity_reaches_its_client_row lib daily resources
-sunrise-client game::native_entity_move_sweep_tests::a_general_row_moving_through_a_fall_resetting_block_forgets_its_fall lib daily resources
-sunrise-client game::native_entity_move_sweep_tests::a_general_row_landing_on_slime_bounces_and_on_stone_stops lib daily resources
-sunrise-client game::native_entity_move_sweep_tests::a_general_row_moving_over_soul_sand_is_slowed lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_move_sweep_tests::a_general_rows_collided_move_writes_its_flags_for_every_cause lib daily resources
+sunrise-client cut_layout::game::remote::general::tests::a_general_rows_synced_no_gravity_reaches_its_client_row lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_move_sweep_tests::a_general_row_moving_through_a_fall_resetting_block_forgets_its_fall lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_move_sweep_tests::a_general_row_landing_on_slime_bounces_and_on_stone_stops lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_move_sweep_tests::a_general_row_moving_over_soul_sand_is_slowed lib daily resources

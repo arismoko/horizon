@@ -5,7 +5,7 @@ pub trait Hooks {
     /// Push requests; Sunrise validates and limits them before rendering.
     /// Called only while a world is visible.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_visuals",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_visuals",
         receiver = "read",
         dispatch = "flat",
         side = "client",

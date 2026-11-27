@@ -21,7 +21,7 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[2]
 ENGINE = {
     "sunrise_world", "sunrise_client", "sunrise_client_lib",
-    "sunrise_client_core", "sunrise_client_render", "sunrise_items",
+    "sunrise_game_data", "sunrise_client_render", "sunrise_items",
     "sunrise_assets", "sunrise_mod_package", "sunrise_mods", "sunrise_core",
 }
 # Shared Minecraft vocabulary: plain, engine-independent values, parity RNG,
@@ -314,7 +314,7 @@ def generated_findings(target: Path):
 NEGATIVE = '''
 use sunrise_items::items::ItemStack as Borrowed;
 pub use sunrise_world::fluid::FluidState as Innocent;
-pub use sunrise_client_core::text::*;
+pub use sunrise_game_data::text::*;
 pub fn stack() -> Borrowed { todo!() }
 pub fn json() -> serde_json::Value { todo!() }
 pub mod __private { pub use sunrise_world::fluid::FluidState; }

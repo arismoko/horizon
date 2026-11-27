@@ -9,7 +9,7 @@ impl BlockEntityTickSlot for Throttle {
         if tick.kind != TickedKind::Hopper {
             return LoopFlow::Continue;
         }
-        match tick.game.hoppers.get_mut(&tick.pos) {
+        match tick.game.server.hoppers.get_mut(&tick.pos) {
             Some(state) if state.cooldown > 1 => {
                 let cooldown = state.cooldown;
                 state.cooldown -= 1;

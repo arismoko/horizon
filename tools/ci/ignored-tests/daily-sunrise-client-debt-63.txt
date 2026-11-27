@@ -1,1 +1,1 @@
-sunrise-client game::native_special_renderers::frame_tests::a_special_dropped_item_outlines_only_its_committed_world_vertices lib daily game-boot
+sunrise-client cut_layout::game::client_side::native_special_renderers::frame_tests::a_special_dropped_item_outlines_only_its_committed_world_vertices lib daily game-boot

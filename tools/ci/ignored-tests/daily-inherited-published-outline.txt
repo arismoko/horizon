@@ -1,1 +1,1 @@
-sunrise-client game::published_shape_game_tests::inherited_published_outline_hits_at_the_template_column lib daily resources
+sunrise-client cut_layout::game::published_shape_game_tests::inherited_published_outline_hits_at_the_template_column lib daily resources

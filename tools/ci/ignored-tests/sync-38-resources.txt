@@ -1,2 +1,2 @@
 # Incoming upstream coverage needing prepared resources or explicit benchmark input.
-sunrise-client-lib lan::entity::send_bench::tracker_send_benchmark SUNRISE_SEND_BENCH needs
+sunrise-sim lan::entity::send_bench::tracker_send_benchmark SUNRISE_SEND_BENCH needs

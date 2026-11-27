@@ -15,7 +15,7 @@ dimension type codec checks them (`LevelShape::new`). **`LevelShapes`** holds a 
 - **Where it comes from.** A local world's shapes are its dimension types, its enabled data packs' over
   vanilla's, through the level stems that name them (`worldgen::overrides::WorldgenOverrides::level_height`,
   read by `game/world/world_loading.rs`'s `level_shapes` when the world opens; the game keeps them in
-  `Game.level_shapes`). A remote client takes a level's shape from the server's `minecraft:dimension_type`
+  `Game.server.level_shapes`). A remote client takes a level's shape from the server's `minecraft:dimension_type`
   registry (`protocol::registry::DimensionType`, with its logical height). A type the codec refuses keeps the
   vanilla shape, with a warning.
 - **Where it lives.** Each level's `World` holds its `shape`, `SaveDir::new(root, shape)` takes it, and the
@@ -36,7 +36,7 @@ dimension type codec checks them (`LevelShape::new`). **`LevelShapes`** holds a 
 | Saves (`save.rs`) | `SaveDir.shape` (sections, `yPos`, heightmaps, light layers, far tiles) |
 | Network (`lan/`, `game/network/remote_chunks.rs`) | the level's shape on the host, the server's dimension type on the client |
 | Section caches, generation glue, far terrain, flat worlds | the chunk's column, the generator's level range |
-| Gameplay (bounds, searches, commands, mobs) | `World::bottom_y`/`top_y` (the column), `World.shape`, `Game.level_shapes` |
+| Gameplay (bounds, searches, commands, mobs) | `World::bottom_y`/`top_y` (the column), `World.shape`, `Game.server.level_shapes` |
 
 Section sets are `SectionMask`s (256 bits: vanilla's tallest level has 254 sections, light data one more
 below and above). Uniform sections (one block, one biome, one light value) are one shared allocation per kind

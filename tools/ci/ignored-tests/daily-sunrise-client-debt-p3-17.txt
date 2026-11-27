@@ -1,6 +1,6 @@
-sunrise-client game::custom_spawners::tests::an_earlier_instance_survives_a_later_listener_that_removes_it_and_fails lib daily resources
-sunrise-client game::custom_spawners::tests::appended_custom_spawner_runs_after_phantom_spawner_in_same_pass lib daily resources
-sunrise-client game::custom_spawners::tests::custom_spawner_panic_and_transaction_refusal_containment lib daily resources
-sunrise-client game::custom_spawners::tests::custom_spawners_are_owned_per_level_empty_outside_overworld_and_dropped_on_unload lib daily resources
-sunrise-client game::custom_spawners::tests::custom_spawners_do_not_run_on_client_side lib daily resources
-sunrise-client game::custom_spawners::tests::custom_spawners_skip_debug_worlds_and_disabled_spawn_mobs_in_tick_spawners lib daily resources
+sunrise-client cut_layout::game::server_side::custom_spawners::tests::an_earlier_instance_survives_a_later_listener_that_removes_it_and_fails lib daily resources
+sunrise-client cut_layout::game::server_side::custom_spawners::tests::appended_custom_spawner_runs_after_phantom_spawner_in_same_pass lib daily resources
+sunrise-client cut_layout::game::server_side::custom_spawners::tests::custom_spawner_panic_and_transaction_refusal_containment lib daily resources
+sunrise-client cut_layout::game::server_side::custom_spawners::tests::custom_spawners_are_owned_per_level_empty_outside_overworld_and_dropped_on_unload lib daily resources
+sunrise-client cut_layout::game::server_side::custom_spawners::tests::custom_spawners_do_not_run_on_client_side lib daily resources
+sunrise-client cut_layout::game::server_side::custom_spawners::tests::custom_spawners_skip_debug_worlds_and_disabled_spawn_mobs_in_tick_spawners lib daily resources

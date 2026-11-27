@@ -2,5 +2,5 @@ version = 1
 handle = "handle:LevelRef::visit_all_entities"
 doc = "LevelRef::visit_all_entities visits entities of accessible sections only: a hidden server entity, such as a fresh falling block in an unloaded column, is omitted, and its spawn handle stays the only way to address it."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_falling.rs::fresh_fall_in_unloaded_column_persists_without_clobbering_disk_entities",
+    "crates/sunrise-gameplay/src/game/modding/native_falling.rs::fresh_fall_in_unloaded_column_persists_without_clobbering_disk_entities",
 ]

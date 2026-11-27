@@ -7,7 +7,7 @@ pub trait Hooks {
     /// disables just that mod's callback for the session. Nested dispatch skips callbacks for
     /// this hook already running on the thread. Other refusals are logged each time.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_world_border_center_changed",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_world_border_center_changed",
         dispatch = "flat",
         side = "server",
         contract = "listen",

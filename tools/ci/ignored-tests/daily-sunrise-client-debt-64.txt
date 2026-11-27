@@ -1,2 +1,2 @@
-sunrise-client game::native_custom_geometry::tests::world_render_view_lends_frame_state_and_prepare_updates_instance_groups lib daily child-process
-sunrise-client game::native_custom_geometry::tests::render_panics_use_the_shared_boundary_without_rolling_back_draws lib daily resources
+sunrise-client-gameplay game::client_side::native_custom_geometry::tests::world_render_view_lends_frame_state_and_prepare_updates_instance_groups lib daily child-process
+sunrise-client-gameplay game::client_side::native_custom_geometry::tests::render_panics_use_the_shared_boundary_without_rolling_back_draws lib daily resources

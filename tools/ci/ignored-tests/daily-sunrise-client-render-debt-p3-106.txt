@@ -1,4 +1,4 @@
-sunrise-client-render crash::tests::a_main_thread_panic_is_reported_after_unwinding_with_a_panicking_section_as_an_entry lib daily child-process
-sunrise-client-render crash::tests::a_panicking_crash_section_disables_only_itself lib daily child-process
-sunrise-client-render crash::tests::a_worker_panic_reaches_the_main_threads_report_and_emergency_save lib daily child-process
-sunrise-client-render crash::tests::the_installed_hook_attributes_a_retained_crash_callbacks_panic lib daily child-process
+sunrise-level crash::tests::a_main_thread_panic_is_reported_after_unwinding_with_a_panicking_section_as_an_entry lib daily child-process
+sunrise-level crash::tests::a_panicking_crash_section_disables_only_itself lib daily child-process
+sunrise-level crash::tests::a_worker_panic_reaches_the_main_threads_report_and_emergency_save lib daily child-process
+sunrise-level crash::tests::the_installed_hook_attributes_a_retained_crash_callbacks_panic lib daily child-process

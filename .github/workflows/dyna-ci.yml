@@ -846,18 +846,6 @@ jobs:
       - name: Check generated extension tag catalog
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: python3 tools/ci/surface_extension_tags.py --check
-      # docs/layers.md: server-side gameplay may not reach the engine's rendering, audio or window modules.
-      - name: Engine boundary
-        id: engine_boundary
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ -n "$BASE_SHA" ]; then
-            python3 tools/ci/check_engine_boundary.py --base "$BASE_SHA"
-          else
-            python3 tools/ci/check_engine_boundary.py
-          fi
       # The launcher's copies of game crates move only when the pull request says which copy must follow.
       - name: Launcher mirrors
         id: launcher_mirrors
@@ -911,6 +899,10 @@ jobs:
         id: vocabulary_state_has_explicit_ownership
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: python3 tools/check_mod_vocabulary_state.py
+      - name: Gameplay crates follow layer rules
+        id: gameplay_crates_follow_layer_rules
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: python3 tools/ci/check_gameplay_layers.py
       # One file per topic in tools/ci/ignored-tests/: well-formed rows, each test in one file, nothing else in the
       # folder, no file at the retired single-list path.
       - name: Ignored-test policy files read cleanly

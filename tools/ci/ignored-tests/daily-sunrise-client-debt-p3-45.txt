@@ -1,2 +1,2 @@
-sunrise-client game::gui_layer_tests::hud_layer_bounds_rejects_dedicated_server_role lib daily child-process
-sunrise-client game::gui_layer_tests::render_gui_post_runs_after_hud_layers_respects_hiding_and_exposes_layer_bounds lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::hud_layer_bounds_rejects_dedicated_server_role lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::render_gui_post_runs_after_hud_layers_respects_hiding_and_exposes_layer_bounds lib daily child-process

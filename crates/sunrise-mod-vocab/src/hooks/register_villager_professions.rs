@@ -7,6 +7,7 @@ pub trait Hooks {
     /// this hook declares it as data, so only the registration moment corresponds.
     /// If this listener panics or a phase call is refused, none of its registrations take effect.
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_villager_professions::native_register_villager_professions",
         receiver = "associated",
         dispatch = "flat",
         side = "server",

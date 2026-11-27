@@ -21,7 +21,7 @@ pub trait Hooks {
     /// absent packages remains opaque and uses its stored flag on death.
     /// Old bulk tokens are stale. Not cancellable.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_clone",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_clone",
         dispatch = "flat",
         side = "server",
         version = 3,

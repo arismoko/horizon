@@ -17,7 +17,7 @@ pub trait Hooks {
         out = "ignites",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::ignited_by_lava::GameLevel<'_>::native_ignited_by_lava",
+        target = "sunrise_gameplay_common::game::native_hooks::ignited_by_lava::GameLevel<'_>::native_ignited_by_lava",
         neoforge = "IBlockExtension.ignitedByLava"
     )]
     fn ignited_by_lava(

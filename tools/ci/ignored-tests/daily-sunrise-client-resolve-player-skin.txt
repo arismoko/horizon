@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::resolve_player_skin::tests::live_skin_selection_reaches_the_hand_body_and_preview_and_restores_vanilla lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::resolve_player_skin::tests::live_skin_selection_reaches_the_hand_body_and_preview_and_restores_vanilla lib daily resources

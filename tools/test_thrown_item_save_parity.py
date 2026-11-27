@@ -5,7 +5,7 @@ Runs the 'moved thrown item save' group of tools/test_command_exec_parity.py aga
 VanillaCommandExecOracle in --reference-only mode, writes moved_thrown_item_save.json and
 meta.json into .local/witness/<version>/thrown_item_save/ (gitignored), and unless --record /
 --record-only is passed, runs sunrise-parity-fixtures on
-game::persist::thrown_item_tests::a_moved_thrown_item_projectile_saves_its_loaded_item
+game::server_side::persist::thrown_item_tests::a_moved_thrown_item_projectile_saves_its_loaded_item
 with SUNRISE_THROWN_ITEM_SAVE_WITNESS pointing at the recorded witness.
 
   test_thrown_item_save_parity.py [--prepare] [--record | --record-only] [--resources DIR]
@@ -25,7 +25,7 @@ GROUP = 'moved thrown item save'
 ORACLE = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaCommandExecOracle.java'
 CORPUS = lab.ROOT / 'tools/command_exec_corpus.py'
 DRIVER = lab.ROOT / 'tools/test_command_exec_parity.py'
-TEST = 'game::persist::thrown_item_tests::a_moved_thrown_item_projectile_saves_its_loaded_item'
+TEST = 'game::server_side::persist::thrown_item_tests::a_moved_thrown_item_projectile_saves_its_loaded_item'
 ENV_VAR = 'SUNRISE_THROWN_ITEM_SAVE_WITNESS'
 
 

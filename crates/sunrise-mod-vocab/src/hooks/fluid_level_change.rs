@@ -12,7 +12,7 @@ pub trait Hooks {
         out = "cancel",
         neoforge = "none (NeoForge has no such event)",
         cancellable = true,
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_fluid_level_change"
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_fluid_level_change"
     )]
     fn fluid_level_change(
         dimension: LevelDimension,

@@ -3,7 +3,7 @@ use std::{io::Write, sync::Arc};
 use sunrise_client::{
     Result,
     items::ItemStack,
-    mobs::{Anim, Brain, Flags, Mob, MobType, Part, Species, sheep_dye},
+    mobs::{Anim, Brain, Flags, Mob, MobType, Species, sheep_dye},
 };
 use sunrise_core::geometry::Vec3;
 use sunrise_core::nbt::Tag;
@@ -11,7 +11,6 @@ use sunrise_core::nbt::Tag;
 fn kind() -> Arc<MobType> {
     Arc::new(MobType {
         type_key: Default::default(),
-        shadow: None,
         id: "minecraft:sheep".into(),
         species: Species::Sheep,
         width: 0.6,
@@ -44,15 +43,6 @@ fn kind() -> Arc<MobType> {
         max_head_y_rot: 75.0,
         ambient_interval: 120,
         flags: Flags::default(),
-        model: Arc::new(Part {
-            name: "root".into(),
-            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
-            polygons: Vec::new(),
-            children: Vec::new(),
-            layer: None,
-        }),
-        layers: Default::default(),
-        texture: String::new(),
         brain: Brain::Passive,
         anim: Anim::Quadruped,
         sounds: [""; 3],

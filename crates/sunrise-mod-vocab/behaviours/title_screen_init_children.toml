@@ -4,5 +4,5 @@ doc = """\
 registration order, each labelled with its translation key, followed by the bottom notice. A listener that removes one \
 keeps the title screen from drawing or pressing it until the screen initializes again."""
 tests = [
-  "crates/sunrise-client/src/game/native_hooks/base_tests/screen_widgets_tests.rs::title_init_post_lists_and_removes_the_title_screens_own_widgets",
+  "crates/sunrise-client/src/cut_layout/game/native_hooks/base_tests/screen_widgets_tests_client.rs::title_init_post_lists_and_removes_the_title_screens_own_widgets",
 ]

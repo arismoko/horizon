@@ -10,7 +10,7 @@ pub trait Hooks {
     /// ticks between songs, and whether it cuts off a different song playing),
     /// None to keep vanilla's quiet, or change `volume` (0 to 1) to fade it.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_music",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_music",
         receiver = "read",
         dispatch = "flat",
         side = "client",

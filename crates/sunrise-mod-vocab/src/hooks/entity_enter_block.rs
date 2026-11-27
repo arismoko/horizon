@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A bee entered the hive at `pos` and was stored there.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_enter_block",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_enter_block",
         dispatch = "flat",
         side = "server",
         contract = "listen",

@@ -1,4 +1,4 @@
 # animate_tick (#2645): the sampler's picks and the parts they reach, over the test resources.
-sunrise-client game::native_hooks::animate_tick_tests::sampled_picks_reach_the_parts_of_their_block_only lib daily resources
-sunrise-client game::native_hooks::animate_tick_tests::the_limiter_roll_of_add_particle_moves_the_parts_random lib daily resources
-sunrise-client game::native_hooks::animate_tick_tests::the_part_runs_inside_its_pick_before_the_fluid_the_next_pick_and_the_rain lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::animate_tick_tests::sampled_picks_reach_the_parts_of_their_block_only lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::animate_tick_tests::the_limiter_roll_of_add_particle_moves_the_parts_random lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::animate_tick_tests::rain_precedes_animation_and_the_part_runs_before_its_fluid lib daily resources

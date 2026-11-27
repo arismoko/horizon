@@ -1,3 +1,3 @@
-sunrise-client game::commands::world_cmds::particle_command_tests::typed_particle_command_encoder_refusal_does_not_deliver_to_a_guest lib daily child-process
-sunrise-client game::commands::world_cmds::particle_command_tests::typed_particle_commands_suggest_and_execute_the_decoded_value lib daily child-process
-sunrise-client game::potions::tests::typed_cloud_retains_its_loaded_options_for_tracking_and_save lib daily child-process
+sunrise-client cut_layout::game::server_side::commands::world_cmds::particle_command_tests::typed_particle_command_encoder_refusal_does_not_deliver_to_a_guest lib daily child-process
+sunrise-client cut_layout::game::server_side::commands::world_cmds::particle_command_tests::typed_particle_commands_suggest_and_execute_the_decoded_value lib daily child-process
+sunrise-client cut_layout::game::server_side::potions_server::tests::typed_cloud_retains_its_loaded_options_for_tracking_and_save lib daily child-process

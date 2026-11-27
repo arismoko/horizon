@@ -22,7 +22,7 @@ pub trait Hooks {
         contract = "listen",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::on_destroyed_by_push_reaction::GameLevel<'_>::native_on_destroyed_by_push_reaction",
+        target = "sunrise_gameplay_common::game::native_hooks::on_destroyed_by_push_reaction::GameLevel<'_>::native_on_destroyed_by_push_reaction",
         neoforge = "IBlockExtension.onDestroyedByPushReaction"
     )]
     fn on_destroyed_by_push_reaction(

@@ -1,1 +1,1 @@
-sunrise-client game::native_player_death::tests::edits_to_the_dead_players_record_follow_the_respawn_copy_policy lib daily child-process
+sunrise-client cut_layout::game::native_player_death::tests::edits_to_the_dead_players_record_follow_the_respawn_copy_policy lib daily child-process

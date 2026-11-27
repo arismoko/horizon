@@ -1,2 +1,2 @@
-sunrise-client game::remote::tests::remote_columns_tests::a_forget_packet_keeps_published_light_beside_a_loaded_column lib daily resources
-sunrise-client-lib save::tests::both_light_pads_survive_full_chunk_save_and_reload lib daily resources
+sunrise-client cut_layout::game::remote::tests::remote_columns_tests::a_forget_packet_keeps_published_light_beside_a_loaded_column lib daily resources
+sunrise-sim save::tests::both_light_pads_survive_full_chunk_save_and_reload lib daily resources

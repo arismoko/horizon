@@ -273,25 +273,7 @@ fn around(rotation: Mat4, pivot: Vec3) -> Mat4 {
     Mat4::from_translation(pivot) * rotation * Mat4::from_translation(-pivot)
 }
 
-/// `DyeColor` names and texture diffuse colours, by id.
-pub const DYES: [(&str, u32); 16] = [
-    ("white", 0xF9FFFE),
-    ("orange", 0xF9801D),
-    ("magenta", 0xC74EBD),
-    ("light_blue", 0x3AB3DA),
-    ("yellow", 0xFED83D),
-    ("lime", 0x80C71F),
-    ("pink", 0xF38BAA),
-    ("gray", 0x474F52),
-    ("light_gray", 0x9D9D97),
-    ("cyan", 0x169C9C),
-    ("purple", 0x8932B8),
-    ("blue", 0x3C44AA),
-    ("brown", 0x835432),
-    ("green", 0x5E7C16),
-    ("red", 0xB02E26),
-    ("black", 0x1D1D21),
-];
+pub use sunrise_level::dyes::DYES;
 fn dye_prefix(name: &str) -> Option<(usize, &str)> {
     // Longest names first; this is the same stable order as sorting DYES by
     // descending prefix length, without a Vec allocation or comparison sort.

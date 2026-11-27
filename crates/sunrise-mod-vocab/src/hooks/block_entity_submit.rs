@@ -20,7 +20,7 @@ pub trait Hooks {
     /// the same way for a block entity a mod carries: `entity` is the `SceneBlockEntity`, `pos`
     /// is the draw's own block, and `draw` is one level deep (a nested `block_entity` is refused).
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_block_entity_submit",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_block_entity_submit",
         receiver = "read",
         dispatch = "flat",
         side = "client",

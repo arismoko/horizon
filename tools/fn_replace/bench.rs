@@ -1,4 +1,4 @@
-//! fn-replace bench: one game function, `sunrise_client::game::autosave_interval(rate: f32) -> i64`,
+//! fn-replace bench: one game function, `sunrise_gameplay::game::server_side::autosave_server::autosave_interval(rate: f32) -> i64`,
 //! called from outside the prebuilt game, built with rustc against the SDK folder alone.
 //!
 //! usage: bench <mode> [millions of calls]
@@ -8,7 +8,7 @@
 extern crate sunrise_mod_host;
 use std::hint::black_box;
 use std::time::Instant;
-use sunrise_client::game as g;
+use sunrise_gameplay::game::server_side::autosave_server as g;
 
 #[inline(never)]
 fn plain(rate: f32) -> i64 {

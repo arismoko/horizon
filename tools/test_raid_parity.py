@@ -317,7 +317,7 @@ def main():
     resources = lab.RESOURCES
     oracle = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaRaidOracle.java'
     sources = [oracle, Path(__file__), lab.ROOT / 'crates/sunrise-client/examples/probe/raid_fixture.rs',
-               lab.ROOT / 'crates/sunrise-client/src/raid.rs', lab.ROOT / 'crates/sunrise-client/src/patrol.rs']
+               lab.ROOT / 'crates/sunrise-sim/src/raid.rs', lab.ROOT / 'crates/sunrise-sim/src/patrol.rs']
     tested = base.source_hashes(sources)
     inputs = build / 'inputs.txt'
     cases = corpus()

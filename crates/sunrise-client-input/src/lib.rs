@@ -11,7 +11,7 @@ pub mod held;
 pub mod input;
 pub mod input_source;
 pub mod interaction_input;
-pub mod key_names;
+pub use sunrise_game_data::key_names;
 pub mod keybinds;
 pub mod keymapping;
 pub mod modifiers;

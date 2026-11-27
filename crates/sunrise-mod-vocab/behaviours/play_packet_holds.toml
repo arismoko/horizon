@@ -1,8 +1,8 @@
 version = 1
 doc = "ClientHost::hold_packets gives the calling mod an independent hold for the current physical play incarnation. ClientHost::release_held publishes only the newly unblocked prefix in send order; ClientHost::drop_held discards the packets its hold covered, including overlaps, without ending another hold. ClientHost::send_packet retains its writer credit from acceptance through root commit and any holds, never auto-flushing due to pressure. A disconnect, protocol change or aborted dimension crossing invalidates the IDs."
 tests = [
-  "crates/sunrise-client/src/game/modding/native_net/packet_hold_tests.rs::other_mods_cannot_release_or_drop_a_live_hold",
-  "crates/sunrise-client/src/game/modding/native_net/packet_hold_tests.rs::dropping_an_overlap_does_not_send_or_end_other_holds",
-  "crates/sunrise-client/src/game/modding/native_net/packet_hold_tests.rs::physical_hold_orders_engine_and_mod_packets_and_bypasses_network_keepalive",
-  "crates/sunrise-client/src/game/modding/native_net/packet_hold_tests.rs::held_mod_packets_keep_real_writer_credit_until_drop",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_net/packet_hold_tests.rs::other_mods_cannot_release_or_drop_a_live_hold",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_net/packet_hold_tests.rs::dropping_an_overlap_does_not_send_or_end_other_holds",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_net/packet_hold_tests.rs::physical_hold_orders_engine_and_mod_packets_and_bypasses_network_keepalive",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_net/packet_hold_tests.rs::held_mod_packets_keep_real_writer_credit_until_drop",
 ]

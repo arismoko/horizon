@@ -1,1 +1,1 @@
-sunrise-client game::stand_break_loot_tests::a_broken_stand_item_keeps_its_styled_custom_name lib daily resources
+sunrise-client cut_layout::game::server_side::stand_break_loot_tests::a_broken_stand_item_keeps_its_styled_custom_name lib daily resources

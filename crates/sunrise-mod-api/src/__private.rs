@@ -16,6 +16,10 @@ pub fn install_parts(
 pub mod native_log;
 #[path = "profiler.rs"]
 pub mod profiler;
+#[cfg(feature = "engine-test-platform")]
+#[doc(hidden)]
+#[path = "test_platform.rs"]
+pub mod test_platform;
 
 /// Install platform instrumentation before any mod registration or dispatch.
 /// A first guard entry seals the socket; late initialization is refused without

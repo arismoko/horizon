@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::client_input_reads_tests::tests::mapping_physical_down_follows_the_binding_and_ignores_the_logical_state lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::client_input_reads_tests::tests::mapping_physical_down_follows_the_binding_and_ignores_the_logical_state lib daily resources

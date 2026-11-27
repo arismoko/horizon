@@ -25,7 +25,7 @@ pub trait Hooks {
     /// [`Flow`]. Version 5 adds the server's item and glow item frames, paintings, armor stands
     /// and thrown tridents.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_tick_pre",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_entity_tick_pre",
         dispatch = "flat",
         side = "both",
         version = 5,

@@ -62,6 +62,7 @@ error. An empty successful quad list is not an error. Panicking also
 disables that loader callback for the session and surfaces an error toast. A quad with a position or UV
 that isn't finite, or a texture key the model doesn't define, is skipped by itself with a reason."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_model_loaders::native_register_model_loaders",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

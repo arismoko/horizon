@@ -1,1 +1,1 @@
-sunrise-client game::declared_vegetation_tests::declared_vegetation_places_and_breaks_independently_of_its_template lib daily resources
+sunrise-client cut_layout::game::declared_vegetation_tests::declared_vegetation_places_and_breaks_independently_of_its_template lib daily resources

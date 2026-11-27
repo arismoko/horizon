@@ -10,6 +10,7 @@ use sunrise_assets::{
     item_model::{FluidAppearance, RegisteredTintSource},
     resource_source::ResourceRoot,
 };
+use sunrise_core::nbt::Tag;
 
 /// Red for one, green for two, the entry's own `default` for more.
 struct ChargeMod;

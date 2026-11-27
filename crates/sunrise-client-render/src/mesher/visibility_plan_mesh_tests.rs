@@ -27,7 +27,7 @@ fn fixture() -> Fixture {
     let assets = Assets::load(&root).unwrap();
     let facts = BlockFacts::load(&root, assets.registry).unwrap();
     let biomes = Biomes::load(&source).unwrap();
-    let render = assets.reload(&source).unwrap();
+    let render = crate::assets::RenderAssets::load(&source, &assets).unwrap();
     let visibility = models::load_visibility(&root, assets.registry).unwrap();
     let tables = MeshTables::new(&assets, &render, &facts, visibility.clone(), None).unwrap();
     Fixture {

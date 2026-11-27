@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A player ignited a creeper with an item.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_creeper_ignite",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_creeper_ignite",
         dispatch = "flat",
         side = "server",
         contract = "listen",

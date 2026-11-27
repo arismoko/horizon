@@ -1,2 +1,2 @@
-sunrise-client game::native_hooks::slot_icon_tests::empty_slot_draws_icon_but_a_filled_slot_does_not lib daily resources
-sunrise-client game::native_hooks::slot_icon_tests::unknown_slot_icon_opens_screen_and_draws_missing_sprite lib daily child-process
+sunrise-client-gameplay game::native_hooks::slot_icon_tests::empty_slot_draws_icon_but_a_filled_slot_does_not lib daily resources
+sunrise-client-gameplay game::native_hooks::slot_icon_tests::unknown_slot_icon_opens_screen_and_draws_missing_sprite lib daily child-process

@@ -1,1 +1,1 @@
-sunrise-client-lib mobs::spawn_rules::mod_spawn_rule_tests::a_panicking_non_mob_replacement_restores_draws_and_disables_only_itself lib daily child-process
+sunrise-sim mobs::spawn_rules::mod_spawn_rule_tests::a_panicking_non_mob_replacement_restores_draws_and_disables_only_itself lib daily child-process

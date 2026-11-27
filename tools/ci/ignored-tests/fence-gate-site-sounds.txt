@@ -1,2 +1,2 @@
-sunrise-client game::remote::tests::declared_gate_uses_its_class_for_blasts_and_predicted_use lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::declared_gate_uses_its_class_for_blasts_and_predicted_use lib daily resources
 sunrise-world level::tests::fence_gate_sites_play_distinct_sounds lib daily resources

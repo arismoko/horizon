@@ -1,1 +1,1 @@
-sunrise-client game::native_rotate::tests::a_part_reads_the_property_it_turns lib daily resources
+sunrise-client cut_layout::game::native_rotate::tests::a_part_reads_the_property_it_turns lib daily resources

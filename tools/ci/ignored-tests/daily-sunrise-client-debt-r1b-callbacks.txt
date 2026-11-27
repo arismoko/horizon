@@ -1,2 +1,2 @@
-sunrise-client game::gui_layer_tests::a_gui_wrapper_panic_is_contained_but_delegated_engine_paint_is_fatal lib daily child-process
-sunrise-client game::remote::tests::dimension_transition_tests::a_failed_presentation_discards_its_draws_without_disabling_its_factory lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::a_gui_wrapper_panic_is_contained_but_delegated_engine_paint_is_fatal lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::tests::dimension_transition_tests::a_failed_presentation_discards_its_draws_without_disabling_its_factory lib daily child-process

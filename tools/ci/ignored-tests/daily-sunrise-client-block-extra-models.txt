@@ -1,2 +1,2 @@
 # Extra block models (#2763): the Host checks the position and model handles; needs a Game with prepared resources.
-sunrise-client game::native_block_extra_models::tests::host_sets_only_loaded_cells_with_registered_standalone_models lib daily child-process
+sunrise-client cut_layout::game::native_block_extra_models::tests::host_sets_only_loaded_cells_with_registered_standalone_models lib daily child-process

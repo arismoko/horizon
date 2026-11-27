@@ -5,9 +5,9 @@ For each engine type in the allow-list (api_scaffold.toml) it adds, never overwr
   * the API type to crates/sunrise-mod-vocab/src/<domain>/<topic>.rs (a mirror, or an `XRef` handle);
   * its re-export to src/exports/<topic>.rs;
   * for a handle with methods, a `<Name>Backend` host area to src/host/<topic>.rs;
-  * both conversions to crates/sunrise-client/src/game/modding/api_values/<topic>.rs.
+  * both conversions to crates/sunrise-gameplay-common/src/game/modding/api_values/<topic>.rs.
 It refuses when the type or its `<Name>Backend` already exists in crates/sunrise-mod-vocab/src, and never
-targets lib.rs. Conversions in the client crate are not checked. Handles also get a `Fields` impl.
+targets lib.rs. Conversions in the gameplay crate are not checked. Handles also get a `Fields` impl.
 
   api_scaffold.py --dry-run [--inventory points-inventory-runtime.json] [--report out.md]
   api_scaffold.py --apply
@@ -22,9 +22,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 API = Path('crates/sunrise-mod-vocab/src')
-CONV = Path('crates/sunrise-client/src/game/modding/api_values')
+CONV = Path('crates/sunrise-gameplay-common/src/game/modding/api_values')
 DOMAINS = ('world', 'block', 'item', 'entity', 'client', 'command', 'text', 'content', 'wire')
-SKIP = set('Option Vec Result R Box Self dyn mut str String Path static Game Host super std path crate fn impl '
+SKIP = set('Option Vec Result R Box Self dyn mut str String Path static Game CommonGame ServerGame ClientGame SideGame '
+           'Host super std path crate fn impl '
            'Fn FnMut FnOnce Cow HashMap HashSet Rc Arc i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 usize isize '
            'f32 f64 bool char'.split())
 
@@ -135,7 +136,7 @@ def handle_read(e, name, m):
     if not m['ret'].startswith('Option<'):
         raise Refuse(f"{name}.{m['name']}: a handle read returns Option, None for a stale handle")
     base = snake(name.removesuffix('Ref'))
-    return (f"\nimpl crate::game::Game<'_> {{\n    /// {m['doc']}\n"
+    return (f"\nimpl crate::game::CommonGame<'_> {{\n    /// {m['doc']}\n"
             f"    pub(crate) fn {base}_{m['name']}(&self, handle: mod_api::{name}) -> {m['ret']} {{\n"
             f"        let _id = {base}_ref_to_engine(self, handle).ok()?;\n        None\n    }}\n}}\n")
 
@@ -145,10 +146,10 @@ def conversion_source(e, name):
     if e['kind'] == 'handle':
         s = snake(name.removesuffix('Ref'))
         return (f'/// Names an engine `{leaf}` by its id as a handle of the open world; None outside one.\n'
-                f'pub(crate) fn {s}_ref_to_api(game: &crate::game::Game<\'_>, id: u64) -> Option<mod_api::{name}> {{\n'
+                f'pub(crate) fn {s}_ref_to_api(game: &crate::game::CommonGame<\'_>, id: u64) -> Option<mod_api::{name}> {{\n'
                 f'    Some(mod_api::{name}::new(game.native_lifecycle.epoch()?, id))\n}}\n\n'
                 f'/// The id a handle names, refused as stale after the world it came from closed.\n'
-                f'pub(crate) fn {s}_ref_to_engine(game: &crate::game::Game<\'_>, handle: mod_api::{name}) '
+                f'pub(crate) fn {s}_ref_to_engine(game: &crate::game::CommonGame<\'_>, handle: mod_api::{name}) '
                 f'-> Result<u64, Stale{name}> {{\n    use mod_api::__private::game::*;\n'
                 f'    (game.native_lifecycle.epoch() == Some(handle.fields().epoch))\n'
                 f'        .then(|| handle.fields().id)\n        .ok_or(Stale{name})\n}}\n\n'
@@ -239,8 +240,8 @@ def scaffold(entry, plan):
     plan.append(conv, conversion_source(entry, name),
                 f"//! Conversions between engine `{entry['engine'].split('::')[-1]}` and the API's `{name}`.\n\n")
     if conv in plan.created:
-        plan.insert_after_last(CONV.with_suffix('.rs'), r'^pub\(in crate::game\) mod \w+;$',
-                               f'#[path = "api_values/{topic}.rs"]\npub(in crate::game) mod {topic};')
+        plan.insert_after_last(CONV.with_suffix('.rs'), r'^pub(?:\(in crate::game\))? mod \w+;$',
+                               f'#[path = "api_values/{topic}.rs"]\npub mod {topic};')
         plan.created.discard(conv)
 
 

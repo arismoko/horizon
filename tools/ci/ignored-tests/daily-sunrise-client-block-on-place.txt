@@ -1,3 +1,3 @@
 # Daily row for #5302: a part on glass lights itself in on_place beside a powered redstone block, for a level write and a player placement, and a block with no part is unchanged.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::native_player_place_tests::a_part_lights_itself_in_on_place_for_a_level_write_and_a_player_placement lib daily child-process
+sunrise-client cut_layout::game::native_player_place_tests::a_part_lights_itself_in_on_place_for_a_level_write_and_a_player_placement lib daily child-process

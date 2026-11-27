@@ -1,7 +1,7 @@
 version = 1
 doc = "ClientHost::play_local_sound accepts the full u32 range of delays, in unpaused sound-engine ticks from the next audio update. A looping SoundPlay with a positive repeat delay plays again after that gap; a delay of zero or less loops automatically."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_local_sounds.rs::a_client_mod_follows_stops_and_fades_its_own_sounds",
+    "crates/sunrise-client-gameplay/src/game/modding/native_local_sounds.rs::a_client_mod_follows_stops_and_fades_its_own_sounds",
     "crates/sunrise-client-render/src/sound_engine/playback_tests.rs::a_delay_can_cross_the_signed_tick_boundary",
     "crates/sunrise-client-render/src/audio.rs::a_mod_sound_moves_and_changes_pitch_without_restarting",
     "crates/sunrise-client-render/src/audio.rs::a_repeating_mod_sound_waits_between_its_repeats_and_plays_again",

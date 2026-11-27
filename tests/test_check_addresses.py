@@ -1,12 +1,12 @@
 import io
 import json
-import os
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 from unittest import mock
 
+from tests.git_fixture import isolated_git_env
 from tools import check_addresses, merge_base
 
 
@@ -114,8 +114,8 @@ class PullRequestMergeTests(unittest.TestCase):
         """main allowed a new address after the branch left it: a pull request merged into that main didn't add it."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
-                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+            env = isolated_git_env(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
 
             def run(*args):
                 return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env,
@@ -157,8 +157,8 @@ class BaseConfigTests(unittest.TestCase):
         """An entry main dropped after the branch left it is still on the branch's base: the branch didn't add it."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
-                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+            env = isolated_git_env(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
 
             def run(*args):
                 subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env)

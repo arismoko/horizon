@@ -8,7 +8,7 @@
 use super::{Bundle, MixinsIdentity, api, game_uses, prebuilt::Identity};
 use crate::host::trf;
 use crate::rust::Toolchain;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use sunrise_platform::mod_build::api_gen;
@@ -124,6 +124,7 @@ fn extras(bundles: &[&Bundle]) -> Result<api_gen::patch::Extras, String> {
 pub struct Prepared<'a> {
     pub dir: PathBuf,
     pub names: Vec<String>,
+    pub(crate) owners: BTreeMap<String, String>,
     pub installs: Vec<String>,
     /// The mods whose helpers the crates may call.
     pub bundles: Vec<&'a Bundle>,
@@ -156,11 +157,15 @@ pub fn build(
     // The patched crates, against the prebuilt game and the mods.
     let mut compiled = Vec::new();
     for name in &prepared.names {
+        let owner = &prepared.owners[name];
+        let features = sdk.patch_features(owner)?;
+        let externs = sdk_externs(game, sdk, owner)?;
         let extension = if check_only { "rmeta" } else { "rlib" };
         let rlib = out.join(format!("lib{name}.{extension}"));
         let mut hash = sha2::Sha256::new();
         use sha2::Digest;
         hash.update(sdk.commit());
+        hash.update(format!("{owner}:{features:?}:{externs:?}"));
         for bundle in &prepared.bundles {
             hash.update(
                 super::source_digest(bundle)
@@ -189,19 +194,19 @@ pub fn build(
         if check_only {
             cmd.arg("--emit=metadata");
         }
-        game_cfg(&mut cmd, sdk);
+        game_cfg(&mut cmd, features);
         // An `@` file, one argument per line: an extern per SDK crate passes Windows'
         // 32,767-character command-line limit.
-        let mut externs = Vec::new();
-        for (krate, library) in sdk_externs(game, sdk)? {
-            externs.push(format!("--extern\n{krate}={}", library.display()));
+        let mut args = Vec::new();
+        for (krate, library) in externs {
+            args.push(format!("--extern\n{krate}={}", library.display()));
         }
         for bundle in &prepared.bundles {
             let id = bundle.manifest.id.as_str();
-            externs.push(format!("--extern\n{}={}", crates[id], rlibs[id].display()));
+            args.push(format!("--extern\n{}={}", crates[id], rlibs[id].display()));
         }
         let argfile = out.join(format!("{name}.externs"));
-        fs::write(&argfile, externs.join("\n"))
+        fs::write(&argfile, args.join("\n"))
             .map_err(|e| format!("Could not write {}: {e}", argfile.display()))?;
         let mut arg = std::ffi::OsString::from("@");
         arg.push(&argfile);
@@ -222,27 +227,56 @@ pub fn build(
     }))
 }
 
-/// The crates a patch crate links: the game crate and the facade crates.
-fn sdk_extern_names(sdk: &Identity) -> impl Iterator<Item = &str> {
-    std::iter::once("sunrise_client").chain(
-        sdk.facade_crates()
-            .filter(|krate| *krate != "sunrise_client"),
-    )
+fn sdk_extern_names(sdk: &Identity) -> BTreeSet<&str> {
+    let mut names: BTreeSet<_> = sdk.facade_crates().collect();
+    names.insert("sunrise_client");
+    if let Some(role) = sdk.runtime_role() {
+        names.extend(
+            role.libraries
+                .values()
+                .filter(|fact| {
+                    matches!(
+                        fact.package.as_str(),
+                        "sunrise-gameplay-common" | "sunrise-gameplay" | "sunrise-client-gameplay"
+                    )
+                })
+                .map(|fact| fact.library.as_str()),
+        );
+    }
+    names
 }
 
-/// The SDK libraries a patch crate compiles against: [`sdk_extern_names`], with their files.
-pub fn sdk_externs(game: &Path, sdk: &Identity) -> Result<Vec<(String, PathBuf)>, String> {
+pub(crate) fn sdk_externs(
+    game: &Path,
+    sdk: &Identity,
+    owner: &str,
+) -> Result<BTreeMap<String, PathBuf>, String> {
     let deps = game.join("deps");
-    sdk_extern_names(sdk)
-        .map(|krate| {
-            let library = if krate == "sunrise_client" {
-                super::prebuilt::library(&deps, krate)?
-            } else {
-                super::prebuilt::facade_library(&deps, krate, sdk)?
-            };
-            Ok((krate.to_owned(), library))
-        })
-        .collect()
+    let role = sdk.runtime_role();
+    let mut externs = BTreeMap::new();
+    for name in sdk_extern_names(sdk) {
+        let role_library = role.and_then(|role| {
+            let mut libraries = role.libraries.values().filter(|fact| fact.library == name);
+            let library = libraries.next()?;
+            libraries.next().is_none().then_some(library)
+        });
+        let path = if let Some(fact) = role_library {
+            super::prebuilt::role_library(&deps, fact)?
+        } else if name == "sunrise_client" || role.is_some() {
+            super::prebuilt::library(&deps, name)?
+        } else {
+            super::prebuilt::facade_library(&deps, name, sdk)?
+        };
+        externs.insert(name.to_owned(), path);
+    }
+    if let (Some(role), Some(fact)) = (role, sdk.patch_library(owner)?) {
+        for (alias, identity) in &fact.aliases {
+            let dependency = &role.libraries[identity];
+            let path = super::prebuilt::role_library(&deps, dependency)?;
+            externs.insert(alias.clone(), path);
+        }
+    }
+    Ok(externs)
 }
 
 impl Prepared<'_> {
@@ -278,6 +312,7 @@ fn loop_slots(
     game: &Path,
     commit: &str,
     bundles: &[&Bundle],
+    index: &api_gen::functions::FunctionIndex,
 ) -> Result<Vec<api_gen::patch::LoopSlots>, String> {
     use sunrise_mod_package::manifest::mixin::Kind;
     let published =
@@ -293,9 +328,12 @@ fn loop_slots(
         .iter()
         .filter(|l| {
             let generic = l.generic_target();
-            bundles
-                .iter()
-                .any(|b| b.native().mixin.iter().any(|m| m.target == generic))
+            bundles.iter().any(|b| {
+                b.native()
+                    .mixin
+                    .iter()
+                    .any(|m| index.target_key(&m.target) == index.target_key(&generic))
+            })
         })
         .map(|l| api_gen::patch::LoopSlots {
             published: l.clone(),
@@ -334,15 +372,16 @@ fn loop_slots(
         for mixin in &bundle.native().mixin {
             let Some(slots) = filled.iter().find(|l| {
                 !l.slots.is_empty()
-                    && (l.published.entry == mixin.target
-                        || (l.published.generic_target() == mixin.target
+                    && (index.target_key(&l.published.entry) == index.target_key(&mixin.target)
+                        || (index.target_key(&l.published.generic_target())
+                            == index.target_key(&mixin.target)
                             && mixin.kind == Kind::Overwrite))
             }) else {
                 continue;
             };
             if mixin.kind == Kind::Overwrite
                 || !matches!(mixin.kind, Kind::Head | Kind::Return)
-                    && slots.published.entry == mixin.target
+                    && index.target_key(&slots.published.entry) == index.target_key(&mixin.target)
             {
                 let fillers: Vec<&str> = slots.slots.iter().map(|s| s.mod_id.as_str()).collect();
                 refusals.push(format!(
@@ -390,9 +429,9 @@ pub fn prepare<'a>(
     if bundles.is_empty() {
         return Ok(None);
     }
-    let loops = loop_slots(game, sdk.commit(), &bundles)?;
     let index =
         game_uses::function_index(game, sdk.commit()).map_err(|e| format!("E_MIXIN_INDEX: {e}"))?;
+    let loops = loop_slots(game, sdk.commit(), &bundles, &index)?;
     let requests: Vec<(String, String, String)> = bundles
         .iter()
         .flat_map(|bundle| {
@@ -429,14 +468,25 @@ pub fn prepare<'a>(
     // The generator refuses targets the staged game cannot replace.
     let mut extras = extras(&bundles)?;
     extras.loops = loops;
-    extras.linked = sdk_extern_names(sdk).map(str::to_owned).collect();
+    extras.linked = sdk_extern_names(sdk)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    if let Some(role) = sdk.runtime_role() {
+        extras.linked.extend(
+            role.libraries
+                .values()
+                .flat_map(|fact| fact.aliases.keys().cloned()),
+        );
+    }
     extras.lower_crate_cfg = Some(match sdk.lower_crate_cfg() {
+        None if sdk.runtime_role().is_some() => BTreeMap::new(),
         Some(recorded) => recorded.clone(),
         // A check only types the mods against the SDK, so an SDK that predates the lower
         // crates' records takes the pinned compiler's cfg for each of them, as `build` does
         // through the SDK's own tool.
         None if check_only => {
-            let atoms = printed_cfg(rust, sdk)?;
+            let atoms = printed_cfg(rust, sdk.legacy_game_features()?)?;
             index
                 .crates
                 .keys()
@@ -445,7 +495,27 @@ pub fn prepare<'a>(
         }
         None => BTreeMap::new(),
     });
-    let generated = api_gen::patch::generate(&source, CRATE, &targets, &extras, &index);
+    if let Some(role) = sdk.runtime_role() {
+        let target_cfg = printed_cfg(rust, &[])?;
+        let cfg = extras.lower_crate_cfg.as_mut().expect("initialized above");
+        for fact in role.libraries.values() {
+            cfg.entry(fact.package.replace('-', "_"))
+                .or_insert_with(|| {
+                    let mut cfg = target_cfg.clone();
+                    cfg.extend(
+                        fact.features
+                            .iter()
+                            .map(|feature| format!("feature=\"{feature}\"")),
+                    );
+                    cfg
+                });
+        }
+    }
+    let generated = if sdk.runtime_role().is_some() {
+        api_gen::patch::generate(&source, CRATE, &targets, &extras, &index)
+    } else {
+        api_gen::patch::generate_for_main_sdk(&source, CRATE, &targets, &extras, &index)
+    };
     let refusals: Vec<String> = match &generated {
         Ok(_) => Vec::new(),
         Err(refused) => refused
@@ -457,14 +527,11 @@ pub fn prepare<'a>(
         return Err(refusals.join("\n"));
     }
     let generated = generated.expect("no refusals");
-    let ids: HashMap<&str, &str> = generated
+    let ids: HashMap<String, &str> = generated
         .patched
         .iter()
-        .map(|p| (p.target.as_str(), p.id.as_str()))
+        .map(|p| (index.target_key(&p.target), p.id.as_str()))
         .collect();
-    // The workspace horizon-mixins plans against: one patch crate per game crate with copies.
-    let workspace = out.join("patch-workspace");
-    let _ = fs::remove_dir_all(&workspace);
     let write = |path: PathBuf, text: &str| {
         fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))
     };
@@ -473,99 +540,115 @@ pub fn prepare<'a>(
         .iter()
         .map(|(name, _)| name.as_str())
         .collect();
-    fs::create_dir_all(&workspace).map_err(|e| e.to_string())?;
-    write(
-        workspace.join("Cargo.toml"),
-        &format!(
-            "[workspace]\nmembers = [{}]\nresolver = \"2\"\n",
-            names
-                .iter()
-                .map(|n| format!("\"{n}\""))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-    )?;
-    write(
-        workspace.join("Cargo.lock"),
-        &format!(
-            "# Generated by the launcher.\nversion = 4\n{}",
-            names
-                .iter()
-                .map(|n| format!("\n[[package]]\nname = \"{n}\"\nversion = \"0.0.0\"\n"))
-                .collect::<String>()
-        ),
-    )?;
-    write(workspace.join(".horizon-revision"), sdk.commit())?;
-    for (name, lib) in &generated.libs {
-        let package = workspace.join(name);
-        fs::create_dir_all(package.join("src")).map_err(|e| e.to_string())?;
+    let groups: Vec<Vec<&str>> = if sdk.runtime_role().is_some() {
+        names.iter().map(|name| vec![*name]).collect()
+    } else {
+        vec![names.clone()]
+    };
+    let scratch = out.join("patch-input");
+    let patched = out.join("patch-applied");
+    remove_previous_output(&scratch)?;
+    remove_previous_output(&patched)?;
+    fs::create_dir_all(&patched).map_err(|e| e.to_string())?;
+    let mut tool_time = std::time::Duration::ZERO;
+    for (number, group) in groups.iter().enumerate() {
+        let input = scratch.join(number.to_string());
+        let workspace = input.join("workspace");
+        let mods = input.join("mods");
+        let output = input.join("applied");
+        let mut has_rows = false;
+        for bundle in &bundles {
+            let mut rows = bundle.native().mixin.clone();
+            rows.retain(|row| {
+                let id = ids[&index.target_key(&row.target)];
+                id.split_once("::")
+                    .is_some_and(|(name, _)| group.contains(&name))
+            });
+            if rows.is_empty() {
+                continue;
+            }
+            has_rows = true;
+            let dir = mods.join(&bundle.manifest.id);
+            super::package::copy_tool_input(bundle, &dir)?;
+            for row in &mut rows {
+                row.target = ids[&index.target_key(&row.target)].to_owned();
+            }
+            let manifest = toml::toml! {
+                [mod]
+                id = (bundle.manifest.id.clone())
+                version = (bundle.manifest.version.to_string())
+                [compatibility]
+                horizon_revision = (sdk.commit())
+            };
+            let mut manifest = manifest;
+            manifest.insert(
+                "injection".into(),
+                toml::Value::try_from(&rows).map_err(|e| e.to_string())?,
+            );
+            write(
+                dir.join("horizon-mixin.toml"),
+                &toml::to_string(&manifest).map_err(|e| e.to_string())?,
+            )?;
+        }
+        fs::create_dir_all(&workspace).map_err(|e| e.to_string())?;
         write(
-            package.join("Cargo.toml"),
+            workspace.join("Cargo.toml"),
+            &format!("[workspace]\nmembers = {group:?}\nresolver = \"2\"\n"),
+        )?;
+        write(
+            workspace.join("Cargo.lock"),
             &format!(
-                "[package]\nname = \"{name}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n"
+                "# Generated by the launcher.\nversion = 4\n{}",
+                group
+                    .iter()
+                    .map(|name| format!("\n[[package]]\nname = \"{name}\"\nversion = \"0.0.0\"\n"))
+                    .collect::<String>()
             ),
         )?;
-        write(package.join("src/lib.rs"), lib)?;
-    }
-    // Each mod's rows, retargeted at the copies, as the tool's bundles.
-    let mods = out.join("patch-mods");
-    let _ = fs::remove_dir_all(&mods);
-    for bundle in bundles
-        .iter()
-        .filter(|bundle| !bundle.native().mixin.is_empty())
-    {
-        let dir = mods.join(&bundle.manifest.id);
-        super::package::copy_tool_input(bundle, &dir)?;
-        let mut rows = bundle.native().mixin.clone();
-        for row in &mut rows {
-            row.target = ids[row.target.as_str()].to_owned();
+        write(workspace.join(".horizon-revision"), sdk.commit())?;
+        for (name, lib) in &generated.libs {
+            if !group.contains(&name.as_str()) {
+                continue;
+            }
+            let package = workspace.join(name);
+            fs::create_dir_all(package.join("src")).map_err(|e| e.to_string())?;
+            write(
+                package.join("Cargo.toml"),
+                &format!(
+                    "[package]\nname = \"{name}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n"
+                ),
+            )?;
+            write(package.join("src/lib.rs"), lib)?;
         }
-        let mut manifest = toml::Table::new();
-        manifest.insert(
-            "mod".into(),
-            toml::Value::Table(toml::Table::from_iter([
-                ("id".into(), bundle.manifest.id.clone().into()),
-                ("version".into(), bundle.manifest.version.to_string().into()),
-            ])),
-        );
-        manifest.insert(
-            "compatibility".into(),
-            toml::Value::Table(toml::Table::from_iter([(
-                "horizon_revision".into(),
-                sdk.commit().to_owned().into(),
-            )])),
-        );
-        manifest.insert(
-            "injection".into(),
-            toml::Value::try_from(&rows).map_err(|e| e.to_string())?,
-        );
-        write(
-            dir.join("horizon-mixin.toml"),
-            &toml::to_string(&manifest).map_err(|e| e.to_string())?,
-        )?;
-    }
-    let copied = started.elapsed();
-    // With no rows (only modules or bridges), the crate compiles as generated.
-    let patched = if let Some(tool) = &tool {
-        let patched = out.join("patch-applied");
-        // The tool refuses an output folder that exists on macOS and Windows.
-        remove_previous_output(&patched)?;
-        // The tool plans against what the patch library compiles: this computer's cfg set under the
-        // flags it is compiled with (the prebuilt game's target is this computer's,
-        // `check_identity`), and the features the game was built with.
-        let mut cmd = super::apply(rust, tool, &workspace, &mods, &patched);
-        for option in printed_cfg(rust, sdk)? {
-            cmd.arg("--cfg").arg(option);
+        let source = if has_rows {
+            let applying = std::time::Instant::now();
+            let tool = tool.as_ref().expect("rows have an apply tool");
+            let name = if sdk.runtime_role().is_some() {
+                group[0]
+            } else {
+                CRATE
+            };
+            let owner = generated
+                .owners
+                .get(name)
+                .map_or("sunrise_client", String::as_str);
+            let mut cmd = super::apply(rust, tool, &workspace, &mods, &output);
+            for option in printed_cfg(rust, sdk.patch_features(owner)?)? {
+                cmd.arg("--cfg").arg(option);
+            }
+            cmd.arg("--features-of").arg(name);
+            super::run(cmd, "Applying the mixins to their functions")?;
+            tool_time += applying.elapsed();
+            output
+        } else {
+            workspace
+        };
+        for name in group {
+            fs::rename(source.join(name), patched.join(name)).map_err(|e| e.to_string())?;
         }
-        // The features are the game crate's: the tool decides `feature` predicates only in its
-        // copies, and refuses them in the copies of the crates below it.
-        cmd.arg("--features-of").arg(CRATE);
-        super::run(cmd, "Applying the mixins to their functions")?;
-        patched
-    } else {
-        workspace.clone()
-    };
+    }
     let applied = started.elapsed();
+    let copied = applied.saturating_sub(tool_time);
     if loop_count > 0 {
         super::append_log(&trf(
             "Published loops: {loops} filled by {slots} mod slots",
@@ -578,18 +661,21 @@ pub fn prepare<'a>(
     Ok(Some(Prepared {
         dir: patched,
         names: names.iter().map(|name| name.to_string()).collect(),
+        owners: generated.owners,
         installs: generated
             .patched
             .iter()
             .filter_map(|p| {
                 let mut mods = requests
                     .iter()
-                    .filter(|(_, _, target)| target == &p.target)
+                    .filter(|(_, _, target)| {
+                        index.target_key(target) == index.target_key(&p.target)
+                    })
                     .map(|(id, _, _)| id.as_str())
                     .collect::<Vec<_>>();
                 // Published loop copies carry their slot owners too.
                 for l in &extras.loops {
-                    if l.published.entry == p.target {
+                    if index.target_key(&l.published.entry) == index.target_key(&p.target) {
                         mods.extend(l.slots.iter().map(|slot| slot.mod_id.as_str()));
                     }
                 }
@@ -636,16 +722,16 @@ fn unlink(path: &Path, kind: fs::FileType) -> std::io::Result<()> {
 
 /// The game's features as the `--cfg` flags the patch library is compiled with. The compile and
 /// the `--print cfg` that the tool plans against both take them from here, so they cannot drift.
-fn game_cfg(cmd: &mut std::process::Command, sdk: &Identity) {
-    for feature in sdk.game_features() {
+fn game_cfg(cmd: &mut std::process::Command, features: &[String]) {
+    for feature in features {
         cmd.arg("--cfg").arg(format!("feature=\"{feature}\""));
     }
 }
 
 /// The pinned compiler's `--print cfg` for the SDK's target under the game's features.
-fn printed_cfg(rust: &dyn Toolchain, sdk: &Identity) -> Result<Vec<String>, String> {
+fn printed_cfg(rust: &dyn Toolchain, features: &[String]) -> Result<Vec<String>, String> {
     let mut print = super::prebuilt::rustc_with(rust, &[], "2024");
-    game_cfg(&mut print, sdk);
+    game_cfg(&mut print, features);
     print.args(["--print", "cfg", "--target", rust.target()]);
     let printed = print.output().map_err(|e| e.to_string())?;
     if !printed.status.success() {
@@ -703,7 +789,7 @@ mod refusal_tests {
         .unwrap();
         let sdk = crate::prebuilt::identity(dir.path()).unwrap();
         assert!(sdk.lower_crate_cfg().is_none());
-        let printed = super::printed_cfg(&rust, &sdk).unwrap();
+        let printed = super::printed_cfg(&rust, sdk.legacy_game_features().unwrap()).unwrap();
         assert!(
             printed.contains(&"feature=\"audio\"".to_owned()),
             "{printed:?}"
@@ -826,7 +912,9 @@ mod refusal_tests {
     fn patching_refuses_a_missing_loop_catalog_but_accepts_an_empty_one() {
         let game = tempfile::tempdir().unwrap();
         let commit = crate::tests::A;
-        let error = super::loop_slots(game.path(), commit, &[]).err().unwrap();
+        let error = super::loop_slots(game.path(), commit, &[], &Default::default())
+            .err()
+            .unwrap();
         assert!(error.starts_with("E_MIXIN_INDEX:"), "{error}");
         assert!(
             error.contains("loops.json") && error.contains("fetch the SDK again"),
@@ -838,7 +926,7 @@ mod refusal_tests {
         )
         .unwrap();
         assert!(
-            super::loop_slots(game.path(), commit, &[])
+            super::loop_slots(game.path(), commit, &[], &Default::default())
                 .unwrap()
                 .is_empty()
         );

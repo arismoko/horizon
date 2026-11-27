@@ -22,7 +22,7 @@ INITIAL_COOLDOWN = 20
 MERGED_COOLDOWN = 50
 WITNESS_ENV = 'SUNRISE_MOB_PORTAL_COOLDOWN_WITNESS'
 WITNESS_NAME = 'mob_portal_cooldown.json'
-TEST = 'game::commands::data::portal_cooldown_tests::a_mob_saves_its_live_portal_cooldown'
+TEST = 'game::server_side::commands::data::portal_cooldown_tests::a_mob_saves_its_live_portal_cooldown'
 ORACLE_PATH = 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaCommandExecOracle.java'
 
 

@@ -1,5 +1,5 @@
-sunrise-client-lib mobs::living::travel::tests::a_lava_moved_edit_is_what_the_lava_drag_acts_on lib daily resources
-sunrise-client-lib mobs::living::travel::tests::a_non_finite_lava_moved_edit_is_dropped lib daily resources
-sunrise-client-lib mobs::living::travel::tests::a_vetoed_move_still_fires_moved_with_zero_displacement lib daily resources
-sunrise-client-lib motion::travel::tests::a_moved_velocity_edit_is_what_drag_and_gravity_act_on lib daily resources
-sunrise-client-lib motion::travel::tests::a_non_finite_moved_edit_is_dropped lib daily resources
+sunrise-sim mobs::living::travel::tests::a_lava_moved_edit_is_what_the_lava_drag_acts_on lib daily resources
+sunrise-sim mobs::living::travel::tests::a_non_finite_lava_moved_edit_is_dropped lib daily resources
+sunrise-sim mobs::living::travel::tests::a_vetoed_move_still_fires_moved_with_zero_displacement lib daily resources
+sunrise-sim motion::travel::tests::a_moved_velocity_edit_is_what_drag_and_gravity_act_on lib daily resources
+sunrise-sim motion::travel::tests::a_non_finite_moved_edit_is_dropped lib daily resources

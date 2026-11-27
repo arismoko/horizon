@@ -1,2 +1,2 @@
 # A living_visibility listener names its target player by UUID through LivingRef::player (#5944).
-sunrise-client game::creatures::living_visibility_tests::a_mod_names_the_guest_whose_visibility_it_is_asked lib daily resources
+sunrise-client cut_layout::game::creatures::living_visibility_tests::a_mod_names_the_guest_whose_visibility_it_is_asked lib daily resources

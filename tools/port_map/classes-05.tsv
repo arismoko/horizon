@@ -1,9 +1,9 @@
 RegionFileVersion.configure	port	crates/sunrise-world/src/compression.rs::Compression::configure	read from server.properties by the dedicated server (game/interface/dedicated/mod.rs), every chunk region written with it (save.rs compress_records); an unknown name is logged and the default kept
 RegionFileVersion.register	skip:data		static version table; Sunrise's codecs are the Compression enum (compression.rs)
 RegionFileVersion.wrap	port	crates/sunrise-world/src/compression.rs::Compression::encode	whole-buffer codec; output side (input side is Compression::decode)
-RegionStorageInfo.withTypeSuffix	port	crates/sunrise-client/src/save.rs::Folder::name	folder name per region kind; only the fixed region, entities and poi folders exist, none is suffixed
+RegionStorageInfo.withTypeSuffix	port	crates/sunrise-sim/src/save.rs::Folder::name	folder name per region kind; only the fixed region, entities and poi folders exist, none is suffixed
 EntityLookup.add	skip:java		index insert; Sunrise keeps entities in per-kind Vecs (game.rs) and a uuid map (game/world/persist.rs)
-EntityLookup.getEntities	port	crates/sunrise-client/src/mobs/seen_grid.rs::SeenGrid::candidates	gap: minor: returns mob candidates only (only mobs are indexed); callers test the boxes exactly
+EntityLookup.getEntities	port	crates/sunrise-sim/src/mobs/seen_grid.rs::SeenGrid::candidates	gap: minor: returns mob candidates only (only mobs are indexed); callers test the boxes exactly
 EntityLookup.getEntity	skip:java		lookup by id or uuid over Sunrise's per-kind lists and the uuid map
 EntityLookup.remove	skip:java		index removal; Sunrise removes the entity from its per-kind list
 EntitySection	skip:java		section container; Sunrise has no section index, only the mob grid (mobs/seen_grid.rs)
@@ -12,44 +12,44 @@ EntityTickList	skip:java		ticking list; Sunrise ticks its per-kind Vecs in order
 LevelEntityGetterAdapter	skip:java		adapter over the section storage; no equivalent needed
 PersistentEntitySectionManager.addEntity	skip:java		section and visibility bookkeeping; Sunrise spawns entities into its per-kind Vecs (game.rs)
 PersistentEntitySectionManager.addEntityUuid	skip:java		uuid set kept in persist.uuids (game/world/persist.rs)
-PersistentEntitySectionManager.addLegacyChunkEntities	port	crates/sunrise-client/src/game/world/persist.rs::Game::spawn_loaded_entities	saved chunk entity tags are spawned here once the chunk's entities arrive
-PersistentEntitySectionManager.addWorldGenChunkEntities	port	crates/sunrise-client/src/game/world/persist.rs::Game::spawn_loaded_entities	worldgen entities arrive as saved tags and are spawned the same way
-PersistentEntitySectionManager.canPositionTick	port	crates/sunrise-client/src/ticket_levels.rs::Levels::entity_ticking_at	a position ticks entities when its chunk is entity ticking
+PersistentEntitySectionManager.addLegacyChunkEntities	port	crates/sunrise-gameplay/src/game/world/persist/loaded_pass.rs::ServerGame::spawn_loaded_entities	saved chunk entity tags are spawned here once the chunk's entities arrive
+PersistentEntitySectionManager.addWorldGenChunkEntities	port	crates/sunrise-gameplay/src/game/world/persist/loaded_pass.rs::ServerGame::spawn_loaded_entities	worldgen entities arrive as saved tags and are spawned the same way
+PersistentEntitySectionManager.canPositionTick	port	crates/sunrise-sim/src/ticket_levels.rs::Levels::entity_ticking_at	a position ticks entities when its chunk is entity ticking
 PersistentEntitySectionManager.dumpSections	skip:debug		section dump for debugging
 PersistentEntitySectionManager.ensureChunkQueuedForLoad	skip:other		async load queue; Sunrise's streaming hands the saved entity tags over with the chunk
 PersistentEntitySectionManager.gatherStats	skip:debug		statistics string
-PersistentEntitySectionManager.getAllChunksToSave	inline	crates/sunrise-client/src/game/world/persist.rs::Game::save_entities	the resident chunk keys that save_entities writes
-PersistentEntitySectionManager.processChunkUnload	port	crates/sunrise-client/src/game/world/persist.rs::Game::unloading_entity_snapshots	captures unloading chunk entities for their save before remove_unloading_entities drops them
-PersistentEntitySectionManager.processUnloads	inline	crates/sunrise-client/src/game/world/persist.rs::Game::remove_unloading_entities	drops the batch of unloaded chunk entities handed over by the tick after unloading_entity_snapshots
-PersistentEntitySectionManager.requestChunkLoad	port	crates/sunrise-client/src/save/dir.rs::SaveDir::load_entities	reads the saved entity record of the chunk; the chunk load itself is streaming
-PersistentEntitySectionManager.saveAll	port	crates/sunrise-client/src/game/world/persist.rs::Game::save_entities	the waiting form (quit path) writes every resident chunk and flushes
-PersistentEntitySectionManager.storeChunkSections	port	crates/sunrise-client/src/game/world/persist.rs::Game::entity_chunks	the saved entity tags of a chunk; with remove the entities leave the world
+PersistentEntitySectionManager.getAllChunksToSave	inline	crates/sunrise-gameplay/src/game/world/persist.rs::Game::save_entities	the resident chunk keys that save_entities writes
+PersistentEntitySectionManager.processChunkUnload	port	crates/sunrise-gameplay/src/game/world/persist.rs::ServerGame::unloading_entity_snapshots	captures unloading chunk entities for their save before remove_unloading_entities drops them
+PersistentEntitySectionManager.processUnloads	inline	crates/sunrise-gameplay/src/game/world/persist.rs::ServerGame::remove_unloading_entities	drops the batch of unloaded chunk entities handed over by the tick after unloading_entity_snapshots
+PersistentEntitySectionManager.requestChunkLoad	port	crates/sunrise-sim/src/save/dir.rs::SaveDir::load_entities	reads the saved entity record of the chunk; the chunk load itself is streaming
+PersistentEntitySectionManager.saveAll	port	crates/sunrise-gameplay/src/game/world/persist.rs::Game::save_entities	the waiting form (quit path) writes every resident chunk and flushes
+PersistentEntitySectionManager.storeChunkSections	port	crates/sunrise-gameplay/src/game/world/persist.rs::Game::entity_chunks	the saved entity tags of a chunk; with remove the entities leave the world
 PersistentEntitySectionManager.updateChunkStatus	skip:other		visibility per chunk status; Sunrise derives entity ticking from ticket levels (ticket_levels.rs) instead of storing it
 PersistentEntitySectionManager.Callback.onMove	skip:java		section membership change; Sunrise has no sections
-PersistentEntitySectionManager.Callback.onRemove	port	crates/sunrise-client/src/game/world/persist.rs::Game::prune_entity_memory	gap: minor: removal is batched; dead ids are dropped from persist memory on save, not per removal
+PersistentEntitySectionManager.Callback.onRemove	port	crates/sunrise-gameplay/src/game/world/persist.rs::Game::prune_entity_memory	gap: minor: removal is batched; dead ids are dropped from persist memory on save, not per removal
 PersistentEntitySectionManager.Callback.updateStatus	skip:other		visibility changes are chunk ticket levels in Sunrise (ticket_levels.rs)
 TransientEntitySectionManager	skip:java		sections for entities that are not saved; Sunrise keeps them in its per-kind lists (game.rs)
 TransientEntitySectionManager.Callback	skip:java		section callbacks of the transient manager; no sections in Sunrise
-DynamicGameEventListener.ifChunkExists	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::sculk_listen	a sensor in an unloaded chunk has no entity, so the listener is dropped
+DynamicGameEventListener.ifChunkExists	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::sculk_listen	a sensor in an unloaded chunk has no entity, so the listener is dropped
 DynamicGameEventListener.move	skip:other		listeners are fixed block positions in Sunrise; sculk blocks do not move
-DynamicGameEventListener.remove	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::sculk_sync_index	drops the listener's index entry when its block is gone
+DynamicGameEventListener.remove	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::sculk_sync_index	drops the listener's index entry when its block is gone
 EntityPositionSource.getId	skip:java		accessor; Sunrise's listeners hold the source as a Who (sculk.rs Info)
-EntityPositionSource.getPosition	port	crates/sunrise-client/src/mobs/warden.rs::listen	gap: minor: covers the warden's eye-height listener only; no other position source is used
+EntityPositionSource.getPosition	port	crates/sunrise-sim/src/mobs/warden.rs::listen	gap: minor: covers the warden's eye-height listener only; no other position source is used
 EntityPositionSource.getUuid	skip:java		accessor; Sunrise holds the source as a Who
 EntityPositionSource.resolveEntity	skip:other		the source is a Who held by the listener, so there is no entity lookup to port
-EuclideanGameEventListenerRegistry.getPostableListenerPosition	inline	crates/sunrise-client/src/game/blocks/sculk.rs::Game::post_game_event	the in-range distance test that picks the listeners
-EuclideanGameEventListenerRegistry.register	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::sculk_scan_chunk	a sculk block found in a loaded chunk enters the index
+EuclideanGameEventListenerRegistry.getPostableListenerPosition	inline	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::post_game_event	the in-range distance test that picks the listeners
+EuclideanGameEventListenerRegistry.register	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::sculk_scan_chunk	a sculk block found in a loaded chunk enters the index
 EuclideanGameEventListenerRegistry.sendDebugInfo	skip:debug		debug rendering of listeners
-EuclideanGameEventListenerRegistry.unregister	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::sculk_sync_index	index entries of removed sculk blocks are dropped
-EuclideanGameEventListenerRegistry.visitInRangeListeners	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::post_game_event	walks the index for listeners in range, then the wardens
-VibrationInfo.getEntity	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::sculk_receive	the source is held as a Who and read there
-VibrationInfo.getProjectileOwner	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::sculk_receive	the projectile owner is captured when posted (info.owner) and read there
-VibrationSelector.addCandidate	port	crates/sunrise-client-render/src/sculk.rs::Selector::add_candidate
-VibrationSelector.chosenCandidate	port	crates/sunrise-client-render/src/sculk.rs::Selector::chosen_candidate
-VibrationSelector.shouldReplaceVibration	port	crates/sunrise-client-render/src/sculk.rs::Selector::should_replace
+EuclideanGameEventListenerRegistry.unregister	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::sculk_sync_index	index entries of removed sculk blocks are dropped
+EuclideanGameEventListenerRegistry.visitInRangeListeners	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::post_game_event	walks the index for listeners in range, then the wardens
+VibrationInfo.getEntity	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::sculk_receive	the source is held as a Who and read there
+VibrationInfo.getProjectileOwner	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::sculk_receive	the projectile owner is captured when posted (info.owner) and read there
+VibrationSelector.addCandidate	port	crates/sunrise-level/src/sculk.rs::Selector::add_candidate
+VibrationSelector.chosenCandidate	port	crates/sunrise-level/src/sculk.rs::Selector::chosen_candidate
+VibrationSelector.shouldReplaceVibration	port	crates/sunrise-level/src/sculk.rs::Selector::should_replace
 GameRuleCategory.register	skip:data		static category table; Sunrise's rule categories are static strings (gamerules.rs)
 GameRuleMap.equals	skip:java		value equality of the map
-GameRuleMap.of	port	crates/sunrise-client-core/src/gamerules.rs::GameRules::get	no stored map: a rule that was never set reads its table default
+GameRuleMap.of	port	crates/sunrise-game-data/src/gamerules.rs::GameRules::get	no stored map: a rule that was never set reads its table default
 GameRuleMap.setFromIf	skip:other		no caller in the pinned sources (only withOther uses it)
 GameRuleMap.withOther	skip:other		no caller in the pinned sources
 BlendingData	home	crates/sunrise-world/src/worldgen/blending.rs	BlendingData and Blender are in that file: unpack/pack and calculated (getOrUpdateBlendingData + calculateData) for the border columns, heights, densities and biomes; the client reads the saved chunks (old_world.rs)

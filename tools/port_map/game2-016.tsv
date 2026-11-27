@@ -3,7 +3,7 @@ SpeleothemBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::
 SpeleothemBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	Speleothem arm picks tip direction and thickness.
 SpeleothemBlock.calculateTipDirection	inline	crates/sunrise-world/src/level/place.rs::Sim::placement_class	Tip direction choice is inside the placement arm.
 SpeleothemBlock.isSpeleothemWithDirection	port	crates/sunrise-world/src/level/speleothem.rs::Sim::speleothem_with
-SpeleothemBlock.onProjectileHit	port	crates/sunrise-client/src/game/mobs/creatures/mod.rs::projectile_breaks_block	ticked in #3516; `SpeleothemBlock.onProjectileHit` is cited at crates/sunrise-client/src/game/mobs/creatures/mod.rs:3447 (in a comment, so `where` names the enclosing fn)
+SpeleothemBlock.onProjectileHit	port	crates/sunrise-gameplay/src/game/mobs/creatures/mod_server.rs::projectile_breaks_block	ticked in #3516; `SpeleothemBlock.onProjectileHit` is cited at crates/sunrise-client/src/game/mobs/creatures/mod.rs:3447 (in a comment, so `where` names the enclosing fn)
 SpeleothemBlock.tick	port	crates/sunrise-world/src/level/tick.rs::Sim::tick_block	Speleothem arm: a stalagmite that cannot survive breaks, else a falling stalactite starts.
 SpeleothemBlock.isTip	port	crates/sunrise-world/src/level/speleothem.rs::Sim::speleothem_is_tip
 SpeleothemBlock.getFluidState	port	crates/sunrise-world/src/registry_fluid.rs::RegistryFluidWorld::fluid_state	waterlogged fluid from block data
@@ -29,11 +29,11 @@ StairBlock.mirror	port	crates/sunrise-world/src/worldgen/structure.rs::StateTran
 StairBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
 StairBlock.getFluidState	port	crates/sunrise-world/src/registry_fluid.rs::RegistryFluidWorld::fluid_state	waterlogged fluid from block data
 StrawBedBlock.getShape	port	crates/sunrise-world/src/interaction_shapes.rs::InteractionShapes::shape	head and foot shapes per state from the table
-StrawBedBlock.getSleepHeight	port	crates/sunrise-client/src/game/blocks/beds.rs::Game::sleep_height	a straw bed's head walks to its foot, then the shape's top; no foot left means no sleeping at all
+StrawBedBlock.getSleepHeight	port	crates/sunrise-gameplay-common/src/game/blocks/block_props.rs::Game::sleep_height	a straw bed's head walks to its foot, then the shape's top; no foot left means no sleeping at all
 StructureBlock.useWithoutItem	port	crates/sunrise-world/src/level/interact.rs::Sim::use_without_item	a game master's click opens the editor
-StructureBlock.setPlacedBy	port	crates/sunrise-client/src/game/administration/structure_blocks.rs::structure_block_placed	the placing player becomes the block entity's author (the acting guest's name on a LAN world), as setPlacedBy writes it
-StructureBlock.neighborChanged	port	crates/sunrise-client/src/game/administration/structure_blocks.rs::Game::structure_block_neighbor_changed	a rising signal triggers the block once
-StructureBlock.trigger	port	crates/sunrise-client/src/game/administration/structure_blocks.rs::Game::trigger_structure_block	a pulse in LOAD mode loads its structure
+StructureBlock.setPlacedBy	port	crates/sunrise-gameplay/src/game/administration/structure_blocks.rs::structure_block_placed	the placing player becomes the block entity's author (the acting guest's name on a LAN world), as setPlacedBy writes it
+StructureBlock.neighborChanged	port	crates/sunrise-gameplay/src/game/administration/structure_blocks.rs::Game::structure_block_neighbor_changed	a rising signal triggers the block once
+StructureBlock.trigger	port	crates/sunrise-gameplay/src/game/administration/structure_blocks.rs::Game::trigger_structure_block	a pulse in LOAD mode loads its structure
 SweetBerryBushBlock.getShape	port	crates/sunrise-world/src/interaction_shapes.rs::InteractionShapes::shape	shape per age from the table
 SweetBerryBushBlock.isRandomlyTicking	port	crates/sunrise-world/src/level/mod.rs::Behaviours::is_randomly_ticking	RANDOM_TICKS flag from block data
 SweetBerryBushBlock.randomTick	port	crates/sunrise-world/src/level/tick.rs::Sim::random_tick_block	SweetBerry arm: 1 in 5 growth at light 9 or more.
@@ -48,14 +48,14 @@ TargetBlock.tick	port	crates/sunrise-world/src/level/tick.rs::Sim::tick_block	Ta
 TargetBlock.onPlace	port	crates/sunrise-world/src/level/hooks.rs::Sim::on_place	Target arm: power reset on a new placement.
 TntBlock.onPlace	port	crates/sunrise-world/src/level/redstone.rs::Sim::tnt_check	Tnt arm of on_place: primes and removes TNT when powered.
 TntBlock.neighborChanged	port	crates/sunrise-world/src/level/redstone.rs::Sim::tnt_check	Tnt arm of neighbor_changed.
-TntBlock.onProjectileHit	port	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::arrow_event	gap: minor: only the burning-arrow case reaches TNT here (BlockReaction::PrimeTnt in arrows.rs).
+TntBlock.onProjectileHit	port	crates/sunrise-gameplay/src/game/mobs/creatures/mod_server.rs::Game::server_arrow_event	gap: minor: only the burning-arrow case reaches TNT here (BlockReaction::PrimeTnt in arrows.rs).
 TrialSpawnerBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
-TrialSpawnerBlock.getTicker	port	crates/sunrise-client/src/game/mobs/trial_spawner.rs::Game::tick_trial_spawner	the per-tick trial spawner update
+TrialSpawnerBlock.getTicker	port	crates/sunrise-gameplay/src/game/mobs/trial_spawner.rs::Game::tick_trial_spawner	the per-tick trial spawner update
 TripWireBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	TripWire arm connects to neighbours.
 TripWireBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	TripWire arm: horizontal connections.
 TripWireBlock.onPlace	port	crates/sunrise-world/src/level/hooks.rs::Sim::on_place	TripWire arm: updates the source hooks.
 TripWireBlock.affectNeighborsAfterRemoval	port	crates/sunrise-world/src/level/hooks.rs::Sim::affect_neighbors_after_removal	TripWire arm: source update with the wire powered.
-TripWireBlock.playerWillDestroy	port	crates/sunrise-client/src/game.rs::Game::break_block_as_player	shears disarm the string first (flags 260), so the hooks stay quiet
+TripWireBlock.playerWillDestroy	port	crates/sunrise-gameplay/src/game/game_server.rs::Game::break_block_as_player	shears disarm the string first (flags 260), so the hooks stay quiet
 TripWireBlock.entityInside	port	crates/sunrise-world/src/level/hooks.rs::Sim::entity_inside	TripWire arm: tripwire_check_pressed counts the entities in the box (EntityQuery::Everything) and the game's count skips the ones that ignore block triggers (Entity::triggers_blocks: a bat, a marker armor stand), as checkPressed does; Marker, Interaction, Display and OminousItemSpawner, the other vanilla overrides, are not among Sunrise's Entity implementations
 TripWireBlock.tick	port	crates/sunrise-world/src/level/tick.rs::Sim::tick_block	TripWire arm: tripwire_tick re-checks while powered.
 TripWireBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate
@@ -68,19 +68,19 @@ TripWireHookBlock.notifyNeighbors	port	crates/sunrise-world/src/level/rails.rs::
 TripWireHookBlock.getDirectSignal	port	crates/sunrise-world/src/level/redstone.rs::Sim::state_direct_signal	strong power from per-state data (powered and facing)
 TripWireHookBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate
 TripWireHookBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
-TurtleEggBlock.stepOn	port	crates/sunrise-client/src/motion/integrate.rs::MotionWorld::effects_from_blocks	ticked in #3516
+TurtleEggBlock.stepOn	port	crates/sunrise-sim/src/motion/integrate.rs::MotionWorld::effects_from_blocks	ticked in #3516
 TurtleEggBlock.destroyEgg	port	crates/sunrise-world/src/block_landing.rs::BlockLandingRegistry::destroy_egg	the fall roll (1 in 3) and the step roll (1 in 100 through step_on, called from the player's step)
 TurtleEggBlock.decreaseEggs	inline	crates/sunrise-world/src/block_landing.rs::BlockLandingRegistry::fall_on	One egg fewer, or the block removed, inside the TurtleEgg rule.
 TurtleEggBlock.onPlace	port	crates/sunrise-world/src/level/hooks.rs::Sim::on_place	TurtleEgg arm: crack level event on sand.
 TurtleEggBlock.shouldUpdateHatchLevel	inline	crates/sunrise-world/src/level/timeline.rs::Sim::turtle_egg_tick	The hatch chance check opens turtle_egg_tick.
-TurtleEggBlock.playerDestroy	port	crates/sunrise-client/src/game.rs::break_block_as_player	ticked in #3516; `TurtleEggBlock.playerDestroy` is cited at crates/sunrise-client/src/game.rs:5143 (in a comment, so `where` names the enclosing fn)
+TurtleEggBlock.playerDestroy	port	crates/sunrise-gameplay/src/game/game_server.rs::break_block_as_player	ticked in #3516; `TurtleEggBlock.playerDestroy` is cited at crates/sunrise-client/src/game.rs:5143 (in a comment, so `where` names the enclosing fn)
 TurtleEggBlock.canBeReplaced	port	crates/sunrise-world/src/level/place.rs::Sim::can_be_replaced	TurtleEgg arm: adds an egg to a stack below 4.
 TurtleEggBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	TurtleEgg arm adds an egg to a stack.
 TurtleEggBlock.getShape	port	crates/sunrise-world/src/interaction_shapes.rs::InteractionShapes::shape	shape per egg count from the table
 TurtleEggBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
 TurtleEggBlock.canDestroyEgg	inline	crates/sunrise-world/src/block_landing.rs::BlockLandingRegistry::fall_on	Entity check (turtle, bat, player protection, griefing) is in the TurtleEgg rule.
 VaultBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
-VaultBlock.getTicker	port	crates/sunrise-client/src/game/blocks/vault.rs::Game::tick_vault	the per-tick vault update
+VaultBlock.getTicker	port	crates/sunrise-gameplay/src/game/blocks/vault.rs::Game::tick_vault	the per-tick vault update
 VaultBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate
 VegetationBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	Vegetation arm: breaks when it cannot survive.
 VegetationBlock.canSurvive	port	crates/sunrise-world/src/level/survive.rs::Sim::can_survive_class	Vegetation arm: checks the block below.
@@ -107,44 +107,44 @@ WallBlock.getFluidState	port	crates/sunrise-world/src/registry_fluid.rs::Registr
 WallBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
 WallBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate
 WallBlock.mirror	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::mirror
-WeatheringCopper.getFirst	port	crates/sunrise-world/src/level/tick.rs::Sim::copper_stepped	all_the_way walk back to the first oxidation stage.
+WeatheringCopper.getFirst	port	crates/sunrise-world/src/level/tick.rs::Sim::lightning_clear_copper	all_the_way walk back to the first oxidation stage.
 WeatheringCopper.WeatherState.forEach	skip:java		enum iteration helper; Rust walks the state list directly
-WitherSkullBlock.canSpawnMob	inline	crates/sunrise-client/src/game/blocks/dispenser.rs::Game::dispense_wither_skull	Height, difficulty and soul base checks are in dispense_wither_skull.
-WitherSkullBlock.getOrCreateWitherFull	inline	crates/sunrise-client/src/game/mobs/wither.rs::Game::check_wither_spawn	Full pattern is matched inline in check_wither_spawn.
-AbstractFurnaceBlockEntity.consumeFuel	inline	crates/sunrise-client/src/furnace.rs::Furnace::tick	Fuel count drops by one when a burn starts; bucket remainder in the same branch.
-AbstractFurnaceBlockEntity.canBurn	inline	crates/sunrise-client/src/furnace.rs::Furnace::tick	Output slot check (same item, room left) inside tick.
-AbstractFurnaceBlockEntity.getTotalCookTime	port	crates/sunrise-client/src/furnace.rs::total_time
-AbstractFurnaceBlockEntity.getSlotsForFace	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::View::slots_for_face_iter	Furnace faces: down 2 and 1, up 0, sides 1.
-AbstractFurnaceBlockEntity.canTakeItemThroughFace	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::Containers::can_take
-AbstractFurnaceBlockEntity.canPlaceItem	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::Containers::can_place	Furnace arm: output refused, fuel slot takes fuel or a bucket.
-AbstractFurnaceBlockEntity.setRecipeUsed	inline	crates/sunrise-client/src/furnace.rs::Furnace::tick	The recipe count goes up at each finished smelt.
-AbstractFurnaceBlockEntity.awardUsedRecipesAndPopExperience	port	crates/sunrise-client/src/game/item_entities.rs::Game::award_furnace_recipes	gap: minor: pays the experience and clears the used recipes; the recipe unlock and recipe-crafted trigger are not in this fn.
-AbstractFurnaceBlockEntity.getRecipesToAwardAndPopExperience	port	crates/sunrise-client/src/furnace.rs::Furnace::recipe_experience	gap: minor: returns counts and experience, not the recipe list.
-AbstractFurnaceBlockEntity.fillStackedContents	port	crates/sunrise-client/src/menu/place.rs::Menu::stacked_contents	Furnace arm counts all three slots.
-BannerBlockEntity.saveAdditional	port	crates/sunrise-client-core/src/block_entity_nbt.rs::canonical	banner arm of the saved NBT form
-BannerBlockEntity.applyImplicitComponents	port	crates/sunrise-client/src/block_entity_item.rs::place	banner patterns and name from item components
-BannerBlockEntity.collectImplicitComponents	port	crates/sunrise-client/src/block_entity_item.rs::collect	banner patterns and name to item components
-BaseContainerBlockEntity.loadAdditional	port	crates/sunrise-client-core/src/block_entity_nbt.rs::items	container slots from the saved list
-BaseContainerBlockEntity.saveAdditional	port	crates/sunrise-client-core/src/block_entity_nbt.rs::canonical	container NBT in its saved form
-BaseContainerBlockEntity.sendChestLockedNotifications	port	crates/sunrise-client-render/src/containers.rs::locked_message	the container.isLocked action-bar text, naming the container by its display name; the menu path in game/network/lan_actions.rs refuses a container whose Lock the held item does not open, sends this and plays block.chest.locked
-BaseContainerBlockEntity.isEmpty	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::Containers::is_empty
-BaseContainerBlockEntity.removeItem	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::Game::take_one	gap: minor: takes one item, not a chosen count.
-BaseContainerBlockEntity.createMenu	port	crates/sunrise-client/src/game.rs::Game::open_menu	opens the container's screen
-BaseContainerBlockEntity.applyImplicitComponents	port	crates/sunrise-client/src/block_entity_item.rs::place	container items, name and lock from item components
-BaseContainerBlockEntity.collectImplicitComponents	port	crates/sunrise-client/src/block_entity_item.rs::collect	container items, name and lock to item components
-BaseContainerBlockEntity.getLootContext	port	crates/sunrise-client/src/structure_blocks.rs::roll_container	position seed and biome feed the loot table roll.
-BeaconBlockEntity.updateBase	port	crates/sunrise-client/src/game/blocks/beacon.rs::Game::beacon_base	counts the pyramid levels (steps 1 to 4)
-BeaconBlockEntity.storeEffect	port	crates/sunrise-client/src/save/block_entity_encode.rs::encode	primary and secondary written to the beacon tag
-BeaconBlockEntity.loadEffect	port	crates/sunrise-client/src/save/block_entity_decode.rs::decode_block_entity	primary and secondary read from the beacon tag
-BeaconBlockEntity.createMenu	port	crates/sunrise-client/src/game/blocks/beacon.rs::Game::beacon_opened
-BeaconBlockEntity.applyImplicitComponents	port	crates/sunrise-client/src/block_entity_item.rs::place	beacon name and lock from item components
-BeaconBlockEntity.collectImplicitComponents	port	crates/sunrise-client/src/block_entity_item.rs::collect	beacon name and lock to item components
-BeehiveBlockEntity.setChanged	port	crates/sunrise-client/src/game/mobs/beehives.rs::Game::tick_beehive	fire check runs every tick here instead of on each setChanged; releases with EMERGENCY.
-BeehiveBlockEntity.releaseAllOccupants	port	crates/sunrise-client/src/beehive.rs::Beehive::release_all
-BeehiveBlockEntity.loadAdditional	port	crates/sunrise-client/src/beehive.rs::Beehive::from_nbt
-BeehiveBlockEntity.saveAdditional	port	crates/sunrise-client/src/beehive.rs::Beehive::to_nbt
-BeehiveBlockEntity.applyImplicitComponents	port	crates/sunrise-client/src/block_entity_item.rs::place	bees from item components
-BeehiveBlockEntity.collectImplicitComponents	port	crates/sunrise-client/src/block_entity_item.rs::collect	bees to item components
+WitherSkullBlock.canSpawnMob	inline	crates/sunrise-gameplay/src/game/blocks/dispenser.rs::Game::dispense_wither_skull	Height, difficulty and soul base checks are in dispense_wither_skull.
+WitherSkullBlock.getOrCreateWitherFull	inline	crates/sunrise-gameplay/src/game/mobs/wither.rs::Game::check_wither_spawn	Full pattern is matched inline in check_wither_spawn.
+AbstractFurnaceBlockEntity.consumeFuel	inline	crates/sunrise-sim/src/furnace.rs::Furnace::tick	Fuel count drops by one when a burn starts; bucket remainder in the same branch.
+AbstractFurnaceBlockEntity.canBurn	inline	crates/sunrise-sim/src/furnace.rs::Furnace::tick	Output slot check (same item, room left) inside tick.
+AbstractFurnaceBlockEntity.getTotalCookTime	port	crates/sunrise-sim/src/furnace.rs::total_time
+AbstractFurnaceBlockEntity.getSlotsForFace	port	crates/sunrise-gameplay-common/src/game/blocks/machine_containers.rs::View::slots_for_face_iter	Furnace faces: down 2 and 1, up 0, sides 1.
+AbstractFurnaceBlockEntity.canTakeItemThroughFace	port	crates/sunrise-gameplay-common/src/game/blocks/machine_containers.rs::Containers::can_take
+AbstractFurnaceBlockEntity.canPlaceItem	port	crates/sunrise-gameplay-common/src/game/blocks/machine_containers.rs::Containers::can_place	Furnace arm: output refused, fuel slot takes fuel or a bucket.
+AbstractFurnaceBlockEntity.setRecipeUsed	inline	crates/sunrise-sim/src/furnace.rs::Furnace::tick	The recipe count goes up at each finished smelt.
+AbstractFurnaceBlockEntity.awardUsedRecipesAndPopExperience	port	crates/sunrise-gameplay/src/game/items/item_entities.rs::ServerGame::award_furnace_recipes	gap: minor: pays the experience and clears the used recipes; the recipe unlock and recipe-crafted trigger are not in this fn.
+AbstractFurnaceBlockEntity.getRecipesToAwardAndPopExperience	port	crates/sunrise-sim/src/furnace.rs::Furnace::recipe_experience	gap: minor: returns counts and experience, not the recipe list.
+AbstractFurnaceBlockEntity.fillStackedContents	port	crates/sunrise-sim/src/menu/place.rs::Menu::stacked_contents	Furnace arm counts all three slots.
+BannerBlockEntity.saveAdditional	port	crates/sunrise-game-data/src/block_entity_nbt.rs::canonical	banner arm of the saved NBT form
+BannerBlockEntity.applyImplicitComponents	port	crates/sunrise-sim/src/block_entity_item.rs::place	banner patterns and name from item components
+BannerBlockEntity.collectImplicitComponents	port	crates/sunrise-sim/src/block_entity_item.rs::collect	banner patterns and name to item components
+BaseContainerBlockEntity.loadAdditional	port	crates/sunrise-game-data/src/block_entity_nbt.rs::items	container slots from the saved list
+BaseContainerBlockEntity.saveAdditional	port	crates/sunrise-game-data/src/block_entity_nbt.rs::canonical	container NBT in its saved form
+BaseContainerBlockEntity.sendChestLockedNotifications	port	crates/sunrise-level/src/containers.rs::locked_message	the container.isLocked action-bar text, naming the container by its display name; the menu path in game/network/lan_actions.rs refuses a container whose Lock the held item does not open, sends this and plays block.chest.locked
+BaseContainerBlockEntity.isEmpty	port	crates/sunrise-gameplay-common/src/game/blocks/machine_containers.rs::Containers::is_empty
+BaseContainerBlockEntity.removeItem	port	crates/sunrise-gameplay/src/game/blocks/machines/mod.rs::Game::take_one	gap: minor: takes one item, not a chosen count.
+BaseContainerBlockEntity.createMenu	port	crates/sunrise-gameplay/src/game/network/lan_actions/menus.rs::ServerGame::open_block_menu	opens the container's screen
+BaseContainerBlockEntity.applyImplicitComponents	port	crates/sunrise-sim/src/block_entity_item.rs::place	container items, name and lock from item components
+BaseContainerBlockEntity.collectImplicitComponents	port	crates/sunrise-sim/src/block_entity_item.rs::collect	container items, name and lock to item components
+BaseContainerBlockEntity.getLootContext	port	crates/sunrise-gameplay/src/game/world/container_loot.rs::ServerGame::unpack_loot	position seed and biome feed the loot table roll.
+BeaconBlockEntity.updateBase	port	crates/sunrise-gameplay-common/src/game/blocks/beacon_common.rs::Game::beacon_base	counts the pyramid levels (steps 1 to 4)
+BeaconBlockEntity.storeEffect	port	crates/sunrise-sim/src/save/block_entity_encode.rs::encode	primary and secondary written to the beacon tag
+BeaconBlockEntity.loadEffect	port	crates/sunrise-sim/src/save/block_entity_decode.rs::decode_block_entity	primary and secondary read from the beacon tag
+BeaconBlockEntity.createMenu	port	crates/sunrise-gameplay-common/src/game/blocks/beacon_common.rs::Game::beacon_opened
+BeaconBlockEntity.applyImplicitComponents	port	crates/sunrise-sim/src/block_entity_item.rs::place	beacon name and lock from item components
+BeaconBlockEntity.collectImplicitComponents	port	crates/sunrise-sim/src/block_entity_item.rs::collect	beacon name and lock to item components
+BeehiveBlockEntity.setChanged	port	crates/sunrise-gameplay/src/game/mobs/beehives.rs::Game::tick_beehive	fire check runs every tick here instead of on each setChanged; releases with EMERGENCY.
+BeehiveBlockEntity.releaseAllOccupants	port	crates/sunrise-sim/src/beehive.rs::Beehive::release_all
+BeehiveBlockEntity.loadAdditional	port	crates/sunrise-sim/src/beehive.rs::Beehive::from_nbt
+BeehiveBlockEntity.saveAdditional	port	crates/sunrise-sim/src/beehive.rs::Beehive::to_nbt
+BeehiveBlockEntity.applyImplicitComponents	port	crates/sunrise-sim/src/block_entity_item.rs::place	bees from item components
+BeehiveBlockEntity.collectImplicitComponents	port	crates/sunrise-sim/src/block_entity_item.rs::collect	bees to item components
 BeehiveBlockEntity.BeeData.toOccupant	skip:java		BeeData is a wrapper; Sunrise stores the Occupant itself in the hive.
-BeehiveBlockEntity.Occupant.setBeeReleaseData	inline	crates/sunrise-client/src/beehive.rs::release	Ticks inside the hive count towards age and love, inside release.
-BeehiveBlockEntity.Occupant.updateBeeAge	inline	crates/sunrise-client/src/beehive.rs::release	Age moves towards zero inside release.
+BeehiveBlockEntity.Occupant.setBeeReleaseData	inline	crates/sunrise-sim/src/beehive.rs::release	Ticks inside the hive count towards age and love, inside release.
+BeehiveBlockEntity.Occupant.updateBeeAge	inline	crates/sunrise-sim/src/beehive.rs::release	Age moves towards zero inside release.

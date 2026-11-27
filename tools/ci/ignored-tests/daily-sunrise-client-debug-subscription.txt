@@ -1,2 +1,2 @@
-sunrise-client game::native_hotbar_slot::hotbar_slot_tests::no_debug_request_goes_out_before_the_login lib daily resources
-sunrise-client game::native_hotbar_slot::hotbar_slot_tests::the_debug_requests_follow_the_carried_slot_in_the_ping_then_subscription_order lib daily resources
+sunrise-client cut_layout::game::client_side::native_hotbar_slot::hotbar_slot_tests::no_debug_request_goes_out_before_the_login lib daily resources
+sunrise-client cut_layout::game::client_side::native_hotbar_slot::hotbar_slot_tests::the_debug_requests_follow_the_carried_slot_in_the_ping_then_subscription_order lib daily resources

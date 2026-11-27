@@ -1,5 +1,5 @@
-sunrise-client game::gui_layer_tests::a_panicking_hud_painter_shows_its_error_toast_under_f1 lib daily child-process
-sunrise-client game::gui_layer_tests::f1_hides_vanilla_paint_without_skipping_the_hud_walk lib daily child-process
-sunrise-client game::gui_layer_tests::f1_subtitles_paint_in_the_container_background_without_redispatch lib daily child-process
-sunrise-client game::gui_layer_tests::options_controller_notice_paints_after_screen_post_despite_hud_cancel lib daily child-process
-sunrise-client game::gui_layer_tests::panicking_hud_listeners_under_f1_disable_only_themselves_and_report_their_owner lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::a_panicking_hud_painter_shows_its_error_toast_under_f1 lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::f1_hides_vanilla_paint_without_skipping_the_hud_walk lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::f1_subtitles_paint_in_the_container_background_without_redispatch lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::options_controller_notice_paints_after_screen_post_despite_hud_cancel lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::panicking_hud_listeners_under_f1_disable_only_themselves_and_report_their_owner lib daily child-process

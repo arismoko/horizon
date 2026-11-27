@@ -5,7 +5,7 @@ pub trait Hooks {
     /// `ExplosionPrimeEvent`). This is listen-only: the explosion proceeds as
     /// usual. Server-side, including the single-player server.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_explosion_prime",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_explosion_prime",
         dispatch = "flat",
         side = "server",
         contract = "listen",

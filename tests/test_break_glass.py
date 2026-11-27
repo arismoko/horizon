@@ -11,7 +11,8 @@ from pathlib import Path
 from unittest import mock
 
 from tests import test_daily_summary as daily
-from tests.test_release_branches import RELEASE, REPO, daily_run, daily_runs, git_in, repository, workflow
+from tests.git_fixture import git_in, isolated_git_env
+from tests.test_release_branches import RELEASE, REPO, daily_run, daily_runs, repository, workflow
 from tools import release_train as train
 from tools.ci import daily_summary as summary
 from tools.ci import nightly
@@ -58,7 +59,7 @@ def history(folder, *changes):
     for path, kind in changes:
         mode, content = ("120000", "a.md") if kind == "link" else ("100644", "fix\n")
         blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=content, cwd=repo, text=True,
-                              capture_output=True, check=True).stdout.strip()
+                              env=isolated_git_env(), capture_output=True, check=True).stdout.strip()
         git("-c", "core.protectNTFS=false", "update-index", "--add", "--cacheinfo", f"{mode},{blob},{path}")
     git("commit", "-q", "--allow-empty", "-m", "cherry-pick")
     return parent, git("rev-parse", "HEAD")

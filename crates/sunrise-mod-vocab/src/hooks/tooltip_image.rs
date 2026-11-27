@@ -9,7 +9,7 @@ pub trait Hooks {
     /// tooltip component unchanged. A callback or retained payload destructor panic
     /// disables only this item-part registration for this hook. Client-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_tooltip_image",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_tooltip_image",
         receiver = "read",
         dispatch = "flat",
         side = "client",

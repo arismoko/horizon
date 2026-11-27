@@ -52,6 +52,7 @@ file naming an unregistered target or interpolation fails to load, naming it. If
 converter returns a non-finite vector, that animation file fails to load; if a callback panics during parse
 or playback, that callback is disabled for the session with an error log and toast."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_json_animation_types::native_register_json_animation_types",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

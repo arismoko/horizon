@@ -1,2 +1,2 @@
 # Screen regions (#4114): each ScreenView::regions kind where vanilla draws it; needs a Game with prepared resources.
-sunrise-client game::screen_build::tests::each_screen_region_is_where_vanilla_draws_it lib daily resources
+sunrise-client cut_layout::game::client_side::screen_build::tests::each_screen_region_is_where_vanilla_draws_it lib daily resources

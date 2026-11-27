@@ -12,7 +12,7 @@ pub trait Hooks {
     /// commits, but not effects made outside the Host transaction journal.
     /// `dedicated` distinguishes a dedicated from an integrated server.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_server_started",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_server_started",
         dispatch = "flat",
         side = "server",
         contract = "listen",

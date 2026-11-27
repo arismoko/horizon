@@ -1,6 +1,6 @@
-sunrise-client game::piston_push::carrying::shoving::tests::a_cancelled_turning_shove_leaves_velocity_alone lib daily child-process
-sunrise-client game::piston_push::carrying::shoving::tests::a_client_side_turning_shove_moves_the_local_player lib daily child-process
-sunrise-client game::piston_push::carrying::shoving::tests::a_rider_on_a_turning_collider_is_carried_and_not_shoved_again lib daily child-process
-sunrise-client game::piston_push::carrying::shoving::tests::a_server_side_turning_shove_never_moves_the_local_player lib daily child-process
-sunrise-client game::piston_push::carrying::shoving::tests::a_vanilla_piston_shove_leaves_the_players_velocity_alone lib daily child-process
-sunrise-client game::piston_push::carrying::shoving::tests::an_upward_shove_leaves_the_colliders_vertical_speed lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::a_cancelled_turning_shove_leaves_velocity_alone lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::a_client_side_turning_shove_moves_the_local_player lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::a_rider_on_a_turning_collider_is_carried_and_not_shoved_again lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::a_server_side_turning_shove_never_moves_the_local_player lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::a_vanilla_piston_shove_leaves_the_players_velocity_alone lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::an_upward_shove_leaves_the_colliders_vertical_speed lib daily child-process

@@ -1,1 +1,1 @@
-sunrise-client game::stop_using_tests::a_replaced_finish_still_stops_the_use lib daily resources
+sunrise-client cut_layout::game::server_side::stop_using_tests::a_replaced_finish_still_stops_the_use lib daily resources

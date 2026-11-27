@@ -1,1 +1,1 @@
-sunrise-client game::native_level_refs::tests::validation_panic_disables_only_its_controller_for_the_session lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_refs::tests::validation_panic_disables_only_its_controller_for_the_session lib daily resources

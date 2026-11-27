@@ -1,0 +1,2840 @@
+[host.client."DatafixHost::upgrade_nbt"]
+borrow = "none"
+kind = "static"
+owner = "::sunrise_gameplay_common::game::native_datafix"
+
+[host.client."LevelsHost::is_loaded"]
+borrow = "none"
+kind = "static"
+owner = "::sunrise_gameplay_common::game::native_config_file_services"
+
+[host.server."DatafixHost::upgrade_nbt"]
+borrow = "none"
+kind = "static"
+owner = "::sunrise_gameplay_common::game::native_datafix"
+
+[host.server."LevelsHost::is_loaded"]
+borrow = "none"
+kind = "static"
+owner = "::sunrise_gameplay_common::game::native_config_file_services"
+
+[items.client]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::GameItems<'_>"
+
+[items.server]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::GameItems<'_>"
+
+
+[host.client."BlockEntitiesBackend::block_entity_data"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.client."BlockEntitiesBackend::block_entity_data_slots"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.client."BlockEntitiesBackend::block_entity_item_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.client."BlockEntitiesBackend::block_entity_kind"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.client."BlockEntitiesBackend::block_entity_level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.client."BlockEntitiesBackend::block_entity_lock"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.client."BlockEntitiesBackend::block_entity_position"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.client."BlockEntitiesHost::block_entity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.client."BlockEntitiesHost::block_entity_identity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.client."BlockStatesHost::block_item"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."BlockStatesHost::block_state_default"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."BlockStatesHost::block_state_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."BlockStatesHost::block_state_string"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."BlockStatesHost::fluid_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."BlockStatesHost::item_block"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."BlockStatesHost::item_crafting_remainder"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ClientViewClientHost::clock"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ClientViewClientHost::is_paused"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigClientHost::translate"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::dimension"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::dist"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::game_version"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::instance_dir"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::on"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.client."ConfigHost::server_data_version"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::server_has_time"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt4<'_>"
+
+[host.client."ConfigHost::setting"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::sunrise_version"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."DataMapsBackend::data_map_entries"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.client."DataMapsBackend::data_map_value"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.client."EntitiesHost::entity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntitiesHost::level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntityAirFluidsBackend::entity_air_supply"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityAirFluidsBackend::entity_eye_fluid"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityAirFluidsBackend::entity_is_in_water"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityAirFluidsBackend::entity_is_under_water"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityAirFluidsBackend::entity_max_air_supply"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityFireFrostBackend::entity_fire_immune"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityFireFrostBackend::entity_is_on_fire"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityIdentityBackend::entity_is_multipart"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntityIdentityBackend::entity_kind"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntityIdentityBackend::entity_level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntityIdentityBackend::entity_name"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt7<'_>"
+
+[host.client."EntityLifetimeBackend::entity_tick_count"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityPhysicsBackend::entity_bounding_box"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntityPhysicsBackend::entity_is_hanging"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt4<'_>"
+
+[host.client."EntityPhysicsBackend::entity_piston_push_reaction"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt4<'_>"
+
+[host.client."EntityPhysicsBackend::entity_velocity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntityPositionBackend::entity_block_position"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntityPositionBackend::entity_on_ground"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_motion_values::NativeEntityMotionValuesGameExt1<'_>"
+
+[host.client."EntityPositionBackend::entity_position"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntityPositionBackend::entity_rotation"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt5<'_>"
+
+[host.client."EntitySightBackend::entity_eye_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntitySightBackend::entity_eye_position"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntitySightBackend::entity_up_vector"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_motion_values::NativeEntityMotionValuesGameExt1<'_>"
+
+[host.client."EntityStanceBackend::entity_is_shift_key_down"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."EntityStanceBackend::entity_is_swimming"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityStanceBackend::entity_main_arm"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."FluidsHost::cauldron_content_for_block"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."FluidsHost::cauldron_content_for_fluid"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."FluidsHost::cauldron_level"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ItemEntitiesHost::item_entity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_entity_refs::NativeItemEntityRefsGameExt1<'_>"
+
+[host.client."ItemsBackend::bundle_capacity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.client."ItemsBackend::bundle_extract"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.client."ItemsBackend::bundle_insert_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.client."ItemsBackend::bundle_metrics"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.client."ItemsBackend::bundle_slots"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.client."ItemsBackend::creative_stack_key"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::build_creative_mode_tab_contents::GameHooks<'_>"
+
+[host.client."ItemsBackend::item_container_capacity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.client."ItemsBackend::item_container_extract"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.client."ItemsBackend::item_container_insert"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.client."ItemsBackend::item_container_insert_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.client."ItemsBackend::item_container_slots"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.client."ItemsBackend::item_equippable_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_has_enchantment_effect"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.client."ItemsBackend::item_resource_attack_damage_bonus"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_resource_bar"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_resource_can_be_hurt_by"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_resource_creator_mod_id"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_resource_damage_source"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_resource_damageable"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_resource_entity_attack_range"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_resource_foil"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_resource_repairable"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_resource_use_duration"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsBackend::item_stack_use_animation"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::held_items::HeldItemsGameExt1<'_>"
+
+[host.client."ItemsClientHost::creative_search_items"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::build_creative_mode_tab_contents::GameHooks<'_>"
+
+[host.client."ItemsClientHost::potions"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ItemsHost::built_creative_tabs"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::build_creative_mode_tab_contents::GameHooks<'_>"
+
+[host.client."ItemsHost::creative_tabs"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::build_creative_mode_tab_contents::GameHooks<'_>"
+
+[host.client."ItemsHost::enchantments_compatible"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.client."ItemsHost::entity_type_in_tag"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt3<'_>"
+
+[host.client."ItemsHost::hover_name"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ItemsHost::item_burn_time"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsHost::item_compost_chance"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.client."ItemsHost::item_default_component"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ItemsHost::item_from_snbt"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_give_stack::NativeGiveStackGameExt1<'_>"
+
+[host.client."ItemsHost::item_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ItemsHost::max_damage"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ItemsHost::max_stack_size"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::block_entity_type_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::block_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::effect_category"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::effect_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::enchantment_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::entity_type_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::fluid_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::game_event_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::item_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::item_registry_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::menu_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysHost::block_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysHost::block_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysHost::effect_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysHost::enchantment_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysHost::entity_type_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysHost::game_event_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysHost::item_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysHost::menu_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysHost::registry_protocol_id"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_ids::NativeRegistryIdsGameExt1<'_>"
+
+[host.client."LevelBlocksBackend::level_block"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelBlocksBackend::level_block_break_speed"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt5<'_>"
+
+[host.client."LevelBlocksBackend::level_block_property"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelBlocksBackend::level_block_state"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."LevelBlocksBackend::level_connection_group"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."LevelBlocksBackend::level_friction"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_surface::NativeSurfaceGameExt1<'_>"
+
+[host.client."LevelBlocksBackend::level_get_enchant_power_bonus"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."LevelBlocksBackend::level_with_capability_site"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelChunksBackend::level_is_loaded"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelCollisionBackend::level_block_face_sturdy"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt5<'_>"
+
+[host.client."LevelCollisionBackend::level_block_floor_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelCollisionBackend::level_clip"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."LevelCollisionBackend::level_has_collisions"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_bots_common::NativeBotsCommonGameExt1<'_>"
+
+[host.client."LevelDatapacksBackend::level_datapack_read"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_datapack_refs::NativeDatapackRefsGameExt1<'_>"
+
+[host.client."LevelDimensionBackend::dimension_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."LevelDimensionBackend::level_dimension_shape"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_rain_read::NativeRainReadGameExt1<'_>"
+
+[host.client."LevelDimensionBackend::level_dimension_type"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_rain_read::NativeRainReadGameExt1<'_>"
+
+[host.client."LevelDimensionBackend::level_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelDimensionBackend::level_in_spawnable_bounds"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelDimensionBackend::level_in_world_bounds"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelDimensionBackend::level_logical_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelEntitiesBackend::level_ray_trace_nearest_entity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt5<'_>"
+
+[host.client."LevelEntitiesBackend::level_visit_entities_in"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."LevelFluidsBackend::level_fluid_can_be_replaced_with"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_world_read_common::NativeWorldReadGameExt1<'_>"
+
+[host.client."LevelFluidsBackend::level_fluid_flow"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelFluidsBackend::level_fluid_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_world_read_common::NativeWorldReadGameExt1<'_>"
+
+[host.client."LevelFluidsBackend::level_fluid_height_for_camera"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_world_read_common::NativeWorldReadGameExt1<'_>"
+
+[host.client."LevelFluidsBackend::level_fluid_shape"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_world_read_common::NativeWorldReadGameExt1<'_>"
+
+[host.client."LevelLightBackend::level_brightness"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."LevelLightBackend::level_can_see_sky"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelLightBackend::level_get_light_emission"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelLightBackend::level_get_sky_darken"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_rain_read::NativeRainReadGameExt1<'_>"
+
+[host.client."LevelTimeBackend::level_day_time"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelTimeBackend::level_game_time"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelWeatherBackend::level_weather"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_rain_read::NativeRainReadGameExt1<'_>"
+
+[host.client."LevelWorldgenBackend::level_biome_effects"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelWorldgenBackend::level_biome_in_tag"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelWorldgenBackend::level_biome_properties"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelWorldgenBackend::level_biome_spawners"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelWorldgenBackend::level_client_biome"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LevelsHost::chunk"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LivingBackend::living_absorption"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_absorption::NativeLivingAbsorptionGameExt1<'_>"
+
+[host.client."LivingBackend::living_attribute_base"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.client."LivingBackend::living_attribute_value"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."LivingBackend::living_baby"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.client."LivingBackend::living_dimensions_for_pose"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt5<'_>"
+
+[host.client."LivingBackend::living_effect"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt2<'_>"
+
+[host.client."LivingBackend::living_equipment"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.client."LivingBackend::living_gliding_ticks"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.client."LivingBackend::living_hand_item"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.client."LivingBackend::living_health"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.client."LivingBackend::living_is_blocking"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_blocking::NativeLivingBlockingGameExt1<'_>"
+
+[host.client."LivingBackend::living_is_climbing"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.client."LivingBackend::living_is_gliding"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.client."LivingBackend::living_is_jumping"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.client."LivingBackend::living_is_sleeping"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.client."LivingBackend::living_max_health"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.client."LivingBackend::living_potion_affected"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt2<'_>"
+
+[host.client."LivingBackend::living_sleeping_pos"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.client."LivingBackend::living_used_item_hand"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt3<'_>"
+
+[host.client."LivingHost::living"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."MathHost::math_profile"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."MenusBackend::menu_carried"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.client."MenusBackend::menu_kind"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.client."MenusBackend::menu_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.client."MenusBackend::menu_slot_count"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.client."MenusClientHost::local_player"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::player_identity::PlayerIdentityGameExt1<'_>"
+
+[host.client."MobsBackend::mob_can_use_portal"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt6<'_>"
+
+[host.client."MobsHost::mob"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt6<'_>"
+
+[host.client."ModStateHost::attachment_query"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ModStateHost::attachment_read_scope"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ModStateHost::attachments"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.client."PayloadDropsHost::payload_drop_counts"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."PayloadTokensHost::check_payload_token"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."PlayerExperienceBackend::player_experience"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.client."PlayerExperienceBackend::player_xp_needed_for_next_level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.client."PlayerFoodBackend::player_can_eat"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.client."PlayerFoodBackend::player_food"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerFoodBackend::player_has_enough_food"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.client."PlayerFoodBackend::player_needs_food"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.client."PlayerInteractionBackend::player_within_entity_reach"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_reach::NativePlayerReachGameExt1<'_>"
+
+[host.client."PlayerInventoryBackend::player_inventory_slots"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt5<'_>"
+
+[host.client."PlayerInventoryBackend::player_selected_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerMenusBackend::player_container_menu"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.client."PlayerMenusClientBackendMut::player_anvil_update"]
+borrow = "mutable"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.client."PlayerModesBackend::player_abilities"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::game_mode_common::GameModeCommonGameExt1<'_>"
+
+[host.client."PlayerModesBackend::player_game_mode"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerModesBackend::player_is_creative"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerModesBackend::player_is_secondary_use_active"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt3<'_>"
+
+[host.client."PlayerModesBackend::player_is_spectator"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerModesBackend::player_may_build"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerModesBackend::player_may_fly"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_reach::NativePlayerReachGameExt1<'_>"
+
+[host.client."PlayerSessionBackend::player_client_brand"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerWorldBackend::player_collision_flags"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerWorldBackend::player_dimension"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerWorldBackend::player_last_death_location"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_death::NativePlayerDeathGameExt1<'_>"
+
+[host.client."PlayerWorldBackend::player_level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerWorldBackend::player_on_block"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayerWorldBackend::player_supporting_block"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."PlayersClientHost::push_player"]
+borrow = "mutable"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."PlayersHost::item_cooldown_group"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt2<'_>"
+
+[host.client."PlayersHost::player"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.client."RecipePropertiesHost::mod_recipe_property_contains"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.client."RecipesBackend::recipe_ingredient_item_keys"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::ingredient_test::IngredientTestGameExt1<'_>"
+
+[host.client."RecipesBackend::recipe_ingredient_test"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."RecipesHost::recipe_ingredient"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.client."RecipesHost::recipe_result"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.client."RecipesHost::recipes_of_type"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.client."TextHost::text_from_json"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."TextHost::text_from_legacy"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."TextHost::text_from_nbt"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."TextHost::text_string"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."TextHost::text_to_nbt"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."BlockEntitiesBackend::block_entity_data"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.server."BlockEntitiesBackend::block_entity_data_slots"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.server."BlockEntitiesBackend::block_entity_item_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.server."BlockEntitiesBackend::block_entity_kind"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.server."BlockEntitiesBackend::block_entity_level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.server."BlockEntitiesBackend::block_entity_lock"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.server."BlockEntitiesBackend::block_entity_position"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.server."BlockEntitiesHost::block_entity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.server."BlockEntitiesHost::block_entity_identity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_block_entity_read::NativeBlockEntityReadGameExt1<'_>"
+
+[host.server."BlockStatesHost::block_item"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."BlockStatesHost::block_state_default"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."BlockStatesHost::block_state_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."BlockStatesHost::block_state_string"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."BlockStatesHost::fluid_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."BlockStatesHost::item_block"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."BlockStatesHost::item_crafting_remainder"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::dimension"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::dist"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::game_version"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::instance_dir"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::on"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.server."ConfigHost::server_data_version"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::server_has_time"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt4<'_>"
+
+[host.server."ConfigHost::setting"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::sunrise_version"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigServerHost::game_rule"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigServerHost::game_tests_enabled"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigServerHost::tick_rate_is_frozen"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigServerHost::tick_stats"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."DataMapsBackend::data_map_entries"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.server."DataMapsBackend::data_map_value"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.server."EntitiesHost::entity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntitiesHost::level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntityAirFluidsBackend::entity_air_supply"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityAirFluidsBackend::entity_eye_fluid"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityAirFluidsBackend::entity_is_in_water"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityAirFluidsBackend::entity_is_under_water"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityAirFluidsBackend::entity_max_air_supply"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityFireFrostBackend::entity_fire_immune"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityFireFrostBackend::entity_is_on_fire"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityIdentityBackend::entity_is_multipart"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntityIdentityBackend::entity_kind"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntityIdentityBackend::entity_level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntityIdentityBackend::entity_name"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt7<'_>"
+
+[host.server."EntityLifetimeBackend::entity_tick_count"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityPhysicsBackend::entity_bounding_box"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntityPhysicsBackend::entity_is_hanging"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt4<'_>"
+
+[host.server."EntityPhysicsBackend::entity_piston_push_reaction"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt4<'_>"
+
+[host.server."EntityPhysicsBackend::entity_velocity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntityPositionBackend::entity_block_position"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntityPositionBackend::entity_on_ground"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_motion_values::NativeEntityMotionValuesGameExt1<'_>"
+
+[host.server."EntityPositionBackend::entity_position"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntityPositionBackend::entity_rotation"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt5<'_>"
+
+[host.server."EntitySightBackend::entity_eye_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntitySightBackend::entity_eye_position"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntitySightBackend::entity_up_vector"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_motion_values::NativeEntityMotionValuesGameExt1<'_>"
+
+[host.server."EntityStanceBackend::entity_is_shift_key_down"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."EntityStanceBackend::entity_is_swimming"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityStanceBackend::entity_main_arm"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."FluidsHost::cauldron_content_for_block"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."FluidsHost::cauldron_content_for_fluid"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."FluidsHost::cauldron_level"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."FluidsServerHost::fluid_interaction_result"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ItemEntitiesHost::item_entity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_entity_refs::NativeItemEntityRefsGameExt1<'_>"
+
+[host.server."ItemsBackend::bundle_capacity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.server."ItemsBackend::bundle_extract"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.server."ItemsBackend::bundle_insert_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.server."ItemsBackend::bundle_metrics"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.server."ItemsBackend::bundle_slots"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_bundle::NativeItemBundleGameExt1<'_>"
+
+[host.server."ItemsBackend::creative_stack_key"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::build_creative_mode_tab_contents::GameHooks<'_>"
+
+[host.server."ItemsBackend::item_container_capacity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.server."ItemsBackend::item_container_extract"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.server."ItemsBackend::item_container_insert"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.server."ItemsBackend::item_container_insert_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.server."ItemsBackend::item_container_slots"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_item_container::NativeItemContainerGameExt1<'_>"
+
+[host.server."ItemsBackend::item_equippable_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_has_enchantment_effect"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.server."ItemsBackend::item_resource_attack_damage_bonus"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_resource_bar"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_resource_can_be_hurt_by"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_resource_creator_mod_id"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_resource_damage_source"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_resource_damageable"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_resource_entity_attack_range"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_resource_foil"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_resource_repairable"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_resource_use_duration"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsBackend::item_stack_use_animation"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::held_items::HeldItemsGameExt1<'_>"
+
+[host.server."ItemsHost::built_creative_tabs"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::build_creative_mode_tab_contents::GameHooks<'_>"
+
+[host.server."ItemsHost::creative_tabs"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::build_creative_mode_tab_contents::GameHooks<'_>"
+
+[host.server."ItemsHost::enchantments_compatible"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.server."ItemsHost::entity_type_in_tag"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt3<'_>"
+
+[host.server."ItemsHost::hover_name"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ItemsHost::item_burn_time"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsHost::item_compost_chance"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_components::NativeComponentsGameExt1<'_>"
+
+[host.server."ItemsHost::item_default_component"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ItemsHost::item_from_snbt"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_give_stack::NativeGiveStackGameExt1<'_>"
+
+[host.server."ItemsHost::item_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ItemsHost::max_damage"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ItemsHost::max_stack_size"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::block_entity_type_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::block_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::effect_category"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::effect_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::enchantment_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::entity_type_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::fluid_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::game_event_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::item_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::item_registry_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysBackend::menu_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysHost::block_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysHost::block_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysHost::effect_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysHost::enchantment_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysHost::entity_type_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysHost::game_event_key"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysHost::item_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysHost::menu_keys"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."KeysHost::registry_protocol_id"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_ids::NativeRegistryIdsGameExt1<'_>"
+
+[host.server."LevelBlocksBackend::level_block"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelBlocksBackend::level_block_break_speed"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt5<'_>"
+
+[host.server."LevelBlocksBackend::level_block_property"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelBlocksBackend::level_block_state"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."LevelBlocksBackend::level_connection_group"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."LevelBlocksBackend::level_friction"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_surface::NativeSurfaceGameExt1<'_>"
+
+[host.server."LevelBlocksBackend::level_get_enchant_power_bonus"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."LevelBlocksBackend::level_with_capability_site"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelChunksBackend::level_is_loaded"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelCollisionBackend::level_block_face_sturdy"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt5<'_>"
+
+[host.server."LevelCollisionBackend::level_block_floor_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelCollisionBackend::level_clip"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."LevelCollisionBackend::level_has_collisions"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_bots_common::NativeBotsCommonGameExt1<'_>"
+
+[host.server."LevelDatapacksBackend::level_datapack_read"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_datapack_refs::NativeDatapackRefsGameExt1<'_>"
+
+[host.server."LevelDimensionBackend::dimension_key_id"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."LevelDimensionBackend::level_dimension_shape"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_rain_read::NativeRainReadGameExt1<'_>"
+
+[host.server."LevelDimensionBackend::level_dimension_type"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_rain_read::NativeRainReadGameExt1<'_>"
+
+[host.server."LevelDimensionBackend::level_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelDimensionBackend::level_in_spawnable_bounds"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelDimensionBackend::level_in_world_bounds"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelDimensionBackend::level_logical_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelEntitiesBackend::level_ray_trace_nearest_entity"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt5<'_>"
+
+[host.server."LevelEntitiesBackend::level_visit_entities_in"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."LevelFluidsBackend::level_fluid_can_be_replaced_with"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_world_read_common::NativeWorldReadGameExt1<'_>"
+
+[host.server."LevelFluidsBackend::level_fluid_flow"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelFluidsBackend::level_fluid_height"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_world_read_common::NativeWorldReadGameExt1<'_>"
+
+[host.server."LevelFluidsBackend::level_fluid_height_for_camera"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_world_read_common::NativeWorldReadGameExt1<'_>"
+
+[host.server."LevelFluidsBackend::level_fluid_shape"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_world_read_common::NativeWorldReadGameExt1<'_>"
+
+[host.server."LevelLightBackend::level_brightness"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."LevelLightBackend::level_can_see_sky"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelLightBackend::level_get_light_emission"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelLightBackend::level_get_sky_darken"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_rain_read::NativeRainReadGameExt1<'_>"
+
+[host.server."LevelTickingBackend::level_in_place"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelTimeBackend::level_day_time"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelTimeBackend::level_game_time"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelWeatherBackend::level_weather"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_rain_read::NativeRainReadGameExt1<'_>"
+
+[host.server."LevelWorldgenBackend::level_biome_effects"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelWorldgenBackend::level_biome_in_tag"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelWorldgenBackend::level_biome_properties"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelWorldgenBackend::level_biome_spawners"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LevelsHost::chunk"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LivingBackend::living_absorption"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_absorption::NativeLivingAbsorptionGameExt1<'_>"
+
+[host.server."LivingBackend::living_attribute_base"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.server."LivingBackend::living_attribute_value"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."LivingBackend::living_baby"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.server."LivingBackend::living_dimensions_for_pose"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt5<'_>"
+
+[host.server."LivingBackend::living_effect"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt2<'_>"
+
+[host.server."LivingBackend::living_equipment"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.server."LivingBackend::living_gliding_ticks"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.server."LivingBackend::living_hand_item"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.server."LivingBackend::living_health"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.server."LivingBackend::living_is_blocking"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_blocking::NativeLivingBlockingGameExt1<'_>"
+
+[host.server."LivingBackend::living_is_climbing"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.server."LivingBackend::living_is_gliding"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.server."LivingBackend::living_is_jumping"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.server."LivingBackend::living_is_sleeping"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.server."LivingBackend::living_max_health"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.server."LivingBackend::living_potion_affected"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt2<'_>"
+
+[host.server."LivingBackend::living_sleeping_pos"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.server."LivingBackend::living_used_item_hand"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt3<'_>"
+
+[host.server."LivingHost::living"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."MathHost::math_profile"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."MenusBackend::menu_carried"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.server."MenusBackend::menu_kind"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.server."MenusBackend::menu_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.server."MenusBackend::menu_slot_count"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.server."MobsBackend::mob_can_use_portal"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt6<'_>"
+
+[host.server."MobsHost::mob"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt6<'_>"
+
+[host.server."ModStateHost::attachment_query"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ModStateHost::attachment_read_scope"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ModStateHost::attachments"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.server."ModStateServerHost::attachment_validate_write"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ModStateServerHost::transaction_lifecycle"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::transactions::TransactionsGameExt<'_>"
+
+[host.server."PayloadDropsHost::payload_drop_counts"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."PayloadTokensHost::check_payload_token"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."PayloadsBackendMut::player_send_payload"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::payload_transport::PayloadTransportGameExt1<'_>"
+
+[host.server."PayloadsServerHost::players_send_payload"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::payload_transport::PayloadTransportGameExt1<'_>"
+
+[host.server."PlayerExperienceBackend::player_experience"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.server."PlayerExperienceBackend::player_xp_needed_for_next_level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.server."PlayerFoodBackend::player_can_eat"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.server."PlayerFoodBackend::player_food"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerFoodBackend::player_has_enough_food"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.server."PlayerFoodBackend::player_needs_food"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_food::NativePlayerFoodGameExt1<'_>"
+
+[host.server."PlayerInteractionBackend::player_within_entity_reach"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_reach::NativePlayerReachGameExt1<'_>"
+
+[host.server."PlayerInteractionBackendMut::player_destroy_progress"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_harvest_queries_common::NativeHarvestQueriesCommonGameExt1<'_>"
+
+[host.server."PlayerInteractionBackendMut::player_has_correct_tool_for_drops"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_harvest_queries_common::NativeHarvestQueriesCommonGameExt1<'_>"
+
+[host.server."PlayerInventoryBackend::player_inventory_slots"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt5<'_>"
+
+[host.server."PlayerInventoryBackend::player_selected_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerMenusBackend::player_container_menu"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.server."PlayerMenusBackendMut::player_anvil_update"]
+borrow = "mutable"
+kind = "local"
+owner = "crate::game::ServerGame"
+
+[host.server."PlayerModesBackend::player_abilities"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::game_mode_common::GameModeCommonGameExt1<'_>"
+
+[host.server."PlayerModesBackend::player_game_mode"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerModesBackend::player_is_creative"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerModesBackend::player_is_secondary_use_active"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt3<'_>"
+
+[host.server."PlayerModesBackend::player_is_spectator"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerModesBackend::player_may_build"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerModesBackend::player_may_fly"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_reach::NativePlayerReachGameExt1<'_>"
+
+[host.server."PlayerSessionBackend::player_client_brand"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerWorldBackend::player_collision_flags"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerWorldBackend::player_dimension"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerWorldBackend::player_last_death_location"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_player_death::NativePlayerDeathGameExt1<'_>"
+
+[host.server."PlayerWorldBackend::player_level"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerWorldBackend::player_on_block"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayerWorldBackend::player_supporting_block"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."PlayersHost::item_cooldown_group"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt2<'_>"
+
+[host.server."PlayersHost::player"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_server::NativeServerGameExt1<'_>"
+
+[host.server."RecipePropertiesHost::mod_recipe_property_contains"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.server."RecipesBackend::recipe_ingredient_item_keys"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::ingredient_test::IngredientTestGameExt1<'_>"
+
+[host.server."RecipesBackend::recipe_ingredient_test"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."RecipesHost::recipe_ingredient"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.server."RecipesHost::recipe_result"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.server."RecipesHost::recipes_of_type"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::base::BaseGameExt1<'_>"
+
+[host.server."TextHost::text_from_json"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."TextHost::text_from_legacy"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."TextHost::text_from_nbt"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."TextHost::text_string"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."TextHost::text_to_nbt"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."KeysBackend::registry_entry_key_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_entries::NativeRegistryReads<'_>"
+
+[host.client."KeysHost::registry_entry"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_entries::NativeRegistryReads<'_>"
+
+[host.client."KeysHost::registry_entry_in_tag"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_entries::NativeRegistryReads<'_>"
+
+[host.client."ResourcesHost::list_resources"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_resources::NativeResourceReads<'_>"
+
+[host.client."ResourcesHost::resource_stack"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_resources::NativeResourceReads<'_>"
+
+[host.server."KeysBackend::registry_entry_key_slot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_entries::NativeRegistryReads<'_>"
+
+[host.server."KeysHost::registry_entry"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_entries::NativeRegistryReads<'_>"
+
+[host.server."KeysHost::registry_entry_in_tag"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_entries::NativeRegistryReads<'_>"
+
+[host.server."ResourcesHost::list_resources"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_resources::NativeResourceReads<'_>"
+
+[host.server."ResourcesHost::resource_stack"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_resources::NativeResourceReads<'_>"
+
+[host.client."ConfigHost::setting_bool"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::setting_choice"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::setting_color"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ConfigHost::setting_f64"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."EntitiesBackend::entity_residency"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."ItemsHost::enchantment_min_cost"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::enchantments::EnchantmentsGameExt1<'_>"
+
+[host.client."ItemsHost::enchantment_supports"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::enchantments::EnchantmentsGameExt1<'_>"
+
+[host.client."ItemsHost::enchantments"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::enchantments::EnchantmentsGameExt1<'_>"
+
+[host.client."NetworkClientHost::build_play_packet"]
+borrow = "none"
+kind = "static"
+owner = "crate::game::ClientGame"
+
+[host.server."ConfigHost::setting_bool"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::setting_choice"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::setting_color"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigHost::setting_f64"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."EntitiesBackend::entity_residency"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."ItemsHost::enchantment_min_cost"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::enchantments::EnchantmentsGameExt1<'_>"
+
+[host.server."ItemsHost::enchantment_supports"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::enchantments::EnchantmentsGameExt1<'_>"
+
+[host.server."ItemsHost::enchantments"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::enchantments::EnchantmentsGameExt1<'_>"
+
+[host.client."ConfigClientHost::set_setting"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::mod_settings::ModSettingsGameExt<'_>"
+
+[host.client."LevelBlocksBackend::level_can_survive"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_signals::native_survive::NativeSurviveGameExt<'_>"
+
+[host.client."LevelBlocksBackend::level_fire_odds"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_signals::native_survive::NativeSurviveGameExt<'_>"
+
+[host.server."ConfigServerHost::set_setting"]
+borrow = "mutable"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_hooks::mod_settings::ModSettingsGameExt<'_>"
+
+[host.server."LevelBlocksBackend::level_can_survive"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_signals::native_survive::NativeSurviveGameExt<'_>"
+
+[host.server."LevelBlocksBackend::level_fire_odds"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_signals::native_survive::NativeSurviveGameExt<'_>"
+
+[host.client."ConfigHost::config_dir"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."EntityIdentityBackend::entity_pick_result"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."ItemsHost::item_abilities"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.client."ItemsHost::item_from_json"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_give_stack::NativeGiveStackGameExt1<'_>"
+
+[host.client."ItemsHost::item_to_json"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_give_stack::NativeGiveStackGameExt1<'_>"
+
+[host.client."LevelCollisionBackend::level_visit_block_collisions"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_bots_common::NativeBotsCommonGameExt1<'_>"
+
+[host.client."LevelDatapacksBackend::level_visit_datapack_entries"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_datapack_refs::NativeDatapackRefsGameExt1<'_>"
+
+[host.client."LevelRulesBackend::level_is_hardcore"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."ResourcesHost::open_resource"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_resources::NativeResourceReads<'_>"
+
+[host.server."ConfigHost::config_dir"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ConfigServerHost::visit_game_rules"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."EntityIdentityBackend::entity_pick_result"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."ItemsHost::item_abilities"]
+borrow = "shared"
+kind = "common"
+owner = "::sunrise_gameplay_common::game::CommonGame"
+
+[host.server."ItemsHost::item_from_json"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_give_stack::NativeGiveStackGameExt1<'_>"
+
+[host.server."ItemsHost::item_to_json"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_give_stack::NativeGiveStackGameExt1<'_>"
+
+[host.server."LevelCollisionBackend::level_visit_block_collisions"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_bots_common::NativeBotsCommonGameExt1<'_>"
+
+[host.server."LevelDatapacksBackend::level_visit_datapack_entries"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_datapack_refs::NativeDatapackRefsGameExt1<'_>"
+
+[host.server."LevelRulesBackend::level_is_hardcore"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."ResourcesHost::open_resource"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_resources::NativeResourceReads<'_>"
+
+[host.client."ClientViewClientHost::tick_rate"]
+borrow = "shared"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.client."EntityStanceBackend::entity_pose"]
+borrow = "shared"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.client."PlayerSessionBackend::player_permission_level"]
+borrow = "shared"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.client."EntityAirFluidsBackend::entity_visit_fluid_heights"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityAirFluidsBackend::entity_visit_fluid_heights"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."LivingBackend::living_visit_effects"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt2<'_>"
+
+[host.server."LivingBackend::living_visit_effects"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt2<'_>"
+
+[host.client."LivingBackend::living_no_jump_delay"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.client."MenusBackend::menu_state_id"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.server."LivingBackend::living_no_jump_delay"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt4<'_>"
+
+[host.server."MenusBackend::menu_state_id"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_menu_refs_common::NativeMenuRefsCommonGameExt1<'_>"
+
+[host.client."EntityIdentityBackend::entity_visit_parts"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.client."KeysHost::visit_registry_entries"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_entries::NativeRegistryReads<'_>"
+
+[host.client."LevelCollisionBackend::level_visit_block_collision"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.client."LivingBackend::living_visit_attributes"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.client."LivingBackend::living_visit_attribute_modifiers"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.client."EntityIdentityBackend::entity_custom_name"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt7<'_>"
+
+[host.server."EntityIdentityBackend::entity_visit_parts"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt1<'_>"
+
+[host.server."KeysHost::visit_registry_entries"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_registry_entries::NativeRegistryReads<'_>"
+
+[host.server."LevelCollisionBackend::level_visit_block_collision"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."LivingBackend::living_visit_attributes"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.server."LivingBackend::living_visit_attribute_modifiers"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_living_body::NativeLivingBodyGameExt6<'_>"
+
+[host.server."EntityIdentityBackend::entity_custom_name"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_refs_common::NativeEntityRefsCommonGameExt7<'_>"
+
+[host.server."EntityStanceBackend::entity_armor_stand_flags"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityStanceBackend::entity_armor_stand_flags"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."EntityStanceBackend::entity_armor_stand_pose"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.client."EntityStanceBackend::entity_armor_stand_pose"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_entity_state_common::NativeEntityStateCommonGameExt1<'_>"
+
+[host.server."LevelChunksBackend::chunk_snapshot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_chunk_snapshot::NativeChunkSnapshotGameExt<'_>"
+
+[host.client."LevelChunksBackend::chunk_snapshot"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_chunk_snapshot::NativeChunkSnapshotGameExt<'_>"
+
+[host.server."LevelChunksBackend::level_visit_loaded_chunks"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::native_level_refs_common::NativeLevelRefsCommonGameExt1<'_>"
+
+[host.server."KeysBackend::biome_view"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.server."KeysBackend::biome_view_id"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.server."KeysHost::biome"]
+borrow = "shared"
+kind = "shared_trait"
+owner = "::sunrise_gameplay_common::game::tables::WorldTablesExt<'_>"
+
+[host.client."ScreensClientHost::open_context_menu"]
+borrow = "mutable"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.client."ScreensClientHost::close_context_menu"]
+borrow = "mutable"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.client."ConfigClientHost::set_translations"]
+borrow = "shared"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.client."ConfigClientHost::clear_translations"]
+borrow = "shared"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.client."MenusClientBackend::menu_creative_catalog"]
+borrow = "shared"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.client."MenusClientBackendMut::menu_destroy_carried"]
+borrow = "mutable"
+kind = "local"
+owner = "crate::game::ClientGame"
+
+[host.server."LevelWorldgenBackend::level_generator_type"]
+borrow = "shared"
+kind = "local"
+owner = "crate::game::ServerGame"

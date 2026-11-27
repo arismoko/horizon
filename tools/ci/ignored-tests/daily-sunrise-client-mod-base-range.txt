@@ -1,2 +1,2 @@
-sunrise-client game::native_unspawned_mob::tests::a_base_written_through_the_editor_stays_in_range lib daily resources
-sunrise-client game::native_living_refs::tests::a_mod_base_write_stays_in_range_and_a_vanilla_one_does_not lib daily resources
+sunrise-client cut_layout::game::server_side::native_unspawned_mob::tests::a_base_written_through_the_editor_stays_in_range lib daily resources
+sunrise-client cut_layout::game::server_side::native_living_refs::tests::a_mod_base_write_stays_in_range_and_a_vanilla_one_does_not lib daily resources

@@ -1,2 +1,2 @@
 # NeoForge's Hud.leftHeight/rightHeight read from a GUI layer (#5020).
-sunrise-client game::gui_layer_tests::status_heights::a_layer_reads_the_status_heights_the_vanilla_rows_before_it_left lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::status_heights::a_layer_reads_the_status_heights_the_vanilla_rows_before_it_left lib daily child-process

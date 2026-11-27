@@ -1,2 +1,2 @@
-sunrise-client game::lan_actions::tick::dig_tick_order_tests::advancement_criteria_straddle_the_player_body_even_with_entity_cancel lib daily resources
-sunrise-client game::lan_actions::tick::dig_tick_order_tests::player_tick_hooks_observe_advanced_dig_progress_and_skipped_body_still_ticks_game_mode lib daily resources
+sunrise-client cut_layout::game::server_side::lan_actions_server::tick::dig_tick_order_tests::advancement_criteria_straddle_the_player_body_even_with_entity_cancel lib daily resources
+sunrise-client cut_layout::game::server_side::lan_actions_server::tick::dig_tick_order_tests::player_tick_hooks_observe_advanced_dig_progress_and_skipped_body_still_ticks_game_mode lib daily resources

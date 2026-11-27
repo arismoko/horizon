@@ -1,14 +1,14 @@
 # A mod's displacement of a player (Hub::displace): the relative teleport and its confirmation.
-sunrise-client game::native_colliders_tests::a_call_into_another_level_reads_that_levels_colliders_and_restores_the_callers lib daily resources
-sunrise-client game::native_guest_turn_tests::a_players_move_by_falls_through_a_happy_ghast_that_is_not_held_still lib daily resources
-sunrise-client game::native_guest_turn_tests::a_players_move_by_is_heard_once_and_a_cancel_moves_nothing lib daily resources
-sunrise-client game::native_guest_turn_tests::a_players_move_by_stops_at_a_boat lib daily resources
-sunrise-client game::native_guest_turn_tests::move_by_moves_a_player_and_refuses_what_it_cannot lib daily resources
-sunrise-client game::native_guest_turn_tests::a_players_move_by_is_the_mover_a_colliders_stack_exempts lib daily resources
-sunrise-client-lib lan::hub::tests::displace_tests::a_carried_player_stays_on_its_deck_or_lets_go_and_nothing_is_counted lib daily resources
-sunrise-client-lib lan::hub::tests::displace_tests::a_confirmation_and_the_next_report_in_one_tick_are_not_a_duplicate lib daily resources
-sunrise-client-lib lan::hub::tests::displace_tests::a_displacement_is_a_relative_teleport_that_drops_position_keeps_rotation_and_lands_where_the_client_walked lib daily resources
-sunrise-client-lib lan::hub::tests::displace_tests::a_second_displacement_while_one_is_awaited_composes_and_the_old_id_is_ignored lib daily resources
-sunrise-client-lib lan::hub::tests::displace_tests::an_unconfirmed_displacement_is_resent_absolute_with_no_velocity lib daily resources
-sunrise-client-lib lan::hub::tests::displace_tests::the_move_stops_at_a_wall lib daily resources
-sunrise-client-lib lan::hub::tests::displace_tests::the_streak_of_displaced_ticks_counts_in_a_row_and_a_gap_starts_it_again lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_call_into_another_level_reads_that_levels_colliders_and_restores_the_callers lib daily resources
+sunrise-client cut_layout::game::server_side::native_guest_turn_tests::a_players_move_by_falls_through_a_happy_ghast_that_is_not_held_still lib daily resources
+sunrise-client cut_layout::game::server_side::native_guest_turn_tests::a_players_move_by_is_heard_once_and_a_cancel_moves_nothing lib daily resources
+sunrise-client cut_layout::game::server_side::native_guest_turn_tests::a_players_move_by_stops_at_a_boat lib daily resources
+sunrise-client cut_layout::game::server_side::native_guest_turn_tests::move_by_moves_a_player_and_refuses_what_it_cannot lib daily resources
+sunrise-client cut_layout::game::server_side::native_guest_turn_tests::a_players_move_by_is_the_mover_a_colliders_stack_exempts lib daily resources
+sunrise-sim lan::hub::tests::displace_tests::a_carried_player_stays_on_its_deck_or_lets_go_and_nothing_is_counted lib daily resources
+sunrise-sim lan::hub::tests::displace_tests::a_confirmation_and_the_next_report_in_one_tick_are_not_a_duplicate lib daily resources
+sunrise-sim lan::hub::tests::displace_tests::a_displacement_is_a_relative_teleport_that_drops_position_keeps_rotation_and_lands_where_the_client_walked lib daily resources
+sunrise-sim lan::hub::tests::displace_tests::a_second_displacement_while_one_is_awaited_composes_and_the_old_id_is_ignored lib daily resources
+sunrise-sim lan::hub::tests::displace_tests::an_unconfirmed_displacement_is_resent_absolute_with_no_velocity lib daily resources
+sunrise-sim lan::hub::tests::displace_tests::the_move_stops_at_a_wall lib daily resources
+sunrise-sim lan::hub::tests::displace_tests::the_streak_of_displaced_ticks_counts_in_a_row_and_a_gap_starts_it_again lib daily resources

@@ -1,2 +1,2 @@
 # PACKAGE TEST TARGET daily REASON
-sunrise-client game::native_hooks::customize_boss_event_progress::customize_boss_event_progress_tests::an_unconvertible_boss_bar_keeps_vanilla_draws_without_dispatch lib daily child-process
+sunrise-client-gameplay game::native_hooks::customize_boss_event_progress::customize_boss_event_progress_tests::an_unconvertible_boss_bar_keeps_vanilla_draws_without_dispatch lib daily child-process

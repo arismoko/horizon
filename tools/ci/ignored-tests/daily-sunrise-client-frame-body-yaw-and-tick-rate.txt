@@ -1,2 +1,2 @@
-sunrise-client game::native_local_player_writes::tests::client_tick_body_yaw_writes_feed_local_living_render_state lib daily resources
-sunrise-client game::native_local_player_writes::tests::frame_tick_rate_reads_the_displayed_levels_configured_rate lib daily resources
+sunrise-client cut_layout::game::client_side::native_local_player_writes::tests::client_tick_body_yaw_writes_feed_local_living_render_state lib daily resources
+sunrise-client cut_layout::game::client_side::native_local_player_writes::tests::frame_tick_rate_reads_the_displayed_levels_configured_rate lib daily resources

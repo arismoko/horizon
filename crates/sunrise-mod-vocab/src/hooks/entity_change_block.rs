@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A mob changed a block at `pos`, after the new state was applied.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_change_block",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_change_block",
         dispatch = "flat",
         side = "server",
         contract = "listen",

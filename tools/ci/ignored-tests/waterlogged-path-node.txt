@@ -1,2 +1,2 @@
 # Neighbour path classification requires the prepared block registry and mob world.
-sunrise-client-lib mobs::ai::hurt_teleport_contact_tests::a_solid_waterlogged_neighbor_does_not_penalize_a_dry_walk_node lib daily resources
+sunrise-sim mobs::ai::hurt_teleport_contact_tests::a_solid_waterlogged_neighbor_does_not_penalize_a_dry_walk_node lib daily resources

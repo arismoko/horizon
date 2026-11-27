@@ -5,7 +5,7 @@ pub trait Hooks {
     /// or None for the inventory grid. Change `result` before it is sent. An accepted result
     /// retains valid damage even when it exceeds that stack's maximum durability.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_prepare_item_craft",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_prepare_item_craft",
         dispatch = "flat",
         side = "server",
         contract = "replace",

@@ -1,3 +1,3 @@
-sunrise-client game::dialogs::warning_tests::warning_disconnect_label_follows_server_ownership lib daily child-process
-sunrise-client game::locator_bar::tests::block_waypoints_use_live_non_player_eyes_within_manhattan_three lib daily child-process
-sunrise-client game::locator_bar::tests::spectated_locator_uses_camera_entity_for_identity_and_distance lib daily child-process
+sunrise-client cut_layout::game::client_side::dialogs::warning_tests::warning_disconnect_label_follows_server_ownership lib daily child-process
+sunrise-client cut_layout::game::client_side::locator_bar::tests::block_waypoints_use_live_non_player_eyes_within_manhattan_three lib daily child-process
+sunrise-client cut_layout::game::client_side::locator_bar::tests::spectated_locator_uses_camera_entity_for_identity_and_distance lib daily child-process

@@ -1,2 +1,2 @@
-sunrise-client game::commands::enchant_tests::enchant_reports_single_target_errors_and_counts_only_compatible_living_targets lib daily child-process
-sunrise-client game::commands::enchant_tests::integrated_enchant_updates_the_clients_selected_slot lib daily child-process
+sunrise-client cut_layout::game::server_side::commands::enchant_tests::enchant_reports_single_target_errors_and_counts_only_compatible_living_targets lib daily child-process
+sunrise-client cut_layout::game::client_side::commands_client::enchant_tests::integrated_enchant_updates_the_clients_selected_slot lib daily child-process

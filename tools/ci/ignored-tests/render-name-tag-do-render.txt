@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::render_name_tag_do_render_tests::name_tag_lines_are_asked_in_order_and_draw_as_before_unless_canceled lib daily resources
+sunrise-client-gameplay game::native_hooks::render_name_tag_do_render_tests::name_tag_lines_are_asked_in_order_and_draw_as_before_unless_canceled lib daily resources

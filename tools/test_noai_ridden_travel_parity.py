@@ -114,10 +114,10 @@ def main():
         lab.ROOT / "tools/test_rust_parity.py",
         lab.ROOT / "Cargo.toml",
         lab.ROOT / "Cargo.lock",
-        lab.ROOT / "crates/sunrise-client/src/mobs/ai.rs",
-        lab.ROOT / "crates/sunrise-client/src/mobs/equine.rs",
-        lab.ROOT / "crates/sunrise-client/src/mobs/living.rs",
-        lab.ROOT / "crates/sunrise-client/src/mobs/living/travel.rs",
+        lab.ROOT / "crates/sunrise-sim/src/mobs/ai.rs",
+        lab.ROOT / "crates/sunrise-sim/src/mobs/equine.rs",
+        lab.ROOT / "crates/sunrise-sim/src/mobs/living.rs",
+        lab.ROOT / "crates/sunrise-sim/src/mobs/living/travel.rs",
     ]
     hashes = base.source_hashes(sources)
     witness, row_count = record(build, lock, jars, libraries)

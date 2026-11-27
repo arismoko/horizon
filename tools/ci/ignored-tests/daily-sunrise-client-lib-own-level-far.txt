@@ -1,1 +1,1 @@
-sunrise-client-lib lan::viewed_levels::tests::an_own_level_area_past_the_view_reaches_a_revision_5_client lib daily network
+sunrise-sim lan::viewed_levels::tests::an_own_level_area_past_the_view_reaches_a_revision_5_client lib daily network

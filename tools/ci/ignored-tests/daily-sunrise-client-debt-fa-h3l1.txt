@@ -1,2 +1,2 @@
-sunrise-client game::host::draw::tests::local_tooltip_draws_deep_text_but_refuses_unrepresentable_metadata lib daily resources
-sunrise-client game::pack_finders::tests::live_pack_rediscovery_can_read_a_registered_client_setting lib daily child-process
+sunrise-client cut_layout::game::host::draw::tests::local_tooltip_draws_deep_text_but_refuses_unrepresentable_metadata lib daily resources
+sunrise-client cut_layout::game::pack_discovery::tests::live_pack_rediscovery_can_read_a_registered_client_setting lib daily child-process

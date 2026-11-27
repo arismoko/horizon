@@ -1,5 +1,5 @@
-sunrise-client game::native_model_3d::tests::air_stack_is_noop_and_unknown_item_is_refused lib daily resources
-sunrise-client game::attachment_sync::general_snapshot_tests::remote_attachment_sync_ignores_unknown_entity lib daily resources
-sunrise-client game::remote::general::tests::atomic_pairing_bundle_spawns_general_row_with_synced_attachments lib daily resources
-sunrise-client game::remote::general::tests::general_spawn_captures_existing_entity_attachments_or_empty lib daily resources
-sunrise-client game::attachment_sync::general_snapshot_tests::remote_player_attachments_only_apply_while_the_foreign_player_is_tracked lib daily resources
+sunrise-client-gameplay game::client_side::native_model_3d::tests::air_stack_is_noop_and_unknown_item_is_refused lib daily resources
+sunrise-client cut_layout::game::server_side::attachment_sync::general_snapshot_tests::remote_attachment_sync_ignores_unknown_entity lib daily resources
+sunrise-client cut_layout::game::remote::general::tests::atomic_pairing_bundle_spawns_general_row_with_synced_attachments lib daily resources
+sunrise-client cut_layout::game::remote::general::tests::general_spawn_captures_existing_entity_attachments_or_empty lib daily resources
+sunrise-client cut_layout::game::server_side::attachment_sync::general_snapshot_tests::remote_player_attachments_only_apply_while_the_foreign_player_is_tracked lib daily resources

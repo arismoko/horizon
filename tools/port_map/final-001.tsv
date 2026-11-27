@@ -1,11 +1,11 @@
-LocationPredicate.matches	port	crates/sunrise-client/src/advancements.rs::location	position, biome, structure, dimension and block checks for advancement criteria
+LocationPredicate.matches	port	crates/sunrise-sim/src/advancements.rs::location	position, biome, structure, dimension and block checks for advancement criteria
 MultiLineEditBox.setValue	port	crates/sunrise-client-render/src/multiline_edit.rs::MultiLineEdit::set_value	the multiline box's own text setter: truncates at the character limit and keeps the old text when the value would overflow the line limit
 TransferableSelectionList.PackEntry.mouseClicked	inline	crates/sunrise-client-render/src/pack_screen.rs::PackScreen::click	entry select, move arrows and double-click transfer
 CompoundTag.getIntArray	skip:java		typed NBT accessor; Rust matches Tag::IntArray where it reads one
 Component.toFlatList	skip:java		Sunrise Text already keeps flat styled spans
-Style.withColor	port	crates/sunrise-client-core/src/text.rs::Text::with_color	colour on the text span
-MinecraftServer.halt	port	crates/sunrise-client/src/game/world/integrated.rs::Integrated::halt	stop the integrated server and wait for it
+Style.withColor	port	crates/sunrise-game-data/src/text.rs::Text::with_color	colour on the text span
+MinecraftServer.halt	port	crates/sunrise-client-gameplay/src/game/world/integrated_client.rs::Integrated::halt	stop the integrated server and wait for it
 DedicatedPlayerList.loadOps	inline	crates/sunrise-server-files/src/user_lists.rs::UserList::load	ops.json through the shared user-list loader
-ServerStatsCounter.toJson	inline	crates/sunrise-client/src/game/interface/stats.rs::Stats::write	stats JSON built while saving
+ServerStatsCounter.toJson	inline	crates/sunrise-gameplay-common/src/stats.rs::Stats::write	stats JSON built while saving
 LevelChunk.getFluidState	port	crates/sunrise-world/src/level/mod.rs::Behaviours::fluid	fluid state of a block state
-Fox.getBreedOffspring	inline	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::breed	the Fox arm: either parent's variant on a coin flip
+Fox.getBreedOffspring	inline	crates/sunrise-gameplay/src/game/mobs/creatures/mod_server.rs::Game::breed	the Fox arm: either parent's variant on a coin flip

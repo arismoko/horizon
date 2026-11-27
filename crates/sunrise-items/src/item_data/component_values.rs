@@ -1,7 +1,7 @@
 //! Shared persistent component parsing and borrowed decoded-value comparisons.
 use crate::properties::resolvable;
-use sunrise_client_core::registries::Registries;
 use sunrise_core::nbt::Tag;
+use sunrise_game_data::registries::Registries;
 
 /// Decode `Identifier.CODEC` without requiring a registered resource.
 pub fn identifier(value: &Tag) -> Result<Tag, String> {

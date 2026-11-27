@@ -13,7 +13,7 @@ pub trait Hooks {
         cancellable = true,
         version = 2,
         out = "cancel",
-        target = "sunrise_client::game::native_hooks::entity_change_block_pre::Game<'_>::native_entity_change_block_pre"
+        target = "sunrise_gameplay::game::native_hooks::entity_change_block_pre::ServerGame<'_>::native_entity_change_block_pre"
     )]
     fn entity_change_block_pre(
         player: Option<u128>,

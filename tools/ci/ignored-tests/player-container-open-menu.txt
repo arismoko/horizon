@@ -1,2 +1,2 @@
-sunrise-client game::native_menus::tests::acting_menu_storage_extraction_rolls_back lib daily resources
-sunrise-client game::native_menus::tests::container_open_handles_follow_supported_menus lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::acting_menu_storage_extraction_rolls_back lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::container_open_handles_follow_supported_menus lib daily resources

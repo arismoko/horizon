@@ -1,1 +1,1 @@
-sunrise-client-lib menu::place::custom::tests::a_slot_whose_backing_takes_one_gets_one_craft_not_a_plan_it_would_roll_back lib daily resources
+sunrise-sim menu::place::custom::tests::a_slot_whose_backing_takes_one_gets_one_craft_not_a_plan_it_would_roll_back lib daily resources

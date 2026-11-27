@@ -13,7 +13,7 @@ pub trait Hooks {
     /// frame the hand draws one in use, on both sides. It has no user, as
     /// it is asked so often: answer from the stack alone.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_use_duration",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_use_duration",
         receiver = "read",
         dispatch = "flat",
         side = "both",

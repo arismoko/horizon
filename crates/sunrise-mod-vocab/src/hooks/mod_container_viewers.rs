@@ -14,7 +14,7 @@ pub trait Hooks {
     /// Server-side; open/close runs with the player's state in place.
     #[notes = "Version 2 follows ContainerOpenersCounter: synchronous open/close, five-tick rechecks, and game events on zero crossings instead of a per-tick recount."]
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_mod_container_viewers",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_mod_container_viewers",
         dispatch = "flat",
         side = "server",
         contract = "listen",

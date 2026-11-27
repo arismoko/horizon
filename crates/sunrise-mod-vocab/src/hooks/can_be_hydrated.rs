@@ -23,7 +23,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         inert = "*hydrates = None;",
-        target = "sunrise_client::game::native_hooks::can_be_hydrated::GameLevel<'_>::native_can_be_hydrated",
+        target = "sunrise_gameplay_common::game::native_hooks::can_be_hydrated::GameLevel<'_>::native_can_be_hydrated",
         neoforge = "IBlockExtension.canBeHydrated"
     )]
     fn can_be_hydrated(

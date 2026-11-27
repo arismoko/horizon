@@ -19,8 +19,8 @@ pub(crate) fn content_shadow(row: &serde_json::Value) -> Option<(f32, f32)> {
     ))
 }
 
-fn mob_shadow_params(m: &Mob) -> (f32, f32) {
-    m.kind.shadow.unwrap_or_else(|| shadow_params(&m.kind.id))
+fn mob_shadow_params(m: &Mob, visual: &crate::mobs_render::ClientMobVisuals) -> (f32, f32) {
+    visual.shadow.unwrap_or_else(|| shadow_params(&m.kind.id))
 }
 
 /// Vanilla renderer shadow radius and strength for an entity type id.
@@ -73,7 +73,7 @@ pub fn shadow_params(entity: &str) -> (f32, f32) {
 /// `MobRenderer`) times `LivingEntity.getAgeScale` too. Villagers' and
 /// striders' renderers halve a baby's again and the turtle's takes 0.83 of
 /// it; slimes, magma cubes, sulfur cubes and pufferfish size theirs alone.
-pub fn mob_shadow_radius(m: &Mob) -> f32 {
+pub fn mob_shadow_radius(m: &Mob, visual: &crate::mobs_render::ClientMobVisuals) -> f32 {
     use crate::mobs::Species as S;
     let species = m.species();
     match species {
@@ -83,7 +83,7 @@ pub fn mob_shadow_radius(m: &Mob) -> f32 {
         S::Pufferfish => return 0.1 + 0.1 * m.extra.size as f32,
         _ => {}
     }
-    let radius = mob_shadow_params(m).0 * m.model_scale();
+    let radius = mob_shadow_params(m, visual).0 * m.model_scale();
     if matches!(
         m.kind.class_id(),
         "minecraft:player" | "minecraft:mannequin"
@@ -113,18 +113,24 @@ pub fn mob_shadow_radius(m: &Mob) -> f32 {
 /// `EntityRenderState.isInvisible` is set (`Entity.isInvisible`).
 pub fn mob_casters<'a>(
     mobs: impl IntoIterator<Item = &'a Mob>,
+    models: &'a crate::mobs_render::ClientMobModels,
     alpha: f64,
 ) -> impl Iterator<Item = (DVec3, f32, f32)> {
     mobs.into_iter()
         .filter(|m| !m.is_invisible())
-        .map(move |m| {
+        .filter_map(move |m| {
+            let visual = models.get(&m.kind.id)?;
             let (p, q) = (m.previous, m.position);
             let pos = DVec3::new(
                 p.x + (q.x - p.x) * alpha,
                 p.y + (q.y - p.y) * alpha,
                 p.z + (q.z - p.z) * alpha,
             );
-            (pos, mob_shadow_radius(m), mob_shadow_params(m).1)
+            Some((
+                pos,
+                mob_shadow_radius(m, visual),
+                mob_shadow_params(m, visual).1,
+            ))
         })
 }
 
@@ -329,6 +335,22 @@ pub fn shadow_from(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+fn test_visual(shadow: Option<(f32, f32)>) -> crate::mobs_render::ClientMobVisuals {
+    crate::mobs_render::ClientMobVisuals {
+        shadow,
+        model: std::sync::Arc::new(crate::mobs::Part {
+            name: "root".into(),
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            polygons: Vec::new(),
+            children: Vec::new(),
+            layer: None,
+        }),
+        layers: Default::default(),
+        texture: String::new(),
     }
 }
 
@@ -541,8 +563,10 @@ mod tests {
             level,
             None,
         );
+        let mut models = crate::mobs_render::ClientMobModels::default();
+        models.insert(seen.kind.id.clone(), test_visual(None));
         let mobs = [seen, flagged, potion];
-        let casters: Vec<_> = mob_casters(&mobs, 0.5).collect();
+        let casters: Vec<_> = mob_casters(&mobs, &models, 0.5).collect();
         assert_eq!(
             casters,
             vec![(DVec3::new(0.5, 64.0, 1.0), 0.7, 1.0)],
@@ -563,52 +587,55 @@ mod tests {
     #[test]
     fn babies_cast_their_age_scaled_shadow() {
         use crate::mobs::Species as S;
+        let visual = test_visual(None);
         let mut cow = mob("minecraft:cow", S::Cow);
         cow.extra.age = -24000;
         // MobRenderer: 0.7 * ageScale 0.5.
-        assert_eq!(mob_shadow_radius(&cow), 0.35);
+        assert_eq!(mob_shadow_radius(&cow, &visual), 0.35);
         let mut villager = mob("minecraft:villager", S::Villager);
-        assert_eq!(mob_shadow_radius(&villager), 0.5);
+        assert_eq!(mob_shadow_radius(&villager, &visual), 0.5);
         villager.extra.age = -24000;
         // VillagerRenderer halves MobRenderer's 0.5 * 0.5 again.
-        assert_eq!(mob_shadow_radius(&villager), 0.125);
+        assert_eq!(mob_shadow_radius(&villager, &visual), 0.125);
         let mut goat = mob("minecraft:goat", S::Goat);
         goat.extra.age = -24000;
         // Goat.getAgeScale: 0.55.
-        assert_eq!(mob_shadow_radius(&goat), 0.7 * 0.55);
+        assert_eq!(mob_shadow_radius(&goat, &visual), 0.7 * 0.55);
         let mut strider = mob("minecraft:strider", S::Strider);
         strider.extra.age = -24000;
         // StriderRenderer halves AgeableMobRenderer's 0.5 * 0.5 again.
-        assert_eq!(mob_shadow_radius(&strider), 0.125);
+        assert_eq!(mob_shadow_radius(&strider, &visual), 0.125);
         let mut turtle = mob("minecraft:turtle", S::Turtle);
         turtle.extra.age = -24000;
         // TurtleRenderer takes 0.83 of the 0.7 * 0.3 age-scaled radius.
-        assert!((mob_shadow_radius(&turtle) - 0.7 * 0.3 * 0.83).abs() < 1e-6);
+        assert!((mob_shadow_radius(&turtle, &visual) - 0.7 * 0.3 * 0.83).abs() < 1e-6);
     }
     #[test]
     fn scaled_players_cast_a_scaled_shadow() {
         use crate::mobs::Species as S;
+        let visual = test_visual(None);
         let mut player = mob("minecraft:player", S::Zombie);
-        assert_eq!(mob_shadow_radius(&player), 0.5);
+        assert_eq!(mob_shadow_radius(&player, &visual), 0.5);
         player.extra.model_scale = 2.0;
-        assert_eq!(mob_shadow_radius(&player), 1.0);
+        assert_eq!(mob_shadow_radius(&player, &visual), 1.0);
         let mut mannequin = mob("minecraft:mannequin", S::Zombie);
         mannequin.extra.model_scale = 0.25;
-        assert_eq!(mob_shadow_radius(&mannequin), 0.125);
+        assert_eq!(mob_shadow_radius(&mannequin, &visual), 0.125);
         // AvatarRenderer is no MobRenderer: no age scale.
         mannequin.extra.age = -1;
-        assert_eq!(mob_shadow_radius(&mannequin), 0.125);
+        assert_eq!(mob_shadow_radius(&mannequin, &visual), 0.125);
     }
     #[test]
     fn sized_mobs_keep_their_own_radius() {
         use crate::mobs::Species as S;
+        let visual = test_visual(None);
         let mut slime = mob("minecraft:slime", S::Slime);
         slime.extra.size = 4;
         slime.extra.model_scale = 2.0;
-        assert_eq!(mob_shadow_radius(&slime), 1.0);
+        assert_eq!(mob_shadow_radius(&slime, &visual), 1.0);
         let mut puffer = mob("minecraft:pufferfish", S::Pufferfish);
         puffer.extra.size = 2;
-        assert_eq!(mob_shadow_radius(&puffer), 0.3);
+        assert_eq!(mob_shadow_radius(&puffer, &visual), 0.3);
     }
     #[test]
     fn items_and_orbs_keep_their_radius() {
@@ -667,27 +694,37 @@ mod content_shadow_tests {
             if let Some(v) = strength {
                 row["shadow_strength"] = v.into();
             }
-            let mut k = kind.clone();
-            k.shadow = content_shadow(&row);
-            Mob::new(
+            let mob = Mob::new(
                 1,
-                std::sync::Arc::new(k),
+                std::sync::Arc::new(kind.clone()),
                 sunrise_core::geometry::Vec3::ZERO,
                 0.0,
-            )
+            );
+            (mob, test_visual(content_shadow(&row)))
         };
-        let declared = make("minecraft:zombie", Some(0.2), Some(0.6));
-        assert_eq!(mob_shadow_params(&declared), (0.2, 0.6));
-        assert_eq!(mob_casters([&declared], 0.0).next().unwrap().2, 0.6);
-        let ghast = make("minecraft:ghast", None, None);
-        assert_eq!(mob_shadow_radius(&ghast), 1.5);
-        let mut scaled = make("minecraft:zombie", Some(0.4), None);
+        let (declared, declared_visual) = make("minecraft:zombie", Some(0.2), Some(0.6));
+        let mut declared_models = crate::mobs_render::ClientMobModels::default();
+        declared_models.insert(declared.kind.id.clone(), declared_visual.clone());
+        assert_eq!(mob_shadow_params(&declared, &declared_visual), (0.2, 0.6));
+        assert_eq!(
+            mob_casters([&declared], &declared_models, 0.0)
+                .next()
+                .unwrap()
+                .2,
+            0.6
+        );
+        let (ghast, ghast_visual) = make("minecraft:ghast", None, None);
+        assert_eq!(mob_shadow_radius(&ghast, &ghast_visual), 1.5);
+        let (mut scaled, scaled_visual) = make("minecraft:zombie", Some(0.4), None);
         scaled.extra.model_scale = 2.0;
-        assert_eq!(mob_shadow_radius(&scaled), 0.8);
-        let mut baby = make("minecraft:zombie", None, None);
+        assert_eq!(mob_shadow_radius(&scaled, &scaled_visual), 0.8);
+        let (mut baby, baby_visual) = make("minecraft:zombie", None, None);
         baby.extra.age = -24000;
-        assert_eq!(mob_shadow_radius(&baby), 0.25);
-        let zero = make("minecraft:zombie", Some(0.0), None);
-        assert_eq!(shadow_gates(mob_shadow_radius(&zero), 1.0, 0.0), None);
+        assert_eq!(mob_shadow_radius(&baby, &baby_visual), 0.25);
+        let (zero, zero_visual) = make("minecraft:zombie", Some(0.0), None);
+        assert_eq!(
+            shadow_gates(mob_shadow_radius(&zero, &zero_visual), 1.0, 0.0),
+            None
+        );
     }
 }

@@ -3,7 +3,7 @@
 
 use super::{Found, Item, Source, Visit};
 use crate::source::unraw;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
 use syn::{Attribute, ItemUse, UseTree, Visibility};
 
@@ -45,6 +45,29 @@ enum Blocked {
     Import(String),
     // The mirror cannot re-export a non-public crate-root function.
     RootFunction(String),
+}
+
+/// A lower crate's unlisted modules may carry imports the mirror cannot access.
+pub(super) struct Narrowing<'a> {
+    /// The names the copies and the rows' helpers use: the imports a mirror keeps.
+    pub(super) used: &'a BTreeSet<String>,
+    /// Linked externs can supply traits a copy uses through method syntax.
+    linked: &'a BTreeSet<String>,
+}
+
+impl<'a> Narrowing<'a> {
+    pub(super) fn new(used: &'a BTreeSet<String>, linked: &'a BTreeSet<String>) -> Self {
+        Self { used, linked }
+    }
+
+    /// The patch crate's extern prelude includes the linked crates, std and core.
+    pub(super) fn resolves(&self, root: &syn::Ident) -> bool {
+        root == "std" || root == "core" || self.linked.contains(&root.to_string())
+    }
+}
+
+pub(super) fn preserve_owner_features(layout: crate::source::SourceLayout, module: &str) -> bool {
+    !layout.owns(module)
 }
 
 fn within(module: &str, ancestor: &str) -> bool {

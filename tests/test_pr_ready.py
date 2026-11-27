@@ -15,6 +15,7 @@ import unittest
 from unittest import mock
 
 from tools import pr_ready
+from tests.git_fixture import isolated_git_env
 from tests.os_support import POSIX_BASH
 
 PACKAGES = {"sunrise-core": "crates/sunrise-core", "sunrise-client": "crates/sunrise-client",
@@ -47,9 +48,10 @@ class GitChangedPathsTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
+        self.enterContext(mock.patch.dict(os.environ, isolated_git_env(), clear=True))
         self.git("init")
         for key, value in (("core.quotePath", "true"), ("core.autocrlf", "false"),
-                           ("core.hooksPath", str(self.root / "no-hooks")), ("commit.gpgsign", "false")):
+                           ("core.hooksPath", str(self.root / "no-hooks"))):
             self.git("config", key, value)
         for module in (pr_ready, pr_ready.parity):
             patcher = mock.patch.object(module, "ROOT", self.root)
@@ -254,7 +256,8 @@ class PrReadyTests(unittest.TestCase):
                      "examples/probe/main.rs", "tests/lan_bot.rs"]:
             self.assertEqual(pr_ready.touched_crates({f"crates/sunrise-client/{path}"}, packages),
                              ["sunrise-client-lib"])
-        for path in ["src/lib.rs", "src/main.rs", "src/entry.rs", "src/game.rs", "src/game/items/combat.rs",
+        for path in ["src/lib.rs", "src/main.rs", "src/entry.rs", "src/game_facade.rs", "src/game.rs",
+                     "src/game/items/combat.rs", "src/cut_layout/game/items/combat.rs",
                      "tests/it/mod_api_hooks.rs", "Cargo.toml", "build.rs"]:
             self.assertEqual(pr_ready.touched_crates({f"crates/sunrise-client/{path}"}, packages),
                              ["sunrise-client"])
@@ -289,7 +292,7 @@ class PrReadyTests(unittest.TestCase):
                 steps = pr_ready.plan(args(quick=True), "origin/main", {path}, PACKAGES, LIBRARIES, DEPENDENCIES)
             return {step.name: step for step in steps}["content root tests"]
         self.assertEqual(content_step("crates/sunrise-client/src/game.rs").skip, "content root untouched")
-        for path in ["crates/sunrise-client/src/mod_content.rs", "crates/sunrise-client/src/mod_content_tests.rs",
+        for path in ["crates/sunrise-sim/src/mod_content.rs", "crates/sunrise-sim/src/mod_content_tests.rs",
                      "crates/sunrise-mod-package/src/content.rs", "crates/sunrise-assets/src/lib.rs", "Cargo.lock"]:
             with self.subTest(path=path):
                 step = content_step(path)
@@ -372,13 +375,13 @@ class PrReadyTests(unittest.TestCase):
                          "mod API surface untouched")
 
     def test_game_files_run_the_surface_report_only_when_they_hold_a_loop(self):
-        loop = 'impl Game<\'_> {\n    #[sunrise_mod_api_macros::sunrise_loop(name = "a.tick", side = "server")]\n}\n'
-        ticks = "crates/sunrise-client/src/game/blocks/block_entity_ticks.rs"
-        plain = "crates/sunrise-client/src/game/items/combat.rs"
-        gone = "crates/sunrise-client/src/game/blocks/gone.rs"
+        loop = 'impl ServerGame<\'_> {\n    #[sunrise_mod_api_macros::sunrise_loop(name = "a.tick", side = "server")]\n}\n'
+        ticks = "crates/sunrise-gameplay/src/game/blocks/block_entity_ticks.rs"
+        plain = "crates/sunrise-client-gameplay/src/game/items/combat.rs"
+        gone = "crates/sunrise-gameplay/src/game/blocks/gone.rs"
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(pr_ready, "ROOT", Path(directory)), \
                 mock.patch.object(pr_ready.subprocess, "run") as run:
-            for path, text in ((ticks, loop), (plain, "impl Game<'_> { fn attack(&mut self) {} }\n")):
+            for path, text in ((ticks, loop), (plain, "impl ClientGame<'_> { fn attack(&mut self) {} }\n")):
                 (Path(directory) / path).parent.mkdir(parents=True, exist_ok=True)
                 (Path(directory) / path).write_text(text)
             # The file holds a loop now: no need to ask git.
@@ -396,15 +399,18 @@ class PrReadyTests(unittest.TestCase):
             # A base git cannot read is not an answer: the report runs.
             run.return_value = subprocess.CompletedProcess([], 128, b"", b"fatal")
             self.assertIsNone(self.surface_step({plain}).skip)
-            # Only Rust files of the game module are read, and the module's root file is one.
+            # Only Rust files of the game modules are read, and the root files are included.
             run.reset_mock()
             run.return_value = subprocess.CompletedProcess([], 1, b"", b"")
-            self.assertEqual(self.surface_step({"crates/sunrise-client/src/game/data.json"}).skip,
+            self.assertEqual(self.surface_step({"crates/sunrise-gameplay/src/game/data.json"}).skip,
                              "mod API surface untouched")
             run.assert_not_called()
-            self.assertEqual(self.surface_step({"crates/sunrise-client/src/game.rs"}).skip,
+            self.assertEqual(self.surface_step({"crates/sunrise-gameplay-common/src/game.rs"}).skip,
                              "mod API surface untouched")
             self.assertEqual(run.call_count, 1)
+            self.assertEqual(self.surface_step({"crates/sunrise-client/src/cut_layout/game/ticks.rs"}).skip,
+                             "mod API surface untouched")
+            self.assertEqual(run.call_count, 2)
 
     def test_surface_report_summary_names_the_verdict_and_what_failed(self):
         passing = ("CI does not compare listed internals; use surface_report.py --with-internals for a local audit.\n"
@@ -475,18 +481,24 @@ class PrReadyTests(unittest.TestCase):
 
     def test_mod_api_data_inputs_build_and_test_the_consuming_crates(self):
         packages = {**PACKAGES, "sunrise-client-render": "crates/sunrise-client-render",
-                    "sunrise-mod-api-gen": "crates/sunrise-mod-api-gen"}
+                    "sunrise-mod-api-gen": "crates/sunrise-mod-api-gen",
+                    "sunrise-gameplay-common": "crates/sunrise-gameplay-common",
+                    "sunrise-gameplay": "crates/sunrise-gameplay",
+                    "sunrise-client-gameplay": "crates/sunrise-client-gameplay"}
         for path in ("crates/sunrise-mod-vocab/src/hooks/player.rs",):
             with self.subTest(path=path), mock.patch.object(pr_ready, "affected_here", return_value=[]):
                 steps = pr_ready.plan(args(quick=True), "origin/main", {path}, packages,
-                                      LIBRARIES | {"sunrise-client-render", "sunrise-mod-api-gen"}, DEPENDENCIES)
+                                      LIBRARIES | {"sunrise-client-render", "sunrise-mod-api-gen",
+                                                   "sunrise-gameplay-common", "sunrise-gameplay",
+                                                   "sunrise-client-gameplay"}, DEPENDENCIES)
                 by_name = {step.name: step for step in steps}
                 self.assertIsNone(by_name["clippy"].skip)
                 self.assertIsNone(by_name["rustfmt"].skip)
                 self.assertEqual(by_name["rustfmt"].command, "python3 tools/ci/format_scan.py")
                 tests = next(step for step in steps if step.name.startswith("tests:"))
                 self.assertIsNone(tests.skip)
-                self.assertEqual(tests.command, "cargo test --locked -p sunrise-client -p sunrise-client-render "
+                self.assertEqual(tests.command, "cargo test --locked -p sunrise-client -p sunrise-client-gameplay "
+                                               "-p sunrise-client-render -p sunrise-gameplay -p sunrise-gameplay-common "
                                                "-p sunrise-mod-api-gen --tests")
 
     @unittest.skipUnless(os.name == "nt", "the Windows runner's own jobs")
@@ -581,8 +593,8 @@ class PrReadyTests(unittest.TestCase):
         self.assertEqual(pr_ready.dependent_crates(["core"], dependencies), ["build", "core", "dev", "optional"])
 
     def test_scope_warns_on_mixed_areas(self):
-        self.assertEqual(pr_ready.scope_warnings({"crates/sunrise-theme/src/lib.rs", "crates/sunrise-client/src/game.rs"}), [])
-        self.assertEqual(pr_ready.scope_warnings({"crates/sunrise-client/src/game.rs", ".github/workflows/ci.yml"}),
+        self.assertEqual(pr_ready.scope_warnings({"crates/sunrise-theme/src/lib.rs", "crates/sunrise-gameplay-common/src/game.rs"}), [])
+        self.assertEqual(pr_ready.scope_warnings({"crates/sunrise-gameplay-common/src/game.rs", ".github/workflows/ci.yml"}),
                          ["mixes CI, game"])
 
     def test_cargo_lock_changes_only_with_a_manifest(self):
@@ -593,7 +605,7 @@ class PrReadyTests(unittest.TestCase):
     def test_label_follows_what_players_get(self):
         self.assertEqual(pr_ready.suggested_label({"tools/pr_ready.py", "CONTRIBUTING.md"}), "`skip-release`")
         self.assertEqual(pr_ready.suggested_label({"crates/sunrise-world/examples/probe.rs"}), "`skip-release`")
-        self.assertIn("feature", pr_ready.suggested_label({"crates/sunrise-client/src/game.rs"}))
+        self.assertIn("feature", pr_ready.suggested_label({"crates/sunrise-gameplay-common/src/game.rs"}))
 
     def test_affected_harnesses_come_from_the_parity_runner(self):
         found = {"food": "tools/test_food_parity.py", "datafix#1": "tools/test_datafix_parity.py",
@@ -669,6 +681,9 @@ class PrReadyTests(unittest.TestCase):
         for path in ("tools/test_food_parity.py", "tools/parity.py", "tools/lab.py", "tools/parity_hosts.json",
                      "mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaFoodOracle.java",
                      "crates/sunrise-world/examples/food_probe.rs", "crates/sunrise-client/src/game/sculk_fixture.rs",
+                     "crates/sunrise-gameplay/src/game/blocks/sculk_fixture.rs",
+                     "crates/sunrise-gameplay-common/src/game/parity_fixture.rs",
+                     "crates/sunrise-client-gameplay/src/game/remote_harness.rs",
                      ".github/workflows/parity.yml"):
             with self.subTest(path=path):
                 self.assertTrue(pr_ready.runs_parity(code | {path}))
