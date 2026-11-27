@@ -1,9 +1,9 @@
 # Moving colliders on a real game: refusals, save and load, and a falling item resting on one.
-sunrise-client game::native_colliders_tests::a_collider_is_not_solid_to_its_own_vehicle_stack lib daily resources
-sunrise-client game::native_colliders_tests::a_collider_is_set_read_refused_saved_and_loaded lib daily resources
-sunrise-client game::native_colliders_tests::a_collider_travels_with_its_entity lib daily resources
-sunrise-client game::native_colliders_tests::a_dropped_item_rests_on_a_collider lib daily resources
-sunrise-client game::native_colliders_tests::an_item_falls_through_its_own_collider_and_a_stranger_lands_on_it lib daily resources
-sunrise-client game::native_colliders_tests::each_level_collides_with_its_own_colliders lib daily resources
-sunrise-client game::native_colliders_tests::siblings_riding_one_vehicle_share_a_stack lib daily resources
-sunrise-client game::native_colliders_tests::two_hundred_items_over_a_capped_collider_rest_and_the_tick_is_timed lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_collider_is_not_solid_to_its_own_vehicle_stack lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_collider_is_set_read_refused_saved_and_loaded lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_collider_travels_with_its_entity lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_dropped_item_rests_on_a_collider lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::an_item_falls_through_its_own_collider_and_a_stranger_lands_on_it lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::each_level_collides_with_its_own_colliders lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::siblings_riding_one_vehicle_share_a_stack lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::two_hundred_items_over_a_capped_collider_rest_and_the_tick_is_timed lib daily resources

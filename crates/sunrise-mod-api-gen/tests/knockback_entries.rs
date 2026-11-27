@@ -9,10 +9,17 @@ fn retained_knockback_entries_apply_hook_edits_cancel_and_delegate_once() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut modules = proc_macro2::TokenStream::new();
     for (module, path) in [
-        ("entries", "mobs/knockback.rs"),
-        ("player_entries", "game/mobs/creatures/knockback.rs"),
+        ("entries", "crates/sunrise-sim/src/mobs/knockback.rs"),
+        (
+            "player_entries",
+            "crates/sunrise-gameplay-common/src/game/mobs/creatures/knockback.rs",
+        ),
+        (
+            "server_entries",
+            "crates/sunrise-gameplay/src/game/mobs/creatures/knockback_server.rs",
+        ),
     ] {
-        let source = fs::read_to_string(root.join("crates/sunrise-client/src").join(path)).unwrap();
+        let source = fs::read_to_string(root.join(path)).unwrap();
         let mut file = syn::parse_file(&source).unwrap();
         // Let the fixture call both entry forms; leave signatures and bodies intact.
         for item in &mut file.items {
@@ -40,7 +47,7 @@ fn retained_knockback_entries_apply_hook_edits_cancel_and_delegate_once() {
         modules.extend(quote!(mod #module { #file }));
     }
     // The real movement write both entries end in (`Knock::apply`), not a second copy of it.
-    let health = fs::read_to_string(root.join("crates/sunrise-client/src/health.rs")).unwrap();
+    let health = fs::read_to_string(root.join("crates/sunrise-sim/src/health.rs")).unwrap();
     let knock_apply = syn::parse_file(&health)
         .unwrap()
         .items

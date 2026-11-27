@@ -34,6 +34,10 @@ impl crate::NoBackend for PlayerDataRefusal {
     fn no_backend() -> Self {
         Self::Stale
     }
+
+    fn wrong_side() -> Self {
+        Self::Client
+    }
 }
 
 /// Why [`crate::PlayerRef::set_persistent_data_key`] wrote nothing.
@@ -58,5 +62,9 @@ pub enum PlayerPersistentDataError {
 impl crate::NoBackend for PlayerPersistentDataError {
     fn no_backend() -> Self {
         Self::Stale
+    }
+
+    fn wrong_side() -> Self {
+        Self::Client
     }
 }

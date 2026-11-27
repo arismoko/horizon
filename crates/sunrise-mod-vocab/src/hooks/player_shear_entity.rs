@@ -8,7 +8,7 @@ pub trait Hooks {
     /// stack keeps its item and count; if not, the click is spent and nothing is
     /// sheared.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_shear_entity",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_shear_entity",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

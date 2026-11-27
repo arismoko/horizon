@@ -1,1 +1,1 @@
-sunrise-client game::remote::riptide_tests::riptide_ground_release_keeps_launch_velocity lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::riptide_tests::riptide_ground_release_keeps_launch_velocity lib daily child-process

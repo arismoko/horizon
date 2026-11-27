@@ -1,2 +1,2 @@
 # The level conductor read builds a game level over the prepared block registry.
-sunrise-client game::native_entity_refs::tests::level_reads_whether_a_block_conducts_redstone lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::level_reads_whether_a_block_conducts_redstone lib daily resources

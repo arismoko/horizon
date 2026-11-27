@@ -1,7 +1,7 @@
 version = 1
 doc = "ClientHost::play_local_sound and SoundRef::move_to accept any position with finite float mixer coordinates, without a world-border check. For relative sounds the position is an offset from the listener. Moving keeps the same instance, and finite extreme positions still pan and attenuate in the mixer."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_local_sounds.rs::a_client_mod_follows_stops_and_fades_its_own_sounds",
+    "crates/sunrise-client-gameplay/src/game/modding/native_local_sounds.rs::a_client_mod_follows_stops_and_fades_its_own_sounds",
     "crates/sunrise-client-render/src/audio.rs::a_mod_sound_moves_and_changes_pitch_without_restarting",
     "crates/sunrise-client-render/src/audio.rs::a_readable_extreme_position_pans_alongside_an_ordinary_voice",
 ]

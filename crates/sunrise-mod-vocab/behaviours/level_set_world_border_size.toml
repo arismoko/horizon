@@ -2,5 +2,5 @@ version = 1
 handle = "handle:LevelRef::set_world_border_size"
 doc = "LevelRef::set_world_border_size sets a fixed size for ticks <= 0 and starts a timed lerp otherwise on the named level, with no command size range: a signed size is accepted while the clipped box stays ordered. Successful writes notify that level's watchers even when the size repeats."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_border.rs::border_setters_notify_the_named_level",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_border.rs::border_setters_notify_the_named_level",
 ]

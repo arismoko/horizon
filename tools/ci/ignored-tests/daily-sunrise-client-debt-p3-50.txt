@@ -1,1 +1,1 @@
-sunrise-client game::gui_layer_tests::failed_gui_layer_keeps_completed_paint_and_isolates_following_layers lib daily child-process
+sunrise-client cut_layout::game::client_side::gui_layer_tests::failed_gui_layer_keeps_completed_paint_and_isolates_following_layers lib daily child-process

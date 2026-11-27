@@ -1,1 +1,1 @@
-sunrise-client game::spill::tests::removal_uses_the_same_random_state_for_lazy_and_padded_slots lib daily resources
+sunrise-client cut_layout::game::server_side::spill::tests::removal_uses_the_same_random_state_for_lazy_and_padded_slots lib daily resources

@@ -1,13 +1,13 @@
 # P3-67: single player_container_close v2 + MenuPart::menu_removed teardown.
-sunrise-client game::native_menus::owned_slots_tests::aborted_window_reservations_do_not_collide_at_wraparound lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::disconnect_before_publication_preserves_a_stack_offered_to_the_pending_menu lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::disconnect_reports_logout_then_removed_then_close_with_live_views lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::late_container_sync_invalidation_closes_in_its_original_level lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::menu_removed_precedes_player_container_close_with_live_handles lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::menu_removed_runs_with_no_player_when_player_is_already_gone lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::ordinary_transaction_publishes_the_whole_close_before_a_replacement lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::owner_can_open_a_replacement_without_interrupting_teardown lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::reentrant_open_during_travel_close_opens_after_change_level lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::reentrant_open_follows_both_root_opens_and_ignores_a_stale_close lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::staging_replacement_keeps_nested_edits_on_the_live_owner_until_commit lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::unsupported_crafting_close_does_not_report_the_inventory lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::aborted_window_reservations_do_not_collide_at_wraparound lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::disconnect_before_publication_preserves_a_stack_offered_to_the_pending_menu lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::disconnect_reports_logout_then_removed_then_close_with_live_views lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::late_container_sync_invalidation_closes_in_its_original_level lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::menu_removed_precedes_player_container_close_with_live_handles lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::menu_removed_runs_with_no_player_when_player_is_already_gone lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::ordinary_transaction_publishes_the_whole_close_before_a_replacement lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::owner_can_open_a_replacement_without_interrupting_teardown lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::reentrant_open_during_travel_close_opens_after_change_level lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::reentrant_open_follows_both_root_opens_and_ignores_a_stale_close lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::staging_replacement_keeps_nested_edits_on_the_live_owner_until_commit lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::unsupported_crafting_close_does_not_report_the_inventory lib daily resources

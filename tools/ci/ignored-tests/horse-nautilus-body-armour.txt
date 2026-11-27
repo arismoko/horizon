@@ -1,1 +1,1 @@
-sunrise-client game::equipment_piece::material_tests::a_horse_in_mod_body_armour_draws_its_namespaced_horse_body_layer lib daily resources
+sunrise-client-gameplay game::client_side::equipment_piece::material_tests::a_horse_in_mod_body_armour_draws_its_namespaced_horse_body_layer lib daily resources

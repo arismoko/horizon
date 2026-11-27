@@ -46,7 +46,7 @@ Content {
     ],
     blocks: [
         Block {
-            id: "fluid_full:brine",
+            id: "fluid_full:brine_block",
             template: "minecraft:water",
             properties: BlockProperties {
                 hardness: None,
@@ -122,6 +122,9 @@ Content {
                     bucket: false,
                     flowing: Some(
                         "fluid_full:brine_flowing",
+                    ),
+                    block: Some(
+                        "fluid_full:brine_block",
                     ),
                 },
             ),

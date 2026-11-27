@@ -1,2 +1,2 @@
 # The host text codec and typed item text over game-owned prototypes.
-sunrise-client game::native_text_json::tests::host_nbt_and_owned_stack_text_follow_component_semantics lib daily resources
+sunrise-gameplay-common game::native_text_json::tests::host_nbt_and_owned_stack_text_follow_component_semantics lib daily resources

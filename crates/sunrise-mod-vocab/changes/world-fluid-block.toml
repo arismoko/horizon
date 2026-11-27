@@ -1,0 +1,3 @@
+ids = ["type:WorldFluid"]
+why = "A world fluid can name its liquid block (WorldFluid::block, and world.block in a fluid file), in the fluid's namespace, as NeoForge's BaseFlowingFluid.Properties.block: commands, data packs and structure files name that block. Unset, the block keeps the fluid's own id, as before."
+migrate = "Additive. WorldFluid is non_exhaustive and built from Default, so existing declarations keep their block id."

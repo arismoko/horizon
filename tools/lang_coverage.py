@@ -3,7 +3,7 @@
 
 `crates/sunrise-client/assets/sunrise/lang/en_us.json` is the reference: every key the
 game asks for. A language that misses a key falls back to English at runtime
-(`Language::load` in `crates/sunrise-client-core/src/lang.rs` layers `en_us` under it), so
+(`Language::load` in `crates/sunrise-game-data/src/lang.rs` layers `en_us` under it), so
 a gap is not an error — it is an English sentence on a translated screen. That file's
 tests catch stale keys, repeated keys, empty values and changed placeholders, but
 deliberately not gaps, because a language is allowed to lag. This tool reports them.

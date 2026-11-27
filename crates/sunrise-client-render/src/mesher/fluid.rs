@@ -563,6 +563,7 @@ mod tests {
         let fluid = register_mod_fluid(ModFluidType {
             id: "mesh_fixture:oil".into(),
             flowing_id: "mesh_fixture:flowing_oil".into(),
+            block_id: "mesh_fixture:oil".into(),
             bucket: None,
             rules: ModFluidRules {
                 tick_delay: 5,

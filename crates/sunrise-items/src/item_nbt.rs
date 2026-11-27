@@ -1,8 +1,8 @@
 //! Item stacks in NBT (`ItemStack.CODEC`): id, count and components, alone or in
 //! slot lists.
 use std::sync::Arc;
-use sunrise_client_core::nbt_value::{number, string, text};
 use sunrise_core::nbt::{Tag, parse_snbt, snbt_whitespace};
+use sunrise_game_data::nbt_value::{number, string, text};
 
 /// The two measured saved forms of `BlockPredicate.CODEC`, and the `Identifier`s
 /// of `attribute_modifiers` written whole. Operate only on

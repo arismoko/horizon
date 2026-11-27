@@ -12,12 +12,13 @@ use serde_json::{Value, json};
 use std::{collections::BTreeMap, fs, path::PathBuf, sync::Arc};
 use sunrise_client::mesher::Vertex;
 use sunrise_client::mobs::{
-    Mob, MobData, MobTypes, Part, Species, allay,
+    Mob, MobTypes, Part, Species, allay,
     anim::{self, Poses, State},
     aquatic, bat, body_anim as b_anim, equine, guardian,
     keyframes::AnimationState,
     render, shulker, sniffer, species, tame,
 };
+use sunrise_client::mobs_render::{ClientMobData, ClientMobModels};
 use sunrise_core::geometry::Vec3;
 
 fn walk(part: &Part, path: &str, poses: &Poses, out: &mut BTreeMap<String, Value>) {
@@ -317,7 +318,8 @@ pub fn main() -> sunrise_client::Result<()> {
     }
     let root = PathBuf::from(&args[0]);
     let types = MobTypes::load(&root)?;
-    let animations = MobData::load_animations(&root)?;
+    let models = ClientMobModels::load(&root)?;
+    let animations = ClientMobData::load_animations(&root)?;
     let mut out = String::new();
     let crystal = sunrise_client::mobs::load_model(&root, "minecraft:end_crystal#main");
     for line in fs::read_to_string(&args[1])?.lines() {
@@ -390,10 +392,10 @@ pub fn main() -> sunrise_client::Result<()> {
             continue;
         };
         let kind = Arc::new(kind.clone());
-        let model = kind
-            .layer(layer)
-            .cloned()
-            .unwrap_or_else(|| kind.model.clone());
+        let visuals = models
+            .get(&kind.id)
+            .ok_or_else(|| format!("missing model visual for {}", kind.id))?;
+        let model = visuals.layer(layer).unwrap_or(&visuals.model).clone();
         let mut mob = Mob::new(7, kind, Vec3::new(0.0, 64.0, 0.0), 0.0);
         mob.extra.set_main_hand(None);
         let case = &v["case"];

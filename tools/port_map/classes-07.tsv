@@ -8,11 +8,11 @@ WorldPresets.Bootstrap	skip:data		datagen bootstrap that registers the presets
 SinglePieceStructure.findGenerationPoint	port	crates/sunrise-world/src/worldgen/structure/start.rs::try_generate	DesertPyramid/JungleTemple arm: valid biome, sea-level check, stub on the surface
 SinglePieceStructure.generatePieces	port	crates/sunrise-world/src/worldgen/structure/start.rs::try_generate	same arm builds the piece at the chunk corner
 structure/StructureCheck.canCreateStructure	port	crates/sunrise-world/src/worldgen/structure/start.rs::try_generate	no start when the arm returns None
-structure/StructureCheck.checkStart	inline	crates/sunrise-client/src/vanillagen.rs::VanillaTerrain::locate_for_map	gap: the references maps add live in a sidecar file (data/sunrise_structure_references_<dim>.json), not in the start's chunk; the ones a chunk saved are read from it
-structure/StructureCheck.checkStructureInfo	inline	crates/sunrise-client/src/vanillagen.rs::VanillaTerrain::locate_for_map	gap: the references live in a sidecar file (data/sunrise_structure_references_<dim>.json), not in the start's chunk
-structure/StructureCheck.incrementReference	inline	crates/sunrise-client/src/vanillagen.rs::VanillaTerrain::locate_for_map	gap: the references maps add live in a sidecar file (data/sunrise_structure_references_<dim>.json), not in the start's chunk; the ones a chunk saved are read from it
+structure/StructureCheck.checkStart	inline	crates/sunrise-sim/src/vanillagen.rs::VanillaTerrain::locate_for_map	gap: the references maps add live in a sidecar file (data/sunrise_structure_references_<dim>.json), not in the start's chunk; the ones a chunk saved are read from it
+structure/StructureCheck.checkStructureInfo	inline	crates/sunrise-sim/src/vanillagen.rs::VanillaTerrain::locate_for_map	gap: the references live in a sidecar file (data/sunrise_structure_references_<dim>.json), not in the start's chunk
+structure/StructureCheck.incrementReference	inline	crates/sunrise-sim/src/vanillagen.rs::VanillaTerrain::locate_for_map	gap: the references maps add live in a sidecar file (data/sunrise_structure_references_<dim>.json), not in the start's chunk; the ones a chunk saved are read from it
 structure/StructureCheck.loadStructures	skip:other		reads saved starts for the storage cache; Sunrise places saved starts with use_saved_start
-structure/StructureCheck.onStructureLoad	inline	crates/sunrise-client/src/vanillagen.rs::VanillaTerrain::set_saved_references	the references a chunk saved for its starts count as known (read from the region file by SaveDir::start_references); gap: minor: a start is read when a map asks, not when the chunk loads; legacy Level.Structures.Starts is not read
+structure/StructureCheck.onStructureLoad	inline	crates/sunrise-sim/src/vanillagen.rs::VanillaTerrain::set_saved_references	the references a chunk saved for its starts count as known (read from the region file by SaveDir::start_references); gap: minor: a start is read when a map asks, not when the chunk loads; legacy Level.Structures.Starts is not read
 structure/StructureCheck.storeFullResults	skip:other		cache write for the storage check
 structure/StructureCheck.tryLoadFromStorage	skip:other		chunk NBT scan for the storage cache; Sunrise places saved starts with use_saved_start
 PiecesContainer.isInsidePiece	inline	crates/sunrise-world/src/worldgen/generator_decoration.rs::World::add_entity	start-piece box test that feeds the mob finalize hook
@@ -133,50 +133,50 @@ GradientNoise.Gradient.dotXz	inline	crates/sunrise-core/src/noise/perlin.rs::Sme
 LegacyFbmInitializer.createForLegacyNetherBiome	port	crates/sunrise-core/src/noise/normal.rs::create_legacy_fbm
 NoiseUtils.biasTowardsExtreme	skip:other		no caller in the vanilla 26.3 sources
 NoiseUtils.parityNoiseOctaveConfigString	skip:debug		debug text
-BlockLightEngine.checkNode	inline	crates/sunrise-client-render/src/light.rs::relight_layer	neighbour checks in both passes
-BlockLightEngine.getEmission	port	crates/sunrise-client-render/src/light.rs::LightTables::emission
-BlockLightEngine.propagateDecrease	port	crates/sunrise-client-render/src/light.rs::relight_layer	decrease pass, sky false
-BlockLightEngine.propagateIncrease	port	crates/sunrise-client-render/src/light.rs::relight_layer	increase pass, sky false
-BlockLightEngine.propagateLightSources	inline	crates/sunrise-client-render/src/light.rs::relight_layer	emission seeds for cleared cells
-BlockLightSectionStorage.getLightValue	port	crates/sunrise-client-render/src/light.rs::level
+BlockLightEngine.checkNode	inline	crates/sunrise-level/src/light.rs::relight_layer	neighbour checks in both passes
+BlockLightEngine.getEmission	port	crates/sunrise-level/src/light.rs::LightTables::emission
+BlockLightEngine.propagateDecrease	port	crates/sunrise-level/src/light.rs::relight_layer	decrease pass, sky false
+BlockLightEngine.propagateIncrease	port	crates/sunrise-level/src/light.rs::relight_layer	increase pass, sky false
+BlockLightEngine.propagateLightSources	inline	crates/sunrise-level/src/light.rs::relight_layer	emission seeds for cleared cells
+BlockLightSectionStorage.getLightValue	port	crates/sunrise-level/src/light.rs::level
 DataLayerStorageMap	skip:java		cache of light data layers keyed by section
-DynamicGraphMinFixedPoint.checkEdge	inline	crates/sunrise-client-render/src/light.rs::relight_layer	edge test inside the passes
-DynamicGraphMinFixedPoint.checkNeighbor	inline	crates/sunrise-client-render/src/light.rs::relight_layer	neighbour test inside the passes
+DynamicGraphMinFixedPoint.checkEdge	inline	crates/sunrise-level/src/light.rs::relight_layer	edge test inside the passes
+DynamicGraphMinFixedPoint.checkNeighbor	inline	crates/sunrise-level/src/light.rs::relight_layer	neighbour test inside the passes
 DynamicGraphMinFixedPoint.removeFromQueue	skip:java		queue bookkeeping; the passes never remove queued entries
 DynamicGraphMinFixedPoint.removeIf	skip:java		queue bookkeeping
-DynamicGraphMinFixedPoint.runUpdates	port	crates/sunrise-client-render/src/light.rs::relight_layer	runs the decrease and increase passes
+DynamicGraphMinFixedPoint.runUpdates	port	crates/sunrise-level/src/light.rs::relight_layer	runs the decrease and increase passes
 LayerLightSectionStorage	skip:other		per-section light data bookkeeping; Sunrise keeps light in chunk sections (light.rs apply_lighting, light_chunk)
 LayerLightSectionStorage.SectionState	skip:other		section state flags of the light storage; no Sunrise equivalent needed
 LeveledPriorityQueue	skip:java		priority queue of light levels; relight_layer runs two FIFO passes
-SkyLightEngine.addSourcesAbove	inline	crates/sunrise-client-render/src/light.rs::relight_region	column sources loop
-SkyLightEngine.checkNode	inline	crates/sunrise-client-render/src/light.rs::relight_layer	neighbour checks in the sky passes
+SkyLightEngine.addSourcesAbove	inline	crates/sunrise-level/src/light.rs::relight_region	column sources loop
+SkyLightEngine.checkNode	inline	crates/sunrise-level/src/light.rs::relight_layer	neighbour checks in the sky passes
 SkyLightEngine.countEmptySectionsBelowIfAtBorder	skip:java		shortcut over empty sections; Sunrise relights a region directly
-SkyLightEngine.crossedSectionEdge	port	crates/sunrise-client-render/src/light.rs::LightChanges::class	edge flags of a changed cell
+SkyLightEngine.crossedSectionEdge	port	crates/sunrise-level/src/light.rs::LightChanges::class	edge flags of a changed cell
 SkyLightEngine.getChunkSources	skip:java		per-chunk source cache; lowest_sky_source computes each column on demand
-SkyLightEngine.getLowestSourceY	port	crates/sunrise-client-render/src/light.rs::lowest_sky_source
-SkyLightEngine.propagateDecrease	port	crates/sunrise-client-render/src/light.rs::relight_layer	decrease pass, sky true
-SkyLightEngine.propagateFromEmptySections	inline	crates/sunrise-client-render/src/light.rs::relight_region	sky seeds below the source in each column
-SkyLightEngine.propagateIncrease	port	crates/sunrise-client-render/src/light.rs::relight_layer	increase pass, sky true
-SkyLightEngine.propagateLightSources	inline	crates/sunrise-client-render/src/light.rs::relight_layer	sky sources inside the cleared area
-SkyLightEngine.removeSourcesBelow	inline	crates/sunrise-client-render/src/light.rs::relight_region	column sources loop
+SkyLightEngine.getLowestSourceY	port	crates/sunrise-level/src/light.rs::lowest_sky_source
+SkyLightEngine.propagateDecrease	port	crates/sunrise-level/src/light.rs::relight_layer	decrease pass, sky true
+SkyLightEngine.propagateFromEmptySections	inline	crates/sunrise-level/src/light.rs::relight_region	sky seeds below the source in each column
+SkyLightEngine.propagateIncrease	port	crates/sunrise-level/src/light.rs::relight_layer	increase pass, sky true
+SkyLightEngine.propagateLightSources	inline	crates/sunrise-level/src/light.rs::relight_layer	sky sources inside the cleared area
+SkyLightEngine.removeSourcesBelow	inline	crates/sunrise-level/src/light.rs::relight_region	column sources loop
 SkyLightEngine.setLightEnabled	skip:other		light is computed when a chunk loads (light_chunk); no per-chunk enable flag
 SkyLightSectionStorage	skip:other		sky data layer bookkeeping per section; Sunrise keeps light in chunk sections
 SkyLightSectionStorage.SkyDataLayerStorageMap	skip:java		copy of sky data layers; collection plumbing
 SpatialLongSet.InternalMap	skip:java		hash set internals for section positions
-NodeEvaluator.getNode	port	crates/sunrise-client/src/mobs/path.rs::Finder::node
-NodeEvaluator.getPathType	port	crates/sunrise-client/src/mobs/path.rs::Finder::path_type
-NodeEvaluator.getTargetNodeAt	port	crates/sunrise-client/src/mobs/path.rs::Finder::node	target lookup is the same arena lookup
-NodeEvaluator.prepare	port	crates/sunrise-client/src/mobs/path.rs::Finder::new	per-query state
-PathTypeCache.compute	port	crates/sunrise-client/src/mobs/path.rs::Finder::compute_path_type
-PathTypeCache.get	port	crates/sunrise-client/src/mobs/path.rs::Finder::cached
-PathTypeCache.getOrCompute	port	crates/sunrise-client/src/mobs/path.rs::Finder::cached
+NodeEvaluator.getNode	port	crates/sunrise-sim/src/mobs/path.rs::Finder::node
+NodeEvaluator.getPathType	port	crates/sunrise-sim/src/mobs/path.rs::Finder::path_type
+NodeEvaluator.getTargetNodeAt	port	crates/sunrise-sim/src/mobs/path.rs::Finder::node	target lookup is the same arena lookup
+NodeEvaluator.prepare	port	crates/sunrise-sim/src/mobs/path.rs::Finder::new	per-query state
+PathTypeCache.compute	port	crates/sunrise-sim/src/mobs/path.rs::Finder::compute_path_type
+PathTypeCache.get	port	crates/sunrise-sim/src/mobs/path.rs::Finder::cached
+PathTypeCache.getOrCompute	port	crates/sunrise-sim/src/mobs/path.rs::Finder::cached
 PathTypeCache.invalidate	skip:java		the cache lives for one query, so nothing is invalidated
-SwimNodeEvaluator.findAcceptedNode	port	crates/sunrise-client/src/mobs/path.rs::Finder::swim_accepted
-SwimNodeEvaluator.getCachedBlockType	port	crates/sunrise-client/src/mobs/path.rs::Finder::cached
-SwimNodeEvaluator.getNeighbors	port	crates/sunrise-client/src/mobs/path.rs::Finder::swim_neighbors
-SwimNodeEvaluator.getPathTypeOfMob	port	crates/sunrise-client/src/mobs/path.rs::Finder::path_type_of_mob
-SwimNodeEvaluator.getStart	port	crates/sunrise-client/src/mobs/path.rs::Finder::start	Swim arm
-SwimNodeEvaluator.hasMalus	inline	crates/sunrise-client/src/mobs/path.rs::Finder::swim_neighbors	diagonal check on both sides
+SwimNodeEvaluator.findAcceptedNode	port	crates/sunrise-sim/src/mobs/path.rs::Finder::swim_accepted
+SwimNodeEvaluator.getCachedBlockType	port	crates/sunrise-sim/src/mobs/path.rs::Finder::cached
+SwimNodeEvaluator.getNeighbors	port	crates/sunrise-sim/src/mobs/path.rs::Finder::swim_neighbors
+SwimNodeEvaluator.getPathTypeOfMob	port	crates/sunrise-sim/src/mobs/path.rs::Finder::path_type_of_mob
+SwimNodeEvaluator.getStart	port	crates/sunrise-sim/src/mobs/path.rs::Finder::start	Swim arm
+SwimNodeEvaluator.hasMalus	inline	crates/sunrise-sim/src/mobs/path.rs::Finder::swim_neighbors	diagonal check on both sides
 CollectingNeighborUpdater.addAndRun	port	crates/sunrise-world/src/level/update.rs::Sim::add_and_run
 CollectingNeighborUpdater.neighborChanged	port	crates/sunrise-world/src/level/update.rs::Sim::neighbor_changed_at	Simple update
 CollectingNeighborUpdater.runUpdates	port	crates/sunrise-world/src/level/update.rs::Sim::run_updates

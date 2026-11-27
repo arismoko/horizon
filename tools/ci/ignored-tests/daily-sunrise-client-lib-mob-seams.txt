@@ -1,6 +1,6 @@
 # Daily tests of the replaceable mob attack, AI step and crossbow seams (#4692): each needs the prepared mob resources.
-sunrise-client-lib mobs::ai::server_ai_brain_tests::the_piglin_brain_runs_inside_server_ai_step lib daily resources
-sunrise-client-lib mobs::goals::check_and_perform_attack_tests::a_foxs_bite_is_not_in_the_base_method lib daily resources
-sunrise-client-lib mobs::goals::check_and_perform_attack_tests::a_foxs_strike_hurts_and_bites_without_a_swing lib daily child-process
-sunrise-client-lib mobs::goals::check_and_perform_attack_tests::the_strike_comes_after_the_cooldown_countdown_in_tick lib daily resources
-sunrise-client-lib mobs::illager::tests::the_crossbow_shot_uses_up_the_loaded_arrow lib daily resources
+sunrise-sim mobs::ai::server_ai_brain_tests::the_piglin_brain_runs_inside_server_ai_step lib daily resources
+sunrise-sim mobs::goals::check_and_perform_attack_tests::a_foxs_bite_is_not_in_the_base_method lib daily resources
+sunrise-sim mobs::goals::check_and_perform_attack_tests::a_foxs_strike_hurts_and_bites_without_a_swing lib daily child-process
+sunrise-sim mobs::goals::check_and_perform_attack_tests::the_strike_comes_after_the_cooldown_countdown_in_tick lib daily resources
+sunrise-sim mobs::illager::tests::the_crossbow_shot_uses_up_the_loaded_arrow lib daily resources

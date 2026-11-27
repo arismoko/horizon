@@ -1,5 +1,5 @@
 # The world spawn's level: an End exit to a spawn set in the End, a join from a missing level, and the client's spawn compass target's world-border adjustment and heightmaps.
-sunrise-client game::end::tests::leaving_the_end_for_a_world_spawn_there_builds_no_platform lib daily resources
-sunrise-client game::item_draw::spawn_border_tests::a_predicted_block_moves_the_compass_height_until_acknowledged lib daily child-process
-sunrise-client game::item_draw::spawn_border_tests::spawn_packet_stores_the_border_adjusted_compass_target lib daily child-process
-sunrise-client game::lan::world_spawn_join_tests::a_returning_player_from_a_missing_level_joins_in_the_world_spawn_level lib daily resources
+sunrise-gameplay game::server_side::end::tests::leaving_the_end_for_a_world_spawn_there_builds_no_platform lib daily resources
+sunrise-client cut_layout::game::client_side::item_draw::spawn_border_tests::a_predicted_block_moves_the_compass_height_until_acknowledged lib daily child-process
+sunrise-client cut_layout::game::client_side::item_draw::spawn_border_tests::spawn_packet_stores_the_border_adjusted_compass_target lib daily child-process
+sunrise-client cut_layout::game::server_side::lan::world_spawn_join_tests::a_returning_player_from_a_missing_level_joins_in_the_world_spawn_level lib daily resources

@@ -1,2 +1,2 @@
 # A mod goal sets its own mob's velocity (GoalContext::set_delta_movement, #3926): a ported leap against the engine's.
-sunrise-client game::native_goal_ticks::tests::a_mod_leap_goal_flies_and_lands_as_the_engine_leap_does lib daily child-process
+sunrise-client cut_layout::game::server_side::native_goal_ticks::tests::a_mod_leap_goal_flies_and_lands_as_the_engine_leap_does lib daily child-process

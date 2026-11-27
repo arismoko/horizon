@@ -17,7 +17,7 @@ pub trait Hooks {
         out = "entity",
         scope = "block_entity",
         key = "block",
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_block_entity",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_block_entity",
         neoforge = "none (vanilla EntityBlock.newBlockEntity; NeoForge adds no event or extension for it)"
     )]
     fn block_entity(block: &str, state: BlockState, entity: &mut Option<Compound>);

@@ -2,5 +2,5 @@ version = 1
 handle = "handle:LevelRef::set_world_border_warning"
 doc = "LevelRef::set_world_border_warning stores possibly signed warning blocks and ticks on the named level's border and notifies that level's watchers even when the values repeat."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_border.rs::border_setters_notify_the_named_level",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_border.rs::border_setters_notify_the_named_level",
 ]

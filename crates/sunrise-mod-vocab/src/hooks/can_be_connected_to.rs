@@ -22,7 +22,7 @@ pub trait Hooks {
         out = "answer",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::can_be_connected_to::GameLevel<'_>::native_can_be_connected_to",
+        target = "sunrise_gameplay_common::game::native_hooks::can_be_connected_to::GameLevel<'_>::native_can_be_connected_to",
         neoforge = "IBlockExtension.canBeConnectedTo"
     )]
     fn can_be_connected_to(

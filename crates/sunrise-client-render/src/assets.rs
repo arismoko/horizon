@@ -1,78 +1,12 @@
 use crate::Result;
 use serde_json::Value;
-use std::{collections::BTreeSet, io, path::Path, sync::Arc};
-use sunrise_world::{
-    DATA_VERSION,
-    heightmap::HeightmapState,
-    registry::{BlockRegistry, BlockStateId},
-    worldgen::{tags::TagDefinitions, terrain::TerrainBlockStates},
-};
+use std::sync::Arc;
+use sunrise_world::registry::BlockStateId;
 
-pub const MATERIALS: [&str; 6] = ["bedrock", "dirt", "stone", "sand", "oak_planks", "bricks"];
-#[derive(Clone, Copy)]
-pub struct StateFacts {
-    air: bool,
-    fluid: bool,
-    air_block: bool,
-    motion: bool,
-    no_leaves: bool,
-}
-impl HeightmapState for StateFacts {
-    fn is_air(self) -> bool {
-        self.air
-    }
-    fn is_air_block(self) -> bool {
-        self.air_block
-    }
-    fn has_fluid(self) -> bool {
-        self.fluid
-    }
-    fn blocks_motion_in_heightmap(self) -> bool {
-        self.motion
-    }
-    fn blocks_motion_in_heightmap_no_leaves(self) -> bool {
-        self.no_leaves
-    }
-}
-#[derive(Clone)]
-pub struct Properties(Arc<Vec<StateFacts>>);
-#[cfg(any(test, feature = "test-support"))]
-impl Properties {
-    /// Heightmap facts for tests, per state: (air, has a fluid, blocks
-    /// motion, blocks motion but is not leaves). State 0 is minecraft:air.
-    pub fn for_tests(states: &[(bool, bool, bool, bool)]) -> Self {
-        Self(Arc::new(
-            states
-                .iter()
-                .enumerate()
-                .map(|(i, &(air, fluid, motion, no_leaves))| StateFacts {
-                    air,
-                    fluid,
-                    air_block: i == 0,
-                    motion,
-                    no_leaves,
-                })
-                .collect(),
-        ))
-    }
-}
-impl TerrainBlockStates for Properties {
-    type State = StateFacts;
-    fn heightmap_state(&self, id: BlockStateId) -> StateFacts {
-        self.0[id.0 as usize]
-    }
-}
-/// The block registry and the facts read from `facts.json` and the block tags:
-/// everything world generation and collisions need, with none of the block
-/// models or baked sprites.
-pub struct Assets {
-    /// Leaked once per process: shared by world generation threads.
-    pub registry: &'static BlockRegistry,
-    pub properties: Properties,
-    pub material_states: [BlockStateId; 6],
-    /// Block names in `#minecraft:blocks_fluid_flow` (fluid flow vectors).
-    pub blocks_fluid_flow: BTreeSet<String>,
-}
+pub use sunrise_level::assets::{
+    Assets, MATERIALS, Properties, StateFacts, block_palette_bits, block_states_count,
+    block_states_generation, set_block_states,
+};
 /// The block models and their baked sprites, read from the pack at `root` over
 /// an existing block registry: everything the mesher and renderer need.
 pub struct RenderAssets {
@@ -427,143 +361,71 @@ impl SpritePixels {
             fallback();
         }
     }
+    /// Compress raw sprite pixels synchronously so cached test resources keep lz4 bytes.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn pack_sync(&self) {
+        use std::sync::atomic::Ordering;
+        if self.0.len == 0 || self.0.packing.swap(true, Ordering::Relaxed) {
+            return;
+        }
+        let raw = self.0.raw.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        if let Some(raw) = raw {
+            let _ = self.0.packed.set(
+                raw.chunks(PACKED_BLOCK)
+                    .map(lz4_flex::compress_prepend_size)
+                    .collect(),
+            );
+            *self.0.raw.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        }
+    }
 }
 /// The last `RenderAssets::generation` handed out.
 static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-fn invalid(message: &str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
+
+/// A controlled blockstate scene populated with `render`'s gallery placements.
+pub fn test_scene_world(
+    assets: &Assets,
+    render: &RenderAssets,
+    radius: i32,
+) -> Result<crate::world::World> {
+    crate::world::World::test_scene_with_placements(assets, &render.model_placements, radius)
 }
-impl Assets {
-    pub fn load(root: &Path) -> Result<Self> {
-        let manifest: Value = sunrise_world::json_file::read(&root.join("sunrise-resources.json"))?;
-        if manifest["data_version"].as_i64() != Some(i64::from(DATA_VERSION)) {
-            return Err(invalid("resources do not match Sunrise's pinned data version").into());
-        }
-        let (registry, flags) = sunrise_world::level::data::load_registry_with_flags(root)?;
-        let bundle: Value = sunrise_world::json_file::read(&root.join("block-tags.json"))?;
-        let mut definitions = TagDefinitions::default();
-        for (name, text) in bundle
-            .as_object()
-            .ok_or_else(|| invalid("invalid block tag bundle"))?
-        {
-            definitions.apply_json(
-                name,
-                "vanilla",
-                text.as_str()
-                    .ok_or_else(|| invalid("invalid block tag text"))?,
-            )?;
-        }
-        let built =
-            definitions.build(|name, _| registry.default_state(name).map(|_| name.to_owned()))?;
-        if !built.missing.is_empty() {
-            return Err(invalid("unresolved block tags").into());
-        }
-        let motion: BTreeSet<_> = built
-            .tags
-            .get("minecraft:blocks_motion_in_heightmap")
-            .ok_or_else(|| invalid("missing motion tag"))?
-            .iter()
-            .map(String::as_str)
-            .collect();
-        let no_leaves: BTreeSet<_> = built
-            .tags
-            .get("minecraft:blocks_motion_in_heightmap_no_leaves")
-            .ok_or_else(|| invalid("missing no-leaves motion tag"))?
-            .iter()
-            .map(String::as_str)
-            .collect();
-        let blocks_fluid_flow = built
-            .tags
-            .get("minecraft:blocks_fluid_flow")
-            .ok_or_else(|| invalid("missing fluid flow tag"))?
-            .iter()
-            .cloned()
-            .collect();
-        let properties = Properties(Arc::new(
-            flags
-                .iter()
-                .enumerate()
-                .map(|(i, &(air, fluid))| {
-                    let name = &registry
-                        .state(BlockStateId(i as u32))
-                        .ok_or_else(|| invalid("missing registry state"))?
-                        .name;
-                    Ok(StateFacts {
-                        air,
-                        fluid,
-                        air_block: name == "minecraft:air",
-                        motion: motion.contains(name.as_str()),
-                        no_leaves: no_leaves.contains(name.as_str()),
-                    })
-                })
-                .collect::<Result<_>>()?,
-        ));
-        let mut material_states = [BlockStateId(0); 6];
-        for (layer, name) in MATERIALS.iter().enumerate() {
-            material_states[layer] = registry
-                .default_state(&format!("minecraft:{name}"))
-                .ok_or_else(|| invalid("missing test-scene material"))?;
-        }
-        // Chunks hold every state of this registry: content mods can take it
-        // past vanilla's 16-bit global palette.
-        crate::chunk::set_block_states(registry.len());
-        let registry = registry.intern(mod_api::__private::registry_installation_identity());
-        Ok(Self {
-            registry,
-            properties,
-            material_states,
-            blocks_fluid_flow,
-        })
-    }
-    /// The models and sprites of another resource root over these blocks
-    /// (resource packs changed): the registry and block facts come from the
-    /// game data, which resource packs do not touch.
-    pub fn reload(&self, root: &crate::resource_source::ResourceRoot) -> Result<RenderAssets> {
-        RenderAssets::load(root, self)
-    }
-    /// [`Assets::reload`] with mod-registered emissive overlays collected for this reload.
-    pub fn reload_with_emissive(
-        &self,
-        root: &crate::resource_source::ResourceRoot,
-        emissive_sprites: &[mod_api::Answered<mod_api::EmissiveSpriteRegistration>],
-    ) -> Result<RenderAssets> {
-        RenderAssets::load_with_parsed(root, self, true, None, emissive_sprites)
-    }
-    /// [`Assets::reload`] with the model library already parsed.
-    ///
-    /// Parsing it reads every model file under `assets/`, which needs no
-    /// block registry, so a caller that has the files to spare can start
-    /// it before `Assets::load` finishes and hand the result in here. On
-    /// a cold cache that is most of a second of reading moved off the
-    /// critical path.
-    pub fn reload_with_models(
-        &self,
-        root: &crate::resource_source::ResourceRoot,
-        parsed: crate::model_library::ParsedModels,
-    ) -> Result<RenderAssets> {
-        RenderAssets::load_with_parsed(root, self, true, Some(parsed), &[])
-    }
-    /// [`Assets::reload_with_models`] with mod-registered emissive overlays collected for this
-    /// resource load.
-    pub fn reload_with_models_and_emissive(
-        &self,
-        root: &crate::resource_source::ResourceRoot,
-        parsed: crate::model_library::ParsedModels,
-        emissive_sprites: &[mod_api::Answered<mod_api::EmissiveSpriteRegistration>],
-    ) -> Result<RenderAssets> {
-        RenderAssets::load_with_parsed(root, self, true, Some(parsed), emissive_sprites)
-    }
-    /// [`Assets::reload`] for a server, which has no sprites or baked models.
-    pub fn reload_for_server(
-        &self,
-        root: &crate::resource_source::ResourceRoot,
-    ) -> Result<RenderAssets> {
-        RenderAssets::load_with(root, self, false)
-    }
-}
+
 impl RenderAssets {
     pub fn load(root: &crate::resource_source::ResourceRoot, assets: &Assets) -> Result<Self> {
         Self::load_with(root, assets, true)
+    }
+    /// [`RenderAssets::load`] with mod-registered emissive overlays collected for this reload.
+    pub fn load_with_emissive(
+        root: &crate::resource_source::ResourceRoot,
+        assets: &Assets,
+        emissive_sprites: &[mod_api::Answered<mod_api::EmissiveSpriteRegistration>],
+    ) -> Result<Self> {
+        Self::load_with_parsed(root, assets, true, None, emissive_sprites)
+    }
+    /// [`RenderAssets::load`] with the model library already parsed.
+    pub fn load_with_models(
+        root: &crate::resource_source::ResourceRoot,
+        assets: &Assets,
+        parsed: crate::model_library::ParsedModels,
+    ) -> Result<Self> {
+        Self::load_with_parsed(root, assets, true, Some(parsed), &[])
+    }
+    /// [`RenderAssets::load_with_models`] with mod-registered emissive overlays collected for this reload.
+    pub fn load_with_models_and_emissive(
+        root: &crate::resource_source::ResourceRoot,
+        assets: &Assets,
+        parsed: crate::model_library::ParsedModels,
+        emissive_sprites: &[mod_api::Answered<mod_api::EmissiveSpriteRegistration>],
+    ) -> Result<Self> {
+        Self::load_with_parsed(root, assets, true, Some(parsed), emissive_sprites)
+    }
+    /// [`RenderAssets::load`] for a server, which has no sprites or baked models.
+    pub fn load_for_server(
+        root: &crate::resource_source::ResourceRoot,
+        assets: &Assets,
+    ) -> Result<Self> {
+        Self::load_with(root, assets, false)
     }
     #[sunrise_mod_api_macros::replaceable]
     fn load_with(
@@ -574,7 +436,7 @@ impl RenderAssets {
         Self::load_with_parsed(root, assets, draws, None, &[])
     }
     /// `parsed`: the model library when a caller parsed it ahead of this
-    /// (see [`Assets::reload_with_models`]); otherwise it is parsed here.
+    /// (see [`RenderAssets::load_with_models`]); otherwise it is parsed here.
     fn load_with_parsed(
         root: &crate::resource_source::ResourceRoot,
         assets: &Assets,
@@ -838,7 +700,7 @@ mod tests {
         )?;
         let root = ResourceRoot::new(prepared.clone(), scratch.0.join("cache"), source);
         let assets = super::Assets::load(root.prepared())?;
-        let render = assets.reload(&root)?;
+        let render = super::RenderAssets::load(&root, &assets)?;
         let stone = assets
             .registry
             .default_state("minecraft:stone")

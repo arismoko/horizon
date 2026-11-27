@@ -1,4 +1,4 @@
-sunrise-client game::mods::tests::recipe_priorities::enabled_passive_recipe_priorities_preserve_dependency_layers_and_conditions lib daily child-process
-sunrise-client game::remote::recipe_properties::tests::guest_stonecutter_uses_packet_tags_components_and_authoritative_buttons lib daily game-boot
-sunrise-client game::remote::recipe_properties::tests::guest_stonecutter_waits_for_deferred_recipe_publication lib daily game-boot
-sunrise-client game::server_reload::tests::datapack_publication_tests::recipe_priority_layer_is_named_and_applied_through_reload lib daily game-boot
+sunrise-gameplay game::mods::tests::recipe_priorities::enabled_passive_recipe_priorities_preserve_dependency_layers_and_conditions lib daily child-process
+sunrise-client cut_layout::game::server_side::remote_server::recipe_properties::tests::guest_stonecutter_uses_packet_tags_components_and_authoritative_buttons lib daily game-boot
+sunrise-client cut_layout::game::server_side::remote_server::recipe_properties::tests::guest_stonecutter_waits_for_deferred_recipe_publication lib daily game-boot
+sunrise-client cut_layout::game::server_side::server_reload::tests::datapack_publication_tests::recipe_priority_layer_is_named_and_applied_through_reload lib daily game-boot

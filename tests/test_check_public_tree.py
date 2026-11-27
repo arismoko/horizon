@@ -4,17 +4,21 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
+
+from tests.git_fixture import decoy_git_env, isolated_git_env
 
 SCRIPT = Path(__file__).resolve().parents[1] / "tools/check_public_tree.py"
 
 
 def git(repo, *args):
     subprocess.run(["git", "-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
-                   check=True, capture_output=True)
+                   env=isolated_git_env(), check=True, capture_output=True)
 
 
 def check(repo, *args):
-    return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=repo, capture_output=True, text=True)
+    return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=repo, env=isolated_git_env(),
+                          capture_output=True, text=True)
 
 
 class HistoryScopeTests(unittest.TestCase):
@@ -37,9 +41,13 @@ class HistoryScopeTests(unittest.TestCase):
 
     def test_an_artifact_in_head_history_fails(self):
         with TemporaryDirectory() as directory:
-            self.repo_with_artifact_on_a_branch(directory)
-            git(directory, "merge", "-q", "--no-edit", "other")
-            result = check(directory, "--history")
+            parent = Path(directory)
+            repo = parent / "repo"
+            repo.mkdir()
+            self.repo_with_artifact_on_a_branch(repo)
+            git(repo, "merge", "-q", "--no-edit", "other")
+            with mock.patch.dict("os.environ", decoy_git_env(parent / "decoy"), clear=True):
+                result = check(repo, "--history")
             self.assertEqual(result.returncode, 1)
             self.assertIn("Leak.java", result.stderr)
 
@@ -75,6 +83,9 @@ class CommercialDenylistTests(unittest.TestCase):
             "crates/sunrise-cosmetics/Cargo.toml",
             "crates/sunrise-client/src/game/cosmetics.rs",
             "crates/sunrise-client/src/game/interface/cosmetics/emotes.rs",
+            "crates/sunrise-gameplay-common/src/game/cosmetics.rs",
+            "crates/sunrise-gameplay/src/game/interface/cosmetics/emotes.rs",
+            "crates/sunrise-client-gameplay/src/game/cosmetics/wheel.rs",
             "crates/sunrise-official-servers/src/lib.rs",
             "launcher/src/partner.rs",
             "launcher/src/shop/mod.rs",
@@ -113,7 +124,3 @@ class CommercialDenylistTests(unittest.TestCase):
             self.assertEqual(check(directory).returncode, 0)
             history = check(directory, "--history")
             self.assertEqual(history.returncode, 0, history.stderr)
-
-
-if __name__ == "__main__":
-    unittest.main()

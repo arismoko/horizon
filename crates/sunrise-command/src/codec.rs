@@ -8,7 +8,7 @@ use super::{CmdResult, CommandError, Reader};
 use sunrise_core::nbt::{Compound, JavaString, Tag};
 
 pub fn snbt(t: &Tag) -> String {
-    sunrise_client_core::snbt::to_snbt(t)
+    sunrise_game_data::snbt::to_snbt(t)
 }
 pub fn not_map(t: &Tag) -> String {
     format!("Not a map: {}", snbt(t))

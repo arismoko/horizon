@@ -15,7 +15,7 @@ pub trait Hooks {
         out = "success",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_is_bonemeal_success",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_is_bonemeal_success",
         neoforge = "none (vanilla BonemealableBlock.isBonemealSuccess; NeoForge adds no event or extension for it)"
     )]
     fn is_bonemeal_success(

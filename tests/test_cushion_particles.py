@@ -26,6 +26,7 @@ impl Registry {
 struct Assets { registry: Registry }
 struct Pack { assets: Assets }
 struct Audio { capture: Option<()> }
+mod sunrise_world { pub mod registry { pub type BlockStateId = u32; } }
 mod sunrise_client { pub mod particles {
     pub enum ParticleType { Block }
     pub struct ParticleOptions;
@@ -43,11 +44,17 @@ impl Particles {
         assert_eq!(speed, 0.05); assert_eq!(count, 10); self.count += count;
     }
 }
-struct Game {
-    pack: Pack, audio: Audio, particles: Particles, headless: bool,
+#[derive(Default)]
+struct ServerState {
     lan_cushion_breaks: Vec<(u32, [f64; 3])>,
+    audio_capture_active: bool,
 }
-impl Game {
+struct CommonGame { pack: Pack }
+struct ServerGame {
+    common: CommonGame, headless: bool,
+    server: ServerState,
+}
+impl ServerGame {
     fn particle_sprite(&self, _: u32, _: [i32; 3]) -> Option<(String, u32)> {
         (!self.headless).then(|| ("block/blue_wool".into(), 0xffffff))
     }
@@ -57,24 +64,26 @@ fn main() {
     let cushion = Cushion { position: Vec3 { x: 1.5, y: 10.0, z: 2.5 } };
     for headless in [true, false] {
         for serving in [true, false] {
-            let mut game = Game {
-                pack: Pack { assets: Assets { registry: Registry } },
-                audio: Audio { capture: serving.then_some(()) },
-                particles: Particles::default(), headless, lan_cushion_breaks: vec![],
+            let mut game = ServerGame {
+                common: CommonGame { pack: Pack { assets: Assets { registry: Registry } } },
+                headless,
+                server: ServerState { audio_capture_active: serving, ..Default::default() },
             };
             game.cushion_break_particles(&cushion);
-            assert_eq!(game.lan_cushion_breaks.len(), usize::from(serving));
+            assert_eq!(game.server.lan_cushion_breaks.len(), usize::from(serving));
             if serving {
-                let (state, at) = game.lan_cushion_breaks[0];
+                let (state, at) = game.server.lan_cushion_breaks[0];
                 assert_eq!(state, 123);
                 assert_eq!([at[0], at[2]], [1.5, 2.5]);
                 assert!((at[1] - (10.0 + 1.0/6.0)).abs() < 1e-12);
             }
-            assert_eq!(game.particles.count, if headless { 0 } else { 10 });
         }
     }
 }
-'''.replace("METHOD", rust_fn("cushion_break_particles"))
+'''.replace(
+            "METHOD",
+            rust_fn("cushion_break_particles") + "\n" + rust_fn("cushion_break_particles_server"),
+        )
         with tempfile.TemporaryDirectory(prefix="cushion-particles-") as directory:
             path = Path(directory)
             (path / "main.rs").write_text(fixture)

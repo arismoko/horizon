@@ -1,10 +1,10 @@
 //! `Level.tickBlockEntities` helpers: the ticker name a sample is attributed to and the block-ticking test.
-use sunrise_client::containers::BlockEntity;
+use sunrise_level::containers::BlockEntity;
 
 /// Shared decision for a borrowed position read and an owned tick-phase snapshot.
 pub fn block_ticking_at(
-    levels: &sunrise_client::ticket_levels::Levels,
-    pending: &sunrise_client::fast_hash::FxHashSet<(i32, i32)>,
+    levels: &sunrise_sim::ticket_levels::Levels,
+    pending: &sunrise_level::fast_hash::FxHashSet<(i32, i32)>,
     x: i32,
     z: i32,
 ) -> bool {

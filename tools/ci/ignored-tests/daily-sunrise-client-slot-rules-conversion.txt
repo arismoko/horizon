@@ -1,1 +1,1 @@
-sunrise-client game::slot_rules_tests::a_stack_the_parts_cannot_be_asked_about_is_not_placed lib daily resources
+sunrise-gameplay game::slot_rules_tests::a_stack_the_parts_cannot_be_asked_about_is_not_placed lib daily resources

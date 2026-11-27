@@ -5,6 +5,10 @@ const GAME: &str = r#"use std::fmt;
 pub struct Game<'a> {
     ticks: &'a u32,
 }
+pub struct Generic<T>(T);
+impl<T> Generic<T> {
+    pub fn generic_owner(&self) {}
+}
 pub trait Tick {
     fn tick(&self) -> u32;
 }
@@ -131,6 +135,9 @@ fn the_index_lists_each_function_with_its_text_or_its_refusal() {
         "{}",
         generic.why
     );
+    let generic_owner = refused("sunrise_client::game::Generic::generic_owner");
+    assert_eq!(generic_owner.code, Code::NotReplaceable);
+    assert!(generic_owner.why.contains("it is generic over types"));
     // The stager's own trait rule: a trait of another crate has no installer.
     let display = refused("sunrise_client::game::<Game as Display>::fmt");
     assert_eq!(
@@ -906,8 +913,75 @@ fn a_target_key_drops_generics_spaces_and_the_traits_path() {
         "sunrise_client::game::level_access::<GameLevel as LevelAccess>::block_state"
     );
     assert_eq!(
-        key("sunrise_client::game::autosave::Game<'_>::next_autosave_interval"),
-        "sunrise_client::game::autosave::Game::next_autosave_interval"
+        key("sunrise_client::game::server_side::autosave_server::Game<'_>::next_autosave_interval"),
+        "sunrise_client::game::server_side::autosave_server::Game::next_autosave_interval"
+    );
+}
+
+#[test]
+fn refusal_counts_group_templated_and_exact_reasons() {
+    let mut index = FunctionIndex::default();
+    let add = |index: &mut FunctionIndex, key: &str, why: &str| {
+        index.refused.insert(
+            key.to_owned(),
+            Refused {
+                code: Code::NotReplaceable,
+                why: why.to_owned(),
+            },
+        );
+    };
+    add(
+        &mut index,
+        "a",
+        "its trait implementation has no replacement installer (foreign trait)",
+    );
+    add(
+        &mut index,
+        "b",
+        "its trait implementation has no replacement installer (foreign trait)",
+    );
+    add(
+        &mut index,
+        "c",
+        "its trait implementation has no replacement installer: owner type name `Boat` is ambiguous in the crate: more than one module declares it, and the `impl`'s module neither declares it nor imports it from one of them",
+    );
+    add(
+        &mut index,
+        "d",
+        "its body uses `with_entity!`, a macro defined outside its module's path",
+    );
+    add(
+        &mut index,
+        "e",
+        "it names `super::persist::SpawnTree`, which crosses a non-public `use` in `sunrise_client::game::server_side::persist`",
+    );
+    add(
+        &mut index,
+        "f",
+        "it names `crate::hidden`, which reaches the non-public crate-root function `hidden`",
+    );
+    assert_eq!(
+        index.refusal_counts(),
+        BTreeMap::from([
+            ("it names a non-public crate-root function".to_owned(), 1),
+            (
+                "it names a path that crosses a non-public use".to_owned(),
+                1
+            ),
+            (
+                "its body uses a macro defined outside its module's path".to_owned(),
+                1
+            ),
+            (
+                "its trait implementation has no replacement installer (ambiguous trait owner)"
+                    .to_owned(),
+                1
+            ),
+            (
+                "its trait implementation has no replacement installer (foreign trait)".to_owned(),
+                2
+            ),
+        ])
     );
 }
 
@@ -923,7 +997,7 @@ fn a_method_below_the_game_crate_is_named_by_its_types_module() {
     .unwrap();
     let named = "sunrise_low::Clock::advance";
     let by_file = "sunrise_low::clock::Clock::advance";
-    let marked = crate::replace::marked(root.path()).unwrap();
+    let marked = crate::replace::marked(root.path(), crate::source::LEGACY_LAYOUT).unwrap();
     assert_eq!(
         marked
             .iter()
@@ -937,7 +1011,10 @@ fn a_method_below_the_game_crate_is_named_by_its_types_module() {
     assert_eq!(advance.file, "crates/sunrise-low/src/clock.rs");
     assert_eq!(index.check(root.path(), named), Ok(()));
     let found = index
-        .found(&mut Source::new(root.path()).unwrap(), named)
+        .found(
+            &mut Source::new(root.path(), crate::source::LEGACY_LAYOUT).unwrap(),
+            named,
+        )
         .unwrap();
     assert_eq!(found.module, "sunrise_low::clock");
     // The path of the file the `impl` is in is refused, naming the target.
@@ -945,13 +1022,30 @@ fn a_method_below_the_game_crate_is_named_by_its_types_module() {
     assert_eq!(code, "E_MIXIN_TARGET_MISSING");
     assert!(why.contains(&format!("`{named}`")), "{why}");
     // A bridge looks it up by name the same way.
-    let bridged = crate::patch::find(&mut Source::new(root.path()).unwrap(), named).unwrap();
+    let bridged = crate::patch::find(
+        &mut Source::new(root.path(), crate::source::LEGACY_LAYOUT).unwrap(),
+        named,
+    )
+    .unwrap();
     assert_eq!(bridged.module, "sunrise_low::clock");
-    let (code, why) = crate::patch::find(&mut Source::new(root.path()).unwrap(), by_file)
-        .err()
-        .expect("refused");
+    let (code, why) = crate::patch::find(
+        &mut Source::new(root.path(), crate::source::LEGACY_LAYOUT).unwrap(),
+        by_file,
+    )
+    .err()
+    .expect("refused");
     assert_eq!(code, "E_MIXIN_TARGET_MISSING");
     assert!(why.contains(&format!("`{named}`")), "{why}");
+    let copy = crate::patch::generate_for_main_sdk(
+        root.path(),
+        "fixture",
+        &[named.into()],
+        &Default::default(),
+        &index,
+    )
+    .unwrap();
+    assert_eq!(copy.patched.len(), 1);
+    assert_eq!(copy.patched[0].target, named);
     // The staging pass gives it its slot under the same name.
     fs::write(
         root.path().join("Cargo.lock"),

@@ -61,6 +61,7 @@ each time without disabling the provider; panicking disables that provider for t
 error toast. A file several packs provide binds each pack's layer on its own, as vanilla does: a refused
 layer leaves the states to the layers below it."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_block_state_models::native_register_block_state_models",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

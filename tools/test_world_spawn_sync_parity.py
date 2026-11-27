@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools import lab, test_rust_parity as base
 
-TESTS = 'game::lan::world_spawn_sync_tests::'
+TESTS = 'game::server_side::lan::world_spawn_sync_tests::'
 
 
 def main():
@@ -38,11 +38,11 @@ def main():
     lock, jars, libraries = base.verify_artifacts()
     source = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaWorldSpawnPacketOracle.java'
     sources = [Path(__file__), source, lab.ROOT / 'Cargo.lock',
-               lab.ROOT / 'crates/sunrise-client/src/game/administration/commands/mod.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/network/lan_actions/mod.rs',
-               lab.ROOT / 'crates/sunrise-client/src/lan/hub.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/network/lan/mod.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/world/server_travel.rs']
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/administration/commands/mod.rs',
+               lab.ROOT / 'crates/sunrise-gameplay-common/src/game/network/lan_actions/mod.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/lan/hub.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/network/lan/mod.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/world/server_travel.rs']
     hashes = base.source_hashes(sources)
     lab.write_json(build / 'input.json', dict(sources_sha256=hashes))
 

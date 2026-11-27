@@ -1,1 +1,1 @@
-sunrise-client game::slot_take_tests::each_part_take_hears_its_live_remainder_before_the_next_take lib daily child-process # Uses prepared resources in the isolated host.
+sunrise-client cut_layout::game::server_side::slot_take_tests::each_part_take_hears_its_live_remainder_before_the_next_take lib daily child-process # Uses prepared resources in the isolated host.

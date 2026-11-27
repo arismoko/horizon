@@ -1,3 +1,3 @@
-sunrise-client-render streaming::tests::a_neighbour_removed_outside_streaming_is_not_decorated lib daily resources
-sunrise-client-render streaming::tests::a_range_moving_back_wakes_decoration_while_generation_is_at_capacity lib daily resources
-sunrise-client-render streaming::tests::a_save_drain_wakes_the_next_finalize lib daily resources
+sunrise-level chunk_streamer::tests::a_neighbour_removed_outside_streaming_is_not_decorated lib daily resources
+sunrise-level chunk_streamer::tests::a_range_moving_back_wakes_decoration_while_generation_is_at_capacity lib daily resources
+sunrise-level chunk_streamer::tests::a_save_drain_wakes_the_next_finalize lib daily resources

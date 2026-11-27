@@ -1,4 +1,4 @@
-sunrise-client game::general::tick_tests::a_discarded_riders_passenger_ticks_at_its_later_root_slot lib daily resources
-sunrise-client game::general::tick_tests::a_discarded_riders_passenger_waits_if_its_root_slot_passed lib daily resources
-sunrise-client game::general::tick_tests::a_riders_removal_in_canceled_pre_leaves_its_passengers_later_root_tick lib daily resources
-sunrise-client game::general::tick_tests::a_riders_removal_in_pre_leaves_its_passengers_later_root_tick lib daily resources
+sunrise-client cut_layout::game::general::tick_tests::a_discarded_riders_passenger_ticks_at_its_later_root_slot lib daily resources
+sunrise-client cut_layout::game::general::tick_tests::a_discarded_riders_passenger_waits_if_its_root_slot_passed lib daily resources
+sunrise-client cut_layout::game::general::tick_tests::a_riders_removal_in_canceled_pre_leaves_its_passengers_later_root_tick lib daily resources
+sunrise-client cut_layout::game::general::tick_tests::a_riders_removal_in_pre_leaves_its_passengers_later_root_tick lib daily resources

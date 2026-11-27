@@ -130,6 +130,7 @@ Content {
                     source_conversion: false,
                     bucket: true,
                     flowing: None,
+                    block: None,
                 },
             ),
             bucket_item: None,

@@ -1,1 +1,1 @@
-sunrise-client game::damage_resistant_tests::dropped_item_hurt_uses_default_and_stack_fire_resistance lib daily resources
+sunrise-client cut_layout::game::server_side::damage_resistant_tests::dropped_item_hurt_uses_default_and_stack_fire_resistance lib daily resources

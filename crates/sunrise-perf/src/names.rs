@@ -264,13 +264,13 @@ mod tests {
             "map_fold::{closure}",
         ),
         (
-            "<[sunrise_client_core::scoreboard::Team]>::clone_into",
-            "[sunrise_client_core::scoreboard::Team]::clone_into",
+            "<[sunrise_game_data::scoreboard::Team]>::clone_into",
+            "[sunrise_game_data::scoreboard::Team]::clone_into",
             "[Team]::clone_into",
         ),
         (
-            "[sunrise_client_core::scoreboard::Team]::clone_into",
-            "[sunrise_client_core::scoreboard::Team]::clone_into",
+            "[sunrise_game_data::scoreboard::Team]::clone_into",
+            "[sunrise_game_data::scoreboard::Team]::clone_into",
             "[Team]::clone_into",
         ),
         (
@@ -279,8 +279,8 @@ mod tests {
             "sort_by::{closure}",
         ),
         (
-            "sunrise_client_core::who::impl$5::eq",
-            "sunrise_client_core::who::{impl}::eq",
+            "sunrise_game_data::who::impl$5::eq",
+            "sunrise_game_data::who::{impl}::eq",
             "{impl}::eq",
         ),
         (

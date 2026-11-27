@@ -1,2 +1,2 @@
-sunrise-client game::native_hooks::client_chunk_hooks_tests::cache_packets_hide_replace_and_resize_slots lib daily resources
-sunrise-client game::remote_chunks::light_tests::standalone_light_survives_missing_columns_and_rebuilds_on_equal_resends lib daily resources
+sunrise-client cut_layout::game::native_hooks::client_chunk_hooks_tests::cache_packets_hide_replace_and_resize_slots lib daily resources
+sunrise-client cut_layout::game::client_side::remote_chunks::light_tests::standalone_light_survives_missing_columns_and_rebuilds_on_equal_resends lib daily resources

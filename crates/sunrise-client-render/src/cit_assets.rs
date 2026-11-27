@@ -21,7 +21,7 @@ fn identifier(namespace: &str, path: &str) -> Option<String> {
     if namespace.is_empty() || path.is_empty() {
         return None;
     }
-    sunrise_client_core::identifier::parse_identifier(&format!("{namespace}:{path}"))
+    sunrise_game_data::identifier::parse_identifier(&format!("{namespace}:{path}"))
 }
 
 /// The id of a resource path ending in `.<ext>`: `assets/<ns>/<folder>/<p>` is `<ns>:<p>`, any

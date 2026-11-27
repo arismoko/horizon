@@ -1,8 +1,8 @@
-sunrise-client game::native_item_places::tests::a_same_id_gear_refresh_only_keeps_its_overwrite_on_commit lib daily resources
-sunrise-client game::native_item_places::tests::component_edit_preserves_live_nested_data_and_applies_a_removal lib daily resources
-sunrise-client game::native_item_places::tests::editing_a_raid_banners_name_preserves_its_other_components lib daily resources
-sunrise-client game::native_item_places::tests::equipment_rollback_keeps_a_later_permanent_modifier_with_the_same_id lib daily resources
-sunrise-client game::native_item_places::tests::equipment_rollback_undoes_a_rebuild_after_a_quiet_edit lib daily resources
-sunrise-client game::native_item_places::tests::nested_equipment_rollback_restores_the_live_modifiers_not_the_quiet_stack lib daily resources
-sunrise-client game::native_item_places::tests::virtual_wrappers_refuse_a_whole_stack_edit lib daily resources
-sunrise-client game::native_item_places::tests::worn_component_edit_is_quiet_and_reaches_tracking lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::a_same_id_gear_refresh_only_keeps_its_overwrite_on_commit lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::component_edit_preserves_live_nested_data_and_applies_a_removal lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::editing_a_raid_banners_name_preserves_its_other_components lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::equipment_rollback_keeps_a_later_permanent_modifier_with_the_same_id lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::equipment_rollback_undoes_a_rebuild_after_a_quiet_edit lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::nested_equipment_rollback_restores_the_live_modifiers_not_the_quiet_stack lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::virtual_wrappers_refuse_a_whole_stack_edit lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::worn_component_edit_is_quiet_and_reaches_tracking lib daily resources

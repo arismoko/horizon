@@ -7,7 +7,8 @@
 //! any other failure or refusal is reported each time and never latched.
 use super::*;
 use crate::catalog::{
-    DispatchStyle, EFFECT_TICK_TARGET, ListenerTransaction, Receiver, RegistrationAppend,
+    BindingKind, DispatchStyle, EFFECT_TICK_TARGET, ListenerTransaction, Receiver,
+    RegistrationAppend,
 };
 
 pub(super) struct HookSources {
@@ -16,7 +17,8 @@ pub(super) struct HookSources {
     pub render_dispatch: String,
     pub part_traits: BTreeMap<&'static str, String>,
     pub fills: Vec<Fill>,
-    pub fire: String,
+    pub fire: Vec<FireUnit>,
+    pub render_fire: String,
     pub hook_ids: String,
     pub hook_constants: String,
     /// A `()` constant named after each hook a mod may cancel, which `#[listener(receive_cancelled)]`
@@ -25,6 +27,122 @@ pub(super) struct HookSources {
     /// `(HookId::X, "x"),` for each client-side hook: what a `side = "server"` mod may not hear.
     pub client_hooks: String,
     pub hook_count: usize,
+}
+
+pub(super) struct FireUnit {
+    name: String,
+    owner: FireOwner,
+    package: Option<crate::GameplayPackage>,
+    side: Side,
+    carrier: Option<FireCarrier>,
+    receiver: Receiver,
+    parameters: Vec<String>,
+    before: String,
+    dispatch: String,
+    after: String,
+}
+
+enum FireOwner {
+    Free,
+    Shared,
+    Game,
+    Scoped(syn::PathSegment),
+}
+
+struct FireCarrier {
+    name: String,
+    generics: &'static str,
+    fields: String,
+}
+
+pub(super) fn render_fire(units: &[FireUnit]) -> String {
+    use std::fmt::Write as _;
+    let mut code = String::new();
+    let mut shared = String::new();
+    for unit in units {
+        if let Some(FireCarrier {
+            name,
+            generics,
+            fields,
+        }) = &unit.carrier
+        {
+            let visibility = fire_visibility(unit.package);
+            writeln!(code, "{visibility} struct {name}{generics} {{ {fields} }}").unwrap();
+        }
+        let receiver = match unit.receiver {
+            Receiver::Read => Some("&self"),
+            Receiver::Write => Some("&mut self"),
+            Receiver::Associated => None,
+        };
+        let signature = receiver
+            .into_iter()
+            .chain(unit.parameters.iter().map(String::as_str))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let FireUnit {
+            name,
+            before,
+            dispatch,
+            after,
+            ..
+        } = unit;
+        let visibility = if matches!(unit.owner, FireOwner::Shared) {
+            ""
+        } else {
+            fire_visibility(unit.package)
+        };
+        let visibility = if visibility.is_empty() {
+            String::new()
+        } else {
+            format!("{visibility} ")
+        };
+        let function = format!(
+            "#[inline] {visibility}fn fire_{name}({signature}) {{ {before} {dispatch} {after} }}"
+        );
+        let header = match &unit.owner {
+            FireOwner::Free => {
+                writeln!(code, "{function}").unwrap();
+                continue;
+            }
+            FireOwner::Shared => {
+                writeln!(shared, "{function}").unwrap();
+                continue;
+            }
+            FireOwner::Game if unit.package.is_some() => format!(
+                "impl crate::game::{}<'_>",
+                unit.package.unwrap().game_type()
+            ),
+            FireOwner::Game => match unit.side {
+                Side::Server => "impl crate::game::ServerGame<'_>".into(),
+                Side::Client => {
+                    "#[cfg(feature = \"client\")] impl crate::game::ClientGame<'_>".into()
+                }
+                Side::Both => "impl<S: crate::game::Side> crate::game::Game<'_, S>".into(),
+            },
+            FireOwner::Scoped(owner) if owner.ident == "ReadLevel" && unit.package.is_some() => {
+                "impl<'g, G: crate::game::SideGame<'g> + ?Sized> ReadLevel<'_, 'g, G>".into()
+            }
+            FireOwner::Scoped(owner) if owner.ident == "ReadLevel" => {
+                "impl<S: crate::game::Side> ReadLevel<'_, '_, S>".into()
+            }
+            FireOwner::Scoped(owner) => format!("impl {}", owner.to_token_stream()),
+        };
+        writeln!(code, "{header} {{ {function} }}").unwrap();
+    }
+    if !shared.is_empty() {
+        code.push_str(&format!(
+            "pub trait FireHooks<'g>: crate::game::SideGame<'g> {{\n{shared}}}\nimpl<'g, T: crate::game::SideGame<'g> + ?Sized> FireHooks<'g> for T {{}}\n"
+        ));
+    }
+    code
+}
+
+fn fire_visibility(package: Option<crate::GameplayPackage>) -> &'static str {
+    if package == Some(crate::GameplayPackage::Common) {
+        "pub"
+    } else {
+        "pub(in crate::game)"
+    }
 }
 
 /// Whether a mutable-reference field can be saved and restored by copying its pointee.
@@ -52,10 +170,14 @@ pub(super) fn is_render(hook: &Hook) -> bool {
     hook.target.starts_with("mod_render::render::")
 }
 
-pub(super) fn receiver_mut(hook: &Hook) -> Option<bool> {
+fn receiver_mut(hook: &Hook) -> Option<bool> {
     if hook.target == EFFECT_TICK_TARGET {
         Some(false)
-    } else if hook.target.starts_with("sunrise_client::game::") {
+    } else if hook.target.starts_with("sunrise_client::game::")
+        || hook
+            .gameplay_binding()
+            .is_ok_and(|binding| binding.is_some())
+    {
         hook.receiver.mutability()
     } else {
         None
@@ -63,8 +185,7 @@ pub(super) fn receiver_mut(hook: &Hook) -> Option<bool> {
 }
 
 pub(super) fn listener_host_or_context(hook: &Hook) -> Option<host_param::HostParam> {
-    host_param::context_param(hook)
-        .or_else(|| host_param::host_param(hook, receiver_mut(hook), hook.engine_ticks))
+    host_param::select(hook, receiver_mut(hook))
 }
 
 /// Render records only, without game binding or listener dispatch.
@@ -96,7 +217,8 @@ pub(super) fn emit<'a>(
     let mut render_dispatch = String::new();
     let mut part_traits: BTreeMap<&str, String> = BTreeMap::new();
     let mut fills = Vec::new();
-    let mut fire = String::new();
+    let mut fire = Vec::new();
+    let mut render_fire = String::new();
     let mut calls = String::new();
     for hook in hooks {
         let name = hook.name.as_str();
@@ -104,7 +226,13 @@ pub(super) fn emit<'a>(
         let native = format!("native_{name}");
         let target = hook.target.as_str();
         let is_render = is_render(hook);
-        let in_game = target.starts_with("sunrise_client::game::");
+        let binding = hook.gameplay_binding()?;
+        crate::gameplay::validate_shared_hook(
+            hook,
+            binding.as_ref().map(|binding| binding.package),
+            contexts,
+        )?;
+        let in_game = target.starts_with("sunrise_client::game::") || binding.is_some();
         let declaration_only = target == EFFECT_TICK_TARGET;
         let expected = if is_render { name } else { &native };
         if !declaration_only
@@ -234,7 +362,7 @@ pub(super) fn emit<'a>(
         } else {
             String::new()
         };
-        let host = listener_host_or_context(hook).map(|param| {
+        let host = host_param::select(hook, receiver_mut).map(|param| {
             (
                 fresh_name(
                     if hook.context.is_some() {
@@ -838,7 +966,7 @@ pub(super) fn emit<'a>(
                 .map(|(name, _)| name.as_str())
                 .collect::<Vec<_>>()
                 .join(", ");
-            fire.push_str(&format!(
+            render_fire.push_str(&format!(
                 "#[inline] pub(super) fn fire_{name}({}) {{ super::{name}({forwarded}); }}\n",
                 dispatch_params.join(", ")
             ));
@@ -860,11 +988,57 @@ pub(super) fn emit<'a>(
         // Direct game targets and free functions own their crossing. Everywhere else the
         // native method calls this typed adapter: rustc checks that call, not a source scan.
         if emit_fire && in_game && hook.dispatch != DispatchStyle::Direct {
-            let target_path: syn::Path = syn::parse_str(target)
-                .map_err(|error| format!("invalid target for {name}: {error}"))?;
-            let receiver = &target_path.segments[target_path.segments.len() - 2];
-            let receiver_impl = receiver.to_token_stream();
-            let scoped_read_host = receiver.ident == "NativeHookHost";
+            let (owner, is_game_assoc, scoped_read_host, borrowed) = if let Some(binding) =
+                binding.as_ref()
+            {
+                match &binding.kind {
+                    BindingKind::Shared => (FireOwner::Shared, false, false, None),
+                    BindingKind::Nominal => (FireOwner::Game, false, false, None),
+                    BindingKind::Free => (FireOwner::Free, true, false, None),
+                    BindingKind::Borrowed(ty) => {
+                        let scoped = matches!(ty, Type::Path(ty) if ty.path.segments.last().is_some_and(|segment| segment.ident == "NativeHookHost"));
+                        (FireOwner::Free, true, scoped, Some(ty))
+                    }
+                    BindingKind::Scoped(owner) => (
+                        FireOwner::Scoped(owner.clone()),
+                        false,
+                        owner.ident == "NativeHookHost",
+                        None,
+                    ),
+                }
+            } else {
+                let target_path: syn::Path = syn::parse_str(target)
+                    .map_err(|error| format!("invalid target for {name}: {error}"))?;
+                let receiver = &target_path.segments[target_path.segments.len() - 2];
+                let is_game_receiver = matches!(
+                    receiver.ident.to_string().as_str(),
+                    "Game" | "ServerGame" | "ClientGame"
+                );
+                let is_game_assoc = hook.receiver == Receiver::Associated
+                    && (is_game_receiver
+                        || (target.starts_with("sunrise_client::game::native_hooks::")
+                            && target_path.segments.len() == 5));
+                let owner = if is_game_assoc {
+                    FireOwner::Free
+                } else if is_game_receiver {
+                    FireOwner::Game
+                } else {
+                    FireOwner::Scoped(receiver.clone())
+                };
+                let scoped_read_host = receiver.ident == "NativeHookHost";
+                (owner, is_game_assoc, scoped_read_host, None)
+            };
+            let package = binding.as_ref().map(|binding| binding.package);
+            let engine_receiver = EngineReceiver {
+                package,
+                shared: matches!(&owner, FireOwner::Shared),
+                expression: if borrowed.is_some() {
+                    "__fire_receiver"
+                } else {
+                    "self"
+                },
+            };
+            let receiver = engine_receiver.expression;
             if scoped_read_host
                 && (hook.host != Some(HostAccess::Read) || receiver_mut != Some(false))
             {
@@ -873,22 +1047,29 @@ pub(super) fn emit<'a>(
                 ));
             }
             let native_host = host.as_ref().map(|(_, param)| {
-                if scoped_read_host {
-                    "self.host".to_owned()
-                } else if name == "place_liquid" {
-                    format!("{}.without_container_loot()", param.call)
-                } else if param.call == "&*self" && receiver_mut == Some(false) {
-                    "self".to_owned()
-                } else {
-                    param.call.to_owned()
-                }
+                param.argument.render_for(
+                    receiver,
+                    package.is_some(),
+                    scoped_read_host,
+                    name == "place_liquid",
+                    receiver_mut,
+                )
             });
+            let mut fire_carrier = None;
             let mut parameters = Vec::new();
             let mut forwarded = Vec::new();
             let mut parameter = |name: &str, ty: &str| {
                 parameters.push(format!("{name}: {ty}"));
                 forwarded.push(name.to_owned());
             };
+            if let Some(ty) = borrowed {
+                let mutability = if receiver_mut == Some(true) {
+                    "mut "
+                } else {
+                    ""
+                };
+                parameter(receiver, &format!("&{mutability}{}", ty.to_token_stream()));
+            }
             if let Some(ctx) = hook.context {
                 parameter("context", host_param::phase_engine_type(ctx));
             }
@@ -920,15 +1101,26 @@ pub(super) fn emit<'a>(
                             surfaces.insert(
                                 arg.as_str(),
                                 if staged_draw {
-                                    format!("|listen| crate::game::host::draw::GameDrawContext::stage(self, {arg}, listen)")
+                                    format!("|listen| crate::game::host::draw::GameDrawContext::stage({receiver}, {arg}, listen)")
                                 } else {
                                     format!(
-                                        "&mut crate::game::host::draw::{}::new(self, {arg})",
+                                        "&mut crate::game::host::draw::{}::new({receiver}, {arg})",
                                         draw.game_struct()
                                     )
                                 },
                             );
-                            ty = syn::parse_str(&format!("&mut {}", draw.surface))
+                            let surface = if package == Some(crate::GameplayPackage::Client) {
+                                match draw.surface.as_str() {
+                                    "crate::hud::HudBatch" => "sunrise_client_render::hud::HudBatch",
+                                    "crate::world_geometry::WorldGeometry" => {
+                                        "sunrise_client_lib::world_geometry::WorldGeometry"
+                                    }
+                                    other => other,
+                                }
+                            } else {
+                                &draw.surface
+                            };
+                            ty = syn::parse_str(&format!("&mut {surface}"))
                                 .map_err(|e| format!("{name}: invalid draw surface: {e}"))?;
                         } else {
                             engine_types(&mut ty, uses_carrier);
@@ -939,9 +1131,11 @@ pub(super) fn emit<'a>(
                 if uses_carrier {
                     let refs: Vec<_> = engine.iter().map(|(arg, ty)| (arg.clone(), ty)).collect();
                     let (fields, generics) = carrier_fields(&refs);
-                    fire.push_str(&format!(
-                        "pub(in crate::game) struct {carrier}{generics} {{ {fields} }}\n"
-                    ));
+                    fire_carrier = Some(FireCarrier {
+                        name: carrier.clone(),
+                        generics,
+                        fields,
+                    });
                     parameter("call", &format!("{carrier}{}", elide(generics)));
                     before.push_str(&format!(
                         "let {carrier} {{ {} }} = call; ",
@@ -970,7 +1164,8 @@ pub(super) fn emit<'a>(
                         }
                     }
                 }
-                let crossing = stack_crossing_routed(
+                let crossing = stack_crossing_for(
+                    engine_receiver,
                     &args,
                     output.as_ref(),
                     checked_crossing,
@@ -988,6 +1183,15 @@ pub(super) fn emit<'a>(
                         None => None,
                     },
                 );
+                if package.is_some()
+                    && matches!(owner, FireOwner::Free)
+                    && borrowed.is_none()
+                    && crossing
+                        .as_ref()
+                        .is_some_and(|crossing| crossing.needs_receiver)
+                {
+                    return Err(format!("{name}: conversion requires a receiver context"));
+                }
                 let (values, validators) = if let Some(crossing) = crossing {
                     before.push_str(&crossing.before);
                     after = crossing.after;
@@ -1009,7 +1213,13 @@ pub(super) fn emit<'a>(
                         .iter()
                         .chain(output.as_ref())
                         .zip(values)
-                        .map(|((arg, _), value)| format!("{arg}: {value}"))
+                        .map(|((arg, _), value)| {
+                            if *arg == value {
+                                value
+                            } else {
+                                format!("{arg}: {value}")
+                            }
+                        })
                         .collect::<Vec<_>>()
                         .join(", ");
                     passed.push(format!("mod_api::__private::{carrier} {{ {fields} }}"));
@@ -1033,27 +1243,42 @@ pub(super) fn emit<'a>(
                 parameter("entity_kind", "&str");
                 passed.push("entity_kind".to_owned());
             }
-            let receiver = match hook.receiver {
-                Receiver::Read => "&self",
-                Receiver::Write => "&mut self",
-                Receiver::Associated => "",
-            };
-            let signature = (!receiver.is_empty())
-                .then_some(receiver)
-                .into_iter()
-                .chain(parameters.iter().map(String::as_str))
-                .collect::<Vec<_>>()
-                .join(", ");
             let passed = passed.join(", ");
             let dispatch_call = if name == "add_pack_finders" {
                 format!("mod_api::dispatch_{name}_for({passed}, allow);")
             } else {
                 format!("mod_api::dispatch_{name}({passed});")
             };
-            fire.push_str(&format!(
-                "impl {receiver_impl} {{ #[inline] pub(super) fn fire_{name}({signature}) {{ {before} {dispatch_call} {after} }} }}\n"
-            ));
-            let receiver = if receiver.is_empty() {
+            fire.push(FireUnit {
+                name: name.to_owned(),
+                package,
+                owner,
+                side: hook.side,
+                carrier: fire_carrier,
+                receiver: if borrowed.is_some() {
+                    Receiver::Associated
+                } else {
+                    hook.receiver
+                },
+                parameters,
+                before,
+                dispatch: dispatch_call,
+                after,
+            });
+            let receiver = if let Some(binding) = binding.as_ref() {
+                match binding.kind {
+                    BindingKind::Shared => {
+                        forwarded.insert(0, "self".into());
+                        "crate::game::native_hooks::fire::FireHooks::"
+                    }
+                    BindingKind::Free | BindingKind::Borrowed(_) => {
+                        "crate::game::native_hooks::fire::"
+                    }
+                    _ => "self.",
+                }
+            } else if is_game_assoc {
+                "super::fire::"
+            } else if hook.receiver == Receiver::Associated {
                 "Self::"
             } else {
                 "self."
@@ -2136,6 +2361,7 @@ pub(super) fn emit<'a>(
         part_traits,
         fills,
         fire,
+        render_fire,
         hook_ids,
         hook_constants,
         cancel_hooks,
@@ -2175,6 +2401,7 @@ fn engine_types(ty: &mut Type, carrier: bool) {
 
 /// A carrier's fields, each type with its elided lifetimes named `'a`, and its generics.
 struct StackCrossing {
+    needs_receiver: bool,
     before: String,
     arguments: Vec<String>,
     validators: Vec<String>,
@@ -2194,6 +2421,13 @@ fn stack_crossing(
     stack_crossing_routed(
         args, output, false, false, hook_id, scoped, None, false, surfaces, None,
     )
+}
+
+#[derive(Clone, Copy)]
+struct EngineReceiver<'a> {
+    package: Option<crate::GameplayPackage>,
+    shared: bool,
+    expression: &'a str,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -2273,6 +2507,7 @@ fn reply_list(ty: &Type) -> Option<ListReply> {
     })
 }
 
+#[cfg(test)]
 fn stack_crossing_routed(
     args: &[(String, &Type)],
     output: Option<&(String, &Type)>,
@@ -2285,6 +2520,43 @@ fn stack_crossing_routed(
     surfaces: &std::collections::HashMap<&str, String>,
     trim_count_output: Option<&str>,
 ) -> Option<StackCrossing> {
+    stack_crossing_for(
+        EngineReceiver {
+            package: None,
+            shared: false,
+            expression: "self",
+        },
+        args,
+        output,
+        checked,
+        paired_hands,
+        hook_id,
+        scoped,
+        block_scope,
+        observer_routed,
+        surfaces,
+        trim_count_output,
+    )
+}
+
+fn stack_crossing_for(
+    engine_receiver: EngineReceiver<'_>,
+    args: &[(String, &Type)],
+    output: Option<&(String, &Type)>,
+    checked: bool,
+    paired_hands: bool,
+    hook_id: &str,
+    scoped: bool,
+    block_scope: Option<&str>,
+    observer_routed: bool,
+    surfaces: &std::collections::HashMap<&str, String>,
+    trim_count_output: Option<&str>,
+) -> Option<StackCrossing> {
+    let common = engine_receiver
+        .package
+        .map_or("crate", crate::GameplayPackage::common);
+    let receiver = engine_receiver.expression;
+    let mut needs_receiver = false;
     let parameters = args.iter().chain(output).collect::<Vec<_>>();
     if !parameters.iter().any(|(_, ty)| boundary_kind(ty).is_some()) {
         return None;
@@ -2298,28 +2570,38 @@ fn stack_crossing_routed(
         } else {
             ""
         };
-        before.push_str(&format!("if {source_route}!crate::game::api_values::block_state::block_listens(mod_api::HookId::{hook_id}, {key}) {{ return; }} "));
+        before.push_str(&format!("if {source_route}!{common}::game::api_values::block_state::block_listens(mod_api::HookId::{hook_id}, {key}) {{ return; }} "));
     }
     // A list only projects a value if the listener requests that element.
-    before.push_str("use crate::game::api_values::TryIntoApi; ");
+    before.push_str(&format!("use {common}::game::api_values::TryIntoApi; "));
     if parameters.iter().any(|(field, ty)| {
         trim_count_output != Some(field.as_str())
             && boundary_kind(ty).is_some()
             && mutable_pointee(ty).is_some()
     }) {
-        before.push_str("use crate::game::api_values::TryIntoEngine; ");
+        before.push_str(&format!("use {common}::game::api_values::TryIntoEngine; "));
     }
     if trim_count_output.is_some() {
-        before.push_str("use crate::game::api_values::TryIntoEnginePreservingCount; ");
+        before.push_str(&format!(
+            "use {common}::game::api_values::TryIntoEnginePreservingCount; "
+        ));
     }
     if parameters.iter().any(|(_, ty)| {
         boundary_kind(ty) == Some(ReplyBoundary::Items) && mutable_pointee(ty).is_some()
     }) {
-        before.push_str(if checked {
-            "let __boundary_items = self.stack_boundary_items(); "
+        if checked {
+            needs_receiver = true;
+            let items = if engine_receiver.shared {
+                format!(
+                    "{common}::game::item_snapshot::ItemSnapshotGameExt1::stack_boundary_items({receiver})"
+                )
+            } else {
+                format!("{receiver}.stack_boundary_items()")
+            };
+            before.push_str(&format!("let __boundary_items = {items}; "));
         } else {
-            "use crate::game::api_values::ItemBoundary; "
-        });
+            before.push_str(&format!("use {common}::game::api_values::ItemBoundary; "));
+        }
     }
     let mut arguments = Vec::new();
     let mut stack_validators = Vec::new();
@@ -2414,15 +2696,17 @@ fn stack_crossing_routed(
                     "match {local}.try_into_engine(&()) {{ Ok(value) => value, Err(_) => return }}"
                 )
             } else if block {
+                needs_receiver = true;
                 format!(
-                    "match {local}.try_into_engine(&*self) {{ Ok(value) => value, Err(error) => {{ log::warn!(\"mod block state write refused: {{error:?}}\"); return; }} }}"
+                    "match {local}.try_into_engine(&*{receiver}) {{ Ok(value) => value, Err(error) => {{ log::warn!(\"mod block state write refused: {{error:?}}\"); return; }} }}"
                 )
             } else if stack {
                 let result = format!("__checked_{name}");
                 if contains_boundary(ty, &["ParticleOptions"]) {
                     validations.push_str(&format!("let {result} = {local}.try_into_engine(&()); "));
                 } else {
-                    validations.push_str(&format!("let {result}: Result<_, mod_api::StackWriteError> = self.boundary_items().ok_or(mod_api::StackWriteError::Unavailable).and_then(|items| {local}.try_into_engine(items)); "));
+                    needs_receiver = true;
+                    validations.push_str(&format!("let {result}: Result<_, mod_api::StackWriteError> = {receiver}.boundary_items().ok_or(mod_api::StackWriteError::Unavailable).and_then(|items| {local}.try_into_engine(items)); "));
                 }
                 format!(
                     "match {result} {{ Ok(value) => value, Err(error) => {{ log::warn!(\"mod {} write refused: {{error:?}}\"); return; }} }}",
@@ -2461,6 +2745,7 @@ fn stack_crossing_routed(
         stack_validators.push("&mut __accept_hands".to_owned());
     }
     Some(StackCrossing {
+        needs_receiver,
         before,
         arguments,
         validators: stack_validators,
@@ -2475,6 +2760,32 @@ mod writeback_tests;
 #[cfg(test)]
 mod stack_crossing_tests {
     use super::*;
+
+    #[test]
+    fn checked_shared_stack_uses_the_original_receivers_snapshot() {
+        let stack: Type = syn::parse_quote!(&mut ItemStack);
+        let crossing = stack_crossing_for(
+            EngineReceiver {
+                package: Some(crate::GameplayPackage::Common),
+                shared: true,
+                expression: "self",
+            },
+            &[("stack".into(), &stack)],
+            None,
+            true,
+            false,
+            "Proof",
+            false,
+            None,
+            false,
+            &Default::default(),
+            None,
+        )
+        .unwrap();
+        assert!(crossing.before.contains(
+            "crate::game::item_snapshot::ItemSnapshotGameExt1::stack_boundary_items(self)"
+        ));
+    }
 
     #[test]
     #[ignore = "daily"]
@@ -3340,10 +3651,136 @@ fn main() {{
     }
 
     #[test]
+    fn fire_units_keep_side_and_owner_with_their_adapter() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let catalog = crate::gameplay::Routing::load(&root)
+            .unwrap()
+            .catalog(&root)
+            .unwrap();
+        let names = [
+            "can_start_swimming",
+            "block_entity_on_load",
+            "tick_block",
+            "render_gui_post",
+            "living_drown",
+        ];
+        let hooks: Vec<_> = names
+            .iter()
+            .map(|name| {
+                catalog
+                    .hooks
+                    .iter()
+                    .find(|hook| hook.name == *name)
+                    .unwrap()
+            })
+            .collect();
+        let mut direct = hooks[0].clone();
+        direct.dispatch = DispatchStyle::Direct;
+        let output = emit(hooks.iter().copied(), &catalog.draw_contexts, true).unwrap();
+        let units = &output.fire;
+        assert_eq!(units.len(), 4);
+        assert_eq!(units[0].side, Side::Both);
+        assert_eq!(units[0].receiver, Receiver::Read);
+        assert!(matches!(units[0].owner, FireOwner::Shared));
+        assert!(matches!(units[1].owner, FireOwner::Free));
+        assert!(units[1].carrier.is_none());
+        assert!(render_fire(&units[1..2]).contains("mod_api::__private::BlockEntityOnLoadCall"));
+        assert_eq!(units[2].side, Side::Server);
+        assert!(matches!(&units[2].owner, FireOwner::Scoped(owner) if owner.ident == "GameLevel"));
+        let server = render_fire(&units[2..3]);
+        assert!(server.contains("LevelTicks::new(self, ticks)"));
+        assert!(!server.contains("DrawContext"));
+        assert_eq!(units[3].side, Side::Client);
+        let client = render_fire(&units[3..]);
+        assert!(client.contains("GameDrawContext::stage"));
+        assert!(!client.contains("LevelTicks"));
+        assert!(
+            emit(std::iter::once(&direct), &catalog.draw_contexts, true)
+                .unwrap()
+                .fire
+                .is_empty()
+        );
+    }
+
+    #[test]
+    #[ignore = "daily"]
+    fn one_borrowed_game_adapter_compiles_for_both_concrete_callers() {
+        let hook = Hook {
+            receiver: Receiver::Read,
+            host: Some(HostAccess::Read),
+            dispatch: DispatchStyle::Flat,
+            ..Hook::sample(
+                "sunrise_client::game::native_hooks::Game<'_>::native_test",
+                Side::Both,
+            )
+        };
+        let fire = render_fire(&emit(std::iter::once(&hook), &[], true).unwrap().fire);
+        let fixture = tempfile::tempdir().unwrap();
+        let path = fixture.path().join("fire.rs");
+        fs::write(
+            &path,
+            format!(
+                r#"
+extern crate self as mod_api;
+fn dispatch_test(_: &dyn game::Host) {{}}
+mod game {{
+    pub trait Host {{}}
+    pub trait Side: Sized {{
+        fn as_host<'a>(game: &'a Game<'_, Self>) -> &'a dyn Host;
+    }}
+    pub struct Client;
+    pub struct Server;
+    pub struct Game<'g, S>(&'g S);
+    impl<S> Host for Game<'_, S> {{}}
+    impl Side for Client {{
+        fn as_host<'a>(game: &'a Game<'_, Self>) -> &'a dyn Host {{ game }}
+    }}
+    impl Side for Server {{
+        fn as_host<'a>(game: &'a Game<'_, Self>) -> &'a dyn Host {{ game }}
+    }}
+    mod fire {{ {fire} }}
+    pub fn run() {{
+        let client = Game(&Client);
+        let server = Game(&Server);
+        let _ = (client.0, server.0);
+        client.fire_test();
+        server.fire_test();
+    }}
+}}
+fn main() {{ game::run(); }}
+"#
+            ),
+        )
+        .unwrap();
+        let compile = Command::new("rustc")
+            .args(["--edition=2024", "-Dwarnings"])
+            .arg(&path)
+            .arg("--out-dir")
+            .arg(fixture.path())
+            .output()
+            .unwrap();
+        assert!(
+            compile.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compile.stderr)
+        );
+        assert!(
+            Command::new(
+                fixture
+                    .path()
+                    .join(format!("fire{}", std::env::consts::EXE_SUFFIX))
+            )
+            .status()
+            .unwrap()
+            .success()
+        );
+    }
+
+    #[test]
     #[ignore = "daily"]
     fn scoped_native_hook_uses_selected_host_and_game_hooks_keep_their_receiver() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let fire = super::super::game_hook_sources(&root).unwrap().fire;
+        let fire = super::super::game_fire_source(&root).unwrap();
         let compact: String = fire.chars().filter(|c| !c.is_whitespace()).collect();
         assert!(compact.contains("mod_api::dispatch_living_change_target(self.host,call)"));
         assert!(
@@ -3394,7 +3831,7 @@ fn main() {{
                 ("can_perform".into(), "&mut bool".into()),
             ],
             ..Hook::sample(
-                "sunrise_client::game::Game<'_>::native_can_perform_action",
+                "sunrise_gameplay_common::game::native_hooks::can_perform_action::native_can_perform_action",
                 Side::Both,
             )
         };
@@ -3424,13 +3861,12 @@ fn main() {{
             "pubstructCanPerformActionEvent<'a>{pubstack:ItemStackView<'a>,pubability:&'astr,pubcan_perform:bool,}"
         ));
         assert!(dispatch.contains("item_id(stack.item())"));
-        let fire: String = emitted
-            .fire
+        let fire: String = render_fire(&emitted.fire)
             .chars()
             .filter(|c| !c.is_whitespace())
             .collect();
         assert!(fire.contains(
-            "pub(super)fnfire_can_perform_action(context:&mod_api::ItemAbilityContext<'_>,call:mod_api::__private::CanPerformActionCall<'_>){mod_api::dispatch_can_perform_action(context,call);}"
+            "pubfnfire_can_perform_action(context:&mod_api::ItemAbilityContext<'_>,call:mod_api::__private::CanPerformActionCall<'_>){mod_api::dispatch_can_perform_action(context,call);}"
         ));
     }
 

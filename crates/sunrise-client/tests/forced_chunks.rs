@@ -21,7 +21,9 @@ use sunrise_client::{
     mesher::MeshTables,
     models,
     section_mask::SectionMask,
-    streaming::{ChunkGenerator, Proto, Streaming, WorkerContext},
+    streaming::{
+        ChunkGenerator, ChunkWorkerContext, MeshStreamer, MeshWorkerContext, Proto, WorkerContext,
+    },
     world::World,
 };
 use sunrise_world::registry::BlockStateId;
@@ -86,29 +88,33 @@ fn forced_chunks_reach_vanillas_rings() {
     };
     let assets = Arc::new(Assets::load(&root).unwrap());
     let render = Arc::new(
-        assets
-            .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
+        sunrise_client::assets::RenderAssets::load(
+            &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
+        )
+        .unwrap(),
     );
     let facts = BlockFacts::load(&root, assets.registry).unwrap();
     let visibility = models::load_visibility(&root, assets.registry).unwrap();
     let context = Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-        biomes: Arc::new(
-            Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
-        ),
-        assets,
-        render: render.clone(),
-        hidden_states: Arc::from([]),
-        part_tables: Default::default(),
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
+            biomes: Arc::new(
+                Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
+                    root.to_path_buf(),
+                ))
+                .unwrap(),
+            ),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
+            render: render.clone(),
+            hidden_states: Arc::from([]),
+            part_tables: Default::default(),
+        },
     });
-    let mut streaming = Streaming::new(Arc::new(Plain), context, 2);
+    let mut streaming = MeshStreamer::new(Arc::new(Plain), context, 2);
     // The player stands far away: only the forced chunk's own rings are
     // generated.
     streaming.center = (0, 0);

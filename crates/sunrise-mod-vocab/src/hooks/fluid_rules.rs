@@ -17,7 +17,7 @@ pub trait Hooks {
         key = "fluid",
         version = 2,
         neoforge = "none (BaseFlowingFluid.getTickDelay, getDropOff, getSlopeFindDistance and FluidType.canConvertToSource are overrides; NeoForge adds no event)",
-        target = "sunrise_client::game::native_hooks::fluid_rules::GameLevel<'_>::native_fluid_rules"
+        target = "sunrise_gameplay_common::game::native_hooks::fluid_rules::GameLevel<'_>::native_fluid_rules"
     )]
     fn fluid_rules(
         dimension: LevelDimension,

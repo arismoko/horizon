@@ -1,4 +1,4 @@
-sunrise-client game::mod_menu_decisions_tests::a_code_opened_menus_button_reaches_a_blocks_menu_button_only_for_its_menu_type lib daily resources
-sunrise-client game::native_hooks::screen_position_tests::a_mod_blocks_custom_menu_gets_its_registered_screen lib daily child-process
-sunrise-client game::native_hooks::screen_position_tests::a_mod_menu_opened_without_a_block_gets_its_types_screen lib daily resources
-sunrise-client game::native_hooks::screen_position_tests::custom_menu_screens_route_by_menu_type_and_allow_cross_mod_slot_controls lib daily child-process
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::a_code_opened_menus_button_reaches_a_blocks_menu_button_only_for_its_menu_type lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::screen_position_tests::a_mod_blocks_custom_menu_gets_its_registered_screen lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::screen_position_tests::a_mod_menu_opened_without_a_block_gets_its_types_screen lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::screen_position_tests::custom_menu_screens_route_by_menu_type_and_allow_cross_mod_slot_controls lib daily child-process

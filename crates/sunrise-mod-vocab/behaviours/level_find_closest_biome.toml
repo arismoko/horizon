@@ -2,5 +2,5 @@ version = 1
 handle = "handle:LevelRef::find_closest_biome"
 doc = "LevelRef::find_closest_biome accepts any nonnegative radius with a positive horizontal step and no pre-search sample budget, searching the named level's generator without loading resident chunks."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_refs.rs::closest_biome_uses_the_named_generator_without_loading_resident_chunks",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_refs.rs::closest_biome_uses_the_named_generator_without_loading_resident_chunks",
 ]

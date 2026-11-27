@@ -6,7 +6,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1] / 'crates'
 FIXTURES = {
-    'sunrise-client-core/src/block_entity_types.rs': [
+    'sunrise-game-data/src/block_entity_types.rs': [
         ['mod:own', 'mod:other'], ['test:machine', 'test:single', 'test:empty'], ['test:machine'],
     ],
     'sunrise-client/src/block_entity_item.rs': [['example:crate', 'example:tank']],

@@ -93,8 +93,8 @@ def run_side(label, command, client_command, build, world):
 
 def main():
     lock, build, vanilla, sunrise, client = net.sides('tick-step-network-parity')
-    sources = [lab.ROOT / 'crates/sunrise-client/src/clock.rs',
-               lab.ROOT / 'crates/sunrise-client/src/lan/hub.rs',
+    sources = [lab.ROOT / 'crates/sunrise-sim/src/clock.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/lan/hub.rs',
                lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/LocatorBarClient.java',
                lab.ROOT / 'tools/test_locator_bar_parity.py',
                lab.ROOT / 'tools/test_dedicated_server_parity.py', lab.ROOT / __file__]

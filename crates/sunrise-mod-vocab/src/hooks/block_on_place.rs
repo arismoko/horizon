@@ -24,7 +24,7 @@ pub trait Hooks {
         contract = "listen",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::block_on_place::GameLevel<'_>::native_on_place",
+        target = "sunrise_gameplay_common::game::native_hooks::block_on_place::GameLevel<'_>::native_on_place",
         neoforge = "none (vanilla BlockBehaviour.onPlace; NeoForge adds no event or extension for it)"
     )]
     fn on_place(

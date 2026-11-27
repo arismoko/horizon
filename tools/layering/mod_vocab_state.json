@@ -209,6 +209,11 @@
     "category": "dispatch table",
     "reason": "Thread-local dispatch inventory for isolated engine tests."
   },
+  "testing/engine_platform.rs::PLATFORM": {
+    "type": "OnceLock<EngineTestPlatform>",
+    "category": "test-support",
+    "reason": "Compiled only under the testing feature, never in a production build. Set once by the platform crate's test support with the callbacks engine test fixtures need (game key registration, the parts fixture, running with installed mods), so engine crates reach them without depending on the platform; holds no live authoring requests."
+  },
   "world/inside_write.rs::SPARE_SWEEP": {
     "type": "std::cell::RefCell<Option<Box<SweepScratch>>>",
     "category": "scratch buffer",

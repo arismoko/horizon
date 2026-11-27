@@ -1,0 +1,55 @@
+# Synthetic game lock for the five Git patches. The repeated-digit rev is a fixture, not a real commit.
+version = 4
+
+[[package]]
+name = "naga"
+version = "29.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # unchanged registry row
+
+[[package]]
+name = "naga"
+version = "30.0.1"
+dependencies = [
+ "naga-types",
+]
+
+[[package]]
+name = "naga-types"
+version = "30.0.1"
+
+[[package]]
+name = "wgpu"
+version = "30.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+dependencies = [
+ "wgpu-core",
+]
+
+[[package]]
+name = "wgpu-core"
+version = "30.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+dependencies = [
+ "naga 29.0.0",
+ "naga 30.0.1",
+ "wgpu-hal",
+ "wgpu-types",
+]
+
+[[package]]
+name = "wgpu-hal"
+version = "30.0.1"
+dependencies = [
+ "wgpu-naga-bridge",
+]
+
+[[package]]
+name = "wgpu-naga-bridge"
+version = "30.0.1"
+
+[[package]]
+name = "wgpu-types"
+version = "30.0.1"

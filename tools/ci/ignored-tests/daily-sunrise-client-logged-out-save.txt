@@ -1,3 +1,3 @@
 # player_logged_out before the leaving player is saved (#4484): guests in a world loaded from the prepared resources, each case in a fresh child process. Rows: PACKAGE TEST TARGET daily REASON, sorted.
-sunrise-client game::native_hooks::player_leave::player_leave_tests::a_sleeping_player_wakes_before_logging_out lib daily child-process
-sunrise-client game::native_hooks::player_leave::player_leave_tests::what_a_listener_changes_on_a_leaving_player_is_saved lib daily child-process
+sunrise-client cut_layout::game::native_hooks::player_leave::player_leave_tests::a_sleeping_player_wakes_before_logging_out lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::player_leave::player_leave_tests::what_a_listener_changes_on_a_leaving_player_is_saved lib daily child-process

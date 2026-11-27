@@ -794,31 +794,19 @@ fn an_internal_declared_without_a_kind_is_named_when_it_becomes_another_kind() {
 fn generated_loops_compare_each_function_and_keep_the_slot_contract() {
     use sunrise_platform::mod_build::api_gen::{functions, internals, loops};
     const GAME: &str = r#"
-struct Game;
+struct ServerGame;
 trait Slot { fn update(&mut self); }
-impl Game {
+impl ServerGame {
     #[sunrise_mod_api_macros::sunrise_loop(name = "ticks", side = "server")]
     fn tick(&mut self) { self.tick_with(&mut ()) }
     fn tick_with<S: Slot>(&mut self, slot: &mut S) { slot.update(); }
 }
 fn inspect() -> u32 { 1 }
 "#;
-    const INTERNAL: &str = "sunrise_client::game::inspect";
-    const GENERIC: &str = "sunrise_client::game::Game::tick_with";
+    const INTERNAL: &str = "sunrise_gameplay::game::inspect";
+    const GENERIC: &str = "sunrise_gameplay::game::ServerGame::tick_with";
     let source = tempfile::tempdir().unwrap();
-    for (path, text) in [
-        (
-            "crates/sunrise-client/Cargo.toml",
-            "[package]\nname='sunrise-client'\n",
-        ),
-        ("crates/sunrise-client/src/lib.rs", "pub mod game;"),
-        ("crates/sunrise-client/src/entry.rs", ""),
-        ("crates/sunrise-mod-api-gen/internals.txt", ""),
-    ] {
-        let path = source.path().join(path);
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(path, text).unwrap();
-    }
+    let game = crate::tests::split_source(source.path()).join("game.rs");
     let dir = project_dir("fit-generated-loop", None, None);
     let manifest = dir.join(crate::NATIVE_MANIFEST);
     let text = std::fs::read_to_string(&manifest).unwrap()
@@ -832,7 +820,7 @@ fn inspect() -> u32 { 1 }
     let data = tempfile::tempdir().unwrap();
     let generate = |text| {
         let source = source.path();
-        std::fs::write(source.join("crates/sunrise-client/src/game.rs"), text).unwrap();
+        std::fs::write(&game, text).unwrap();
         let loops = loops::collect(source).unwrap();
         let generic = loops
             .iter()

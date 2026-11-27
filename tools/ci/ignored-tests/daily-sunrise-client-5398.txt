@@ -1,4 +1,4 @@
-sunrise-client game::native_entity_layers_tests::hiding_player_chestplate_and_redrawing_conditionally_matches_baseline lib daily child-process
-sunrise-client game::native_entity_layers_tests::hiding_snow_golem_head_removes_the_carved_pumpkin_and_lists_it lib daily child-process
-sunrise-client game::native_entity_layers_tests::refused_stock_hides_and_draws_and_rollback_on_layer_failure lib daily child-process
+sunrise-client cut_layout::game::native_entity_layers_tests::hiding_player_chestplate_and_redrawing_conditionally_matches_baseline lib daily child-process
+sunrise-client cut_layout::game::native_entity_layers_tests::hiding_snow_golem_head_removes_the_carved_pumpkin_and_lists_it lib daily child-process
+sunrise-client cut_layout::game::native_entity_layers_tests::refused_stock_hides_and_draws_and_rollback_on_layer_failure lib daily child-process
 sunrise-client-render gfx::entity_pixel_test::see_through_tests::secondary_views_draw_foil_without_unrelated_energy_swirl lib daily slow

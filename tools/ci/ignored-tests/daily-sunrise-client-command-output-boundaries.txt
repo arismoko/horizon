@@ -1,2 +1,2 @@
-sunrise-client game::native_server::command_failure_tests::cart_failure_metadata_keeps_timestamp_and_literal_fragments lib daily child-process
-sunrise-client game::native_server::command_failure_tests::tracked_executor_failure_survives_saved_depth_boundary lib daily child-process
+sunrise-client cut_layout::game::native_server::command_failure_tests::cart_failure_metadata_keeps_timestamp_and_literal_fragments lib daily child-process
+sunrise-client cut_layout::game::server_side::native_server_server::command_failure_tests::tracked_executor_failure_survives_saved_depth_boundary lib daily child-process

@@ -1,3 +1,3 @@
-sunrise-client game::equip_answers::tests::missing_and_despawned_entities_refuse_but_no_listener_keeps_data lib daily resources
-sunrise-client game::native_hooks::menu_extra_data::menu_extra_data_tests::malformed_menu_extra_payload_disconnects_client lib daily resources
-sunrise-client game::native_level_refs::tests::a_level_rng_draws_survive_transaction_abort_on_active_and_parked_levels lib daily resources
+sunrise-client cut_layout::game::equip_answers::tests::missing_and_despawned_entities_refuse_but_no_listener_keeps_data lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::menu_extra_data::menu_extra_data_tests::malformed_menu_extra_payload_disconnects_client lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_refs::tests::a_level_rng_draws_survive_transaction_abort_on_active_and_parked_levels lib daily resources

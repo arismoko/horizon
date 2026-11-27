@@ -1,1 +1,1 @@
-sunrise-client game::block_entity_ticks::own_block_entity_tests::level_block_entities_name_each_type_while_taken_out_or_parked lib daily child-process
+sunrise-client cut_layout::game::server_side::block_entity_ticks::own_block_entity_tests::level_block_entities_name_each_type_while_taken_out_or_parked lib daily child-process

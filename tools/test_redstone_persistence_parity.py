@@ -39,7 +39,7 @@ def main():
     env = lab.game_env(SUNRISE_TEST_RESOURCES=resources, SUNRISE_PERSISTENCE_ORACLE=reference)
     executables = [lab.parity_fixtures()]
     with tempfile.TemporaryDirectory(prefix='sunrise-redstone-persistence-') as scratch:
-        result = subprocess.run([executables[0], 'game::persist::tests::comparator_and_hopper_live_state_survives_chunk_reload',
+        result = subprocess.run([executables[0], 'game::server_side::persist::tests::comparator_and_hopper_live_state_survives_chunk_reload',
                                  '--ignored', '--exact', '--nocapture'], cwd=scratch, env=env,
                                 capture_output=True, text=True, timeout=180)
         print(result.stdout + result.stderr)

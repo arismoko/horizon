@@ -5,7 +5,7 @@ pub trait Hooks {
     /// zero for an entity; `entity_id` is zero for a block. The player's state is swapped in. Set
     /// `cancel` to leave the inventory and client unchanged.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_pick_item",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_pick_item",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

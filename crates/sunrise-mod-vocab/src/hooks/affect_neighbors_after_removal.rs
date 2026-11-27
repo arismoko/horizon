@@ -16,7 +16,7 @@ pub trait Hooks {
         out = "updates",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::affect_neighbors_after_removal::GameLevel<'_>::native_affect_neighbors_after_removal",
+        target = "sunrise_gameplay_common::game::native_hooks::affect_neighbors_after_removal::GameLevel<'_>::native_affect_neighbors_after_removal",
         neoforge = "none (vanilla Block.affectNeighborsAfterRemoval; NeoForge adds no event or extension for it)"
     )]
     fn affect_neighbors_after_removal(

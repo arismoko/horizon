@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_data::tests::an_entity_types_category_reads_without_an_entity lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_data::tests::an_entity_types_category_reads_without_an_entity lib daily resources

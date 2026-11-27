@@ -21,7 +21,7 @@ pub trait Hooks {
     /// release or its separate characters: see `screen_key_released_pre` and
     /// `screen_char_typed_pre`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_screen_key_pressed_pre",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_screen_key_pressed_pre",
         receiver = "read",
         dispatch = "flat",
         side = "client",

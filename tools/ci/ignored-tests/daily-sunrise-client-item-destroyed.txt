@@ -1,7 +1,7 @@
 # The item_destroyed tests use prepared resources.
-sunrise-client game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_bundle_listener_sees_original_contents_before_spill lib daily resources
-sunrise-client game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_does_not_fire_on_kill_void_or_despawn lib daily resources
-sunrise-client game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_fires_from_native_mod_entity_hurt lib daily resources
-sunrise-client game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_fires_on_cactus_fire_and_lava_through_world_tick lib daily resources
-sunrise-client game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_fires_on_damage_command_and_explosion lib daily resources
-sunrise-client game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_panic_rolls_back_writes_and_keeps_vanilla_bundle_drops lib daily resources
+sunrise-client cut_layout::game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_bundle_listener_sees_original_contents_before_spill lib daily resources
+sunrise-client cut_layout::game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_does_not_fire_on_kill_void_or_despawn lib daily resources
+sunrise-client cut_layout::game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_fires_from_native_mod_entity_hurt lib daily resources
+sunrise-client cut_layout::game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_fires_on_cactus_fire_and_lava_through_world_tick lib daily resources
+sunrise-client cut_layout::game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_fires_on_damage_command_and_explosion lib daily resources
+sunrise-client cut_layout::game::native_hooks::item_destroyed::item_destroyed_tests::item_destroyed_panic_rolls_back_writes_and_keeps_vanilla_bundle_drops lib daily resources

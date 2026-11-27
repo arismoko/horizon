@@ -1,7 +1,7 @@
 //! Persistent registry holders used by animal item components.
 use super::resolvable::identifier;
-use sunrise_client_core::registries::Registries;
 use sunrise_core::nbt::Tag;
+use sunrise_game_data::registries::Registries;
 
 /// `DataComponents`: these codecs use registry references, never inline records.
 pub fn registry(component: &str) -> Option<&'static str> {

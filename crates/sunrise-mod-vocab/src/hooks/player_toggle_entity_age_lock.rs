@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player toggled an ageable mob's age lock with a golden
     /// dandelion, after the lock and item use changed.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_toggle_entity_age_lock",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_toggle_entity_age_lock",
         dispatch = "flat",
         side = "server",
         contract = "listen",

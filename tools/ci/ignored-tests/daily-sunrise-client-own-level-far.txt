@@ -1,2 +1,2 @@
-sunrise-client game::native_passage_cross::tests::a_far_end_an_own_level_area_sends_is_tracked lib daily resources
-sunrise-client game::viewed_worlds::tests::a_far_column_is_kept_past_the_view_until_released lib daily resources
+sunrise-client cut_layout::game::native_passages::cross_tests::a_far_end_an_own_level_area_sends_is_tracked lib daily resources
+sunrise-client cut_layout::game::client_side::viewed_worlds::tests::a_far_column_is_kept_past_the_view_until_released lib daily resources

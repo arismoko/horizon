@@ -1,1 +1,1 @@
-sunrise-client game::slot_rules_tests::nested_menu_reads_use_base_slot_rules lib daily resources
+sunrise-gameplay game::slot_rules_tests::nested_menu_reads_use_base_slot_rules lib daily resources

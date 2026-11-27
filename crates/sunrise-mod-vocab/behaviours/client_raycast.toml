@@ -1,5 +1,5 @@
 version = 1
 doc = "ClientViewClientHost::raycast walks the loaded blocks of the viewed level for the given distance with no Sunrise-only distance cap, with far terrain on or off."
 tests = [
-    "crates/sunrise-client/src/game/modding/mod_raycast_tests.rs::mod_raycasts_hit_loaded_blocks_only_with_far_terrain_on_or_off",
+    "crates/sunrise-client/src/cut_layout/game/modding/mod_raycast_tests.rs::mod_raycasts_hit_loaded_blocks_only_with_far_terrain_on_or_off",
 ]

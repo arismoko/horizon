@@ -34,7 +34,7 @@ class Budgets(unittest.TestCase):
 
     def test_generated_absolute_location_uses_only_this_checkout_root(self):
         root = Path(ci.__file__).resolve().parents[2]
-        path = 'crates/sunrise-client/src/game/administration/commands/incoming_tests/knot_identity.rs'
+        path = 'crates/sunrise-client/src/cut_layout/game/administration/commands/incoming_tests/knot_identity.rs'
         location = f'{root / path}:176:1'
         log = self.render(f"test safe ... FAILED\nthread 'safe' panicked at {location}:\n"
                           "assertion failed: PRIVATE\n")
@@ -200,17 +200,17 @@ class Budgets(unittest.TestCase):
         ci.tracked_rust_paths.cache_clear()
         ci.source_lines.cache_clear()
         # The integration split leaves motion.rs at 5,793 lines; 5000 is still inside it.
-        for location in ('crates/sunrise-client/src/motion.rs:5000:9',
-                         'crates/sunrise-client-lib/../sunrise-client/src/motion.rs:5000:9'):
+        for location in ('crates/sunrise-sim/src/motion.rs:5000:9',
+                         'crates/sunrise-client-lib/../sunrise-sim/src/motion.rs:5000:9'):
             log = self.render("test motion::tests::resident_fluid_heights_are_measured_from_the_feet ... FAILED\n"
                               "thread 'motion::tests::resident_fluid_heights_are_measured_from_the_feet' panicked at "
                               f"{location}:\nassertion `left == right` failed\n left: 1\n right: 2\n")
-            self.assertIn('  panicked at crates/sunrise-client/src/motion.rs:5000:9', log)
+            self.assertIn('  panicked at crates/sunrise-sim/src/motion.rs:5000:9', log)
             self.assertIn('0 locations withheld', log)
         # Past the read bound a tracked source still stays withheld.
         ci.tracked_rust_paths.cache_clear()
         with patch.object(ci, 'SOURCE_BYTES', 1000):
-            log = self.render("test t ... FAILED\nthread 't' panicked at crates/sunrise-client/src/motion.rs:1:1:\n"
+            log = self.render("test t ... FAILED\nthread 't' panicked at crates/sunrise-sim/src/motion.rs:1:1:\n"
                               "assertion failed: x\n")
         self.assertIn('panic location withheld', log)
         ci.tracked_rust_paths.cache_clear()

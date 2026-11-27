@@ -1,2 +1,2 @@
-sunrise-client game::client_cracks::tests::crack_positions_are_scoped_stored_bounded_and_cleared_for_both_sources lib daily resources
-sunrise-client game::client_cracks::tests::reentrant_same_stage_client_crack_update_dispatches_once lib daily resources
+sunrise-client cut_layout::game::client_side::client_cracks::tests::crack_positions_are_scoped_stored_bounded_and_cleared_for_both_sources lib daily resources
+sunrise-client cut_layout::game::client_side::client_cracks::tests::reentrant_same_stage_client_crack_update_dispatches_once lib daily resources

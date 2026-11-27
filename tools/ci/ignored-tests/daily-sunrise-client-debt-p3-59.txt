@@ -1,4 +1,4 @@
 # P3-59: pickup_xp live ExperienceOrbRef edits, veto ordering, multi-listener visibility and cooldown gating.
-sunrise-client game::lan_actions::pickup_xp_tests::pickup_xp_cancel_cooldown_and_multi_listener_live_orb_edits lib daily resources
-sunrise-client game::lan_actions::pickup_xp_tests::pickup_xp_count_edits_enforce_positive_int_and_kill_discards_without_delay lib daily resources
-sunrise-client game::lan_actions::pickup_xp_tests::pickup_xp_value_edits_keep_signed_vanilla_semantics_independently_of_count lib daily resources
+sunrise-gameplay game::lan_actions::pickup_xp_tests::pickup_xp_cancel_cooldown_and_multi_listener_live_orb_edits lib daily resources
+sunrise-gameplay game::lan_actions::pickup_xp_tests::pickup_xp_count_edits_enforce_positive_int_and_kill_discards_without_delay lib daily resources
+sunrise-gameplay game::lan_actions::pickup_xp_tests::pickup_xp_value_edits_keep_signed_vanilla_semantics_independently_of_count lib daily resources

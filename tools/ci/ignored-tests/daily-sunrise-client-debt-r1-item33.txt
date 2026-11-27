@@ -1,2 +1,2 @@
-sunrise-client game::raids::spawn_placement_tests::patrols_and_sieges_bypass_registered_predicates_and_placement_listeners lib daily resources
-sunrise-client game::raids::spawn_placement_tests::placement_listener_draws_after_the_registered_predicate_on_the_callers_stream lib daily resources
+sunrise-client cut_layout::game::server_side::raids::spawn_placement_tests::patrols_and_sieges_bypass_registered_predicates_and_placement_listeners lib daily resources
+sunrise-client cut_layout::game::server_side::raids::spawn_placement_tests::placement_listener_draws_after_the_registered_predicate_on_the_callers_stream lib daily resources

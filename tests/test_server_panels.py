@@ -16,11 +16,13 @@ START = SERVER / "panel-start.sh"
 AMP = SERVER / "amp"
 INIT_RS = (ROOT / "crates/sunrise-server/src/init.rs").read_text()
 CONFIG_RS = (ROOT / "crates/sunrise-server-launch/src/config.rs").read_text()
-DEDICATED_RS = (next(ROOT.glob('crates/sunrise-client/src/game/*/dedicated/mod.rs'))).read_text()
+DEDICATED_RS = (ROOT / "crates/sunrise-gameplay/src/game/interface/dedicated/mod.rs").read_text()
 # The leave lines are logged by the shared leave path (native_hooks/player_leave.rs).
-LAN_RS = (ROOT / "crates/sunrise-client/src/game/network/lan/mod.rs").read_text() + (
-    ROOT / "crates/sunrise-client/src/game/native_hooks/player_leave.rs"
-).read_text()
+LAN_RS = (
+    (ROOT / "crates/sunrise-gameplay/src/game/network/lan/mod.rs").read_text()
+    + (ROOT / "crates/sunrise-gameplay-common/src/game/native_hooks/player_leave.rs").read_text()
+    + (ROOT / "crates/sunrise-gameplay/src/game/native_hooks/player_leave_server.rs").read_text()
+)
 
 # Read at install only, so init.rs does not know them.
 INSTALL_ONLY = {"SUNRISE_VERSION"}

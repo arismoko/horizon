@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// An item was placed on a campfire at `pos` and began cooking.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_campfire_start",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_campfire_start",
         dispatch = "flat",
         side = "server",
         contract = "listen",

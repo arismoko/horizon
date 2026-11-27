@@ -17,7 +17,7 @@ pub trait Hooks {
     /// normally, resolve `host.level(dimension)`, call `level.dispense_default(host, pos, facing, stack)`,
     /// and answer `(remainder, 1000)` on `Ok(remainder)`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_dispense_item",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_dispense_item",
         dispatch = "flat",
         side = "server",
         contract = "replace",

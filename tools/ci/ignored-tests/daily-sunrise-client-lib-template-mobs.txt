@@ -1,2 +1,2 @@
-sunrise-client-lib mobs::template_mob_tests::a_mod_type_on_the_drowned_swims_and_fights_in_water lib daily resources
-sunrise-client-lib mobs::template_mob_tests::a_mod_type_on_the_skeleton_draws_and_shoots_an_arrow lib daily resources
+sunrise-sim mobs::template_mob_tests::a_mod_type_on_the_drowned_swims_and_fights_in_water lib daily resources
+sunrise-sim mobs::template_mob_tests::a_mod_type_on_the_skeleton_draws_and_shoots_an_arrow lib daily resources

@@ -24,7 +24,7 @@ pub trait Hooks {
 - Version 2 adds `into_value`, `into_count` and `from_count`; rebuild listeners against this SDK.
 - Version 3: a value written to `into` here is held live over the full signed `i32` range (a write of 40,000 stays 40,000 on the merged orb); only saving narrows `Value` to `(short)`, as `ExperienceOrb.addAdditionalSaveData` does. Version 2 refused a value outside a short during the merge."#]
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_experience_orb_merge",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_experience_orb_merge",
         dispatch = "api_carrier",
         side = "server",
         contract = "cancel",

@@ -1,4 +1,4 @@
 # Daily rows for #5012: a mod cancels the night skip, then the same sleepers skip it; a mod that unsettles the sleepers keeps the night; on the guest fixture.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::lan_actions::sleep::sleep_skip_night_tests::a_canceled_skip_keeps_the_clock_the_sleepers_and_the_rain lib daily resources
-sunrise-client game::lan_actions::sleep::sleep_skip_night_tests::a_listener_that_unsettles_the_sleepers_keeps_the_night lib daily resources
+sunrise-gameplay game::server_side::lan_actions_server::sleep::sleep_skip_night_tests::a_canceled_skip_keeps_the_clock_the_sleepers_and_the_rain lib daily resources
+sunrise-gameplay game::server_side::lan_actions_server::sleep::sleep_skip_night_tests::a_listener_that_unsettles_the_sleepers_keeps_the_night lib daily resources

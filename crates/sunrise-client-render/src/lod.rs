@@ -7,8 +7,6 @@ use crate::{
     mesher::SectionMesh,
     streaming::{LodSource, WorkerContext},
 };
-pub mod bake;
-pub mod cache;
 mod detail;
 mod kept;
 mod mesh;
@@ -26,11 +24,12 @@ use std::{
 };
 use sunrise_world::registry::BlockStateId;
 
-const CELLS: usize = 16;
+pub use sunrise_level::lod_data::{
+    CELLS, Column, MAX_CHUNKS, MAX_LEVEL, MAX_ZOOM_BOOST, OBSERVE_AHEAD, Span, Spans, TileKey,
+    ZOOM_YAW_STEP, ZoomAim, bake, cache, decoration_threads,
+};
+
 const MAX_SAVED: usize = 1024;
-/// How many resident chunks may wait for the worker's summary at once
-/// (`Lod::observing`).
-pub const OBSERVE_AHEAD: usize = 8;
 /// How long a tile whose sample waited for data (`Lod::finish_waited`) waits
 /// before it is sampled again without word of it.
 const WAIT_RETRY: std::time::Duration = std::time::Duration::from_secs(10);
@@ -73,12 +72,6 @@ fn meshing_threads(cores: usize) -> usize {
         .saturating_sub(sampling_threads(cores) + 1)
         .clamp(1, 16)
 }
-/// Far decoration's threads (`vanillagen::lod`): a fifth of the cores. They
-/// run at idle priority, but on the same cores as the frame and the near
-/// chunks all the same.
-pub fn decoration_threads(cores: usize) -> usize {
-    (cores / 5).clamp(1, 12)
-}
 /// While the near terrain loads on a machine with four threads or fewer, far
 /// terrain starts one sample job at most this often and no detail: it would
 /// otherwise take the cores the near chunks and the frame need.
@@ -86,117 +79,9 @@ const HELD_SAMPLE_STEP: std::time::Duration = std::time::Duration::from_millis(5
 /// How long a tile whose sampling failed (`LodSampler::grid` gave no
 /// columns: a server refused or lost it) waits before it is asked again.
 const RETRY: std::time::Duration = std::time::Duration::from_secs(2);
-/// The most a tile a zoomed view magnifies may split past the plan it would
-/// have had ([`ZoomAim`]): cells three times smaller, so nine times the tiles
-/// where it applies. A spyglass covers about a sixteenth of the circle, so at
-/// the 4078 tiles and ~1500 quads a tile measured at `lodDistance` 256 this
-/// asks for roughly 45% more far tiles while the zoom is held, and gives them
-/// back when it is released. Four would be about 85%: raise it only with a
-/// measurement, because the cost grows with the square.
-const MAX_ZOOM_BOOST: i32 = 3;
-/// Yaw is rounded to this many degrees before it reaches the plan, so turning
-/// the mouse does not rebuild the quadtree every frame. The cone is widened by
-/// as much, so rounding never swings it off a tile being looked at.
-const ZOOM_YAW_STEP: f32 = 5.0;
-
-/// Where a zoomed view asks for finer far tiles (the `lodZoomDetail` extra).
-///
-/// `Plan::visit`'s falloff keeps a tile's cells roughly the same size on
-/// screen, which silently assumes the field of view never changes. A spyglass
-/// (`SpyglassItem`, a tenth of it) or the zoom mod breaks that: the same tile
-/// covers many times more pixels, so its cells look as coarse as a tile ten
-/// times nearer would. This asks the tiles the zoom actually magnifies to
-/// split further.
-///
-/// Only those: lifting the whole circle would ask for about a hundred times
-/// the tiles, which at the quads measured above is gigabytes of vertices. The
-/// cone is the narrowed view's, and `MAX_ZOOM_BOOST` caps how far it goes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ZoomAim {
-    /// The view direction in x/z, in thousandths of a unit vector.
-    dir: [i32; 2],
-    /// The cosine of the cone's half-angle, in thousandths.
-    cos_half: i32,
-    /// How many times further than the unzoomed plan a tile inside the cone
-    /// may split. Two or more; [`ZoomAim::new`] gives `None` for less.
-    boost: i32,
-}
-
-impl ZoomAim {
-    /// `fov_degrees` is the zoomed field of view and `magnification` how many
-    /// times the view is magnified (1 when it is not). `None` when the zoom is
-    /// too slight to be worth replanning for.
-    pub fn new(yaw: f32, fov_degrees: f32, magnification: f32) -> Option<Self> {
-        if !magnification.is_finite() || !fov_degrees.is_finite() || fov_degrees <= 0.0 {
-            return None;
-        }
-        let boost = (magnification.round() as i64).clamp(1, i64::from(MAX_ZOOM_BOOST)) as i32;
-        if boost < 2 {
-            return None;
-        }
-        // Half the field of view spans the screen's width; three quarters of
-        // it reaches the corners, and the rounding step is added on top.
-        let half = (fov_degrees * 0.75 + ZOOM_YAW_STEP).clamp(5.0, 90.0);
-        let radians = ((yaw / ZOOM_YAW_STEP).round() * ZOOM_YAW_STEP).to_radians();
-        // `view_vector`'s x and z: yaw 0 looks toward +z.
-        let thousandths = |v: f32| (v * 1000.0).round() as i32;
-        Some(Self {
-            dir: [thousandths(-radians.sin()), thousandths(radians.cos())],
-            cos_half: thousandths(half.to_radians().cos()),
-            boost,
-        })
-    }
-    /// Whether the cone reaches `key`, so the zoom magnifies it.
-    ///
-    /// The tile is taken as the circle around its centre that covers it, and
-    /// that circle's own angular radius widens the cone for the test, so a
-    /// tile straddling the edge counts in rather than out. A tile whose circle
-    /// reaches the camera is always in: there is no direction to compare, and
-    /// it fills the view whichever way the player faces.
-    fn covers(&self, key: TileKey, camera: [i32; 2]) -> bool {
-        let [ox, _, oz] = key.origin();
-        let size = key.size();
-        // The camera stands in the tile: it is in view whichever way the
-        // player faces, and there is no direction to compare it with. Tested
-        // on the box rather than on the circle below, whose radius a camera
-        // on a corner matches exactly -- a float coin-toss.
-        // In i64, so a tile at the world's edge never overflows.
-        let (ox64, oz64, size64) = (i64::from(ox), i64::from(oz), i64::from(size));
-        if (ox64..ox64 + size64).contains(&i64::from(camera[0]))
-            && (oz64..oz64 + size64).contains(&i64::from(camera[1]))
-        {
-            return true;
-        }
-        let half = f64::from(size) / 2.0;
-        let cx = f64::from(ox) + half - f64::from(camera[0]);
-        let cz = f64::from(oz) + half - f64::from(camera[1]);
-        let distance = (cx * cx + cz * cz).sqrt();
-        let radius = half * std::f64::consts::SQRT_2;
-        if distance <= radius {
-            return true;
-        }
-        let dir = [
-            f64::from(self.dir[0]) / 1000.0,
-            f64::from(self.dir[1]) / 1000.0,
-        ];
-        let cos = (cx * dir[0] + cz * dir[1]) / distance;
-        let sin = (1.0 - cos * cos).max(0.0).sqrt();
-        // cos(angle - tile radius), expanded so no inverse trigonometry runs
-        // per tile: the quadtree asks this of every node it visits.
-        let radius_sin = (radius / distance).min(1.0);
-        let radius_cos = (1.0 - radius_sin * radius_sin).max(0.0).sqrt();
-        cos * radius_cos + sin * radius_sin >= f64::from(self.cos_half) / 1000.0
-    }
-}
-
-/// The coarsest tile level: `Plan` roots cover at most `MAX_CHUNKS` chunks
-/// around (a level-10 tile is 16,384 blocks wide).
-pub(crate) const MAX_LEVEL: u8 = 10;
 /// A split tile stays split until its distance passes the threshold by this
 /// ratio (`Plan::visit`): 1 / 0.95.
 const RETURN: (i64, i64) = (20, 19);
-/// The farthest `Plan` reaches, in chunks.
-pub const MAX_CHUNKS: u32 = 1 << MAX_LEVEL;
 /// The coarsest tile level whose chunks are generated in full (trees,
 /// structures) rather than sampled: cells of up to 4 blocks, out to about
 /// 1024 blocks at Full far detail.
@@ -224,294 +109,103 @@ const DETAIL_REQUEST: usize = 512;
 /// percentile, where the median frame was 6 ms. What the budget leaves waits
 /// in `Lod::detail_backlog` for the frames after it.
 const DETAIL_BUDGET: std::time::Duration = std::time::Duration::from_millis(3);
-/// A half-open material run; gaps between runs remain air.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Span {
-    pub min: i16,
-    pub max: i16,
-    pub state: BlockStateId,
-    pub biome: u16,
-    pub light: u16,
-}
-/// A column's material runs. Almost every far column has one to four, so
-/// they live inline: the sampler builds millions of columns and a heap
-/// allocation each dominated its memory and allocator time.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Spans(smallvec::SmallVec<[Span; 4]>);
-impl Spans {
-    pub const fn new() -> Self {
-        Self(smallvec::SmallVec::new_const())
-    }
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self(smallvec::SmallVec::with_capacity(capacity))
-    }
-    pub fn push(&mut self, span: Span) {
-        self.0.push(span);
-    }
-    pub fn reserve(&mut self, additional: usize) {
-        self.0.reserve(additional);
-    }
-    pub fn as_slice(&self) -> &[Span] {
-        &self.0
-    }
-}
-impl std::ops::Deref for Spans {
-    type Target = [Span];
-    fn deref(&self) -> &[Span] {
-        &self.0
-    }
-}
-impl std::ops::DerefMut for Spans {
-    fn deref_mut(&mut self) -> &mut [Span] {
-        &mut self.0
-    }
-}
-impl From<Vec<Span>> for Spans {
-    fn from(spans: Vec<Span>) -> Self {
-        Self(spans.into())
-    }
-}
-impl FromIterator<Span> for Spans {
-    fn from_iter<I: IntoIterator<Item = Span>>(iter: I) -> Self {
-        Self(iter.into_iter().collect())
-    }
-}
-impl IntoIterator for Spans {
-    type Item = Span;
-    type IntoIter = smallvec::IntoIter<[Span; 4]>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-impl<'a> IntoIterator for &'a Spans {
-    type Item = &'a Span;
-    type IntoIter = std::slice::Iter<'a, Span>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-impl<'a> IntoIterator for &'a mut Spans {
-    type Item = &'a mut Span;
-    type IntoIter = std::slice::IterMut<'a, Span>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter_mut()
-    }
-}
-impl<const N: usize> PartialEq<[Span; N]> for Spans {
-    fn eq(&self, other: &[Span; N]) -> bool {
-        self.as_slice() == other
-    }
-}
-impl PartialEq<Vec<Span>> for Spans {
-    fn eq(&self, other: &Vec<Span>) -> bool {
-        self.as_slice() == other.as_slice()
-    }
-}
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Column {
-    pub surface: Option<Surface>,
-    pub spans: Spans,
-}
-impl Column {
-    /// Reduce an entire horizontal footprint, rather than inflating its corner
-    /// column. A height is drawn where any column of the footprint holds a
-    /// block there, in the material most of them hold: anything joined to
-    /// the ground stays joined at every width. Drawing only heights most of
-    /// the footprint held dropped trunks (one column of 16 or 256) under the
-    /// crowns they hold up, and the crowns hung in the air as slabs.
-    pub fn reduced(columns: &[Column; 256], x: usize, z: usize, width: usize) -> Self {
-        if width == 1 {
-            return columns[z * 16 + x].clone();
+
+/// `kinds`: `state_kinds`, per block state; `water`: `water_source(kinds)`,
+/// what blocks holding water (kelp, seagrass, waterlogged ones) are drawn as.
+fn column_from_chunk(
+    chunk: &Chunk,
+    kinds: &[u8],
+    water: Option<BlockStateId>,
+    x: i32,
+    z: i32,
+) -> Column {
+    let kind = |state: BlockStateId| kinds.get(state.0 as usize).copied().unwrap_or(0);
+    let face_light = |y: i32| {
+        let mut sky = 0;
+        let mut block = 0;
+        for (dx, dy, dz) in [
+            (0, 0, 0),
+            (-1, 0, 0),
+            (1, 0, 0),
+            (0, -1, 0),
+            (0, 1, 0),
+            (0, 0, -1),
+            (0, 0, 1),
+        ] {
+            if !(0..16).contains(&(x + dx)) || !(0..16).contains(&(z + dz)) {
+                continue;
+            }
+            let value = chunk.light(x + dx, y + dy, z + dz);
+            sky = sky.max(value & 0xf0);
+            block = block.max(value & 15);
         }
-        let mut events = Vec::new();
-        for dz in z..z + width {
-            for dx in x..x + width {
-                for span in &columns[dz * 16 + dx].spans {
-                    let material = (span.state, span.biome, span.light);
-                    events.push((span.min, material, 1));
-                    events.push((span.max, material, -1));
-                }
+        sky | block
+    };
+    let mut column = Column::default();
+    for (sy, section) in chunk.sections.iter().enumerate() {
+        let min = chunk.min_y() + sy as i32 * 16;
+        let uniform = section.blocks.bits() == 0
+            && section.biomes.bits() == 0
+            && matches!(section.light, crate::chunk::Light::Uniform(_));
+        let uniform = uniform
+            && face_light(min) == chunk.light(x, min, z)
+            && face_light(min + 15) == chunk.light(x, min, z);
+        let step = if uniform { 16 } else { 1 };
+        for offset in (0..16).step_by(step) {
+            let y = min + offset;
+            let mut state = BlockStateId(chunk.get(x, y, z));
+            let mut kind = kind(state);
+            if kind & KEPT == 0 {
+                continue;
             }
-        }
-        events.sort_unstable_by_key(|event| event.0);
-        let mut result = Self::default();
-        let mut votes = Vec::<((BlockStateId, u16), i32)>::new();
-        let mut sky = [0i32; 16];
-        let mut block = [0i32; 16];
-        let mut occupied = 0;
-        let mut bottom = MIN_Y as i16;
-        for (y, material, change) in events {
-            if bottom < y {
-                if occupied > 0
-                    && let Some(&((state, biome), _)) =
-                        votes.iter().max_by_key(|&(material, count)| {
-                            (*count, std::cmp::Reverse((material.0.0, material.1)))
-                        })
-                {
-                    // Lighting must not split votes for the same material.
-                    // Reduction can expose buried faces; retain the brightest
-                    // actual light in this occupied footprint, per channel.
-                    let light = (sky.iter().rposition(|&n| n > 0).unwrap_or(0) << 4)
-                        | (block.iter().rposition(|&n| n > 0).unwrap_or(0) << 12);
-                    result.push(Span {
-                        min: bottom,
-                        max: y,
-                        state,
-                        biome,
-                        light: light as u16,
-                    });
-                }
-                bottom = y;
+            if kind & WATERY != 0
+                && let Some(water) = water
+            {
+                state = water;
+                kind = kinds[water.0 as usize];
             }
-            occupied += change;
-            sky[usize::from((material.2 >> 4) & 15)] += change;
-            block[usize::from((material.2 >> 12) & 15)] += change;
-            let material = (material.0, material.1);
-            if let Some(vote) = votes.iter_mut().find(|vote| vote.0 == material) {
-                vote.1 += change;
-            } else {
-                votes.push((material, change));
-            }
-        }
-        result
-    }
-    pub fn from_surface(surface: Option<Surface>) -> Self {
-        let mut column = Self {
-            surface,
-            spans: Spans::new(),
-        };
-        if let Some(s) = surface {
-            if s.height > MIN_Y {
-                column.spans.push(Span {
-                    min: MIN_Y as i16,
-                    max: s.height as i16,
-                    state: s.state,
-                    biome: s.biome,
-                    light: 240,
-                });
-            }
-            if let Some((height, state)) = s.water {
-                column.spans.push(Span {
-                    min: s.height as i16,
-                    max: height as i16,
-                    state,
-                    biome: s.biome,
-                    light: 240,
-                });
-            }
-        }
-        column
-    }
-    pub fn push(&mut self, span: Span) {
-        if let Some(last) = self.spans.last_mut()
-            && last.max == span.min
-            && last.state == span.state
-            && last.biome == span.biome
-            && last.light == span.light
-        {
-            last.max = span.max;
-        } else {
-            self.spans.push(span);
-        }
-    }
-    /// `kinds`: `state_kinds`, per block state; `water`: `water_source(kinds)`,
-    /// what blocks holding water (kelp, seagrass, waterlogged ones) are drawn as.
-    fn from_chunk(
-        chunk: &Chunk,
-        kinds: &[u8],
-        water: Option<BlockStateId>,
-        x: i32,
-        z: i32,
-    ) -> Self {
-        let kind = |state: BlockStateId| kinds.get(state.0 as usize).copied().unwrap_or(0);
-        let face_light = |y: i32| {
-            let mut sky = 0;
-            let mut block = 0;
-            for (dx, dy, dz) in [
-                (0, 0, 0),
-                (-1, 0, 0),
-                (1, 0, 0),
-                (0, -1, 0),
-                (0, 1, 0),
-                (0, 0, -1),
-                (0, 0, 1),
-            ] {
-                if !(0..16).contains(&(x + dx)) || !(0..16).contains(&(z + dz)) {
-                    continue;
-                }
-                let value = chunk.light(x + dx, y + dy, z + dz);
-                sky = sky.max(value & 0xf0);
-                block = block.max(value & 15);
-            }
-            sky | block
-        };
-        let mut column = Self::default();
-        for (sy, section) in chunk.sections.iter().enumerate() {
-            let min = chunk.min_y() + sy as i32 * 16;
-            let uniform = section.blocks.bits() == 0
-                && section.biomes.bits() == 0
-                && matches!(section.light, crate::chunk::Light::Uniform(_));
-            let uniform = uniform
-                && face_light(min) == chunk.light(x, min, z)
-                && face_light(min + 15) == chunk.light(x, min, z);
-            let step = if uniform { 16 } else { 1 };
-            for offset in (0..16).step_by(step) {
-                let y = min + offset;
-                let mut state = BlockStateId(chunk.get(x, y, z));
-                let mut kind = kind(state);
-                if kind & KEPT == 0 {
-                    continue;
-                }
-                if kind & WATERY != 0
-                    && let Some(water) = water
-                {
-                    state = water;
-                    kind = kinds[water.0 as usize];
-                }
-                let light = face_light(y);
-                column.push(Span {
-                    min: y as i16,
-                    max: (y + step as i32) as i16,
-                    state,
-                    biome: chunk.biome(x, y, z),
-                    light: u16::from(light & 0xf0) | (u16::from((light & 15).max(kind >> 4)) << 12),
-                });
-            }
-        }
-        let mut water = None;
-        for span in column.spans.iter().rev() {
-            if kind(span.state) & FLUID != 0 {
-                water.get_or_insert((i32::from(span.max), span.state));
-            } else {
-                column.surface = Some(Surface {
-                    height: i32::from(span.max),
-                    state: span.state,
-                    water,
-                    biome: span.biome,
-                });
-                break;
-            }
-        }
-        if column.surface.is_none()
-            && let Some((height, state)) = water
-        {
-            column.surface = Some(Surface {
-                height: chunk.min_y(),
-                state: BlockStateId(
-                    kinds.iter().position(|&kind| kind & AIR != 0).unwrap_or(0) as u32
-                ),
-                water: Some((height, state)),
-                biome: chunk.biome(x, height - 1, z),
+            let light = face_light(y);
+            column.push(Span {
+                min: y as i16,
+                max: (y + step as i32) as i16,
+                state,
+                biome: chunk.biome(x, y, z),
+                light: u16::from(light & 0xf0) | (u16::from((light & 15).max(kind >> 4)) << 12),
             });
         }
-        column
     }
+    let mut water = None;
+    for span in column.spans.iter().rev() {
+        if kind(span.state) & FLUID != 0 {
+            water.get_or_insert((i32::from(span.max), span.state));
+        } else {
+            column.surface = Some(Surface {
+                height: i32::from(span.max),
+                state: span.state,
+                water,
+                biome: span.biome,
+            });
+            break;
+        }
+    }
+    if column.surface.is_none()
+        && let Some((height, state)) = water
+    {
+        column.surface = Some(Surface {
+            height: chunk.min_y(),
+            state: BlockStateId(kinds.iter().position(|&kind| kind & AIR != 0).unwrap_or(0) as u32),
+            water: Some((height, state)),
+            biome: chunk.biome(x, height - 1, z),
+        });
+    }
+    column
 }
+
 /// A chunk's 256 columns (`Column::from_chunk`), on the far-terrain worker.
 pub(crate) fn summarize(chunk: &Chunk, kinds: &[u8]) -> Arc<[Column; 256]> {
     let water = water_source(kinds);
     Arc::new(std::array::from_fn(|i| {
-        Column::from_chunk(chunk, kinds, water, (i & 15) as i32, (i >> 4) as i32)
+        column_from_chunk(chunk, kinds, water, (i & 15) as i32, (i >> 4) as i32)
     }))
 }
 /// The water source state: the first plain kept fluid without light
@@ -641,66 +335,7 @@ fn resampled_over(
         })
         .collect()
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct TileKey {
-    pub x: i32,
-    pub z: i32,
-    pub level: u8,
-}
-impl TileKey {
-    pub fn size(self) -> i32 {
-        16 << self.level
-    }
-    pub fn origin(self) -> [i32; 3] {
-        [self.x * self.size(), 0, self.z * self.size()]
-    }
-    pub(crate) fn parent(self) -> Self {
-        Self {
-            x: self.x.div_euclid(2),
-            z: self.z.div_euclid(2),
-            level: self.level + 1,
-        }
-    }
-    fn children(self) -> [Self; 4] {
-        std::array::from_fn(|i| Self {
-            x: self.x * 2 + (i & 1) as i32,
-            z: self.z * 2 + (i >> 1) as i32,
-            level: self.level - 1,
-        })
-    }
-    /// The squared horizontal distance from `camera` to the tile's nearest point.
-    fn reach(self, camera: [i32; 2]) -> i64 {
-        let [x, _, z] = self.origin();
-        let gap = |c: i32, lo: i32| i64::from((lo - c).max(c - lo - self.size()).max(0));
-        gap(camera[0], x).pow(2) + gap(camera[1], z).pow(2)
-    }
-    /// Whether the tile covers any of the blocks `[x0, z0, x1, z1)`.
-    fn overlaps(self, [x0, z0, x1, z1]: [i32; 4]) -> bool {
-        let [ox, _, oz] = self.origin();
-        let size = self.size();
-        ox < x1 && oz < z1 && ox + size > x0 && oz + size > z0
-    }
-    /// Whether new data for `area` drawn in cells `widths` wide changes the
-    /// tile's samples: its cells are that wide, and it covers `area` or the
-    /// blocks around it a cell's depth reads (`bluemap::SKIRT`: a block
-    /// around a chunk, the next cells' middles past one).
-    fn refreshed_by(self, area: [i32; 4], widths: (i32, i32)) -> bool {
-        let cell = self.size() / CELLS as i32;
-        (widths.0..=widths.1).contains(&cell) && self.overlaps(Self::around(area, cell))
-    }
-    fn around([x0, z0, x1, z1]: [i32; 4], cell: i32) -> [i32; 4] {
-        let m = if cell <= 16 { 1 } else { cell };
-        [x0 - m, z0 - m, x1 + m, z1 + m]
-    }
-    fn distance(self, camera: [i32; 2]) -> i32 {
-        let [x, _, z] = self.origin();
-        (x - camera[0])
-            .max(camera[0] - x - self.size())
-            .max(z - camera[1])
-            .max(camera[1] - z - self.size())
-            .max(0)
-    }
-}
+
 #[derive(Default)]
 struct Plan {
     roots: Vec<TileKey>,
@@ -790,7 +425,7 @@ impl Plan {
         // further; every other tile keeps the plan it would have had
         // ([`ZoomAim`]).
         let boost = match self.aim {
-            Some(aim) if aim.covers(key, camera) => i64::from(aim.boost),
+            Some(aim) if aim.covers(key, camera) => i64::from(aim.boost()),
             _ => 1,
         };
         let threshold =
@@ -3375,7 +3010,7 @@ mod tests {
         // Yaw 0 looks toward +z (`view_vector`), ten times magnified.
         let aim = ZoomAim::new(0.0, 7.0, 10.0).expect("a tenth of the field of view zooms");
         // Capped, however far the zoom goes.
-        assert_eq!(aim.boost, MAX_ZOOM_BOOST);
+        assert_eq!(aim.boost(), MAX_ZOOM_BOOST);
         let camera = [0, 0];
         let tile = |x, z, level| TileKey { x, z, level };
         // Straight ahead, far enough that the direction decides it.
@@ -3718,43 +3353,6 @@ mod tests {
         assert!(!gone.split.contains(&tile));
     }
     #[test]
-    fn reduced_material_votes_ignore_light_and_retain_exposure() {
-        let mut columns: [Column; 256] = std::array::from_fn(|_| Column::default());
-        for i in 0..16 {
-            columns[(i / 4) * 16 + i % 4].spans.push(Span {
-                min: 60,
-                max: 64,
-                state: BlockStateId(if i < 10 { 2 } else { 1 }),
-                biome: 0,
-                light: if i < 10 { (i as u16 + 6) << 4 } else { 0 },
-            });
-        }
-        let coarse = Column::reduced(&columns, 0, 0, 4);
-        assert_eq!(coarse.spans.len(), 1);
-        assert_eq!(
-            coarse.spans[0].state,
-            BlockStateId(2),
-            "majority grass must beat dark dirt"
-        );
-        assert_eq!(coarse.spans[0].light, 240, "retain sampled sky exposure");
-        for column in &mut columns {
-            for span in &mut column.spans {
-                span.light = 0;
-            }
-        }
-        assert_eq!(
-            Column::reduced(&columns, 0, 0, 4).spans[0].light,
-            0,
-            "unlit caves stay unlit"
-        );
-        columns[0].spans[0].light = 7 << 12;
-        assert_eq!(
-            Column::reduced(&columns, 0, 0, 4).spans[0].light,
-            7 << 12,
-            "block light does not invent skylight"
-        );
-    }
-    #[test]
     fn nearly_full_blocks_are_kept() {
         assert!(nearly_full("minecraft:powder_snow"));
         assert!(nearly_full("minecraft:dirt_path"));
@@ -3778,8 +3376,8 @@ mod tests {
         }
         let water = water_source(&kinds);
         assert_eq!(water, Some(BlockStateId(2)));
-        let kelp = Column::from_chunk(&chunk, &kinds, water, 3, 3);
-        let sea = Column::from_chunk(&chunk, &kinds, water, 4, 3);
+        let kelp = column_from_chunk(&chunk, &kinds, water, 3, 3);
+        let sea = column_from_chunk(&chunk, &kinds, water, 4, 3);
         assert_eq!(kelp.spans, sea.spans);
         assert_eq!(
             kelp.spans.last().map(|s| (s.min, s.max, s.state)),
@@ -4200,28 +3798,38 @@ mod tests {
     #[test]
     #[ignore = "daily"]
     fn slab_materials_survive_chunk_summaries_and_draw_far_faces() -> crate::Result<()> {
-        use crate::{assets::Assets, biome::Biomes, light::LightTables, mesher::MeshTables};
+        use crate::{
+            assets::Assets,
+            biome::Biomes,
+            light::LightTables,
+            mesher::MeshTables,
+            streaming::{ChunkWorkerContext, MeshWorkerContext},
+        };
         let root = std::path::PathBuf::from(
             std::env::var_os("SUNRISE_TEST_RESOURCES").expect("SUNRISE_TEST_RESOURCES"),
         );
         let assets = Arc::new(Assets::load(&root)?);
         let resource_root = crate::resource_source::ResourceRoot::directory(root.clone());
-        let render = Arc::new(assets.reload(&resource_root)?);
+        let render = Arc::new(crate::assets::RenderAssets::load(&resource_root, &assets)?);
         let facts = BlockFacts::load(&root, assets.registry)?;
         let context = WorkerContext {
-            light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
-            tables: Arc::new(MeshTables::new(
-                &assets,
-                &render,
-                &facts,
-                crate::models::load_visibility(&root, assets.registry)?,
-                None,
-            )?),
-            assets: assets.clone(),
-            render,
-            biomes: Arc::new(Biomes::load(&resource_root)?),
-            hidden_states: Arc::from([]),
-            part_tables: Default::default(),
+            chunk: ChunkWorkerContext {
+                light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
+                assets: assets.clone(),
+                biomes: Arc::new(Biomes::load(&resource_root)?),
+            },
+            mesh: MeshWorkerContext {
+                tables: Arc::new(MeshTables::new(
+                    &assets,
+                    &render,
+                    &facts,
+                    crate::models::load_visibility(&root, assets.registry)?,
+                    None,
+                )?),
+                render,
+                hidden_states: Arc::from([]),
+                part_tables: Default::default(),
+            },
         };
         let kinds = state_kinds(&facts);
         let mut chunk = Chunk::empty(0, 0);
@@ -4272,15 +3880,20 @@ mod tests {
     #[ignore = "daily"]
     fn real_mesh_clips_near_chunks_and_preserves_water_and_edited_surfaces() -> crate::Result<()> {
         use crate::{
-            assets::Assets, biome::Biomes, light::LightTables, mesher::MeshTables,
+            assets::Assets,
+            biome::Biomes,
+            light::LightTables,
+            mesher::MeshTables,
+            streaming::{ChunkWorkerContext, MeshWorkerContext},
             testgen::TestTerrain,
         };
         let root = std::path::PathBuf::from(
             std::env::var_os("SUNRISE_TEST_RESOURCES").expect("SUNRISE_TEST_RESOURCES"),
         );
         let assets = Arc::new(Assets::load(&root)?);
-        let render = Arc::new(assets.reload(
+        let render = Arc::new(crate::assets::RenderAssets::load(
             &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
         )?);
         let facts = BlockFacts::load(&root, assets.registry)?;
         let biomes = Arc::new(Biomes::load(
@@ -4294,13 +3907,17 @@ mod tests {
             None,
         )?);
         let context = Arc::new(WorkerContext {
-            light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
-            tables,
-            assets: assets.clone(),
-            render,
-            biomes: biomes.clone(),
-            hidden_states: Arc::from([]),
-            part_tables: Default::default(),
+            chunk: ChunkWorkerContext {
+                light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
+                assets: assets.clone(),
+                biomes: biomes.clone(),
+            },
+            mesh: MeshWorkerContext {
+                tables,
+                render,
+                hidden_states: Arc::from([]),
+                part_tables: Default::default(),
+            },
         });
         let source = Arc::new(TestTerrain::new(assets.registry, &biomes)?);
         let mut lod = Lod::new(source, context);
@@ -5480,13 +5097,20 @@ mod tests {
     }
     /// The prepared resources' far-terrain worker context and block facts.
     fn test_context() -> crate::Result<(Arc<WorkerContext>, BlockFacts)> {
-        use crate::{assets::Assets, biome::Biomes, light::LightTables, mesher::MeshTables};
+        use crate::{
+            assets::Assets,
+            biome::Biomes,
+            light::LightTables,
+            mesher::MeshTables,
+            streaming::{ChunkWorkerContext, MeshWorkerContext},
+        };
         let root = std::path::PathBuf::from(
             std::env::var_os("SUNRISE_TEST_RESOURCES").expect("SUNRISE_TEST_RESOURCES"),
         );
         let assets = Arc::new(Assets::load(&root)?);
-        let render = Arc::new(assets.reload(
+        let render = Arc::new(crate::assets::RenderAssets::load(
             &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
         )?);
         let facts = BlockFacts::load(&root, assets.registry)?;
         let biomes = Arc::new(Biomes::load(
@@ -5500,13 +5124,17 @@ mod tests {
             None,
         )?);
         let context = Arc::new(WorkerContext {
-            light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
-            tables,
-            assets,
-            render,
-            biomes,
-            hidden_states: Arc::from([]),
-            part_tables: Default::default(),
+            chunk: ChunkWorkerContext {
+                light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
+                assets,
+                biomes,
+            },
+            mesh: MeshWorkerContext {
+                tables,
+                render,
+                hidden_states: Arc::from([]),
+                part_tables: Default::default(),
+            },
         });
         Ok((context, facts))
     }
@@ -5530,6 +5158,7 @@ mod tests {
         ) -> crate::Result<Self> {
             let (context, facts) = test_context()?;
             let stone = context
+                .chunk
                 .assets
                 .registry
                 .default_state("minecraft:stone")

@@ -1,2 +1,2 @@
 # ItemResource::durability_to_repair_from_xp (#5350): vanilla Mending over the test resources.
-sunrise-client game::native_components::enchantment_conflict_tests::durability_to_repair_from_xp_runs_the_stacks_repair_with_xp_effects lib daily resources
+sunrise-client cut_layout::game::native_components::enchantment_conflict_tests::durability_to_repair_from_xp_runs_the_stacks_repair_with_xp_effects lib daily resources

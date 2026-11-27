@@ -21,6 +21,9 @@ pub struct WorldFluid {
     /// The registry name of its flowing form, a declaration id as the fluid's path is;
     /// `flowing_<path>` when unset.
     pub flowing: Option<String>,
+    /// The registry name of its liquid block (NeoForge's `BaseFlowingFluid.Properties.block`),
+    /// a declaration id as the fluid's path is; the fluid's own id when unset.
+    pub block: Option<String>,
 }
 impl Default for WorldFluid {
     fn default() -> Self {
@@ -32,6 +35,7 @@ impl Default for WorldFluid {
             bucket: true,
             bucket_item: None,
             flowing: None,
+            block: None,
         }
     }
 }

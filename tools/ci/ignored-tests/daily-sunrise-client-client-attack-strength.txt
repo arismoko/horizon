@@ -1,1 +1,1 @@
-sunrise-client game::native_player_attack::tests::a_client_reads_its_own_players_attack_charge_and_delay lib daily resources
+sunrise-client-gameplay game::client_side::native_player_attack_client::tests::a_client_reads_its_own_players_attack_charge_and_delay lib daily resources

@@ -5,8 +5,8 @@
 //! source and a parse of every crate below it), so a mixin build reads only the files of the
 //! modules its targets are in. Before a function is copied, its text is checked against the
 //! index's hash: a source that is not the build's is refused by name, never walked.
-use crate::patch::{Found, Source, TargetPath, replaceable, target_path};
-use crate::source::plain_path;
+use crate::patch::{Found, Source, TargetPath, replaceable_with_binding, target_path};
+use crate::source::{SourceLayout, plain_path};
 use mod_surface::build_data::FunctionDigests;
 use quote::{ToTokens, quote};
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,12 @@ pub struct FunctionIndex {
     pub functions: BTreeMap<String, Function>,
     /// The functions it can't, by [`key`], with the refusal a row naming one gets.
     pub refused: BTreeMap<String, Refused>,
+    /// Alternate spellings with the same resolved nominal owner as a published target.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub aliases: BTreeMap<String, String>,
+    /// Per-slot owner, trait, and installer evidence for every staged trait-method slot.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub trait_slots: BTreeMap<String, crate::replace::TraitSlotEvidence>,
 }
 
 /// One crate's modules, as a copy's mirror reads them. Every crate of the source is listed, so a
@@ -76,6 +82,9 @@ pub struct Function {
     /// The declaration and body fingerprints. Earlier build indexes have only the span hash.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub digests: Option<FunctionDigests>,
+    /// Resolved owner, trait, and installer module when this function is a trait-impl method.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trait_binding: Option<crate::replace::TraitSlotEvidence>,
 }
 
 /// Why a function can't take a replacement.
@@ -136,13 +145,32 @@ pub(crate) fn sha256(bytes: &[u8]) -> String {
 }
 
 impl FunctionIndex {
+    /// The published key, including a source-proven alternate spelling when present.
+    pub fn target_key(&self, target: &str) -> String {
+        let key = key(target);
+        self.aliases.get(&key).cloned().unwrap_or(key)
+    }
+
     /// Whether `target` can be copied out of the source at `root`: listed as replaceable, and its
     /// span there is the indexed text. Otherwise its refusal, `(code, why)`.
     ///
     /// Only the span is checked here; every other file the copy reads is checked against its
     /// [`ModuleFile::sha256`] as it is read.
     pub fn check(&self, root: &Path, target: &str) -> Result<(), (&'static str, String)> {
-        let key = key(target);
+        self.check_with_layout(
+            root,
+            target,
+            SourceLayout::read(root).map_err(|error| ("E_MIXIN_SOURCE", error))?,
+        )
+    }
+
+    pub(crate) fn check_with_layout(
+        &self,
+        root: &Path,
+        target: &str,
+        layout: SourceLayout,
+    ) -> Result<(), (&'static str, String)> {
+        let key = self.target_key(target);
         let krate = key.split("::").next().unwrap_or_default();
         if !self.crates.contains_key(krate) {
             return Err((
@@ -154,7 +182,7 @@ impl FunctionIndex {
             return Err((refused.code.name(), refused.why.clone()));
         }
         let Some(function) = self.functions.get(&key) else {
-            if let Some(named) = self.named_by_type(&key) {
+            if let Some(named) = self.named_by_type(&key, layout) {
                 return Err((
                     "E_MIXIN_TARGET_MISSING",
                     format!(
@@ -162,7 +190,7 @@ impl FunctionIndex {
                     ),
                 ));
             }
-            return Err(if krate == "sunrise_client" {
+            return Err(if layout.owns(&key) {
                 (
                     "E_MIXIN_TARGET_MISSING",
                     format!("no function `{key}` in this game build's function index ({FILE})"),
@@ -195,9 +223,9 @@ impl FunctionIndex {
 
     /// The listed method a crate below the game crate names by its type's module that `key`
     /// names by the module of the file its `impl` is in, as targets were written before.
-    fn named_by_type(&self, key: &str) -> Option<&str> {
+    fn named_by_type(&self, key: &str, layout: SourceLayout) -> Option<&str> {
         self.functions.iter().find_map(|(listed, function)| {
-            if listed.split("::").next() == Some("sunrise_client") {
+            if layout.owns(listed) {
                 return None;
             }
             let by_file = match target_path(listed)? {
@@ -257,6 +285,14 @@ impl FunctionIndex {
                 function.module
             ));
         }
+        for (alias, target) in &self.aliases {
+            if self.functions.contains_key(alias)
+                || self.refused.contains_key(alias)
+                || !(self.functions.contains_key(target) || self.refused.contains_key(target))
+            {
+                return Err(format!("{FILE}: invalid alias `{alias}` for `{target}`"));
+            }
+        }
         Ok(self)
     }
 
@@ -267,7 +303,7 @@ impl FunctionIndex {
         source: &mut Source,
         target: &str,
     ) -> Result<Found, (&'static str, String)> {
-        let key = key(target);
+        let key = self.target_key(target);
         let stale = |why: String| ("E_MIXIN_SOURCE", why);
         let function = self
             .functions
@@ -329,31 +365,97 @@ impl FunctionIndex {
             );
         }
     }
+    /// Count refused targets grouped by refusal reason, normalizing per-target names.
+    pub fn refusal_counts(&self) -> BTreeMap<String, usize> {
+        let mut counts = BTreeMap::new();
+        for refused in self.refused.values() {
+            let key = refusal_reason(&refused.why);
+            *counts.entry(key.to_owned()).or_default() += 1;
+        }
+        counts
+    }
+}
+
+fn refusal_reason(why: &str) -> &str {
+    if why.starts_with("its trait implementation has no replacement installer: owner type name `") {
+        "its trait implementation has no replacement installer (ambiguous trait owner)"
+    } else if why.starts_with("its body uses `")
+        && why.ends_with("`, a macro defined outside its module's path")
+    {
+        "its body uses a macro defined outside its module's path"
+    } else if why.starts_with("it names `") && why.contains("`, which crosses a non-public `use`") {
+        "it names a path that crosses a non-public use"
+    } else if why.starts_with("it names `")
+        && why.contains("`, which reaches the non-public crate-root function `")
+    {
+        "it names a non-public crate-root function"
+    } else {
+        why
+    }
 }
 
 /// The index of the pristine source at `root`, whose published loops' generic functions are
-/// `generic` (keys). Each function's verdict is [`replaceable`]'s, the check a mixin build ran
 /// before the index; [`FunctionIndex::retain_slotted`] then drops what staging gave no slot.
 pub fn index(root: &Path, generic: &BTreeSet<String>) -> Result<FunctionIndex, String> {
-    index_of(root, generic, None)
+    index_of_with_context(root, SourceLayout::read(root)?, generic, None).map(|(index, _, _)| index)
+}
+
+pub fn index_with_layout(root: &Path, layout: SourceLayout) -> Result<FunctionIndex, String> {
+    let generic = crate::loops::collect_with_layout(root, layout)?
+        .into_iter()
+        .map(|entry| key(&entry.generic_target()))
+        .collect();
+    index_with_context(root, layout, &generic).map(|(index, _, _)| index)
+}
+
+pub(crate) fn index_with_context(
+    root: &Path,
+    layout: SourceLayout,
+    generic: &BTreeSet<String>,
+) -> Result<
+    (
+        FunctionIndex,
+        BTreeMap<String, crate::replace::OwnerTypes>,
+        crate::replace::WorkspaceTraits,
+    ),
+    String,
+> {
+    index_of_with_context(root, layout, generic, None)
 }
 
 /// [`index`], listing only the functions whose keys are in `only`, when given.
+#[cfg(test)]
 pub(crate) fn index_of(
     root: &Path,
     generic: &BTreeSet<String>,
     only: Option<&BTreeSet<String>>,
 ) -> Result<FunctionIndex, String> {
-    let mut source = Source::new(root)?;
+    index_of_with_context(root, crate::LEGACY_LAYOUT, generic, only).map(|(index, _, _)| index)
+}
+
+fn index_of_with_context(
+    root: &Path,
+    layout: SourceLayout,
+    generic: &BTreeSet<String>,
+    only: Option<&BTreeSet<String>>,
+) -> Result<
+    (
+        FunctionIndex,
+        BTreeMap<String, crate::replace::OwnerTypes>,
+        crate::replace::WorkspaceTraits,
+    ),
+    String,
+> {
+    let mut source = Source::new(root, layout)?;
     // Below the game crate, only the functions marked `#[replaceable]` take a replacement.
-    let marked: BTreeSet<String> = crate::replace::marked(root)?
+    let marked: BTreeSet<String> = crate::replace::marked(root, layout)?
         .into_iter()
         .map(|(_, path)| key(&path))
         .collect();
     let lower: BTreeSet<&str> = marked
         .iter()
         .filter_map(|path| path.split("::").next())
-        .filter(|krate| *krate != "sunrise_client")
+        .filter(|krate| layout.domain(krate).is_none())
         .collect();
     // A method below the game crate is named by its type's module.
     let mut owners = BTreeMap::new();
@@ -465,10 +567,11 @@ pub(crate) fn index_of(
         let krate = module.split("::").next().unwrap_or_default();
         collect(&module, &items, &file, owners.get(krate), &mut candidates);
     }
+    let mut aliases = Vec::new();
     for (key, mut found) in candidates {
         let krate = key.split("::").next().unwrap_or_default();
         if only.is_some_and(|only| !only.contains(&key))
-            || (krate != "sunrise_client" && !marked.contains(&key))
+            || (layout.domain(krate).is_none() && !marked.contains(&key))
         {
             continue;
         }
@@ -482,9 +585,16 @@ pub(crate) fn index_of(
             );
             continue;
         }
-        let candidate = found.pop().expect("one");
-        match replaceable(&candidate.found, &mut source, generic.contains(&key)) {
-            Ok(()) => {
+        let mut candidate = found.pop().expect("one");
+        match replaceable_with_binding(&candidate.found, &mut source, generic.contains(&key)) {
+            Ok(trait_binding) => {
+                if layout.is_split()
+                    && let Some(owner) = candidate.found.owner.as_ref()
+                    && let Some((alias, name)) = nominal_alias(&key, &candidate.found.module, owner)
+                {
+                    aliases.push((alias, key.clone(), candidate.found.module.clone(), name));
+                }
+                candidate.function.trait_binding = trait_binding;
                 index.functions.insert(key, candidate.function);
             }
             Err(why) => {
@@ -498,7 +608,43 @@ pub(crate) fn index_of(
             }
         }
     }
-    Ok(index)
+    let (owners, workspace) = source.into_resolve_context()?;
+    for (alias, key, module, name) in aliases {
+        let krate = module.split("::").next().unwrap_or_default();
+        if !index.functions.contains_key(&alias)
+            && !index.refused.contains_key(&alias)
+            && owners.get(krate).is_some_and(|types| {
+                crate::replace_resolve::is_game_nominal(&module, &name, types, &workspace)
+            })
+        {
+            index.aliases.insert(alias, key);
+        }
+    }
+    Ok((index, owners, workspace))
+}
+
+fn nominal_alias(key: &str, module: &str, owner: &syn::ItemImpl) -> Option<(String, String)> {
+    let package = crate::GameplayPackage::from_library(module.split("::").next()?)?;
+    let name = package.game_type();
+    let bare = name;
+    let qualified = format!("crate::game::{name}");
+    let actual = plain_path(&quote::ToTokens::to_token_stream(&owner.self_ty).to_string());
+    let alternate = if actual == bare {
+        qualified.as_str()
+    } else if actual == qualified {
+        bare
+    } else {
+        return None;
+    };
+    let method = key.rsplit_once("::")?.1;
+    let alias = match &owner.trait_ {
+        Some((_, path, _)) => {
+            let trait_name = &path.segments.last()?.ident;
+            format!("{module}::<{alternate} as {trait_name}>::{method}")
+        }
+        None => format!("{module}::{alternate}::{method}"),
+    };
+    Some((alias, name.to_owned()))
 }
 
 /// A function found in a file, before its verdict.
@@ -546,6 +692,7 @@ impl File<'_> {
                 declaration: sha256(declaration.to_string().as_bytes()),
                 body: sha256(block.to_token_stream().to_string().as_bytes()),
             }),
+            trait_binding: None,
         };
         Candidate { found, function }
     }
@@ -650,3 +797,41 @@ fn collect(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[test]
+fn game_nominal_alias_requires_the_real_owner() {
+    let module = "sunrise_gameplay::game::fixture";
+    let mut types = crate::replace::OwnerTypes::default();
+    let workspace = crate::replace::WorkspaceTraits::default();
+    let parse = |source| syn::parse_file(source).unwrap().items;
+    types.declare(
+        "sunrise_gameplay::game",
+        &parse("pub struct ServerGame<'a>(&'a ());"),
+    );
+    types.declare(module, &parse("use crate::game::ServerGame;"));
+    assert!(crate::replace_resolve::is_game_nominal(
+        module,
+        "ServerGame",
+        &types,
+        &workspace
+    ));
+    let source = "impl crate::game::ServerGame<'_> { fn move_to(&self) {} }";
+    let [syn::Item::Impl(owner)] = &parse(source)[..] else {
+        panic!("expected an impl")
+    };
+    let published = format!("{module}::crate::game::ServerGame::move_to");
+    let (alias, _) = nominal_alias(&published, module, owner).unwrap();
+    let mut index = FunctionIndex::default();
+    index.aliases.insert(alias.clone(), published.clone());
+    assert_eq!(index.target_key(&alias), published);
+    assert_eq!(index.target_key(&published), published);
+    let foreign = "sunrise_gameplay::game::unrelated";
+    types.declare(foreign, &parse("pub struct ServerGame;"));
+    assert!(!crate::replace_resolve::is_game_nominal(
+        foreign,
+        "ServerGame",
+        &types,
+        &workspace
+    ));
+}

@@ -10,7 +10,7 @@ static GPU_TEST: Mutex<()> = Mutex::new(());
 /// Bind this guard before creating any GPU objects, in the test itself rather
 /// than a helper returning those objects. Locals then drop before the guard,
 /// including during unwinding; one guard also covers tests opening several devices.
-pub(crate) fn lock() -> MutexGuard<'static, ()> {
+pub fn lock() -> MutexGuard<'static, ()> {
     GPU_TEST.lock().unwrap_or_else(|poison| poison.into_inner())
 }
 

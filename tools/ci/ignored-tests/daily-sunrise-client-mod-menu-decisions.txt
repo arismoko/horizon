@@ -1,6 +1,6 @@
 # The menu_clicked and menu_quick_move decision tests use prepared resources.
-sunrise-client game::mod_menu_decisions_tests::a_click_on_a_mod_menu_tells_the_mods_inside_an_action_and_a_failure_undoes_it lib daily resources
-sunrise-client game::mod_menu_decisions_tests::a_mod_quick_move_is_one_action_and_a_refusal_leaves_no_prefix lib daily resources
-sunrise-client game::mod_menu_decisions_tests::a_mod_quick_move_no_mod_took_is_left_to_the_games_routing lib daily resources
-sunrise-client game::mod_menu_decisions_tests::an_untaken_quick_move_discards_its_transfer_and_routes_once lib daily resources
-sunrise-client game::mod_menu_decisions_tests::without_a_listener_a_click_on_a_mod_menu_is_heard_plainly lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::a_click_on_a_mod_menu_tells_the_mods_inside_an_action_and_a_failure_undoes_it lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::a_mod_quick_move_is_one_action_and_a_refusal_leaves_no_prefix lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::a_mod_quick_move_no_mod_took_is_left_to_the_games_routing lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::an_untaken_quick_move_discards_its_transfer_and_routes_once lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::without_a_listener_a_click_on_a_mod_menu_is_heard_plainly lib daily resources

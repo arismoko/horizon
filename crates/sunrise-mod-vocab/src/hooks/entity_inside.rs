@@ -10,7 +10,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         host = "level",
-        target = "sunrise_client::game::native_hooks::entity_inside::HitLevel<'_>::native_entity_inside",
+        target = "sunrise_gameplay_common::game::native_hooks::entity_inside::HitLevel<'_>::native_entity_inside",
         neoforge = "none (vanilla Block.entityInside; NeoForge adds no event or extension for it)"
     )]
     fn entity_inside(

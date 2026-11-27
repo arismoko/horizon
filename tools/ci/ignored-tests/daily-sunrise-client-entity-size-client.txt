@@ -1,5 +1,5 @@
-sunrise-client game::entity_sizes::tests::a_client_copy_is_sized_before_entity_constructing lib daily child-process
-sunrise-client game::entity_sizes::tests::a_client_copy_is_sized_by_its_synched_pose_not_its_bed lib daily child-process
-sunrise-client game::entity_sizes::tests::a_client_copy_takes_a_new_scale_at_its_tick lib daily child-process
-sunrise-client game::entity_sizes::tests::a_floor_shulkers_client_copy_asks_as_its_lid_moves lib daily child-process
-sunrise-client game::entity_sizes::tests::client_copies_of_other_kinds_ask_and_take_the_answer lib daily child-process
+sunrise-gameplay game::server_side::entity_sizes::tests::a_client_copy_is_sized_before_entity_constructing lib daily child-process
+sunrise-gameplay game::server_side::entity_sizes::tests::a_client_copy_is_sized_by_its_synched_pose_not_its_bed lib daily child-process
+sunrise-gameplay game::server_side::entity_sizes::tests::a_client_copy_takes_a_new_scale_at_its_tick lib daily child-process
+sunrise-gameplay game::server_side::entity_sizes::tests::a_floor_shulkers_client_copy_asks_as_its_lid_moves lib daily child-process
+sunrise-client cut_layout::game::client_side::entity_sizes_client::tests::client_copies_of_other_kinds_ask_and_take_the_answer lib daily child-process

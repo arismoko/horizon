@@ -230,12 +230,12 @@ fn bossbar(d: &mut Dispatcher, root: usize) {
     let name = d.argument(name_l, "name", ArgType::Component);
     d.executes(name, "bossbar.set.name");
     let color = d.literal(id, "color");
-    for c in sunrise_client_core::bossbar::COLORS {
+    for c in sunrise_game_data::bossbar::COLORS {
         let l = d.literal(color, c);
         d.executes(l, "bossbar.set.color");
     }
     let style = d.literal(id, "style");
-    for s in sunrise_client_core::bossbar::STYLES {
+    for s in sunrise_game_data::bossbar::STYLES {
         let l = d.literal(style, s);
         d.executes(l, "bossbar.set.style");
     }

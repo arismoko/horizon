@@ -414,6 +414,50 @@ pub fn checksum(entries: &[Signature]) -> i8 {
     }
 }
 
+/// Why a `LastSeenValidator` update was refused: the client's acknowledgement
+/// does not fit the window the server is holding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LastSeenError {
+    /// applyOffset moved past what the window can hold.
+    OffsetTooFar { offset: i32, max: i64 },
+    /// applyUpdate acknowledged more messages than the window holds.
+    WindowTooLong { length: usize },
+    /// applyUpdate named a message the window never held (or already dropped).
+    UnknownAcknowledgement { index: usize },
+    /// applyUpdate cleared a bit for a message it already acknowledged.
+    AlreadyAcknowledged { index: usize },
+    /// The client's checksum does not match the acknowledged messages.
+    ChecksumMismatch,
+}
+
+impl std::fmt::Display for LastSeenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OffsetTooFar { offset, max } => write!(
+                f,
+                "Advanced last seen window by {offset} messages, but expected at most {max}"
+            ),
+            Self::WindowTooLong { length } => write!(
+                f,
+                "Last seen update contained {length} messages, but maximum window size is {LAST_SEEN}"
+            ),
+            Self::UnknownAcknowledgement { index } => write!(
+                f,
+                "Last seen update acknowledged unknown or previously ignored message at index {index}"
+            ),
+            Self::AlreadyAcknowledged { index } => write!(
+                f,
+                "Last seen update ignored previously acknowledged message at index {index}"
+            ),
+            Self::ChecksumMismatch => f.write_str(
+                "Checksum mismatch on last seen update: the client and server must have desynced",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for LastSeenError {}
+
 /// LastSeenMessagesValidator: the messages sent to a player that its next
 /// acknowledgement may name, each pending until it does.
 #[derive(Clone, Debug)]
@@ -442,15 +486,13 @@ impl LastSeenValidator {
         self.tracked.len()
     }
     /// applyOffset: drop the `offset` oldest messages.
-    pub fn apply_offset(&mut self, offset: i32) -> Result<(), String> {
+    pub fn apply_offset(&mut self, offset: i32) -> Result<(), LastSeenError> {
         let max = self.tracked.len() as i64 - LAST_SEEN as i64;
         if offset >= 0 && i64::from(offset) <= max {
             self.tracked.drain(..offset as usize);
             Ok(())
         } else {
-            Err(format!(
-                "Advanced last seen window by {offset} messages, but expected at most {max}"
-            ))
+            Err(LastSeenError::OffsetTooFar { offset, max })
         }
     }
     /// applyUpdate: the offset, then the acknowledged messages of the
@@ -461,40 +503,31 @@ impl LastSeenValidator {
         offset: i32,
         acknowledged: [u8; 3],
         checksum: i8,
-    ) -> Result<Vec<Signature>, String> {
+    ) -> Result<Vec<Signature>, LastSeenError> {
         self.apply_offset(offset)?;
         let bit = |i: usize| acknowledged[i / 8] >> (i % 8) & 1 != 0;
         let length = (0..24).rev().find(|&i| bit(i)).map_or(0, |i| i + 1);
         if length > LAST_SEEN {
-            return Err(format!(
-                "Last seen update contained {length} messages, but maximum window size is {LAST_SEEN}"
-            ));
+            return Err(LastSeenError::WindowTooLong { length });
         }
         let mut seen = Vec::with_capacity(LAST_SEEN);
         for i in 0..LAST_SEEN {
             let entry = self.tracked[i];
             if bit(i) {
                 let Some((s, _)) = entry else {
-                    return Err(format!(
-                        "Last seen update acknowledged unknown or previously ignored message at index {i}"
-                    ));
+                    return Err(LastSeenError::UnknownAcknowledgement { index: i });
                 };
                 self.tracked[i] = Some((s, false));
                 seen.push(s);
             } else {
                 if let Some((_, false)) = entry {
-                    return Err(format!(
-                        "Last seen update ignored previously acknowledged message at index {i}"
-                    ));
+                    return Err(LastSeenError::AlreadyAcknowledged { index: i });
                 }
                 self.tracked[i] = None;
             }
         }
         if checksum != 0 && checksum != self::checksum(&seen) {
-            return Err(
-                "Checksum mismatch on last seen update: the client and server must have desynced"
-                    .to_owned(),
-            );
+            return Err(LastSeenError::ChecksumMismatch);
         }
         Ok(seen)
     }
@@ -767,7 +800,10 @@ mod tests {
         v.add_pending(&sig(1));
         v.add_pending(&sig(2));
         assert_eq!(v.tracked_count(), 22);
-        assert!(v.apply_offset(3).is_err());
+        assert_eq!(
+            v.apply_offset(3),
+            Err(LastSeenError::OffsetTooFar { offset: 3, max: 2 })
+        );
         // Slide by two: the two messages are the window's last entries.
         let mut ack = [0u8; 3];
         ack[18 / 8] |= 1 << (18 % 8);
@@ -775,17 +811,32 @@ mod tests {
         let seen = v.apply_update(2, ack, checksum(&[sig(1), sig(2)])).unwrap();
         assert_eq!(seen, vec![sig(1), sig(2)]);
         // Once acknowledged, a message can't be ignored.
-        assert!(v.apply_update(0, [0; 3], 0).is_err());
+        assert_eq!(
+            v.apply_update(0, [0; 3], 0),
+            Err(LastSeenError::AlreadyAcknowledged { index: 18 })
+        );
         let mut v = LastSeenValidator::default();
         v.add_pending(&sig(1));
-        assert!(v.apply_update(1, [0, 0, 0x10], 0).is_err(), "bit 20");
+        assert_eq!(
+            v.apply_update(1, [0, 0, 0x10], 0),
+            Err(LastSeenError::WindowTooLong { length: 21 }),
+            "bit 20"
+        );
         let mut v = LastSeenValidator::default();
-        assert!(v.apply_update(0, [1, 0, 0], 0).is_err(), "unknown");
+        assert_eq!(
+            v.apply_update(0, [1, 0, 0], 0),
+            Err(LastSeenError::UnknownAcknowledgement { index: 0 }),
+            "unknown"
+        );
         let mut v = LastSeenValidator::default();
         v.add_pending(&sig(1));
         let mut ack = [0u8; 3];
         ack[2] |= 1 << 3;
-        assert!(v.apply_update(1, ack, 99).is_err(), "checksum");
+        assert_eq!(
+            v.apply_update(1, ack, 99),
+            Err(LastSeenError::ChecksumMismatch),
+            "checksum"
+        );
     }
 
     #[test]

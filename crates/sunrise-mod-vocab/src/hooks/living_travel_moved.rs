@@ -48,7 +48,7 @@ pub trait Hooks {
         version = 1,
         output_validator = "crate::entity::types::refused_velocity_output",
         neoforge = "none (fork addition, #5074)",
-        target = "sunrise_client_lib::travel_gate::native_living_travel_moved"
+        target = "sunrise_sim::travel_gate::native_living_travel_moved"
     )]
     fn living_travel_moved(
         entity: u32,

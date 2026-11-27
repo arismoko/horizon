@@ -1,5 +1,5 @@
-sunrise-client game::cauldron_interactions::tests::cauldron_decision_controls_swing_and_fallback lib daily resources
-sunrise-client game::cauldron_interactions::tests::cauldron_input_projection_failure_consumes_without_fallthrough lib daily resources
-sunrise-client game::cauldron_interactions::tests::cauldron_overwrites_vanilla_and_mod_entries_and_prefers_tags_over_items lib daily resources
-sunrise-client game::cauldron_interactions::tests::cauldron_packet_pass_resumes_item_use_once_without_client_prediction lib daily resources
-sunrise-client game::cauldron_interactions::tests::cauldron_panicking_handler_disables_callback_and_reports_toast lib daily resources
+sunrise-client cut_layout::game::cauldron_interactions::tests::cauldron_decision_controls_swing_and_fallback lib daily resources
+sunrise-client cut_layout::game::cauldron_interactions::tests::cauldron_input_projection_failure_consumes_without_fallthrough lib daily resources
+sunrise-client cut_layout::game::cauldron_interactions::tests::cauldron_overwrites_vanilla_and_mod_entries_and_prefers_tags_over_items lib daily resources
+sunrise-client cut_layout::game::cauldron_interactions::tests::cauldron_packet_pass_resumes_item_use_once_without_client_prediction lib daily resources
+sunrise-client cut_layout::game::cauldron_interactions::tests::cauldron_panicking_handler_disables_callback_and_reports_toast lib daily resources

@@ -1,1 +1,1 @@
-sunrise-client game::server_reload::tests::dedicated_world_open_publishes_crafting_item_tags lib daily resources
+sunrise-client cut_layout::game::server_side::server_reload::tests::dedicated_world_open_publishes_crafting_item_tags lib daily resources

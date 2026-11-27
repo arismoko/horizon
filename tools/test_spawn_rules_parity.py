@@ -192,7 +192,7 @@ def main():
     types = sorted(t for t, v in entity_types.items() if 'attributes' in v and t.split(':')[1] not in SKIPPED)
     oracle = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaSpawnRulesOracle.java'
     sources = [oracle, Path(__file__), lab.ROOT / 'crates/sunrise-client/examples/probe/spawn_rules_fixture.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/spawn_rules.rs']
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/spawn_rules.rs']
     tested = base.source_hashes(sources)
     inputs = build / 'inputs.txt'
     cases = corpus(types)

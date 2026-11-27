@@ -1,5 +1,3 @@
-# Written by tools/ci/parity_fixtures_manifest.py from crates/sunrise-client/Cargo.toml: rerun it after a
-# change there, never edit this file. verify-static checks it is current.
 [package]
 name = "sunrise-parity-fixtures"
 version = "0.1.0"
@@ -14,10 +12,9 @@ autoexamples = false
 autotests = false
 autobenches = false
 
-# sunrise-client's own lib.rs is the program's root: its `main` is cfg(sunrise_parity_fixtures).
 [[bin]]
 name = "sunrise-parity-fixtures"
-path = "../sunrise-client/src/lib.rs"
+path = "src/main.rs"
 required-features = ["fixtures"]
 test = false
 bench = false
@@ -26,97 +23,12 @@ doc = false
 [lints]
 workspace = true
 
-[build-dependencies]
-sunrise-mod-api-gen = { path = "../sunrise-mod-api-gen" }
-sunrise-mod-source = { path = "../sunrise-mod-source" }
-syn = { version = "2", features = ["full"] }
-
 [dependencies]
-cap-fs-ext = { version = "3.4.6", optional = true }
-cap-std = { version = "3.4.6", optional = true }
-sunrise-hooks = { path = "../sunrise-hooks", features = ["test-support"], optional = true }
-sunrise-mod-runtime = { path = "../sunrise-mod-runtime", features = ["test-work-count"], optional = true }
-mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab", features = ["testing"], optional = true }
-sunrise-mod-api-macros = { path = "../sunrise-mod-api-macros", optional = true }
-sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false, features = ["test-menu-validity", "test-payload-probe", "test-publication-scope", "test-residency-observer", "test-dry-side", "test-tooltip-factories", "test-pack-feedback", "test-still-clock"], optional = true }
-sunrise-gameplay = { path = "../sunrise-gameplay", optional = true }
-sunrise-client-gameplay = { path = "../sunrise-client-gameplay", optional = true }
-sunrise-assets = { path = "../sunrise-assets", optional = true }
-sunrise-client-core = { path = "../sunrise-client-core", features = ["test-language-publication", "test-effect-registry"], optional = true }
-sunrise-client-input = { path = "../sunrise-client-input", optional = true }
-sunrise-client-render = { path = "../sunrise-client-render", features = ["test-support"], optional = true }
-sunrise-command = { path = "../sunrise-command", optional = true }
-sunrise-items = { path = "../sunrise-items", features = ["test-support"], optional = true }
-sunrise-core = { path = "../sunrise-core", optional = true }
-sunrise-optifine = { path = "../sunrise-optifine", optional = true }
-sunrise-threads = { path = "../sunrise-threads", features = ["test-allocation-count", "test-game-dir"], optional = true }
-sunrise-perf-format = { path = "../sunrise-perf-format", optional = true }
-sunrise-world = { path = "../sunrise-world", features = ["test-support"], optional = true }
-sunrise-protocol = { path = "../sunrise-protocol", optional = true }
-sunrise-server-files = { path = "../sunrise-server-files", optional = true }
-sunrise-java-properties = { path = "../sunrise-java-properties", optional = true }
-sunrise-shaders = { path = "../sunrise-shaders", optional = true }
-sunrise-friends = { path = "../sunrise-friends", optional = true }
-sunrise-narrator = { path = "../sunrise-narrator", optional = true }
-sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["index-read", "runtime-process", "folder"], optional = true }
-wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "metal", "wgsl", "naga-ir"], optional = true }
-winit = { version = "0.30.13", optional = true }
-pollster = { version = "0.4", optional = true }
-bytemuck = { version = "1.24", features = ["derive"], optional = true }
-glam = { version = "0.30", optional = true }
-png = { version = "0.18", optional = true }
-sha2 = { version = "0.10.9", optional = true }
-cipher = { version = "0.4", default-features = false, features = ["zeroize"], optional = true }
-crypto-common = { version = "0.1", default-features = false, features = ["getrandom"], optional = true }
-digest = { version = "0.10", default-features = false, features = ["mac"], optional = true }
-fnv = { version = "1", optional = true }
-socket2 = { version = "0.6", default-features = false, features = ["all"], optional = true }
-sha1 = { version = "0.10", optional = true }
-serde = { version = "1", features = ["derive"], optional = true }
-serde_json = { version = "1.0.151", features = ["raw_value"], optional = true }
-toml = { version = "1.1", optional = true }
-naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out", "msl-out", "spv-out"], optional = true }
-ab_glyph = { version = "0.2.32", optional = true }
-indexmap = { version = "2", optional = true }
-log = { version = "0.4", optional = true }
-chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"], optional = true }
-flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs", "runtime_detection"], optional = true }
-sunrise-theme = { path = "../sunrise-theme", optional = true }
-sunrise-system = { path = "../sunrise-system", optional = true }
-sunrise-telemetry = { path = "../sunrise-telemetry", default-features = false, optional = true }
-sunrise-bench = { path = "../sunrise-bench", optional = true }
-zip = { version = "9.1.3", default-features = false, features = ["deflate-flate2-zlib-rs"], optional = true }
-gilrs = { version = "0.11", optional = true }
-sunrise-dualsense = { path = "../sunrise-dualsense", optional = true }
-ureq = { version = "2", default-features = false, features = ["tls"], optional = true }
-fs4 = { version = "1.1.0", default-features = false, features = ["sync"], optional = true }
-tempfile = { version = "3", optional = true }
-mod_platform = { package = "sunrise-mod-api", path = "../sunrise-mod-api", features = ["testing"], optional = true }
-sunrise-perf = { path = "../sunrise-perf", optional = true }
-
-[target."cfg(unix)".dependencies]
-rustix = { version = "1", default-features = false, features = ["std", "time", "process", "fs"], optional = true }
-
-[target."cfg(windows)".dependencies]
-wgpu = { version = "30.0.1", default-features = false, features = ["dx12"], optional = true }
-
-[target."cfg(not(target_os = \"macos\"))".dependencies]
-wgpu = { version = "30.0.1", default-features = false, features = ["gles"], optional = true }
-
-[target."cfg(target_os = \"linux\")".dependencies]
-libc = { version = "0.2", features = ["extra_traits"], optional = true }
+sunrise-client = { path = "../sunrise-client", optional = true, default-features = false }
+sunrise-client-gameplay = { path = "../sunrise-client-gameplay", optional = true, default-features = false }
+sunrise-gameplay = { path = "../sunrise-gameplay", optional = true, default-features = false }
+sunrise-gameplay-common = { path = "../sunrise-gameplay-common", optional = true, default-features = false }
 
 [features]
-testing = []
-state-digest = []
-audio = ["sunrise-client-render/audio", "sunrise-client-lib/audio"]
-controllers = ["sunrise-client-lib/controllers", "dep:gilrs", "dep:sunrise-dualsense", "sunrise-client-input/controllers"]
-sunrise-extras = ["friends"]
-friends = ["dep:sunrise-friends"]
-rng-trace = ["sunrise-core/rng-trace", "sunrise-client-lib/rng-trace"]
-system-allocator = ["sunrise-threads/system-allocator"]
-alloc-count = ["sunrise-threads/alloc-count"]
-alloc-census = ["sunrise-threads/alloc-census"]
-windows-segment-heap = []
-client-defaults = ["audio", "controllers", "sunrise-extras"]
-fixtures = ["dep:cap-fs-ext", "dep:cap-std", "dep:sunrise-hooks", "dep:sunrise-mod-runtime", "dep:mod_api", "dep:sunrise-mod-api-macros", "dep:sunrise-client-lib", "dep:sunrise-gameplay", "dep:sunrise-client-gameplay", "dep:sunrise-assets", "dep:sunrise-client-core", "dep:sunrise-client-input", "dep:sunrise-client-render", "dep:sunrise-command", "dep:sunrise-items", "dep:sunrise-core", "dep:sunrise-optifine", "dep:sunrise-threads", "dep:sunrise-perf-format", "dep:sunrise-world", "dep:sunrise-protocol", "dep:sunrise-server-files", "dep:sunrise-java-properties", "dep:sunrise-shaders", "dep:sunrise-narrator", "dep:sunrise-mod-package", "dep:wgpu", "dep:winit", "dep:pollster", "dep:bytemuck", "dep:glam", "dep:png", "dep:sha2", "dep:cipher", "dep:crypto-common", "dep:digest", "dep:fnv", "dep:socket2", "dep:sha1", "dep:serde", "dep:serde_json", "dep:toml", "dep:naga", "dep:ab_glyph", "dep:indexmap", "dep:log", "dep:chrono", "dep:flate2", "dep:sunrise-theme", "dep:sunrise-system", "dep:sunrise-telemetry", "dep:sunrise-bench", "dep:zip", "dep:ureq", "dep:fs4", "dep:tempfile", "dep:mod_platform", "dep:sunrise-perf", "dep:rustix", "dep:libc"]
+client-defaults = ["fixtures", "dep:sunrise-client-gameplay", "dep:sunrise-client", "sunrise-client-gameplay/parity-fixtures", "sunrise-client/parity-fixtures", "sunrise-client/client", "sunrise-client/audio", "sunrise-client/controllers", "sunrise-client/sunrise-extras"]
+fixtures = ["dep:sunrise-gameplay-common", "dep:sunrise-gameplay", "sunrise-gameplay-common/parity-fixtures", "sunrise-gameplay/parity-fixtures"]

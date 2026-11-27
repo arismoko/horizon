@@ -9,7 +9,7 @@ pub trait Hooks {
     /// without a drag, and a drag off the list ends as `Dropped`. Act on it
     /// when it is yours.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_panel_event",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_panel_event",
         dispatch = "flat",
         side = "client",
         version = 3,

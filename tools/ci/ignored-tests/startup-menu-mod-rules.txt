@@ -1,1 +1,1 @@
-sunrise-client game::startup_menu::tests::startup_menu_creation_carries_installed_mod_rules lib daily child-process
+sunrise-client cut_layout::game::client_side::startup_menu::tests::startup_menu_creation_carries_installed_mod_rules lib daily child-process

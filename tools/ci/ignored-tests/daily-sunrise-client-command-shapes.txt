@@ -1,3 +1,3 @@
-sunrise-client game::native_server::command_failure_tests::a_failure_line_then_zero_is_a_red_line_and_a_zero_result lib daily child-process
-sunrise-client game::native_server::command_shape_tests::a_usage_merged_into_a_vanilla_command_keeps_its_usages lib daily child-process
-sunrise-client game::native_server::command_shape_tests::bounded_numbers_reach_the_client_and_refuse_out_of_range lib daily child-process
+sunrise-client cut_layout::game::native_server::command_failure_tests::a_failure_line_then_zero_is_a_red_line_and_a_zero_result lib daily child-process
+sunrise-client cut_layout::game::native_server::command_shape_tests::a_usage_merged_into_a_vanilla_command_keeps_its_usages lib daily child-process
+sunrise-client cut_layout::game::native_server::command_shape_tests::bounded_numbers_reach_the_client_and_refuse_out_of_range lib daily child-process

@@ -10,6 +10,127 @@ use std::{
 };
 use syn::{Attribute, Expr, Item, Type};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct GameDomain {
+    pub package: &'static str,
+    pub key: &'static str,
+}
+
+impl GameDomain {
+    pub fn package_path(self, root: &Path) -> PathBuf {
+        root.join("crates").join(self.package)
+    }
+
+    pub fn library(self, root: &Path) -> Result<PathBuf, String> {
+        let package = self.package_path(root);
+        if package.join("Cargo.toml").is_file() {
+            library_root(&package)
+        } else {
+            Ok(package.join("src/lib.rs"))
+        }
+    }
+
+    pub(crate) fn files(self, root: &Path, every_build: bool) -> Result<Vec<ModuleFile>, String> {
+        let lib = self.library(root)?;
+        let src = lib.parent().expect("a source file has a folder");
+        if crate::GameplayPackage::from_library(self.key).is_some() {
+            let game = format!("{}::game", self.key);
+            let prefix = format!("{game}::");
+            let dir = src.to_owned();
+            let mut files = module_files(root, self.key.into(), lib, dir, every_build)?;
+            files.retain(|file| file.module == game || file.module.starts_with(&prefix));
+            if files.is_empty() {
+                return Err(format!("{game}: no mounted gameplay source files"));
+            }
+            return Ok(files);
+        }
+        module_files(
+            root,
+            format!("{}::game", self.key),
+            src.join("game.rs"),
+            src.join("game"),
+            every_build,
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SourceLayout {
+    pub(crate) runtime: GameDomain,
+    pub(crate) domains: &'static [GameDomain],
+    pub(crate) entry: Option<&'static str>,
+}
+
+pub(crate) const MARKER: &str = "crates/sunrise-mod-api-gen/source-layout";
+
+pub(crate) const ENTRY_DOMAIN: GameDomain = GameDomain {
+    package: "sunrise-client",
+    key: "sunrise_client",
+};
+
+pub(crate) const LEGACY_LAYOUT: SourceLayout = SourceLayout {
+    runtime: ENTRY_DOMAIN,
+    domains: &[ENTRY_DOMAIN],
+    entry: Some("src/entry.rs"),
+};
+
+impl Default for SourceLayout {
+    fn default() -> Self {
+        #[cfg(test)]
+        let layout = LEGACY_LAYOUT;
+        #[cfg(not(test))]
+        let layout = crate::GAMEPLAY_LAYOUT;
+        layout
+    }
+}
+
+impl SourceLayout {
+    /// Read the source tree’s split layout marker. Older trees require their own generator.
+    pub fn read(root: &Path) -> Result<Self, String> {
+        let path = root.join(MARKER);
+        match fs::read_to_string(&path) {
+            Ok(text) => match text.trim() {
+                #[cfg(test)]
+                "legacy" => Ok(LEGACY_LAYOUT),
+                #[cfg(not(test))]
+                "legacy" => Err("legacy source requires the generator from its revision".into()),
+                "split" => Ok(crate::gameplay::GAMEPLAY_LAYOUT),
+                other => Err(format!(
+                    "{}: unknown source layout {other:?}",
+                    path.display()
+                )),
+            },
+            #[cfg(test)]
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(LEGACY_LAYOUT),
+            Err(error) => Err(format!("{}: {error}", path.display())),
+        }
+    }
+
+    pub(crate) fn is_split(self) -> bool {
+        self == crate::gameplay::GAMEPLAY_LAYOUT
+    }
+
+    pub(crate) fn domain(self, key: &str) -> Option<GameDomain> {
+        self.domains
+            .iter()
+            .copied()
+            .find(|domain| domain.key == key)
+    }
+
+    pub(crate) fn owns(self, path: &str) -> bool {
+        self.domain(path.split("::").next().unwrap_or_default())
+            .is_some()
+    }
+
+    pub(crate) fn files(self, root: &Path, every_build: bool) -> Result<Vec<ModuleFile>, String> {
+        let mut files = Vec::new();
+        for domain in self.domains {
+            files.extend(domain.files(root, every_build)?);
+        }
+        Ok(files)
+    }
+}
+
 /// Production inline declarations of `name` inside the parent module's items.
 pub(crate) fn inline_module_items<'a>(
     items: &'a [Item],
@@ -45,34 +166,25 @@ pub(crate) fn expr_attrs(expr: &Expr) -> &[Attribute] {
 /// generated module lists expanded. With `every_build`, the replaceable functions: those every
 /// build compiles; without, the internals, listed with the builds they exist in.
 pub(crate) fn module_files(
+    root: &Path,
     module: String,
     path: PathBuf,
     dir: PathBuf,
     every_build: bool,
 ) -> Result<Vec<ModuleFile>, String> {
-    walk_module_files(
-        module,
-        path,
-        dir,
-        every_build,
-        false,
-        crate::game_modules::parse_signatures,
-    )
-}
-
-/// The files of `sunrise_client::game`; see [`module_files`] for `every_build`.
-pub(crate) fn game_files(src: &Path, every_build: bool) -> Result<Vec<ModuleFile>, String> {
-    module_files(
-        "sunrise_client::game".to_owned(),
-        src.join("game.rs"),
-        src.join("game"),
-        every_build,
-    )
+    walk_module_files(module, path, dir, every_build, false, |path, source| {
+        crate::game_modules::parse(root, path, source)
+    })
 }
 
 /// The crate `krate`'s package folder and library root, from its manifest.
 pub(crate) fn crate_root(root: &Path, krate: &str) -> Result<(PathBuf, PathBuf), String> {
     let package = root.join("crates").join(krate.replace('_', "-"));
+    let lib = library_root(&package)?;
+    Ok((package, lib))
+}
+
+fn library_root(package: &Path) -> Result<PathBuf, String> {
     let manifest = package.join("Cargo.toml");
     let text = fs::read_to_string(&manifest).map_err(|e| format!("{}: {e}", manifest.display()))?;
     let manifest: toml::Value = toml::from_str(&text).map_err(|e| e.to_string())?;
@@ -81,8 +193,7 @@ pub(crate) fn crate_root(root: &Path, krate: &str) -> Result<(PathBuf, PathBuf),
         .and_then(|lib| lib.get("path"))
         .and_then(toml::Value::as_str)
         .unwrap_or("src/lib.rs");
-    let lib = package.join(lib);
-    Ok((package, lib))
+    Ok(package.join(lib))
 }
 
 /// The files of the crate `krate` that every build compiles. Each must resolve inside `root`:
@@ -90,7 +201,7 @@ pub(crate) fn crate_root(root: &Path, krate: &str) -> Result<(PathBuf, PathBuf),
 pub(crate) fn crate_files(root: &Path, krate: &str) -> Result<Vec<ModuleFile>, String> {
     let (_, lib) = crate_root(root, krate)?;
     let dir = lib.parent().expect("a source file has a folder").to_owned();
-    let files = module_files(krate.to_owned(), lib, dir, true)?;
+    let files = module_files(root, krate.to_owned(), lib, dir, true)?;
     let canonical = root
         .canonicalize()
         .map_err(|e| format!("{}: {e}", root.display()))?;
@@ -167,6 +278,25 @@ pub(crate) fn marker<'a>(attrs: &'a [syn::Attribute], name: &str) -> Option<&'a 
 mod tests {
     use super::*;
 
+    #[test]
+    fn source_layout_marker_selects_the_layout_and_rejects_typos() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let path = root.join(MARKER);
+        assert_eq!(SourceLayout::read(root).unwrap(), LEGACY_LAYOUT);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "legacy\r\n").unwrap();
+        assert_eq!(SourceLayout::read(root).unwrap(), LEGACY_LAYOUT);
+        fs::write(&path, "split\n").unwrap();
+        assert_eq!(SourceLayout::read(root).unwrap(), crate::GAMEPLAY_LAYOUT);
+        fs::write(&path, "splti\n").unwrap();
+        assert!(
+            SourceLayout::read(root)
+                .unwrap_err()
+                .contains("unknown source layout")
+        );
+    }
+
     /// A module whose file each target names with `cfg_attr(…, path = …)` is read from each
     /// target's file under its condition; it has no default file, and none is needed.
     #[test]
@@ -181,7 +311,7 @@ mod tests {
         .unwrap();
         std::fs::write(src.join("control/unix.rs"), "pub fn a() {}").unwrap();
         std::fs::write(src.join("control/windows.rs"), "pub fn b() {}").unwrap();
-        let files = module_files("k".into(), src.join("lib.rs"), src.clone(), false).unwrap();
+        let files = module_files(&dir, "k".into(), src.join("lib.rs"), src.clone(), false).unwrap();
         let mut found: Vec<_> = files
             .iter()
             .map(|f| {
@@ -210,7 +340,7 @@ mod tests {
             ]
         );
         // Every build compiles neither, so the replaceable-function walk leaves the module out.
-        let every = module_files("k".into(), src.join("lib.rs"), src, true).unwrap();
+        let every = module_files(&dir, "k".into(), src.join("lib.rs"), src, true).unwrap();
         assert_eq!(every.len(), 1);
         std::fs::remove_dir_all(dir).unwrap();
     }

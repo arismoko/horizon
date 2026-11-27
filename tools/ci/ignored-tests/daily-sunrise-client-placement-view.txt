@@ -1,2 +1,2 @@
 # The placement view test builds a game level over the prepared block registry.
-sunrise-client game::native_entity_refs::tests::a_placement_view_reads_redstone_and_collision_shapes lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::a_placement_view_reads_redstone_and_collision_shapes lib daily resources

@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "crates/sunrise-client/src/game/world/ordered_tick.rs"
+SOURCE = ROOT / "crates/sunrise-gameplay/src/game/world/ordered_tick.rs"
 original = SOURCE.read_text()
 cmd = ["cargo", "test", "-p", "sunrise-client", "--lib",
        "dispatch_ticks_both_owners_of_each_located_kind", "--", "--ignored"]

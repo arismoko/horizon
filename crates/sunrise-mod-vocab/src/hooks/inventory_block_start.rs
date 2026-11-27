@@ -5,7 +5,7 @@ pub trait Hooks {
     /// `pos`. Set `cancel` to leave the inventory closed. The player's state
     /// is not swapped in.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_inventory_block_start",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_inventory_block_start",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

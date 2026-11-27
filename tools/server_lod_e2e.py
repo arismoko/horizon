@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Far terrain on a dedicated server (`sunrise-lod-distance`, crates/sunrise-client/src/lod_net.rs), end to end.
+"""Far terrain on a dedicated server (`sunrise-lod-distance`, crates/sunrise-sim/src/lod_net.rs), end to end.
 
     python3 tools/server_lod_e2e.py --bin-dir target/fast
 

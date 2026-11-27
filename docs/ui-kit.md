@@ -39,7 +39,7 @@ and an area. There are two kinds:
 | `BossBars` | `hud_overlays::boss_bars_bottom(h, n)`: vanilla's `BossHealthOverlay` layout, y from 12 in steps of 19 until a third of the view's height; as wide as the 182 px bar or its widest name |
 | `StatusRows` | the survival rows above the hotbar (health with its absorption rows, armour, food or the mount's hearts, air), from the highest row's top to the view's bottom, as `hud_layout::draws_top` reports them; `room.bottom()` is the lowest y an overlay may reach |
 
-`Game::hud_room` (`crates/sunrise-client/src/game/hud_room.rs`) gathers what is showing.
+`ClientGame::hud_room` (`crates/sunrise-client-gameplay/src/game/interface/hud_room.rs`) gathers what is showing.
 Nothing shows while F1 or Replay Studio hides the HUD, or off a world. `hud` empties `ui.room` at
 the start of every frame, and `hud_layers` fills it in before the world's HUD draws, so every
 overlay in the frame reads the same room and never a stale one.
@@ -67,15 +67,15 @@ these push-aside points for mods.
 ### Overlays that hold the view
 
 Some overlays take the middle of the view for themselves, as the radial menu does once it shows.
-What vanilla draws there gives way to them through one query, `Game::overlay_holds_view()`
-(`crates/sunrise-client/src/game/hud_room.rs`), not a check per overlay in each piece:
+What vanilla draws there gives way to them through one query, `ClientGame::overlay_holds_view()`
+(`crates/sunrise-client-gameplay/src/game/interface/hud_room.rs`), not a check per overlay in each piece:
 
 | Gives way | Where |
 |---|---|
-| the 2D crosshair and F3's crosshair | `hud_layers`, `debug_crosshair_drawn` (`game.rs`) |
-| the chat's lines (an open chat still draws) | `hud_layers` (`game.rs`) |
-| every toast: advancements, recipes, tutorials, packs, music | `Game::draw_every_toast` (`hud_room.rs`); they go on timing out, as under F1 |
-| the first-person hands | `Game::hands_shown` (`hud_room.rs`), which `hand_geometry` reads (`game/frame_geometry.rs`) |
+| the 2D crosshair and F3's crosshair | `hud_layers`, `debug_crosshair_drawn` (`crates/sunrise-client-gameplay/src/game/game_client.rs`) |
+| the chat's lines (an open chat still draws) | `hud_layers` (`crates/sunrise-client-gameplay/src/game/game_client.rs`) |
+| every toast: advancements, recipes, tutorials, packs, music | `ClientGame::draw_every_toast` (`hud_room.rs`); they go on timing out, as under F1 |
+| the first-person hands | `ClientGame::hands_shown` (`hud_room.rs`), which `hand_geometry` reads (`crates/sunrise-client-gameplay/src/game/interface/frame_geometry.rs`) |
 
 A new overlay that holds the view adds its own condition to `overlay_holds_view`. Ask from the moment
 it shows, not from when it owns the pad ([Pad capture](#pad-capture)): a quick tap of the radial
@@ -140,7 +140,7 @@ segment counts, a clip that keeps half a disc and its blend run, gradient stops,
 `hud_kit::motion` is quiet motion for overlays. It holds no state: the overlay keeps the moments
 things happened and asks where a tween is now.
 
-- `Clock { now, still }` is built once a frame by the game (`Game::hud_clock`). `still` is set
+- `Clock { now, still }` is built once a frame by the game (`ClientGame::hud_clock`). `still` is set
   while the game is paused, frame-stepped (`SUNRISE_STILL`, a screenshot sequence) or a repro
   recording or replay runs. A still clock shows every tween at its end, so recordings and
   screenshots are the same every run.
@@ -167,7 +167,7 @@ sector is drawing.
 | `Icon` | Drawn by |
 |---|---|
 | `Sprite("statistics/item_dropped")` | the kit, from the atlas's `gui/sprites/`; proportions kept, centred |
-| `Item("minecraft:chest")` | the game's `IconPainter::item` (`game/item_draw.rs`): the item's model, scaled from 16 |
+| `Item("minecraft:chest")` | the game's `IconPainter::item` (`crates/sunrise-client-gameplay/src/game/interface/item_draw.rs`): the item's model, scaled from 16 |
 | `Glyph(glyph)` | the kit, `pad_glyph::draw`, centred |
 
 `icon::draw(batch, atlas, painter, icon, area, alpha)` says whether anything was drawn. The render
@@ -223,8 +223,8 @@ twelve-screen pack in a real game).
 
 ## Pad capture
 
-Several overlays over play take the controller for themselves. `Game::pad_capture`
-(`crates/sunrise-client/src/game/pad/capture.rs`) is the one place that says which owns it now,
+Several overlays over play take the controller for themselves. `ClientGame::pad_capture`
+(`crates/sunrise-client-gameplay/src/game/interface/pad/capture.rs`) is the one place that says which owns it now,
 in one priority order:
 
 | `PadCapture` | Owns the pad while |
@@ -270,13 +270,13 @@ art and the label, so South shows that A. `GlyphStyle` is only the setting: the 
 
 What the types guarantee: no code outside `pad_glyph` can turn a bare `Button` into art or a label, and none
 can make `Glyphs` without the `PadSettings` its letters come from. What they don't: a caller holding the
-settings could still pass another pad's family, so gameplay reads the player's through `Game::glyph` and
-`Game::menu_glyph`.
+settings could still pass another pad's family, so gameplay reads the player's through `ClientGame::glyph` and
+`ClientGame::menu_glyph`.
 
 A new screen asks for a glyph like this:
 
 ```rust
-// Gameplay: `Game::glyph` for anything, `Game::menu_glyph` for a menu job.
+// Gameplay: `ClientGame::glyph` for anything, `ClientGame::menu_glyph` for a menu job.
 if let Some(jump) = self.glyph(GlyphOf::Bound("key.jump")) {
     pad_glyph::draw(batch, atlas, jump, x, y);
 }
@@ -481,7 +481,7 @@ radial menu's editor does for a slot's action:
   Shift press). `None`, the default, steps it as Right does; outputs (a `Push` of the list's page) open
   the list instead. Left and Right still step it.
 - `Hosted::clicks_step(on)`: the host marks the clicks that are a controller's D-pad Left or Right
-  (`OptionsUi::pad_clicks_step`, from `game/pad_menu.rs`), so on such a choice they step rather than
+  (`OptionsUi::pad_clicks_step`, from `crates/sunrise-client-gameplay/src/game/interface/pad_menu.rs`), so on such a choice they step rather than
   open the list.
 - `Shell::focus_soon(row)`: put the focus on a row at the next draw, scrolled into view, as the
   keyboard would. The host reads where it went (`Hosted::opened_focus`, `OptionsUi::shell_opened_focus`)

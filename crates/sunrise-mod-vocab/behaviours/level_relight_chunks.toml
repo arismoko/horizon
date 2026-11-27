@@ -2,6 +2,6 @@ version = 1
 handle = "handle:LevelRef::relight_chunks"
 doc = "LevelRef::relight_chunks accepts any batch size and routes a parked level's chunks to its owning dimension; it counts the chunks actually queued."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_chunk_relight_tests.rs::relight_chunks_accepts_large_batches_without_synthetic_quotas",
-    "crates/sunrise-client/src/game/modding/native_chunk_relight_tests.rs::parked_level_relights_on_the_owning_dimension",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_chunk_relight_tests.rs::relight_chunks_accepts_large_batches_without_synthetic_quotas",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_chunk_relight_tests.rs::parked_level_relights_on_the_owning_dimension",
 ]

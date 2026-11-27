@@ -4,7 +4,7 @@
 //! Its own module so it can leave the engine crate as a pure file move, for the official
 //! executable to call.
 use sunrise_client::menu_style::{Fonts, MenuStyle, OverlayColours, SettingsColours, Sizes};
-use sunrise_theme as theme;
+use sunrise_client_gameplay::theme;
 
 /// Give the engine Sunrise's look; call it once, before the first window opens.
 pub(crate) fn give() {

@@ -1,11 +1,10 @@
 //! Admission and world-thread preparation for terrain visibility in the player's level.
-use super::{Job, MeshSettings, MeshUpload, Streaming, WorkerContext};
+use super::{MeshJob, MeshSettings, MeshStreamer, MeshUpload, WorkerContext};
 use crate::fast_hash::{FxHashMap, FxHashSet};
 use crate::mesher::{
     ANSWER_BYTES, Lease, MAX_RESIDENT_VISIBILITY_BYTES, PLAN_BYTES, Region, SectionAnswer,
     SectionVisibilityPlan, capture_input, plan_section,
 };
-use crate::section_mask::SectionMask;
 use crate::world::World;
 use mod_api::{
     BlockState, CellVisibility, MAX_CELL_RECORDS, SECTION_INPUT_CELLS, SectionCell,
@@ -13,6 +12,7 @@ use mod_api::{
 };
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use sunrise_level::chunk_streamer::dirty_visibility_columns;
 
 // The registry belongs to the already shared worker context. Capture allocates only these
 // three arrays and retains a reference to the existing keys, with no palette scratch.
@@ -87,7 +87,12 @@ pub struct VisibilityRequest {
 impl VisibilityRequest {
     /// Capture input using this request's immutable region and the worker's own biome table.
     pub fn capture_input(&self, state_of: impl FnMut(u32) -> BlockState) -> SectionVisibilityInput {
-        capture_input(&self.region, self.key.1, state_of, &self.context.biomes)
+        capture_input(
+            &self.region,
+            self.key.1,
+            state_of,
+            &self.context.chunk.biomes,
+        )
     }
 }
 
@@ -212,7 +217,7 @@ impl SectionPreparation {
     }
 }
 
-impl Streaming {
+impl MeshStreamer {
     pub(super) fn submit_mesh(
         &mut self,
         key: (i32, i32, i32),
@@ -222,11 +227,11 @@ impl Streaming {
     ) {
         let mut settings = self.mesh_settings();
         if let Some(lease) = visibility {
-            let context = self.shared.context.read().unwrap().clone();
+            let context = self.mesh_shared.context.read().unwrap().clone();
             self.section_visibility.pending.push(VisibilityRequest {
                 key,
                 region: region.clone(),
-                seq: self.sequence,
+                seq: self.chunks.sequence(),
                 first,
                 settings,
                 context,
@@ -239,12 +244,12 @@ impl Streaming {
             .as_ref()
             .is_some_and(|c| !c.extra_models.is_empty())
         {
-            let context = self.shared.context.read().unwrap().clone();
+            let context = self.mesh_shared.context.read().unwrap().clone();
             self.attached_tint_preparation
                 .prepare(&context, &mut settings, region, sy);
         }
-        let job = Job::Mesh(x, sy, z, region.clone(), self.sequence, settings);
-        self.submit(Some((x, z)), if first { 2 } else { 0 }, job);
+        let job = MeshJob::mesh(x, sy, z, region.clone(), self.chunks.sequence(), settings);
+        self.submit_mesh_job(Some((x, z)), if first { 2 } else { 0 }, job);
     }
 
     /// The admitted sections whose raw inputs are ready to lend to mods on the world thread.
@@ -304,8 +309,8 @@ impl Streaming {
         }));
         self.attached_tint_preparation
             .prepare(&context, &mut settings, &region, sy);
-        let job = Job::Mesh(x, sy, z, region, seq, settings);
-        self.submit(Some((x, z)), if first { 2 } else { 0 }, job);
+        let job = MeshJob::mesh(x, sy, z, region, seq, settings);
+        self.submit_mesh_job(Some((x, z)), if first { 2 } else { 0 }, job);
     }
 
     /// A visibility policy change, or the join. Invalidate answers, jobs and queued uploads,
@@ -317,6 +322,7 @@ impl Streaming {
         }
         state.listening = listening;
         state.guard_uploads = true;
+        self.chunks.set_dirty_visibility_on_load(listening);
         world.dirty_sections.track_visibility_edits(listening);
         self.reload_sections(world);
     }
@@ -345,20 +351,7 @@ impl Streaming {
                 self.section_visibility.answers.remove(&(x, sy, z));
                 self.section_visibility.capacity_waiting.remove(&(x, sy, z));
             }
-            Self::dirty_visibility_columns(world, x, z);
-        }
-    }
-
-    /// A column arrived or disappeared; every resident reader's raw halo changed.
-    pub(super) fn dirty_visibility_columns(world: &mut World, x: i32, z: i32) {
-        let mask = SectionMask::below(world.layout().sections());
-        for dz in -1..=1 {
-            for dx in -1..=1 {
-                let n = (x + dx, z + dz);
-                if world.chunks.contains_key(&n) {
-                    world.dirty_sections.insert_column_mask(n, mask);
-                }
-            }
+            dirty_visibility_columns(world, x, z);
         }
     }
 }
@@ -384,7 +377,7 @@ fn dirty_neighbours(world: &mut World, (x, sy, z): (i32, i32, i32)) {
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
-    use crate::streaming::{ChunkGenerator, Done, Proto};
+    use crate::streaming::{ChunkGenerator, ChunkWorkerContext, MeshWorkerContext, Proto};
     use crate::{
         assets::Assets, biome::Biomes, chunk::Chunk, light::LightTables, mesher::MeshTables, models,
     };
@@ -394,7 +387,7 @@ pub(super) mod tests {
     use sunrise_items::blocks::BlockFacts;
     use sunrise_world::registry::BlockStateId;
 
-    pub(in crate::streaming) fn fixture() -> (World, Streaming, u32) {
+    pub(in crate::streaming) fn fixture() -> (World, MeshStreamer, u32) {
         struct RemoteOnly;
         impl ChunkGenerator for RemoteOnly {
             type Worker = ();
@@ -415,26 +408,33 @@ pub(super) mod tests {
             );
             let source = ResourceRoot::directory(root.clone());
             let assets = Arc::new(Assets::load(&root).unwrap());
-            let render = Arc::new(assets.reload(&source).unwrap());
+            let render = Arc::new(crate::assets::RenderAssets::load(&source, &assets).unwrap());
             let facts = BlockFacts::load(&root, assets.registry).unwrap();
             let visibility = models::load_visibility(&root, assets.registry).unwrap();
+            let tables =
+                Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap());
+            let light = Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap());
+            let biomes = Arc::new(Biomes::load(&source).unwrap());
             Arc::new(WorkerContext {
-                tables: Arc::new(
-                    MeshTables::new(&assets, &render, &facts, visibility, None).unwrap(),
-                ),
-                light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-                biomes: Arc::new(Biomes::load(&source).unwrap()),
-                assets,
-                render,
-                hidden_states: Arc::from([]),
-                part_tables: Default::default(),
+                chunk: ChunkWorkerContext {
+                    assets,
+                    biomes,
+                    light,
+                },
+                mesh: MeshWorkerContext {
+                    render,
+                    tables,
+                    hidden_states: Arc::from([]),
+                    part_tables: Default::default(),
+                },
             })
         });
         let world = World::new(BlockStateId(0), 0);
-        let mut streaming = Streaming::new(Arc::new(RemoteOnly), context.clone(), 1);
+        let mut streaming = MeshStreamer::new(Arc::new(RemoteOnly), context.clone(), 1);
         streaming.remote = true;
         streaming.center_y = world.bottom_y();
         let stone = context
+            .chunk
             .assets
             .registry
             .default_state("minecraft:stone")
@@ -550,7 +550,7 @@ pub(super) mod tests {
             assert!(meshed, "the centre column was meshed");
             assert!(streaming.meshed_columns().any(|column| column == (0, 0)));
             let gone = [(0, 0)].into_iter().collect();
-            Streaming::take_remote_columns(&mut world, &gone);
+            MeshStreamer::take_remote_columns(&mut world, &gone);
             streaming.forget_columns(&mut world, &gone);
             assert!(!streaming.meshed_columns().any(|column| column == (0, 0)));
         });
@@ -578,36 +578,37 @@ pub(super) mod tests {
             );
             streaming.refresh_section_visibility(&mut world, true);
 
-            let compile = |world: &mut World, streaming: &mut Streaming, expected: SectionCell| {
-                let mut captured = false;
-                for _ in 0..100 {
-                    let (uploads, _) = streaming.update(world);
-                    for request in streaming.take_visibility_requests() {
-                        let mut builder = SectionPlanBuilder::new();
-                        if request.key == CENTRE {
-                            let input = request.capture_input(state);
-                            assert_eq!(input.cell([16, 4, 8]), Ok(expected));
-                            captured = true;
-                        } else if request.key == (1, 0, 0) {
-                            builder.restrict([1, 4, 8], false, false, 0);
+            let compile =
+                |world: &mut World, streaming: &mut MeshStreamer, expected: SectionCell| {
+                    let mut captured = false;
+                    for _ in 0..100 {
+                        let (uploads, _) = streaming.update(world);
+                        for request in streaming.take_visibility_requests() {
+                            let mut builder = SectionPlanBuilder::new();
+                            if request.key == CENTRE {
+                                let input = request.capture_input(state);
+                                assert_eq!(input.cell([16, 4, 8]), Ok(expected));
+                                captured = true;
+                            } else if request.key == (1, 0, 0) {
+                                builder.restrict([1, 4, 8], false, false, 0);
+                            }
+                            streaming.submit_visibility_answer(world, request, builder.finish());
                         }
-                        streaming.submit_visibility_answer(world, request, builder.finish());
+                        let faces = uploads
+                            .iter()
+                            .find(|upload| {
+                                upload.key == CENTRE && streaming.can_publish_mesh(world, upload)
+                            })
+                            .map(|upload| upload.mesh.solid.len() / 4);
+                        streaming.free(uploads);
+                        if let Some(faces) = faces {
+                            assert!(captured);
+                            return faces;
+                        }
+                        streaming.wait(Duration::from_millis(20));
                     }
-                    let faces = uploads
-                        .iter()
-                        .find(|upload| {
-                            upload.key == CENTRE && streaming.can_publish_mesh(world, upload)
-                        })
-                        .map(|upload| upload.mesh.solid.len() / 4);
-                    streaming.free(uploads);
-                    if let Some(faces) = faces {
-                        assert!(captured);
-                        return faces;
-                    }
-                    streaming.wait(Duration::from_millis(20));
-                }
-                panic!("the requested centre mesh did not complete");
-            };
+                    panic!("the requested centre mesh did not complete");
+                };
             assert_eq!(compile(&mut world, &mut streaming, SectionCell::Missing), 6);
             let mut east = Chunk::empty(1, 0);
             east.set(0, base + 4, 8, stone);
@@ -623,7 +624,10 @@ pub(super) mod tests {
                     .contains_key(&(1, 0, 0))
             );
             let gone = [(1, 0)].into_iter().collect();
-            assert_eq!(Streaming::take_remote_columns(&mut world, &gone).len(), 1);
+            assert_eq!(
+                MeshStreamer::take_remote_columns(&mut world, &gone).len(),
+                1
+            );
             streaming.forget_columns(&mut world, &gone);
             assert!(
                 !streaming
@@ -649,10 +653,11 @@ pub(super) mod tests {
             let (mut world, mut streaming, stone) = fixture();
             let base = world.bottom_y();
             let marker = streaming
-                .shared
+                .mesh_shared
                 .context
                 .read()
                 .unwrap()
+                .chunk
                 .assets
                 .registry
                 .default_state("minecraft:cobblestone")
@@ -666,7 +671,7 @@ pub(super) mod tests {
             streaming.insert_remote(&mut world, east);
             streaming.refresh_section_visibility(&mut world, true);
 
-            let centre_faces = |world: &mut World, streaming: &mut Streaming| {
+            let centre_faces = |world: &mut World, streaming: &mut MeshStreamer| {
                 for _ in 0..200 {
                     let (uploads, _) = streaming.update(world);
                     for request in streaming.take_visibility_requests() {
@@ -756,7 +761,7 @@ pub(super) mod tests {
             chunk.set(8, base + 4, 8, stone);
             chunk
         };
-        let request = |world: &mut World, streaming: &mut Streaming| {
+        let request = |world: &mut World, streaming: &mut MeshStreamer| {
             streaming.update(world);
             streaming
                 .take_visibility_requests()
@@ -765,15 +770,15 @@ pub(super) mod tests {
                 .unwrap()
         };
         // Drive the mailbox in a fixed order rather than depending on which worker finishes first.
-        let completed = |streaming: &Streaming, seq| {
-            streaming.shared.done.send(Done::Meshed(MeshUpload {
+        let completed = |streaming: &MeshStreamer, seq| {
+            streaming.chunks().send_auxiliary_done_for_test(MeshUpload {
                 key: CENTRE,
                 mesh: Default::default(),
                 seq,
                 halo: None,
-            }));
+            });
         };
-        let upload = |world: &mut World, streaming: &mut Streaming| -> MeshUpload {
+        let upload = |world: &mut World, streaming: &mut MeshStreamer| -> MeshUpload {
             let uploads = streaming.update(world).0;
             let mut centre = uploads.into_iter().filter(|upload| upload.key == CENTRE);
             let upload = centre.next().expect("one accepted centre mesh");
@@ -813,26 +818,24 @@ pub(super) mod tests {
         );
         let a = &resource_a.context;
         let context_b = Arc::new(WorkerContext {
-            assets: a.assets.clone(),
-            render: a.render.clone(),
-            tables: a.tables.clone(),
-            biomes: a.biomes.clone(),
-            light: a.light.clone(),
-            hidden_states: vec![true; a.assets.registry.len()].into(),
-            part_tables: a.part_tables.clone(),
+            chunk: a.chunk.clone(),
+            mesh: MeshWorkerContext {
+                hidden_states: vec![true; a.chunk.assets.registry.len()].into(),
+                ..a.mesh.clone()
+            },
         });
         streaming.reload_resources(&mut world, context_b.clone());
         assert!(streaming.section_visibility.answers.is_empty());
         let resource_b = request(&mut world, &mut streaming);
         assert!(Arc::ptr_eq(&resource_b.context, &context_b));
-        assert!(resource_a.context.hidden_states.is_empty());
+        assert!(resource_a.context.mesh.hidden_states.is_empty());
         completed(&streaming, resource_b.seq);
         completed(&streaming, seq_a);
         let before_unload = upload(&mut world, &mut streaming);
         assert_eq!(before_unload.seq, resource_b.seq);
         assert!(streaming.can_publish_mesh(&world, &before_unload));
         let gone = [(0, 0)].into_iter().collect();
-        Streaming::take_remote_columns(&mut world, &gone);
+        MeshStreamer::take_remote_columns(&mut world, &gone);
         streaming.forget_columns(&mut world, &gone);
         streaming.insert_remote(&mut world, column());
         let reloaded = request(&mut world, &mut streaming);

@@ -1,5 +1,6 @@
 //! Engine registration and vanilla resource conversion for model layers.
 use super::Part;
+use crate::mobs_render::EntityModelValidationError;
 use mod_api::{
     __private::game::LayerDefinitionRegistration, Answered, LayerDefinition, ModelPart,
     ModelPolygon, ModelVertex, PartPose,
@@ -94,7 +95,19 @@ pub fn register_into(
     vanilla_root: &Path,
     slot: &OnceLock<HashMap<String, LayerDefinition>>,
 ) -> Result<(), RegistrationError> {
-    let doc = super::EntityModelDocument::load(vanilla_root).map_err(RegistrationError::Load)?;
+    let doc = super::EntityModelDocument::load(vanilla_root).map_err(|error| {
+        match error.downcast::<EntityModelValidationError>() {
+            Ok(error) => match *error {
+                EntityModelValidationError::NotNonemptyObject(_) => {
+                    RegistrationError::NotNonemptyObject
+                }
+                EntityModelValidationError::InvalidLayer { id, .. } => {
+                    RegistrationError::InvalidVanillaLayer(id)
+                }
+            },
+            Err(error) => RegistrationError::Load(error),
+        }
+    })?;
     let mut order: Vec<&str> = Vec::new();
     let mut staged: HashMap<&str, &Answered<LayerDefinitionRegistration>> = HashMap::new();
     for entry in &layers {
@@ -137,7 +150,7 @@ pub fn registered(id: &str) -> Option<&'static LayerDefinition> {
     REGISTERED.get()?.get(id)
 }
 
-pub(super) fn is_layer_id(id: &str) -> bool {
+pub(crate) fn is_layer_id(id: &str) -> bool {
     // ModelLayerLocation.toString uses the fully qualified Identifier (even when either
     // half is empty). Its layer String may contain any characters, including further '#'.
     id.split_once('#')

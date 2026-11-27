@@ -546,7 +546,7 @@ impl BlockFacts {
                 | "minecraft:seagrass"
                 | "minecraft:tall_seagrass" => (Fluid::Water, 8, false),
                 _ if prop("waterlogged") == Some("true") => (Fluid::Water, 8, false),
-                name if sunrise_world::fluid::mod_fluid_named(name).is_some() => {
+                name if sunrise_world::fluid::mod_fluid_of_block_name(name).is_some() => {
                     let level: u8 = prop("level").and_then(|v| v.parse().ok()).unwrap_or(0);
                     match level {
                         0 => (Fluid::Modded, 8, false),

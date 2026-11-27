@@ -1,6 +1,6 @@
 version = 1
 doc = "ConfigServerHost::set_tick_rate takes any finite rate (rates below 1 take effect as 1, no command upper bound) on either logical server, notifies server_tick_rate_changed even for an equal rate before the autosave adjustment and clock sync, and returns false for a non-finite rate or a call off the logical server."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_small_reads_tests.rs::the_tick_rate_is_frozen_on_a_server_only",
-    "crates/sunrise-client/src/game/native_hooks/server_tick_rate_changed.rs::a_mod_hears_every_route_of_on_tick_rate_changed_once",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_small_reads_tests.rs::the_tick_rate_is_frozen_on_a_server_only",
+    "crates/sunrise-client/src/cut_layout/game/native_hooks/server_tick_rate_changed_server.rs::a_mod_hears_every_route_of_on_tick_rate_changed_once",
 ]

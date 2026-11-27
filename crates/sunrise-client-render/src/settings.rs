@@ -6,7 +6,8 @@ use crate::options_file::{OptionsFile, V};
 use std::{fs, path::Path};
 use sunrise_protocol::packets::configuration::ClientInformation;
 
-pub use sunrise_client_core::sound_source::SOUND_SOURCES;
+pub use sunrise_game_data::sound_source::SOUND_SOURCES;
+pub use sunrise_level::sim_settings::SimSettings;
 
 /// Per-source volumes for the mixer (soundCategory_* except master).
 static SOURCE_VOLUMES: std::sync::RwLock<[f32; 11]> = std::sync::RwLock::new([1.0; 11]);
@@ -15,82 +16,7 @@ pub fn set_source_volumes(volumes: [f32; 11]) {
 }
 /// The SoundSource an event plays on. Vanilla callers pick the source; this
 /// follows their conventions by event family.
-pub fn sound_source(event: &str) -> usize {
-    let e = event.trim_start_matches("minecraft:");
-    let index = |name: &str| SOUND_SOURCES.iter().position(|n| *n == name).unwrap_or(0);
-    const HOSTILE: [&str; 34] = [
-        "zombie",
-        "skeleton",
-        "creeper",
-        "spider",
-        "cave_spider",
-        "enderman",
-        "witch",
-        "slime",
-        "magma_cube",
-        "blaze",
-        "ghast",
-        "drowned",
-        "husk",
-        "stray",
-        "phantom",
-        "pillager",
-        "vindicator",
-        "evoker",
-        "illusioner",
-        "ravager",
-        "guardian",
-        "elder_guardian",
-        "silverfish",
-        "zombified_piglin",
-        "wither_skeleton",
-        "bogged",
-        "breeze",
-        "endermite",
-        "parched",
-        "warden",
-        "zombie_villager",
-        "vex",
-        "wither",
-        // Monster's common hurt/death (e.g. Giant) and other shared sounds.
-        "hostile",
-    ];
-    if e == "block.potent_sulfur.noxious_gas" {
-        // PotentSulfurBlock.animateTick, its only caller, plays it as AMBIENT.
-        index("ambient")
-    } else if e.starts_with("music_disc.") {
-        index("record")
-    } else if e.starts_with("item.goat_horn.") {
-        // InstrumentItem.play: SoundSource.RECORDS.
-        index("record")
-    } else if e.starts_with("music.") {
-        index("music")
-    } else if e.starts_with("weather.") || e.starts_with("entity.lightning_bolt") {
-        index("weather")
-    } else if e.starts_with("block.") {
-        index("block")
-    } else if e.starts_with("ambient.") {
-        index("ambient")
-    } else if e.starts_with("ui.") {
-        index("ui")
-    } else if e.starts_with("entity.player.")
-        || e.starts_with("item.")
-        || e.starts_with("entity.item.")
-        || e.starts_with("entity.experience_orb")
-        || e.starts_with("entity.arrow")
-    {
-        index("player")
-    } else if let Some(rest) = e.strip_prefix("entity.") {
-        let mob = rest.split('.').next().unwrap_or("");
-        if HOSTILE.contains(&mob) {
-            index("hostile")
-        } else {
-            index("neutral")
-        }
-    } else {
-        index("master")
-    }
-}
+pub use sunrise_game_data::sound_source::sound_source_for_event as sound_source;
 /// Volume multiplier of a sound source by index.
 pub fn source_volume(i: usize) -> f32 {
     if i == 0 {
@@ -939,6 +865,40 @@ impl Settings {
             requested: self.gui_scale,
             unicode: self.force_unicode,
         }
+    }
+
+    pub fn sim_settings(&self) -> SimSettings {
+        SimSettings {
+            render_distance: self.render_distance,
+            simulation_distance: self.simulation_distance,
+            entity_distance: self.entity_distance,
+            parallel_tick: self.sunrise.parallel_tick,
+            auto_jump: self.auto_jump,
+            main_hand_left: self.main_hand_left,
+            chat_visibility: self.chat_visibility,
+            operator_items_tab: self.operator_items_tab,
+            reduced_debug_info: self.reduced_debug_info,
+            language: self.language.clone(),
+            mods: self.mods.clone(),
+            no_ai: self.extras.no_ai,
+            agent_control: self.extras.agent_control,
+        }
+    }
+
+    pub fn apply_sim_settings(&mut self, sim: &SimSettings) {
+        self.render_distance = sim.render_distance;
+        self.simulation_distance = sim.simulation_distance;
+        self.entity_distance = sim.entity_distance;
+        self.sunrise.parallel_tick = sim.parallel_tick;
+        self.auto_jump = sim.auto_jump;
+        self.main_hand_left = sim.main_hand_left;
+        self.chat_visibility = sim.chat_visibility;
+        self.operator_items_tab = sim.operator_items_tab;
+        self.reduced_debug_info = sim.reduced_debug_info;
+        self.language.clone_from(&sim.language);
+        self.mods.clone_from(&sim.mods);
+        self.extras.no_ai = sim.no_ai;
+        self.extras.agent_control = sim.agent_control;
     }
 }
 

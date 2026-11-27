@@ -35,7 +35,7 @@ The whole way, from picking a build to playing: [launch-guide.md](launch-guide.m
 
 ## Reference
 
-[launch-reference.md](launch-reference.md), generated from `crates/sunrise-client/src/game/runtime/launch_api.rs`: every
+[launch-reference.md](launch-reference.md), generated from `crates/sunrise-gameplay-common/src/game/runtime/launch_api.rs`: every
 option, the `--launch-api` reply and the exit codes.
 
 ### The session JSON

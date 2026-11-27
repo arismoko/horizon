@@ -19,7 +19,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         out = "answer",
-        target = "sunrise_client::game::native_hooks::place_liquid::GameLevel<'_>::native_can_place_liquid",
+        target = "sunrise_gameplay_common::game::native_hooks::place_liquid::GameLevel<'_>::native_can_place_liquid",
         neoforge = "none (vanilla LiquidBlockContainer.canPlaceLiquid)"
     )]
     fn can_place_liquid(

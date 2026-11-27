@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::block_entity_tick::tests::spill_join_keeps_the_replacement_furnace_and_its_contents lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::spill_join_keeps_the_replacement_furnace_and_its_contents lib daily child-process

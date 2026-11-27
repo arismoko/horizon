@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "crates/sunrise-client/src/join_seq.rs"
+SOURCE = ROOT / "crates/sunrise-sim/src/join_seq.rs"
 original = SOURCE.read_text()
 # Exact source anchors are unique; no test edits are made.
 faults = [

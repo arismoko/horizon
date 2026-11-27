@@ -1,4 +1,4 @@
 # ItemsClientHost::give_stack's tests log a client in on prepared resources, each in its own process.
-sunrise-client game::remote::tests::creative_sync_tests::give_stack::a_give_keeps_components_and_sends_its_slots_at_once lib daily child-process
-sunrise-client game::remote::tests::creative_sync_tests::give_stack::a_give_stacks_in_inventory_order_and_returns_what_did_not_fit lib daily child-process
-sunrise-client game::remote::tests::creative_sync_tests::give_stack::a_refused_give_changes_and_sends_nothing lib daily child-process
+sunrise-client cut_layout::game::remote::tests::creative_sync_tests::give_stack::a_give_keeps_components_and_sends_its_slots_at_once lib daily child-process
+sunrise-client cut_layout::game::remote::tests::creative_sync_tests::give_stack::a_give_stacks_in_inventory_order_and_returns_what_did_not_fit lib daily child-process
+sunrise-client cut_layout::game::remote::tests::creative_sync_tests::give_stack::a_refused_give_changes_and_sends_nothing lib daily child-process

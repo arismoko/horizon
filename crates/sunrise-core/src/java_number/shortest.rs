@@ -161,8 +161,12 @@ impl Shortest {
         let mut bytes = [0; 17];
         let (start, end) = if FLOAT {
             let value = self.significand as u32;
-            let high = value / 100_000_000;
-            let low = bcd8(value % 100_000_000);
+            // Most binary32 significands fit in one BCD word.
+            let (high, low) = if value < 100_000_000 {
+                (0, bcd8(value))
+            } else {
+                (value / 100_000_000, bcd8(value % 100_000_000))
+            };
             bytes[8] = b'0' + high as u8;
             bytes[9..].copy_from_slice(&(low | ASCII_ZERO).to_be_bytes());
             let start = if high != 0 {

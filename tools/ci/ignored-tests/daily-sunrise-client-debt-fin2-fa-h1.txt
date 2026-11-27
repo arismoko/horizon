@@ -1,1 +1,1 @@
-sunrise-client game::server_packs::tests::closing_save_reports_reach_the_title_in_the_owning_window lib daily child-process
+sunrise-client cut_layout::game::client_side::server_packs::tests::closing_save_reports_reach_the_title_in_the_owning_window lib daily child-process

@@ -12,7 +12,8 @@ use std::{
     },
     time::Instant,
 };
-use sunrise_client::{fast_hash::FxHashMap, mobs::MobType};
+use sunrise_level::fast_hash::FxHashMap;
+use sunrise_sim::mobs::MobType;
 
 /// One server tick in this many is sampled while a report records.
 pub const SAMPLE_EVERY: usize = 4;
@@ -52,7 +53,7 @@ pub fn want_spans(user: u8, on: bool) {
     } else {
         SPAN_USERS.fetch_and(!user, Ordering::Relaxed) & !user
     };
-    sunrise_client::spans::enable(users != 0);
+    sunrise_level::spans::enable(users != 0);
 }
 
 #[cfg(test)]
@@ -219,7 +220,7 @@ mod tests {
     fn spans_stay_on_while_anyone_wants_them() {
         let _spans = spans_test_lock();
         want_spans(SPANS_MOD, true);
-        assert!(sunrise_client::spans::enabled());
+        assert!(sunrise_level::spans::enabled());
         assert_ne!(SPAN_USERS.load(Ordering::Relaxed) & SPANS_MOD, 0);
         want_spans(SPANS_MOD, false);
         assert_eq!(SPAN_USERS.load(Ordering::Relaxed) & SPANS_MOD, 0);

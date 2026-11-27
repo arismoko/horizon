@@ -1,3 +1,3 @@
 version = 1
 doc = "An explicit occludes true enables occlusion whatever the template's flag. Each state's declared outline, otherwise its published template occlusion shape, decides solid render and default light dampening. Unset inherits the flag; false disables occlusion. Template skylight and custom dampening rules remain inherited."
-tests = ["crates/sunrise-client/src/mod_content_tests.rs::declared_shapes_drive_lighting_and_occlusion", "crates/sunrise-client/src/mod_content_tests.rs::enabling_occlusion_uses_the_templates_published_shape"]
+tests = ["crates/sunrise-sim/src/mod_content_tests.rs::declared_shapes_drive_lighting_and_occlusion", "crates/sunrise-sim/src/mod_content_tests.rs::enabling_occlusion_uses_the_templates_published_shape"]

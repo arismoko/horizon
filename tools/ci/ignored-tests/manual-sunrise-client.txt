@@ -1,2 +1,2 @@
 # sunrise-client's ignored tests that never run in the daily shards, and who runs them (README.md: `manual`).
-sunrise-client game::native_special_renderers::cost_tests::special_item_draw_cost by-hand manual # measurement for docs/performance/special-item-renderers.md; needs SUNRISE_TEST_RESOURCES, run with --profile fast --ignored --nocapture
+sunrise-client cut_layout::game::client_side::native_special_renderers::cost_tests::special_item_draw_cost by-hand manual # measurement for docs/performance/special-item-renderers.md; needs SUNRISE_TEST_RESOURCES, run with --profile fast --ignored --nocapture

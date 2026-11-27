@@ -34,6 +34,31 @@ class FormatScanTest(unittest.TestCase):
                  "crates/sunrise-mod-api-gen/dispatch-tests/src/fixtures/b/c.rs"],
             ])
 
+    def test_split_library_roots_follow_literal_fragments_outside_the_owner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "crates/sunrise-mod-api-gen/source-layout"
+            marker.parent.mkdir(parents=True)
+            marker.write_text("split")
+            for owner in format_scan.GAMEPLAY_OWNERS:
+                package = root / "crates" / owner
+                source = package / "engine"
+                source.mkdir(parents=True)
+                (package / "Cargo.toml").write_text('[lib]\npath = "engine/root.rs"\n')
+                (source / "root.rs").write_text(
+                    'include!{r#"../../../fragments/shared.rs"#};\n'
+                    '// include!("../../../fragments/comment.rs");\n'
+                    'include!(concat!(env!("OUT_DIR"), "/generated.rs"));\n')
+            fragments = root / "fragments"
+            fragments.mkdir()
+            (fragments / "shared.rs").write_text('include!["nested.rs"];')
+            (fragments / "nested.rs").write_text("pub struct Nested;")
+            (fragments / "comment.rs").write_text("pub struct Comment;")
+            commands = format_scan.commands(root)
+            files = [path for command in commands[1:] for path in command[len(format_scan.RUSTFMT):]]
+            self.assertEqual(files, sorted(f"crates/{owner}/engine/root.rs" for owner in format_scan.GAMEPLAY_OWNERS)
+                             + ["fragments/nested.rs", "fragments/shared.rs"])
+
     def test_long_file_lists_are_split_and_every_check_runs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

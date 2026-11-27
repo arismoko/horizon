@@ -1,6 +1,6 @@
 # Sunrise's HDR extension through the game's shader pack loader and frames on a real offscreen renderer (#5827
 # step 2); each case runs in a child process of its own, with the prepared resources.
-sunrise-client game::shader_pack_hdr_tests::a_load_under_a_kept_frame_names_the_served_answer lib daily child-process
-sunrise-client game::shader_pack_hdr_tests::a_served_answer_change_drops_the_stale_build_and_loads_once lib daily child-process
-sunrise-client game::shader_pack_hdr_tests::an_unserved_build_is_still_taken_across_a_dimension_change lib daily child-process
-sunrise-client game::shader_pack_hdr_tests::the_tone_curve_follows_the_pack_that_drew_the_frame lib daily child-process
+sunrise-client-gameplay game::client_side::shader_pack_hdr_tests::a_load_under_a_kept_frame_names_the_served_answer lib daily child-process
+sunrise-client-gameplay game::client_side::shader_pack_hdr_tests::a_served_answer_change_drops_the_stale_build_and_loads_once lib daily child-process
+sunrise-client-gameplay game::client_side::shader_pack_hdr_tests::an_unserved_build_is_still_taken_across_a_dimension_change lib daily child-process
+sunrise-client-gameplay game::client_side::shader_pack_hdr_tests::the_tone_curve_follows_the_pack_that_drew_the_frame lib daily child-process

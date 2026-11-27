@@ -1,9 +1,9 @@
 # Start-riding refusal tests (#4456 part 1) use prepared resources for their mobs.
-sunrise-client game::start_riding_refusal_tests::a_player_vehicle_is_refused_by_name_forced_or_not_before_entity_mount lib daily resources
-sunrise-client game::start_riding_refusal_tests::a_cycle_is_refused_by_name lib daily resources
-sunrise-client game::start_riding_refusal_tests::a_removed_vehicle_is_refused_as_no_entity lib daily resources
-sunrise-client game::start_riding_refusal_tests::a_vehicle_in_another_level_is_refused_as_no_entity lib daily resources
-sunrise-client game::start_riding_refusal_tests::a_full_vehicle_is_refused_by_name_unless_forced lib daily resources
-sunrise-client game::start_riding_refusal_tests::the_same_entity_and_a_second_mount_on_the_same_vehicle_are_refused_by_name lib daily resources
-sunrise-client game::start_riding_refusal_tests::a_boarding_cooldown_is_refused_as_cannot_ride_unless_forced lib daily resources
-sunrise-client game::start_riding_refusal_tests::a_canceled_entity_mount_is_refused_as_canceled_after_the_checks lib daily resources
+sunrise-client cut_layout::game::start_riding_refusal_tests::a_player_vehicle_is_refused_by_name_forced_or_not_before_entity_mount lib daily resources
+sunrise-client cut_layout::game::start_riding_refusal_tests::a_cycle_is_refused_by_name lib daily resources
+sunrise-client cut_layout::game::start_riding_refusal_tests::a_removed_vehicle_is_refused_as_no_entity lib daily resources
+sunrise-client cut_layout::game::start_riding_refusal_tests::a_vehicle_in_another_level_is_refused_as_no_entity lib daily resources
+sunrise-client cut_layout::game::start_riding_refusal_tests::a_full_vehicle_is_refused_by_name_unless_forced lib daily resources
+sunrise-client cut_layout::game::start_riding_refusal_tests::the_same_entity_and_a_second_mount_on_the_same_vehicle_are_refused_by_name lib daily resources
+sunrise-client cut_layout::game::start_riding_refusal_tests::a_boarding_cooldown_is_refused_as_cannot_ride_unless_forced lib daily resources
+sunrise-client cut_layout::game::start_riding_refusal_tests::a_canceled_entity_mount_is_refused_as_canceled_after_the_checks lib daily resources

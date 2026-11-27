@@ -54,6 +54,7 @@ entry whose layer neither a mod nor vanilla has, or whose texture is empty. Skul
 once at startup. Placed skull blocks of a mod type are not drawn by this hook: a mod block
 declaring that it is a skull is not covered yet."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::create_skull_models::native_create_skull_models",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

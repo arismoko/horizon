@@ -23,7 +23,7 @@
     "sunrise-game-discovery": "engine",
     "sunrise-bench": "engine",
     "sunrise-client": "engine",
-    "sunrise-client-core": "engine",
+    "sunrise-game-data": "engine",
     "sunrise-client-input": "engine",
     "sunrise-border": "engine",
     "sunrise-client-lib": "engine",
@@ -33,6 +33,7 @@
     "sunrise-command": "engine",
     "sunrise-connected": "engine",
     "sunrise-core": "engine",
+    "sunrise-gameplay-common": "engine",
     "sunrise-glsl": "engine",
     "sunrise-gameplay": "engine",
     "sunrise-items": "engine",
@@ -43,6 +44,7 @@
     "sunrise-protocol": "engine",
     "sunrise-proxy": "engine",
     "sunrise-server-files": "engine",
+    "sunrise-server-profiles-http": "engine",
     "sunrise-java-properties": "engine",
     "sunrise-system": "engine",
     "sunrise-threads": "engine",
@@ -101,7 +103,9 @@
     "sunrise-mod-host": "platform",
     "sunrise-telemetry": "sunrise",
     "sunrise-telemetry-server": "sunrise",
-    "sunrise-mod-vocab": "engine"
+    "sunrise-mod-vocab": "engine",
+    "sunrise-level": "engine",
+    "sunrise-sim": "engine"
   },
   "sides": {
     "_doc": "Gameplay's two sides (#2210): neither may depend on the other, directly or through another crate.",
@@ -114,7 +118,7 @@
     "_doc": "docs/layers.md#engine: vanilla's rules and data with no desktop in them, which a port builds on. They depend only on each other, and never on a forbidden library.",
     "crates": [
       "sunrise-assets",
-      "sunrise-client-core",
+      "sunrise-game-data",
       "sunrise-command",
       "sunrise-connected",
       "sunrise-core",
@@ -131,11 +135,17 @@
       "sunrise-game-discovery",
       "sunrise-threads",
       "sunrise-deflate",
-      "sunrise-java-properties"
+      "sunrise-java-properties",
+      "sunrise-server-files",
+      "sunrise-border",
+      "sunrise-perf-format",
+      "sunrise-level",
+      "sunrise-sim",
+      "sunrise-system",
+      "sunrise-bench"
     ],
     "pending": {
-      "_doc": "Engine crates that still take a non-portable crate, until the types they need move down. Entries only go away.",
-      "sunrise-gameplay": ["sunrise-client-lib"]
+      "_doc": "Engine crates that still take a non-portable crate, until the types they need move down. Entries only go away."
     },
     "forbidden": [
       "arboard",
@@ -146,13 +156,17 @@
       "winit"
     ]
   },
-  "optional": [],
+  "optional": [
+    {
+      "edge": "sunrise-client-gameplay -> sunrise-optifine",
+      "reason": "OptiFine entity models and random textures are client-only behind the `client` feature; server-only builds omit them."
+    },
+    {
+      "edge": "sunrise-client-gameplay -> sunrise-theme",
+      "reason": "UI theme tokens and fonts are client-only behind the `client` feature; server-only builds omit them."
+    }
+  ],
   "allowed": [
-    "sunrise-client -> sunrise-dualsense",
-    "sunrise-client -> sunrise-friends",
-    "sunrise-client -> sunrise-optifine",
-    "sunrise-client -> sunrise-shaders",
-    "sunrise-client -> sunrise-theme",
     "sunrise-client-lib -> sunrise-mcp",
     "sunrise-client-lib -> sunrise-optifine",
     "sunrise-client-lib -> sunrise-shaders",
@@ -164,7 +178,11 @@
     "sunrise-render-shaderpack -> sunrise-shaders",
     "sunrise-native-build -> sunrise-mod-package",
     "sunrise-mod-registry -> sunrise-mod-package",
-    "sunrise-client -> sunrise-telemetry"
+    "sunrise-client -> sunrise-telemetry",
+    "sunrise-client-gameplay -> sunrise-dualsense",
+    "sunrise-client-gameplay -> sunrise-friends",
+    "sunrise-client-gameplay -> sunrise-shaders",
+    "sunrise-client-gameplay -> sunrise-telemetry"
   ],
   "_fork_baselines": {
     "sunrise-internals": "Existing fork mod/platform boundary; no engine ownership moved by this sync.",

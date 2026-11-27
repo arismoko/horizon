@@ -130,7 +130,7 @@ if __name__ == '__main__':
         sources=[
             lab.ROOT / 'crates/sunrise-client/src/item_tooltip.rs',
             lab.ROOT / 'crates/sunrise-items/src/item_data.rs',
-            lab.ROOT / 'crates/sunrise-client-core/src/text.rs',
-            lab.ROOT / 'crates/sunrise-client-core/src/component.rs',
+            lab.ROOT / 'crates/sunrise-game-data/src/text.rs',
+            lab.ROOT / 'crates/sunrise-game-data/src/component.rs',
         ],
         expected_lines=len(corpus()))

@@ -14,7 +14,7 @@ mixins = "MIXINS"
 
 [[native.mixin]]
 id = "overwrite"
-target = "sunrise_client::game::commands::misc::millis"
+target = "sunrise_gameplay::game::server_side::commands::misc::millis"
 kind = "OVERWRITE"
 helper = "src/mixins/overwrite.rs"
 fingerprint = "577f83c695ec9adc5674bbdc3eb8df4a67f0405f298461663f69d325deabd9c8"

@@ -1,2 +1,2 @@
 # Registry sync: one pack entry in every synchronized registry; reads the prepared resources.
-sunrise-client-lib lan::data::tests::world_packs_add_an_entry_to_every_synchronized_registry lib daily resources
+sunrise-sim lan::data::tests::world_packs_add_an_entry_to_every_synchronized_registry lib daily resources

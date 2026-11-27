@@ -5,7 +5,7 @@ pub trait Hooks {
     /// duration. The player's state is not swapped in. Set `cancel` to skip starting the cooldown.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_item_cooldown",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_item_cooldown",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

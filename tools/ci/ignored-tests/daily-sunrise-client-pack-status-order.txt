@@ -1,1 +1,1 @@
-sunrise-client game::server_packs::tests::an_allowed_pack_is_accepted_before_finish_configuration lib daily child-process
+sunrise-client cut_layout::game::client_side::server_packs::tests::an_allowed_pack_is_accepted_before_finish_configuration lib daily child-process

@@ -66,9 +66,10 @@ After a fresh clone, run `cargo sunrise-mod check` once before opening the proje
 cargo sunrise-mod check
 ```
 
-`check` validates the package and runs `cargo check` against the pinned SDK's API source for this computer.
-Look for the summary naming your mod, what it uses from the API, and the build it was made for. Run `check`
-after an edit to catch mistakes without linking against the game.
+`check` validates the package. For this starter mod, it uses `rustc` to check your code against the pinned SDK's
+compiled API metadata for this computer. It also fetches the API source for your editor. Look for the summary
+naming your mod, what it uses from the API, and the build it was made for. Run `check` after an edit to catch
+mistakes without linking against the game.
 
 ## 5. Build against the prebuilt game
 

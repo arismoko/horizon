@@ -21,7 +21,7 @@ pub trait Hooks {
     /// fails Text serialization validation, or is too long for the login disconnect's
     /// reason string (`ClientboundLoginDisconnectPacket`).
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_handshake",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_handshake",
         dispatch = "direct",
         side = "server",
         contract = "cancel",

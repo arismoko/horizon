@@ -10,7 +10,7 @@ pub trait Hooks {
     /// fuller arrangement as a village grows). Their sound events should be
     /// `stream: true` in `sounds.json`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_music_layers",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_music_layers",
         receiver = "read",
         dispatch = "flat",
         side = "client",

@@ -1,1 +1,1 @@
-sunrise-client game::dedicated::language_tests::dedicated_language_uses_the_opening_selection_once lib daily resources
+sunrise-client cut_layout::game::server_side::dedicated::language_tests::dedicated_language_uses_the_opening_selection_once lib daily resources

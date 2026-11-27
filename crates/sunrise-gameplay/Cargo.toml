@@ -7,22 +7,54 @@ rust-version.workspace = true
 description = "Vanilla's logical side: the gameplay the server jar holds, common code included"
 
 [dependencies]
+chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"] }
+glam = "0.30"
+indexmap = "2"
+serde = { version = "1", features = ["derive"] }
+sunrise-bench = { path = "../sunrise-bench" }
+sunrise-command = { path = "../sunrise-command" }
+sunrise-mod-api-macros = { path = "../sunrise-mod-api-macros" }
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["runtime-process"] }
+sunrise-perf-format = { path = "../sunrise-perf-format" }
+sunrise-server-files = { path = "../sunrise-server-files" }
+toml = "1.1"
 log = "0.4"
 mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab" }
 serde_json = "1.0.151"
-sunrise-client-core = { path = "../sunrise-client-core" }
-sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false }
+sunrise-game-data = { path = "../sunrise-game-data" }
 sunrise-assets = { path = "../sunrise-assets" }
 sunrise-core = { path = "../sunrise-core" }
+sunrise-gameplay-common = { path = "../sunrise-gameplay-common" }
 sunrise-items = { path = "../sunrise-items" }
 sunrise-protocol = { path = "../sunrise-protocol" }
 sunrise-mod-runtime = { path = "../sunrise-mod-runtime" }
 sunrise-threads = { path = "../sunrise-threads" }
 sunrise-world = { path = "../sunrise-world" }
+sunrise-sim = { path = "../sunrise-sim" }
+sunrise-level = { path = "../sunrise-level" }
 
 [dev-dependencies]
-mod_platform = { package = "sunrise-mod-api", path = "../sunrise-mod-api", features = ["testing"] }
-sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false, features = ["test-mob-kind"] }
+tempfile = "3"
+sunrise-java-properties = { path = "../sunrise-java-properties" }
+sunrise-gameplay-common = { path = "../sunrise-gameplay-common", features = ["test-support"] }
+mod_platform = { package = "sunrise-mod-api", path = "../sunrise-mod-api", features = ["engine-test-platform"] }
+sunrise-sim = { path = "../sunrise-sim", features = ["test-dry-side", "test-menu-validity", "test-mob-kind", "test-payload-probe", "test-publication-scope", "test-residency-observer", "test-still-clock", "test-support"] }
+sunrise-level = { path = "../sunrise-level", features = ["test-support"] }
+sunrise-game-data = { path = "../sunrise-game-data", features = ["test-language-publication", "test-effect-registry"] }
+sunrise-mod-runtime = { path = "../sunrise-mod-runtime", features = ["test-work-count"] }
+sunrise-threads = { path = "../sunrise-threads", features = ["test-allocation-count", "test-game-dir"] }
+mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab", features = ["testing"] }
+sunrise-items = { path = "../sunrise-items", features = ["test-support"] }
+sunrise-world = { path = "../sunrise-world", features = ["test-support"] }
+
 
 [lints]
 workspace = true
+
+[build-dependencies]
+sunrise-mod-api-gen = { path = "../sunrise-mod-api-gen" }
+
+[features]
+parity-fixtures = []
+state-digest = []
+test-support = ["sunrise-gameplay-common/test-support", "sunrise-gameplay-common/test-owner-requests", "sunrise-game-data/test-language-publication", "sunrise-game-data/test-effect-registry", "sunrise-mod-runtime/test-work-count", "sunrise-threads/test-allocation-count", "sunrise-threads/test-game-dir", "mod_api/testing", "sunrise-items/test-support", "sunrise-world/test-support", "sunrise-sim/test-dry-side", "sunrise-sim/test-menu-validity", "sunrise-sim/test-mob-kind", "sunrise-sim/test-payload-probe", "sunrise-sim/test-publication-scope", "sunrise-sim/test-residency-observer", "sunrise-sim/test-still-clock", "sunrise-sim/test-support", "sunrise-level/test-support"]

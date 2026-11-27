@@ -5,7 +5,7 @@ pub trait Hooks {
     /// `entity` includes its living scale/distance and optional mount scale/distance.
     /// Only finite requests in 0..=1024 blocks replace the vanilla distance.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_camera_distance",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_camera_distance",
         receiver = "read",
         dispatch = "flat",
         side = "client",

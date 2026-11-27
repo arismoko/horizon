@@ -21,7 +21,7 @@ def main():
     classes.mkdir(exist_ok=True)
     oracle = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaTextDisplayTransformOracle.java'
     sources = [oracle, lab.ROOT/'crates/sunrise-client/src/text_display.rs',
-        lab.ROOT/'crates/sunrise-client/src/game/entities/text_displays.rs']
+        lab.ROOT/'crates/sunrise-client-gameplay/src/game/entities/text_displays.rs']
     tested = base.source_hashes(sources)
     source = lab.LOCAL / 'text-display-parity/java.jsonl'
     # Every billboard mode, coupled and independent entity/camera rotations.

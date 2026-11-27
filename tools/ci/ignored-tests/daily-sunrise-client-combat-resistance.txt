@@ -1,4 +1,4 @@
-sunrise-client game::native_damage_tests::brainless_villager_wakes_before_damage_listeners lib daily child-process
-sunrise-client game::native_hit_attempt_tests::base_allow_does_not_override_worn_immunity lib daily child-process
-sunrise-client game::player_kill_credit_tests::a_displaced_archer_receives_resistance_credit lib daily child-process
-sunrise-client game::player_kill_credit_tests::surviving_mob_hit_awards_resistance_before_pre_and_post lib daily child-process
+sunrise-client cut_layout::game::server_side::native_damage_tests::brainless_villager_wakes_before_damage_listeners lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hit_attempt_tests::base_allow_does_not_override_worn_immunity lib daily child-process
+sunrise-client cut_layout::game::player_kill_credit_tests::a_displaced_archer_receives_resistance_credit lib daily child-process
+sunrise-client cut_layout::game::player_kill_credit_tests::surviving_mob_hit_awards_resistance_before_pre_and_post lib daily child-process

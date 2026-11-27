@@ -630,14 +630,11 @@ fn run_overlay_panic_case() {
         ),
     )]));
     let cache = tempfile::tempdir().unwrap();
-    world.render = world
-        .assets
-        .reload(&ResourceRoot::new(
-            world.root.clone(),
-            cache.path().to_path_buf(),
-            pack,
-        ))
-        .unwrap();
+    world.render = crate::assets::RenderAssets::load(
+        &ResourceRoot::new(world.root.clone(), cache.path().to_path_buf(), pack),
+        &world.assets,
+    )
+    .unwrap();
     let mut tables = world.tables(Vec::new());
     let lock = Arc::new(std::sync::Mutex::new(()));
     let leaf_source = Arc::new(SharedTint {

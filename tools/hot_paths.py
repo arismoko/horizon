@@ -5,7 +5,7 @@
     python3 tools/hot_paths.py record run.json HISTORY     # validate, keep only known fields, add to HISTORY/runs
     python3 tools/hot_paths.py page HISTORY                # write HISTORY/index.html and HISTORY/README.md
 
-`measure` runs the game's built-in benchmark (`SUNRISE_HOT_PATHS`, crates/sunrise-client/src/game/runtime/
+`measure` runs the game's built-in benchmark (`SUNRISE_HOT_PATHS`, crates/sunrise-gameplay/src/game/runtime/
 hot_paths/; the executable is crates/sunrise-hot-paths-game) on fixed, seeded workloads. Each workload is one measured region, and three numbers come out of it,
 each divided by the workload's operations:
 

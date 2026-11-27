@@ -1,16 +1,17 @@
 //! What mob code calls on `ServerLevel` and `Level`: the level's data as one borrow, and its services.
 
-use sunrise_client::{entities::ItemEntity, items::Items};
+use sunrise_items::items::Items;
+use sunrise_sim::entities::ItemEntity;
 
 /// The level's data a mob family reads and writes, as one borrow of disjoint parts.
 pub struct MobParts<'a> {
-    pub mobs: &'a mut sunrise_client::join_seq::JoinList<sunrise_client::mobs::Mob>,
-    pub dropped: &'a mut sunrise_client::join_seq::JoinList<ItemEntity>,
+    pub mobs: &'a mut sunrise_sim::join_seq::JoinList<sunrise_sim::mobs::Mob>,
+    pub dropped: &'a mut sunrise_sim::join_seq::JoinList<ItemEntity>,
     pub next_entity: u32,
-    pub ticked: &'a sunrise_client::fast_hash::FxHashSet<u32>,
+    pub ticked: &'a sunrise_level::fast_hash::FxHashSet<u32>,
     pub items: &'a Items,
-    pub facts: &'a sunrise_client::blocks::BlockFacts,
-    pub world: &'a mut sunrise_client::world::World,
+    pub facts: &'a sunrise_items::blocks::BlockFacts,
+    pub world: &'a mut sunrise_level::world::World,
 }
 
 /// What mob code calls on `ServerLevel`, statically dispatched because it runs per mob per tick.
@@ -24,7 +25,7 @@ pub trait MobLevel {
     /// `new ItemEntity(level, x, y, z, stack)` added to the level; returns its own random's motion.
     fn spawn_item_own(
         &mut self,
-        stack: sunrise_client::items::ItemStack,
+        stack: sunrise_items::items::ItemStack,
         position: [f64; 3],
         pickup_delay: i32,
     ) -> [f64; 3];

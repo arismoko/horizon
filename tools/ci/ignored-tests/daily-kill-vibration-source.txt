@@ -1,2 +1,2 @@
 # PACKAGE TEST TARGET daily REASON
-sunrise-client game::kill_die_vibration_tests::a_killed_stand_keeps_its_source_in_the_sensor lib daily resources
+sunrise-client cut_layout::game::server_side::kill_die_vibration_tests::a_killed_stand_keeps_its_source_in_the_sensor lib daily resources

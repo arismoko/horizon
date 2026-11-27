@@ -1,4 +1,4 @@
 # Daily placement-source tests: real Game::use_hand, remote_can_place, and dispense_item dispatch, and directional
 # LevelRef::state_for_placement reads.
-sunrise-client game::native_hooks::placement_context_tests::state_for_placement_distinguishes_player_and_dispenser_sources lib daily child-process
-sunrise-client game::native_placement_state_tests::directional_queries_read_the_clicked_block_and_refuse_what_vanilla_throws_on lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::placement_context_tests::state_for_placement_distinguishes_player_and_dispenser_sources lib daily child-process
+sunrise-client cut_layout::game::server_side::native_placement_state_tests::directional_queries_read_the_clicked_block_and_refuse_what_vanilla_throws_on lib daily child-process

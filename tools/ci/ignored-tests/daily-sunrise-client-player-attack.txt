@@ -1,4 +1,4 @@
 # PlayerRef::attack, the attack strength ticker and MobRef::do_hurt_target (#4983): prepared resources, each in a fresh child process.
-sunrise-client game::native_mob_attack::tests::do_hurt_target_strikes_a_player_or_a_mob_with_the_species_override lib daily child-process
-sunrise-client game::native_player_attack::tests::a_mods_attack_runs_player_attack_with_its_crit_enchantments_and_durability_unswung lib daily child-process
-sunrise-client game::native_player_attack::tests::the_ticker_set_back_between_two_attacks_gives_both_the_same_charge lib daily child-process
+sunrise-gameplay game::server_side::native_mob_attack::tests::do_hurt_target_strikes_a_player_or_a_mob_with_the_species_override lib daily child-process
+sunrise-gameplay game::server_side::native_player_attack::tests::a_mods_attack_runs_player_attack_with_its_crit_enchantments_and_durability_unswung lib daily child-process
+sunrise-gameplay game::server_side::native_player_attack::tests::the_ticker_set_back_between_two_attacks_gives_both_the_same_charge lib daily child-process

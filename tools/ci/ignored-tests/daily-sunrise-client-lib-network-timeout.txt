@@ -1,2 +1,2 @@
 # The network read timeout needs a real socket: the memory connection has none (ServerConnectionListener.startMemoryChannel).
-sunrise-client-lib lan::io_pool::tests::a_silent_network_client_times_out lib daily network
+sunrise-sim lan::io_pool::tests::a_silent_network_client_times_out lib daily network

@@ -1,2 +1,2 @@
-sunrise-client game::levels::tests::built_in_level_load_order_ignores_the_saved_player_dimension lib daily resources
-sunrise-client game::levels::tests::built_in_levels_restore_saved_tickets_before_the_first_tick lib daily resources
+sunrise-client cut_layout::game::server_side::levels::tests::built_in_level_load_order_ignores_the_saved_player_dimension lib daily resources
+sunrise-client cut_layout::game::server_side::levels::tests::built_in_levels_restore_saved_tickets_before_the_first_tick lib daily resources

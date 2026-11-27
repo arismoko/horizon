@@ -1,3 +1,3 @@
 # #4502: every pack's copy of a resource and listing a folder across namespaces load the game
 # fixture, which replaces process-wide tables, so the cases run in their own child process.
-sunrise-client game::native_resources::tests::resource_stacks_and_listings_cover_every_pack_and_namespace lib daily child-process
+sunrise-client cut_layout::game::native_resources::tests::resource_stacks_and_listings_cover_every_pack_and_namespace lib daily child-process

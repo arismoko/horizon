@@ -1,11 +1,11 @@
 # Survey function targets (classified.json, 181 injections). One declaration per line.
-sunrise_client_input::input::modify_input
-sunrise_client_lib::vanillagen::shared_data_with
+sunrise_game_data::move_input::modify_input
+sunrise_sim::vanillagen::shared_data_with
 sunrise_client_render::assets::RenderAssets::load_with
 sunrise_client_render::camera::view_matrix
 sunrise_client_render::chat::Chat::add
-sunrise_client_render::chunk::Chunk::get
-sunrise_client_render::chunk::Section::unpack
+sunrise_level::chunk::Chunk::get
+sunrise_level::chunk::Section::unpack
 sunrise_client_render::fog::fog_type
 sunrise_client_render::font::Font::load
 sunrise_client_render::font::Font::take_patches
@@ -35,23 +35,23 @@ sunrise_world::worldgen::structure::legacy::make_bounding_box
 # Lower-crate parameter and internal types (aliases use their defining crate).
 # External and mod_api types need no widening. packet!/packet_enum! declarations
 # are already public and are not Rust items this source-level pass can select.
-sunrise_client_core::text::Text
-sunrise_client_lib::clock::FixedStep
+sunrise_game_data::text::Text
+sunrise_sim::clock::FixedStep
 sunrise_client_lib::gizmos::Line
 sunrise_client_lib::item_activation::ItemActivation
 sunrise_client_lib::item_render::ItemRenderState
-sunrise_client_lib::lan::hub::Hub
-sunrise_client_lib::menu::Env
-sunrise_client_lib::menu::Menu
-sunrise_client_lib::motion::MotionWorld
+sunrise_sim::lan::hub::Hub
+sunrise_sim::menu::Env
+sunrise_sim::menu::Menu
+sunrise_sim::motion::MotionWorld
 sunrise_client_lib::net::Event
 sunrise_client_lib::player_sync::PositionSender
-sunrise_client_lib::sprint::Keys
-sunrise_client_render::assets::Assets
+sunrise_sim::sprint::Keys
+sunrise_level::assets::Assets
 sunrise_client_render::camera::NearPlane
 sunrise_client_render::chat::ChatScreen
 sunrise_client_render::chat::ChatSource
-sunrise_client_render::chunk::Chunk
+sunrise_level::chunk::Chunk
 sunrise_client_render::font::Font
 sunrise_client_render::gfx::renderer::Renderer
 sunrise_client_render::gfx::frame::Frame
@@ -71,7 +71,7 @@ sunrise_client_render::screen_effects::ScreenInputs
 sunrise_client_render::sprite_cache::Decoded
 sunrise_client_render::sprites::Sprites
 sunrise_client_render::ui::Caret
-sunrise_client_render::world::World
+sunrise_level::world::World
 sunrise_core::geometry::Direction
 sunrise_core::position::BlockPos
 sunrise_items::blocks::BlockFacts
@@ -88,9 +88,9 @@ sunrise_world::worldgen::structure::legacy::PieceRandom
 
 # Treefall: typed lower-crate reads used by its Blocks/Host adapter.
 # Each is an API request; optional references remain call-scoped nodes.
-sunrise_client_render::world::World::loaded
-sunrise_client_render::world::World::block
-sunrise_client_render::world::World::is_air
+sunrise_level::world::World::loaded
+sunrise_level::world::World::block
+sunrise_level::world::World::is_air
 sunrise_items::blocks::BlockFacts::get
 sunrise_items::blocks::BlockFacts::is_air
 sunrise_items::items::Items::get
@@ -99,5 +99,5 @@ sunrise_items::items::Items::block_in_tag
 sunrise_items::items::Items::item_in_tag
 sunrise_world::registry::BlockRegistry::state
 sunrise_world::registry::BlockRegistry::default_state
-sunrise_client_lib::lan::playerdata::uuid_ints
-sunrise_client_lib::lan::hub::Hub::guest
+sunrise_sim::lan::playerdata::uuid_ints
+sunrise_sim::lan::hub::Hub::guest

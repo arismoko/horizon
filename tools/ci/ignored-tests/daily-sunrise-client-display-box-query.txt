@@ -1,6 +1,6 @@
-sunrise-client game::native_entity_refs::dragon_query::tests::a_client_lists_the_dragon_and_its_parts_in_a_box lib daily child-process
-sunrise-client game::native_entity_refs::tests::a_client_finds_the_entities_it_tracks_and_its_own_player_in_a_box lib daily child-process
-sunrise-client game::native_entity_refs::tests::a_client_lists_another_player_in_the_box_after_the_tracked_entities lib daily child-process
-sunrise-client game::native_entity_refs::tests::a_client_refuses_a_box_with_a_bound_that_is_not_finite_and_swaps_an_inverted_one lib daily child-process
-sunrise-client game::native_entity_refs::tests::client_box_queries_use_live_display_positions_and_section_order lib daily child-process
-sunrise-client game::native_entity_refs::tests::client_crossings_land_in_tick_order_and_before_hooks_read_them lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_refs::dragon_query::tests::a_client_lists_the_dragon_and_its_parts_in_a_box lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::a_client_finds_the_entities_it_tracks_and_its_own_player_in_a_box lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::a_client_lists_another_player_in_the_box_after_the_tracked_entities lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::a_client_refuses_a_box_with_a_bound_that_is_not_finite_and_swaps_an_inverted_one lib daily child-process
+sunrise-client cut_layout::game::client_side::native_entity_refs_client::tests::client_box_queries_use_live_display_positions_and_section_order lib daily child-process
+sunrise-client cut_layout::game::client_side::native_entity_refs_client::tests::client_crossings_land_in_tick_order_and_before_hooks_read_them lib daily child-process

@@ -1,1 +1,1 @@
-sunrise-client game::native_block_entity_refs::container_loot_table_tests::a_mod_containers_loot_table_rolls_once_with_fills_placement lib daily child-process
+sunrise-client cut_layout::game::container_loot_table_tests::a_mod_containers_loot_table_rolls_once_with_fills_placement lib daily child-process

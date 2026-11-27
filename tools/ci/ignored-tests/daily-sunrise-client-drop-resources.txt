@@ -1,2 +1,2 @@
 # Daily row for #5526: LevelRef::drop_resources drops without breaking.
-sunrise-client game::native_entity_refs::tests::drop_resources_drops_without_breaking lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::drop_resources_drops_without_breaking lib daily resources

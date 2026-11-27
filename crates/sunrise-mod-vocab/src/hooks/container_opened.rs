@@ -16,7 +16,7 @@ pub trait Hooks {
     /// (`PlayerRef::open_chest_menu`, `PlayerRef::open_mod_menu`), the inventory screen, and the editors (sign,
     /// book, command block). Server-side, for every player of the world.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_container_opened",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_container_opened",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

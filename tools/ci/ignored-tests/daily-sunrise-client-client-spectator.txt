@@ -1,1 +1,1 @@
-sunrise-client game::remote::abilities::gamemode_split_tests::a_client_reads_each_players_spectator_mode_from_its_player_info lib daily resources
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::a_client_reads_each_players_spectator_mode_from_its_player_info lib daily resources

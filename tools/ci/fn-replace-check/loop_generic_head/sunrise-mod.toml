@@ -15,6 +15,6 @@ mixins = "MIXINS"
 # No mod fills the loop: the copy is compiled for the empty slot `()`.
 [[native.mixin]]
 id = "head"
-target = "sunrise_client::game::block_entity_ticks::Game<'_>::tick_block_entities_with"
+target = "sunrise_gameplay::game::server_side::block_entity_ticks::ServerGame<'_>::tick_block_entities_with"
 kind = "HEAD"
 helper = "src/mixins/head.rs"

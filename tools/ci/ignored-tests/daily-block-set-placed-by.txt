@@ -1,1 +1,1 @@
-sunrise-client game::native_level_placement_tests::a_code_placement_notifies_only_the_blocks_part_with_its_stack lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_placement_tests::a_code_placement_notifies_only_the_blocks_part_with_its_stack lib daily resources

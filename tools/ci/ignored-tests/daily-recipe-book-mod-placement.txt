@@ -1,5 +1,5 @@
 # PACKAGE TEST TARGET daily REASON
-sunrise-client game::native_book_apply::tests::a_listening_part_places_the_recipe_through_the_real_stage lib daily resources
-sunrise-client game::native_book_apply::tests::a_mod_layout_without_a_listening_part_refuses_and_changes_nothing lib daily resources
-sunrise-client game::native_book_apply::tests::observed_mod_click_supplies_grid_once_and_second_click_acts_on_changed_grid lib daily resources
-sunrise-client game::native_book_apply::tests::panicking_recipe_book_place_discards_answer_disables_only_that_callback_and_keeps_other_menus_running lib daily resources
+sunrise-client cut_layout::game::server_side::native_book_apply::tests::a_listening_part_places_the_recipe_through_the_real_stage lib daily resources
+sunrise-client cut_layout::game::server_side::native_book_apply::tests::a_mod_layout_without_a_listening_part_refuses_and_changes_nothing lib daily resources
+sunrise-client cut_layout::game::server_side::native_book_apply::tests::observed_mod_click_supplies_grid_once_and_second_click_acts_on_changed_grid lib daily resources
+sunrise-client cut_layout::game::server_side::native_book_apply::tests::panicking_recipe_book_place_discards_answer_disables_only_that_callback_and_keeps_other_menus_running lib daily resources

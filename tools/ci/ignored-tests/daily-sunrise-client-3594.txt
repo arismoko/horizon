@@ -1,6 +1,6 @@
-sunrise-client game::remote::interaction_event_tests::a_slot_changing_client_part_keeps_the_original_slot_for_the_block_request lib daily resources
-sunrise-client game::remote::interaction_event_tests::a_stale_client_block_click_discards_the_part_decision lib daily resources
-sunrise-client game::remote::interaction_event_tests::a_successful_block_part_runs_once_per_click_on_both_sides lib daily resources
-sunrise-client game::remote::interaction_event_tests::an_unrepresentable_held_stack_defers_to_client_block_prediction lib daily resources
-sunrise-client game::remote::interaction_event_tests::client_block_part_replaces_the_template_for_either_hand lib daily resources
-sunrise-client game::remote::interaction_event_tests::client_empty_block_part_runs_only_for_the_selected_main_hand_fallback lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::interaction_event_tests::a_slot_changing_client_part_keeps_the_original_slot_for_the_block_request lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::interaction_event_tests::a_stale_client_block_click_discards_the_part_decision lib daily resources
+sunrise-client cut_layout::game::server_side::remote_server::interaction_event_tests::a_successful_block_part_runs_once_per_click_on_both_sides lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::interaction_event_tests::an_unrepresentable_held_stack_defers_to_client_block_prediction lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::interaction_event_tests::client_block_part_replaces_the_template_for_either_hand lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::interaction_event_tests::client_empty_block_part_runs_only_for_the_selected_main_hand_fallback lib daily resources

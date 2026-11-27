@@ -1,1 +1,1 @@
-sunrise-client game::entity_initialization::tests::player_construction_precedes_disk_load_and_clone lib daily child-process
+sunrise-client cut_layout::game::server_side::entity_initialization::tests::player_construction_precedes_disk_load_and_clone lib daily child-process

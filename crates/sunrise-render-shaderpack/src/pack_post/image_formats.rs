@@ -76,6 +76,29 @@ pub fn image_binding(
     }
 }
 
+/// Whether program `program` may read image `image` of texture format `texture` through its
+/// sampler `sampler`, declared as a `ty` (`usampler2D`...): `Err(note)` refuses the program when
+/// the sampler's class differs from the texture's (decision D-6: a `usampler2D` over an `R32F`
+/// image), naming the program, the image, the sampler's type and the texture's format. wgpu
+/// would otherwise refuse the program's pipeline.
+pub fn sampled_image(
+    program: &str,
+    image: &str,
+    ty: &str,
+    sampler: &str,
+    texture: wgpu::TextureFormat,
+    sample_type: wgpu::TextureSampleType,
+) -> Result<(), String> {
+    if super::fits(ty, sample_type) {
+        Ok(())
+    } else {
+        Err(format!(
+            "{program}: `{ty} {sampler}` samples image `{image}`, but its texture is \
+             {texture:?}; skipped"
+        ))
+    }
+}
+
 /// Whether an image whose qualifier is `declared` binds its texture of format `texture` in that
 /// texture's format (decision D-3): a 16-bit normalized qualifier (`rgba16`, `rg16_snorm`...)
 /// on the 16-bit float format of the same channels, which the pack's `RGBA16F` buffer or

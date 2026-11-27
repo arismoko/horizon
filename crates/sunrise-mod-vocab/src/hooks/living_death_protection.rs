@@ -21,7 +21,7 @@ pub trait Hooks {
         out = "protector",
         host = "hit",
         neoforge = "none (vanilla LivingEntity.checkTotemDeathProtection; accessory mods inject there)",
-        target = "sunrise_client::game::native_hooks::living_death_protection::HitLevel<'_>::native_living_death_protection"
+        target = "sunrise_gameplay_common::game::native_hooks::living_death_protection::HitLevel<'_>::native_living_death_protection"
     )]
     fn living_death_protection(
         entity: i32,

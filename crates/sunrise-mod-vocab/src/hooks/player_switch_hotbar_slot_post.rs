@@ -6,7 +6,7 @@ pub trait Hooks {
     /// item use stopped. Fired only when the slot differs and
     /// `player_switch_hotbar_slot_pre` didn't cancel it. The player's state is not swapped in.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_switch_hotbar_slot_post",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_switch_hotbar_slot_post",
         dispatch = "flat",
         side = "server",
         contract = "listen",

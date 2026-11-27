@@ -1,6 +1,6 @@
-//! Library mods from the signed v2 registry index (sunrise-mods `docs/registry-v2.md`, "Reader
-//! rules"): the index is checked against the registry's key over its exact bytes, and each package
-//! against its size, SHA-256 and GitHub artifact attestation before a build reads it.
+//! Read the signed v2 registry index (sunrise-mods `docs/registry-v2.md`, "Reader rules") for
+//! collection scaffolding and library mods. Before a build reads a library package, check its
+//! size, SHA-256 and GitHub artifact attestation.
 use crate::{
     bounded::{self, Symlinks},
     check::require_release_signer,
@@ -190,6 +190,8 @@ fn download(url: &str, limit: u64) -> Result<Vec<u8>, String> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub(crate) use tests::read_first_index;
 
 fn test_url() -> Option<String> {
     // A test points the index at a local address without changing the published one.

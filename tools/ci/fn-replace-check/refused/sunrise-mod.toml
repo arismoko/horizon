@@ -15,20 +15,20 @@ mixins = "MIXINS"
 # A function below the game crate.
 [[native.mixin]]
 id = "lower"
-target = "sunrise_client_render::chunk::Chunk::get"
+target = "sunrise_level::chunk::Chunk::get"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 # No such function.
 [[native.mixin]]
 id = "missing"
-target = "sunrise_client::game::autosave::Game<'_>::no_such_function"
+target = "sunrise_gameplay::game::server_side::autosave_server::crate::game::ServerGame<'_>::no_such_function"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 # A body using a macro the game crate doesn't export.
 [[native.mixin]]
 id = "local_macro"
-target = "sunrise_client::game::commands::Game<'_>::teleport_stops"
+target = "sunrise_gameplay::game::server_side::commands_server::crate::game::ServerGame<'_>::teleport_stops"
 kind = "HEAD"
 helper = "src/mixins/head.rs"

@@ -1,6 +1,6 @@
 # #1666: a content block whose block entity publishes its shapes, on a game.
-sunrise-client game::published_shape_game_tests::a_published_shape_stands_over_a_dynamic_template_and_takes_its_offset lib daily resources
-sunrise-client game::published_shape_game_tests::an_aborted_publish_restores_the_shape_and_notifies_the_neighbours lib daily resources
-sunrise-client game::published_shape_game_tests::collision_selection_and_support_read_the_published_shape lib daily resources
-sunrise-client game::published_shape_game_tests::each_level_answers_with_its_own_published_shape lib daily resources
-sunrise-client game::published_shape_game_tests::pathfinding_stands_on_the_published_collision_top lib daily resources
+sunrise-client cut_layout::game::published_shape_game_tests::a_published_shape_stands_over_a_dynamic_template_and_takes_its_offset lib daily resources
+sunrise-client cut_layout::game::published_shape_game_tests::an_aborted_publish_restores_the_shape_and_notifies_the_neighbours lib daily resources
+sunrise-client cut_layout::game::published_shape_game_tests::collision_selection_and_support_read_the_published_shape lib daily resources
+sunrise-client cut_layout::game::published_shape_game_tests::each_level_answers_with_its_own_published_shape lib daily resources
+sunrise-client cut_layout::game::published_shape_game_tests::pathfinding_stands_on_the_published_collision_top lib daily resources

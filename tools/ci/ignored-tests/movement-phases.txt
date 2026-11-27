@@ -1,3 +1,3 @@
-sunrise-client game::native_bots::tests::player_simulate_move_hears_living_travel_edits lib daily resources
-sunrise-client game::remote::tests::movement_snap_tests::client_entity_move_fires_for_simulated_bodies_and_not_observed lib daily resources
-sunrise-client game::remote::tests::movement_snap_tests::entity_interpolate_to_steps_observed_boat_and_refuses_simulated_bodies lib daily resources
+sunrise-gameplay game::server_side::native_bots::tests::player_simulate_move_hears_living_travel_edits lib daily resources
+sunrise-client cut_layout::game::remote::tests::movement_snap_tests::client_entity_move_fires_for_simulated_bodies_and_not_observed lib daily resources
+sunrise-client cut_layout::game::remote::tests::movement_snap_tests::entity_interpolate_to_steps_observed_boat_and_refuses_simulated_bodies lib daily resources

@@ -1,2 +1,2 @@
 # Session-only video options (#5553): VSync and clouds take effect without being saved; needs a Game with prepared resources.
-sunrise-client game::native_hooks::client_options::tests::session_video_options_take_effect_without_being_saved lib daily resources
+sunrise-client-gameplay game::native_hooks::client_options::tests::session_video_options_take_effect_without_being_saved lib daily resources

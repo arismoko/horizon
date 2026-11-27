@@ -1,7 +1,7 @@
 version = 1
 doc = "ConfigServerHost reads and writes the live PlayerList distances on either logical server, including unpublished integrated worlds. Writes from mods take 2 through 32 chunks and affect both what the PlayerList advertises and chunk-ticket settings; refusals leave both unchanged. The integrated server follows owner options after an unpaused server tick, including when a mod wrote a distance during that tick. It compares view against the live value and simulation against the previous owner option. Management can advertise a raw view distance outside 2–32, but the effective ChunkMap loading and tracking distance still uses that range."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_server_distances.rs::a_mod_reads_and_sets_the_servers_distances",
-    "crates/sunrise-client/src/game/world/integrated.rs::owner_distances_follow_the_server_tick",
-    "crates/sunrise-client/src/game/interface/dedicated/management.rs::management_view_distance_advertises_raw_but_bounds_loading_and_tracking",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_server_distances.rs::a_mod_reads_and_sets_the_servers_distances",
+    "crates/sunrise-client/src/cut_layout/game/world/integrated.rs::owner_distances_follow_the_server_tick",
+    "crates/sunrise-gameplay/src/game/interface/dedicated/management.rs::management_view_distance_advertises_raw_but_bounds_loading_and_tracking",
 ]

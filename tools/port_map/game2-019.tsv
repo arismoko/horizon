@@ -1,24 +1,24 @@
-state/predicate/BlockPredicate.test	inline	crates/sunrise-client/src/game/world/end.rs::Game::podium_level	bedrock check only; the exit-portal 7x5 pattern is approximated by a bedrock count in podium_level
+state/predicate/BlockPredicate.test	inline	crates/sunrise-gameplay/src/game/world/end.rs::Game::podium_level	bedrock check only; the exit-portal 7x5 pattern is approximated by a bedrock count in podium_level
 Property.value	skip:java	-	wraps a value in a Property.Value record; Sunrise keeps property names and value strings instead (state lookups are StateProperties::value)
 Property.toString	skip:debug	-	debug string for error text only
 Property.hashCode	skip:java	-	cached Java hash of class and name
-Property.parseValue	inline	crates/sunrise-client/src/game/world/persist.rs::Game::state_from_nbt	gap: minor: whole-state lookup from Name and Properties; an invalid property falls back to the default state instead of keeping the valid ones
+Property.parseValue	inline	crates/sunrise-gameplay/src/game/world/persist.rs::Game::state_from_nbt	gap: minor: whole-state lookup from Name and Properties; an invalid property falls back to the default state instead of keeping the valid ones
 RotationSegment.convertToDirection	inline	crates/sunrise-world/src/level/place.rs::Sim::placement_class	ceiling hanging sign placement maps the above sign's segment 0/4/8/12 to a direction inline
 SideChainPart.whenDisconnectedFromTheRight	port	crates/sunrise-world/src/level/shelf.rs::Part::disconnected_from_the_right	same table
 SideChainPart.whenDisconnectedFromTheLeft	port	crates/sunrise-world/src/level/shelf.rs::Part::disconnected_from_the_left	same table
 BlockScanUtils.sectionBasedScan	inline	crates/sunrise-world/src/level/timeline.rs::box_scan_order	gap: minor: only the visiting order; no section skip, no abort, no virtual AIR outside the world bounds
-BlockScanUtils.findBlocksInSection	inline	crates/sunrise-client-render/src/light.rs::light_chunk	gap: minor: section loop only for light emitters; no generic predicate and consumer
-BlockScanUtils.findBlocksWithCache	inline	crates/sunrise-client/src/mobs/world.rs::MobWorld::nearest_block	gap: minor: first match in Manhattan box order, used by mob goals; explicit position lists are not generalised
+BlockScanUtils.findBlocksInSection	inline	crates/sunrise-level/src/light.rs::light_chunk	gap: minor: section loop only for light emitters; no generic predicate and consumer
+BlockScanUtils.findBlocksWithCache	inline	crates/sunrise-sim/src/mobs/world.rs::MobWorld::nearest_block	gap: minor: first match in Manhattan box order, used by mob goals; explicit position lists are not generalised
 WorldBorder.getDistanceToBorder	port	crates/sunrise-core/src/geometry/border.rs::BorderGeometry::distance_to_border	-
-WorldBorder.setCenter	port	crates/sunrise-client/src/game/world/world_border.rs::Game::set_border_center	updates the named level's extent, then sends the center packet and server notice
-WorldBorder.setSize	port	crates/sunrise-client/src/game/world/world_border.rs::Game::set_border_size	fixed extent and size packet for the named level; only the command limits the size range
-WorldBorder.lerpSizeBetween	port	crates/sunrise-client/src/game/world/world_border.rs::Game::set_border_size	timed request sets the named level's extent and sends a lerp packet from that extent, even for equal sizes
-WorldBorder.setSafeZone	port	crates/sunrise-client/src/game/world/world_border.rs::Game::set_border_safe_zone	updates the named level; the player list sends no packet
-WorldBorder.setDamagePerBlock	port	crates/sunrise-client/src/game/world/world_border.rs::Game::set_border_damage_per_block	updates the named level; the player list sends no packet
-WorldBorder.setWarningTime	port	crates/sunrise-client/src/game/world/world_border.rs::Game::set_border_warning_time	updates the named level and sends the warning delay packet
-WorldBorder.setWarningBlocks	port	crates/sunrise-client/src/game/world/world_border.rs::Game::set_border_warning_blocks	updates the named level and sends the warning distance packet
-WorldBorder.tick	port	crates/sunrise-client/src/game/world/world_border.rs::Game::tick_worldborder	applies the extent tick before any server-side finish notice
-PlayerList.addWorldborderListener	inline	crates/sunrise-client/src/game/world/world_border.rs::LevelBorderMut::broadcast	the setters send each mutation to watchers of its level via Hub::broadcast_in_level
+WorldBorder.setCenter	port	crates/sunrise-gameplay/src/game/world/world_border_server.rs::ServerGame::set_border_center	updates the named level's extent, then sends the center packet and server notice
+WorldBorder.setSize	port	crates/sunrise-gameplay/src/game/world/world_border_server.rs::ServerGame::set_border_size	fixed extent and size packet for the named level; only the command limits the size range
+WorldBorder.lerpSizeBetween	port	crates/sunrise-gameplay/src/game/world/world_border_server.rs::ServerGame::set_border_size	timed request sets the named level's extent and sends a lerp packet from that extent, even for equal sizes
+WorldBorder.setSafeZone	port	crates/sunrise-gameplay/src/game/world/world_border_server.rs::ServerGame::set_border_safe_zone	updates the named level; the player list sends no packet
+WorldBorder.setDamagePerBlock	port	crates/sunrise-gameplay/src/game/world/world_border_server.rs::ServerGame::set_border_damage_per_block	updates the named level; the player list sends no packet
+WorldBorder.setWarningTime	port	crates/sunrise-gameplay/src/game/world/world_border_server.rs::ServerGame::set_border_warning_time	updates the named level and sends the warning delay packet
+WorldBorder.setWarningBlocks	port	crates/sunrise-gameplay/src/game/world/world_border_server.rs::ServerGame::set_border_warning_blocks	updates the named level and sends the warning distance packet
+WorldBorder.tick	port	crates/sunrise-gameplay/src/game/world/world_border_server.rs::ServerGame::tick_worldborder	applies the extent tick before any server-side finish notice
+PlayerList.addWorldborderListener	inline	crates/sunrise-gameplay/src/game/world/world_border_server.rs::LevelBorderMut::broadcast	the setters send each mutation to watchers of its level via Hub::broadcast_in_level
 WorldBorder.applyInitialSettings	inline	crates/sunrise-border/src/worldborder.rs::WorldBorder::unpack	restores fixed or moving extent without command size limits or server notifications
 WorldBorder.MovingBorderExtent.getMinX	port	crates/sunrise-core/src/geometry/border.rs::BorderGeometry::bounds	bounds returns all four edges
 WorldBorder.MovingBorderExtent.getMinZ	port	crates/sunrise-core/src/geometry/border.rs::BorderGeometry::bounds	bounds returns all four edges
@@ -34,58 +34,58 @@ CarvingMask.visit	port	crates/sunrise-core/src/carving.rs::CarvingMask::try_visi
 CarvingMask.visitSegment	port	crates/sunrise-core/src/carving.rs::Cursor::next	splits runs into per-column bottom and top
 ChunkAccess.getHighestSectionPosition	port	crates/sunrise-world/src/worldgen/terrain.rs::TerrainChunk::highest_section_y	-
 ChunkAccess.replaceMissingSections	skip:java	-	sections are allocated up front, so there are no null slots to fill
-ChunkAccess.getBlockEntitiesPos	inline	crates/sunrise-client/src/save.rs::chunks_with_block_entities	gap: minor: block entity positions are read from the chunk's list when saving; no separate position set
+ChunkAccess.getBlockEntitiesPos	inline	crates/sunrise-sim/src/save.rs::chunks_with_block_entities	gap: minor: block entity positions are read from the chunk's list when saving; no separate position set
 ChunkAccess.getOrCreateHeightmapUnprimed	port	crates/sunrise-world/src/worldgen/terrain.rs::TerrainChunk::ensure_heightmap	-
 ChunkAccess.getHeight	port	crates/sunrise-world/src/heightmap.rs::Heightmap::highest_taken	-
 ChunkAccess.addReferenceForStructure	inline	crates/sunrise-world/src/worldgen/generator_structures.rs::StructureState::references	references are derived from the starts on each call; nothing is stored per chunk
 ChunkAccess.isYSpaceEmpty	skip:java	-	only a shortcut for PathNavigationRegion's all-air check; the block reads themselves are unchanged
 ChunkAccess.setBlockEntityNbt	port	crates/sunrise-world/src/worldgen/generator_decoration.rs::World::set_block_entity	gap: minor: replaces any entry at the position; vanilla keeps a live block entity and stores NBT only as pending
-ChunkAccess.findBlockLightSources	port	crates/sunrise-client-render/src/light.rs::light_chunk	light emitters are seeded from the palette in one pass over the region
-ChunkAccess.findBlocks	inline	crates/sunrise-client-render/src/light.rs::light_chunk	gap: minor: only the light-emitter predicate; no generic predicate and consumer
+ChunkAccess.findBlockLightSources	port	crates/sunrise-level/src/light.rs::light_chunk	light emitters are seeded from the palette in one pass over the region
+ChunkAccess.findBlocks	inline	crates/sunrise-level/src/light.rs::light_chunk	gap: minor: only the light-emitter predicate; no generic predicate and consumer
 ChunkAccess.collectBiomesInPalette	port	crates/sunrise-world/src/worldgen/biome_chunk.rs::BiomeRegion::present_in_chunk	one chunk at a time, sorted; the caller gathers the region
 ChunkAccess.carverBiome	port	crates/sunrise-world/src/worldgen/generator.rs::Pipeline::carver_biome	-
 ChunkAccess.fillBiomesFromNoise	port	crates/sunrise-world/src/worldgen/biome_chunk.rs::BiomeChunk::fill	-
 ChunkAccess.getOrCreateOffsetList	inline	crates/sunrise-world/src/worldgen/terrain.rs::TerrainChunk::mark_postprocessing	lists exist for every section up front
 ChunkGenerator.createBiomes	skip:java	-	async wrapper around doCreateBiomes (CompletableFuture)
 ChunkGenerator.doCreateBiomes	port	crates/sunrise-world/src/worldgen/generator.rs::Pipeline::biome_chunk	biomes come from the cached per-chunk biome build
-ChunkGenerator.getStructureGeneratingAt	port	crates/sunrise-client/src/vanillagen.rs::VanillaTerrain::locate	nearest start search for /locate, via the generator worker
+ChunkGenerator.getStructureGeneratingAt	port	crates/sunrise-sim/src/vanillagen.rs::VanillaTerrain::locate	nearest start search for /locate, via the generator worker
 ChunkGenerator.applyBiomeDecoration	port	crates/sunrise-world/src/worldgen/generator_decoration.rs::Decoration::decorate	biome feature placement; structure starts are placed in structure/start.rs
 ChunkGenerator.tryGenerateStructure	port	crates/sunrise-world/src/worldgen/structure/start.rs::try_generate	-
 ChunkGenerator.fetchReferences	missing	-	minor: unsure: new starts begin at 0 references (start.rs); a previous start's reference count is not read
-ChunkGeneratorStructureState.createForFlat	inline	crates/sunrise-world/src/worldgen/generator.rs::OverworldGenerator::flat	the flat generator's structure state: the flat level's minimum Y, structure_overrides narrowed with restrict_to, and stronghold rings on seed 0
+ChunkGeneratorStructureState.createForFlat	inline	crates/sunrise-world/src/worldgen/generator/flat.rs::OverworldGenerator::flat	the flat generator's structure state: the flat level's minimum Y, structure_overrides narrowed with restrict_to, and stronghold rings on seed 0
 ChunkGeneratorStructureState.createForNormal	port	crates/sunrise-world/src/worldgen/generator_structures.rs::StructureState::new	-
 ChunkGeneratorStructureState.hasBiomesForStructureSet	port	crates/sunrise-world/src/worldgen/generator_structures.rs::StructureState::new	keeps the sets with a structure in a possible biome
 ChunkGeneratorStructureState.getRingPositionsFor	port	crates/sunrise-world/src/worldgen/generator_structures.rs::StructureState::ring_positions	-
-DataLayer.set	port	crates/sunrise-client-render/src/light.rs::set_level	writes one nibble of the packed light byte
-DataLayer.packFilled	inline	crates/sunrise-client-render/src/light.rs::pack_lighting	uniform layers are stored as one packed byte (0xF0 or 0)
+DataLayer.set	port	crates/sunrise-level/src/light.rs::set_level	writes one nibble of the packed light byte
+DataLayer.packFilled	inline	crates/sunrise-level/src/light.rs::pack_lighting	uniform layers are stored as one packed byte (0xF0 or 0)
 DataLayer.getData	port	crates/sunrise-protocol/src/chunk.rs::LightData::layers	-
 DataLayer.copy	skip:java	-	clone of the layer data
 DataLayer.toString	skip:debug	-	debug dump of the layer
 DataLayer.layerToString	skip:debug	-	debug dump of the layer
 DataLayer.isDefinitelyFilledWith	skip:java	-	homogeneity shortcut; Sunrise keeps uniform light as one byte
-LevelChunk.<init>	port	crates/sunrise-client-render/src/chunk.rs::Chunk::empty	gap: minor: builds an empty chunk only; loading saved data is in save.rs
+LevelChunk.<init>	port	crates/sunrise-level/src/chunk.rs::Chunk::empty	gap: minor: builds an empty chunk only; loading saved data is in save.rs
 LevelChunk.setUnsavedListener	skip:java	-	save-listener hook; Sunrise tracks dirty sections instead
 LevelChunk.markUnsaved	skip:other	-	save bookkeeping only; Sunrise tracks dirty sections
-LevelChunk.getTicksForSerialization	port	crates/sunrise-client/src/save.rs::tick_list	serializes the pending ticks
+LevelChunk.getTicksForSerialization	port	crates/sunrise-sim/src/save.rs::tick_list	serializes the pending ticks
 LevelChunk.getListenerRegistry	skip:java	-	per-section game-event registry lookup; Sunrise dispatches game events by position (update.rs game_event)
-LevelChunk.createBlockEntity	port	crates/sunrise-client-render/src/containers.rs::BlockEntity::for_block	-
+LevelChunk.createBlockEntity	port	crates/sunrise-level/src/containers.rs::BlockEntity::for_block	-
 LevelChunk.getBlockEntity	skip:other	-	World.block_entities is read directly by the game (game.rs:764, 4000); no lookup function
 LevelChunk.addAndRegisterBlockEntity	skip:other	-	World.block_entities is written directly (game.rs:1134); no registration step
 LevelChunk.isInLevel	port	crates/sunrise-world/src/level/update.rs::Sim::is_in_valid_bounds	-
-LevelChunk.getBlockEntityNbtForSaving	port	crates/sunrise-client/src/save/block_entity_encode.rs::encode	-
+LevelChunk.getBlockEntityNbtForSaving	port	crates/sunrise-sim/src/save/block_entity_encode.rs::encode	-
 LevelChunk.removeGameEventListener	skip:java	-	listener registry bookkeeping; game events dispatch by position
 LevelChunk.removeBlockEntityTicker	skip:java	-	tickers are rebuilt from block state (block_entities.rs tickers)
 LevelChunk.runPostLoad	missing	-	minor: unsure: no post-load step for block entities found
-LevelChunk.replaceBiomes	port	crates/sunrise-client/src/game/administration/commands/terrain_cmds.rs::Game::cmd_fillbiome	the /fillbiome command replaces the biomes of a region
-LevelChunk.postProcessGeneration	port	crates/sunrise-client/src/game/world/postprocess.rs::Game::postprocess_chunks	the marked positions are updated once the chunk is live (aquifer fluids, shape-dependent blocks)
+LevelChunk.replaceBiomes	port	crates/sunrise-gameplay/src/game/administration/commands/terrain_cmds.rs::Game::cmd_fillbiome	the /fillbiome command replaces the biomes of a region
+LevelChunk.postProcessGeneration	port	crates/sunrise-gameplay/src/game/world/postprocess.rs::Game::postprocess_chunks	the marked positions are updated once the chunk is live (aquifer fluids, shape-dependent blocks)
 LevelChunk.promotePendingBlockEntity	skip:java	-	pending NBT slot; Sunrise decodes block entities when they load (save.rs decode_block_entity)
 LevelChunk.unregisterTickContainerFromLevel	skip:java	-	tick container bookkeeping; scheduled ticks live in level/update.rs
 LevelChunk.registerDebugValues	skip:debug	-	debug values only
-LevelChunk.clearAllBlockEntities	port	crates/sunrise-client-render/src/block_entities.rs::BlockEntities::retain	a column that leaves takes its block entities with it (`remove_columns_at_once` keeps only the columns that stay)
+LevelChunk.clearAllBlockEntities	port	crates/sunrise-level/src/block_entities.rs::BlockEntities::retain	a column that leaves takes its block entities with it (`remove_columns_at_once` keeps only the columns that stay)
 LevelChunk.registerAllBlockEntitiesAfterLevelLoad	skip:java	-	ticker registration after load; Sunrise ticks the block entities it holds
 LevelChunk.addGameEventListener	skip:java	-	listener registry; game events dispatch by position
 LevelChunk.updateBlockEntityTicker	skip:java	-	ticker bookkeeping; tickers are rebuilt from block state (block_entities.rs tickers)
-LevelChunk.BoundTickingBlockEntity.tick	port	crates/sunrise-client/src/game/blocks/block_entity_ticks.rs::Game::tick_block_entities	ticks every loaded block entity in one pass
+LevelChunk.BoundTickingBlockEntity.tick	port	crates/sunrise-gameplay/src/game/blocks/block_entity_ticks.rs::Game::tick_block_entities	ticks every loaded block entity in one pass
 LevelChunkSection.recalcBlockCounts	missing	-	minor: unsure: no recount of block counts found; non-air counts are kept while writing
 LevelChunkSection.read	port	crates/sunrise-protocol/src/chunk.rs::Section::read	reads block states and biomes together
 LevelChunkSection.readBiomes	inline	crates/sunrise-protocol/src/chunk.rs::Section::read	-
@@ -110,26 +110,26 @@ ProtoChunk.addEntity	port	crates/sunrise-world/src/worldgen/generator_decoration
 ProtoChunk.setStartForStructure	missing	-	minor: unsure: no below-zero retrogen bounds check on structure starts found
 ProtoChunk.setPersistedStatus	missing	-	minor: unsure: no setter for a proto chunk's persisted status found
 ProtoChunk.packOffsetCoordinates	inline	crates/sunrise-world/src/worldgen/terrain.rs::TerrainChunk::mark_postprocessing	the packed x|y|z offset is built inline
-ProtoChunk.unpackOffsetCoordinates	inline	crates/sunrise-client/src/save/column.rs::decode_proto	the stored PostProcessing shorts are unpacked to block positions: chunk x/z, the section's Y, and the packed 4-bit offsets
+ProtoChunk.unpackOffsetCoordinates	inline	crates/sunrise-sim/src/save/column.rs::decode_proto	the stored PostProcessing shorts are unpacked to block positions: chunk x/z, the section's Y, and the packed 4-bit offsets
 ProtoChunk.markPosForPostProcessing	port	crates/sunrise-world/src/worldgen/terrain.rs::TerrainChunk::mark_postprocessing	-
-ProtoChunk.getBlockEntityNbtForSaving	port	crates/sunrise-client/src/save/block_entity_encode.rs::encode	the tag a chunk writes per block entity: id, x, y, z, keepPacked and the components
+ProtoChunk.getBlockEntityNbtForSaving	port	crates/sunrise-sim/src/save/block_entity_encode.rs::encode	the tag a chunk writes per block entity: id, x, y, z, keepPacked and the components
 ProtoChunk.removeBlockEntity	inline	crates/sunrise-world/src/worldgen/generator_decoration.rs::World::set_block	entry is dropped when the block at the position changes
-Strategy.getIndex	port	crates/sunrise-client-render/src/chunk.rs::index	block form (y<<8 | z<<4 | x); the biome form is biome_chunk.rs::index
+Strategy.getIndex	port	crates/sunrise-level/src/chunk.rs::index	block form (y<<8 | z<<4 | x); the biome form is biome_chunk.rs::index
 ChunkStatus.register	skip:data	-	status registry entry
 ChunkStatus.getStatusList	skip:data	-	status list is the ALL constant in chunk_status.rs
-EntityStorage.storeEntities	port	crates/sunrise-client/src/save/dir.rs::SaveDir::save_entities	-
-EntityStorage.reportSaveFailureIfPresent	port	crates/sunrise-client/src/chunk_io.rs::SaveFailureReporter::report	failed entity saves log the chunk position before the common server report
+EntityStorage.storeEntities	port	crates/sunrise-sim/src/save/dir.rs::SaveDir::save_entities	-
+EntityStorage.reportSaveFailureIfPresent	port	crates/sunrise-sim/src/chunk_io.rs::SaveFailureReporter::report	failed entity saves log the chunk position before the common server report
 EntityStorage.reportLoadFailureIfPresent	skip:other	-	error reporting plumbing; failures come back as Result from load_entities
-IOWorker.isOldChunkAround	port	crates/sunrise-client/src/old_world.rs::SavedOldWorld::is_old_chunk_around	the region files within range are scanned once each (SaveDir::old_chunk_bits) and searched for an old chunk
+IOWorker.isOldChunkAround	port	crates/sunrise-sim/src/old_world.rs::SavedOldWorld::is_old_chunk_around	the region files within range are scanned once each (SaveDir::old_chunk_bits) and searched for an old chunk
 IOWorker.getOrCreateOldDataForRegion	skip:java	-	cache of old-chunk data per region
 IOWorker.createOldDataForRegion	skip:java	-	cache of old-chunk data per region
-IOWorker.isOldChunk	inline	crates/sunrise-client/src/save/dir.rs::SaveDir::old_chunk_bits	the per-record test: DataVersion below 4997, or a blending_data compound
-IOWorker.store	port	crates/sunrise-client/src/save/region.rs::write_region_records	-
-IOWorker.loadAsync	port	crates/sunrise-client-render/src/streaming.rs::ChunkGenerator::load	gap: minor: the saved-chunk hook only; the disk read is in save/region.rs
+IOWorker.isOldChunk	inline	crates/sunrise-sim/src/save/dir.rs::SaveDir::old_chunk_bits	the per-record test: DataVersion below 4997, or a blending_data compound
+IOWorker.store	port	crates/sunrise-sim/src/save/region.rs::write_region_records	-
+IOWorker.loadAsync	port	crates/sunrise-level/src/chunk_streamer.rs::ChunkGenerator::load	gap: minor: the saved-chunk hook only; the disk read is in save/region.rs
 IOWorker.synchronize	skip:java	-	waits for queued async writes; Sunrise's save takes a wait flag (streaming.rs Streaming::save)
 IOWorker.scanChunk	missing	-	minor: unsure: no chunk scan step found
 IOWorker.submitThrowingTask	skip:java	-	Java future wrapper around submitTask
-IOWorker.submitTask	port	crates/sunrise-client-render/src/streaming.rs::Streaming::submit	-
+IOWorker.submitTask	port	crates/sunrise-level/src/chunk_streamer.rs::ChunkStreamer::submit	-
 IOWorker.storePendingChunk	skip:java	-	pending-write map of the Java worker
 IOWorker.tellStorePending	skip:java	-	pending-write counter of the Java worker
 IOWorker.runStore	skip:java	-	Java writer thread loop

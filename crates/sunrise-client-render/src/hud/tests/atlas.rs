@@ -1028,7 +1028,7 @@ fn content_mod_effect_icons_pack_under_their_namespace() {
         root.to_path_buf(),
     ))
     .unwrap();
-    let rect = atlas.sprites[sunrise_client_core::potions::sprite("gems:glow").as_str()];
+    let rect = atlas.sprites[sunrise_game_data::potions::sprite("gems:glow").as_str()];
     assert_eq!(texel_at(&atlas, rect, 0, 0), [0, 0, 200, 255]);
     // The HUD and the inventory draw it from the effect's id, as vanilla's.
     let effect = crate::effects::EffectInstance::new("gems:glow", 600, 0);

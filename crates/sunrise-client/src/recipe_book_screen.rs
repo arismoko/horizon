@@ -127,30 +127,7 @@ pub struct Search {
     pub blink_ms: u64,
 }
 
-/// A visible tab, in order: its icons, whether selected, its squeeze time left.
-#[derive(Clone, Debug)]
-pub struct TabView {
-    pub icons: (String, Option<String>),
-    pub selected: bool,
-    pub anim: f32,
-}
-
-/// A recipe button: its collection has a craftable recipe; the display
-/// stacks of each selected recipe; the squeeze time left.
-#[derive(Clone, Debug)]
-pub struct ButtonView {
-    pub has_craftable: bool,
-    pub entries: Vec<Vec<ItemStack>>,
-    pub anim: f32,
-}
-
-/// A recipe of the overlay: craftable, and its ingredient cells (grid
-/// x, y and the stacks the cell cycles through).
-#[derive(Clone, Debug)]
-pub struct OverlayRecipe {
-    pub craftable: bool,
-    pub cells: Vec<(i32, i32, Vec<ItemStack>)>,
-}
+pub use crate::recipe_book::mod_presentation::{ButtonView, OverlayRecipe, TabView};
 
 /// The alternatives overlay of a button, at the corner [`overlay_origin`] gives.
 #[derive(Clone, Debug)]

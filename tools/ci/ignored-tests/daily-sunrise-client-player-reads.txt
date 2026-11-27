@@ -1,6 +1,6 @@
 # Server reads of a player's latency, hide level and nickname through the mod API (need prepared resources).
-sunrise-client game::native_player_visibility_tests::a_client_is_refused_latency_hide_level_and_nickname lib daily resources
-sunrise-client game::native_player_visibility_tests::a_stale_handle_is_refused_latency_hide_level_and_nickname lib daily resources
-sunrise-client game::native_player_visibility_tests::an_unpublished_single_player_world_reads_the_stored_hide_level lib daily resources
-sunrise-client game::native_player_visibility_tests::hide_level_and_nickname_read_back lib daily resources
-sunrise-client game::native_player_visibility_tests::latency_reads_what_the_keep_alives_measured lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_visibility_tests::a_client_is_refused_latency_hide_level_and_nickname lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_visibility_tests::a_stale_handle_is_refused_latency_hide_level_and_nickname lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_visibility_tests::an_unpublished_single_player_world_reads_the_stored_hide_level lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_visibility_tests::hide_level_and_nickname_read_back lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_visibility_tests::latency_reads_what_the_keep_alives_measured lib daily resources

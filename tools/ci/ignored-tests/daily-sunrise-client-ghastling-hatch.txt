@@ -1,1 +1,1 @@
-sunrise-client game::ghasts::hatch_tests::ghastling_and_tadpole_hatches_match_vanilla_persistence lib daily resources
+sunrise-client cut_layout::game::server_side::ghasts::hatch_tests::ghastling_and_tadpole_hatches_match_vanilla_persistence lib daily resources

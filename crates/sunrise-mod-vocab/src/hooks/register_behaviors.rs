@@ -13,7 +13,7 @@ pub trait Hooks {
     /// original brain together, refusing without recomputing if the mob or its
     /// brain changed while listeners ran. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::register_mob_parts::Game<'_>::native_register_behaviors",
+        target = "sunrise_gameplay::game::native_hooks::register_mob_parts::ServerGame<'_>::native_register_behaviors",
         receiver = "write",
         dispatch = "direct",
         side = "server",

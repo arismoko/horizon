@@ -1,3 +1,3 @@
-sunrise-client game::creatures::breeding_tests::empty_mod_never_defers_breeding_xp lib daily child-process
-sunrise-client game::creatures::mob_dispatch_panic_tests::mob_despawn_listener_panic_preserves_owned_rows_and_lent_random lib daily child-process
-sunrise-client game::load_conditions::tests::load_conditions_recipe_reload_counts_and_failed_candidates_keep_old_recipes lib daily child-process
+sunrise-client cut_layout::game::creatures::breeding_tests::empty_mod_never_defers_breeding_xp lib daily child-process
+sunrise-client cut_layout::game::server_side::creatures_server::mob_dispatch_panic_tests::mob_despawn_listener_panic_preserves_owned_rows_and_lent_random lib daily child-process
+sunrise-client cut_layout::game::load_conditions::tests::load_conditions_recipe_reload_counts_and_failed_candidates_keep_old_recipes lib daily child-process

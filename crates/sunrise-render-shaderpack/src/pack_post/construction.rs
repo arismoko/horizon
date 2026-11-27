@@ -13,7 +13,7 @@ use super::mod_pack::{
     mod_depth_source,
 };
 use super::packed;
-use super::{image_binding, image_format, storage_formats_of};
+use super::{image_binding, image_format, sampled_image, storage_formats_of};
 use crate::pack_draw::DrawUniforms;
 use crate::pack_entities::PackEntities;
 use crate::pack_images;
@@ -887,7 +887,16 @@ pub fn bindings(
         let (src, sample_type, dimension) = match custom {
             _ if let Some(k) = image => {
                 let i = &pack.images[k];
-                (Source::Image(k), i.sample_type(features), i.dimension)
+                let sample_type = i.sample_type(features);
+                // A sampler of another class than its image's texture (`usampler2D` over an
+                // `R32F` image) refuses the program (decision D-6, #5223).
+                if let Err(note) =
+                    sampled_image(name, &i.def.name, &s.ty, &s.name, i.format, sample_type)
+                {
+                    notes.push(note);
+                    return None;
+                }
+                (Source::Image(k), sample_type, i.dimension)
             }
             Some(i) if !fits(&s.ty, textures[i].sample_type) => {
                 notes.push(format!(

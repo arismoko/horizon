@@ -12,6 +12,7 @@ pub trait Hooks {
     /// registering a built-in vanilla property id overrides that built-in when decoding item
     /// definitions.
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_select_item_model_property::native_register_select_item_model_property",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

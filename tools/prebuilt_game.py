@@ -26,6 +26,7 @@ import argparse
 from concurrent.futures import ProcessPoolExecutor
 import faulthandler
 import hashlib
+import io
 import json
 import lzma
 import os
@@ -41,6 +42,11 @@ import tomllib
 import time
 import urllib.request
 from pathlib import Path
+
+if __package__:
+    from .ci.surface_report import source_layout
+else:
+    from ci.surface_report import source_layout
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -89,6 +95,12 @@ SDK_BASE = "sunrise-core"
 # Source files the folder carries besides compiler outputs.
 CARRIED = {"Cargo.toml": None, IDENTITY: None, LOCK: ROOT / LOCK, TEMPLATE: ROOT / "crates/sunrise-client/src" / TEMPLATE,
            NATIVE_MODS_TEMPLATE: ROOT / "crates/sunrise-client/src" / NATIVE_MODS_TEMPLATE}
+# The one Git source the game can ship as SDK-owned path patches.
+WGPU_FORK = "https://github.com/sunrise-org/sunrise-wgpu"
+WGPU_PATCHES = ("naga", "naga-types", "wgpu-hal", "wgpu-naga-bridge", "wgpu-types")
+WGPU_ROOT_FILES = ("Cargo.toml", "LICENSE.APACHE", "LICENSE.MIT", "SUNRISE.md")
+# These dev-only workspace members live inside naga but are not part of its patch payload.
+WGPU_OMIT = ("naga/fuzz/", "naga/hlsl-snapshots/", "naga/xtask/")
 # Native libraries the build scripts point the final link at (the `windows` crates' MinGW import libraries):
 # cargo passes their folders to rustc, a plain rustc gets them from here (`-L native=OUT/native`).
 NATIVE = "native"
@@ -616,6 +628,54 @@ def native_links(metadata: dict, root: str) -> list[dict]:
             for package in metadata["packages"] if package["id"] in runtime and package.get("links")]
 
 
+def runtime_role_facts(metadata: dict, root: str, artifacts: list[dict], target_dir: Path, side: str) -> dict:
+    packages = {package["id"]: package for package in metadata["packages"]}
+    runtime = runtime_packages(metadata, root)
+    nodes = {node["id"]: node for node in metadata["resolve"]["nodes"]}
+    libraries = {}
+    compiled = {}
+    files: dict[str, set[str]] = {}
+    for artifact in artifacts:
+        package = artifact.get("package_id")
+        if artifact["reason"] != "compiler-artifact" or package not in runtime:
+            continue
+        target = artifact["target"]
+        if (not set(target["kind"]) & {"lib", "rlib", "dylib"}
+                or not any(Path(path).is_relative_to(target_dir) for path in artifact["filenames"])):
+            continue
+        features = sorted(artifact["features"])
+        identity = (target["name"], features)
+        if package in compiled and compiled[package] != identity:
+            raise ValueError(f"{side} SDK has conflicting runtime artifacts for {package}")
+        compiled[package] = identity
+        files.setdefault(package, set()).update(
+            Path(filename).name for filename in artifact["filenames"]
+            if Path(filename).is_relative_to(target_dir)
+            and Path(filename).suffix in (".rmeta", ".so", ".dll", ".dylib")
+        )
+    if not any(packages[package]["name"] == root for package in compiled):
+        raise ValueError(f"{side} SDK is missing the {root} runtime library")
+    identities = {
+        package: f"{packages[package]['name']}@{packages[package]['version']}:{library}"
+        for package, (library, _) in compiled.items()
+    }
+    if len(set(identities.values())) != len(identities):
+        raise ValueError(f"{side} SDK has ambiguous runtime package identities")
+    for package in sorted(compiled):
+        library, features = compiled[package]
+        aliases = {}
+        for dep in nodes[package]["deps"]:
+            if dep["pkg"] in compiled and any(kind["kind"] is None for kind in dep["dep_kinds"]):
+                extern = identities[dep["pkg"]]
+                if aliases.setdefault(dep["name"], extern) != extern:
+                    raise ValueError(f"{side} SDK has conflicting dependency alias {dep['name']} in {library}")
+        libraries[identities[package]] = {
+            "package": packages[package]["name"], "library": library, "features": features,
+            "aliases": dict(sorted(aliases.items())), "artifacts": sorted(files[package]),
+        }
+    return {"side": side, "libraries": dict(sorted(libraries.items()))}
+
+
 def facade_crates(deps: Path, runtime: set[str]) -> list[str]:
     """Only runtime crates with a unique extern can be exposed by an internals facade."""
     eligible = []
@@ -650,6 +710,25 @@ def build(out: Path, server: bool) -> None:
         _build_locked(output, server, target_dir)
 
 
+def runtime_feature_fields(root: Path, metadata: dict, artifacts: list[dict], target_dir: Path, server: bool) -> dict:
+    layout = source_layout(root)
+    if layout == "split":
+        side = "server" if server else "client"
+        role = runtime_role_facts(metadata, GAME, artifacts, target_dir, side)
+        shells = [library for library in role["libraries"].values() if library["package"] == "sunrise-client"]
+        if len(shells) != 1:
+            raise ValueError(f"{side} SDK needs exactly one sunrise-client runtime library, found {len(shells)}")
+        return {"game_features": shells[0]["features"], "source_layout": layout, "runtime_role": role}
+    if layout != "legacy":
+        raise ValueError(f"unknown SDK source layout: {layout}")
+    return {"game_features": sorted(next(
+        message["features"] for message in artifacts
+        if message["reason"] == "compiler-artifact"
+        and message["package_id"].split("#")[0].endswith("/sunrise-client")
+        and "lib" in message["target"]["kind"]
+    ))}
+
+
 def _build_locked(out: Path, server: bool, target_dir: Path) -> None:
     layout = package_format(ROOT)
     staged = stage(target_dir, sdk_dylibs=True)
@@ -665,6 +744,12 @@ def _build_locked(out: Path, server: bool, target_dir: Path) -> None:
     # their dependencies beside themselves. macOS's @rpath install names use the executable's rpath.
     if PLATFORM == "linux":
         rustflags += " -C link-arg=-Wl,-rpath,$ORIGIN"
+    # The locked resolution names the checkout Cargo compiles from: refuse a modified one before it does.
+    metadata = json.loads(run([
+        "cargo", "metadata", "--locked", "--format-version", "1", "--filter-platform", host,
+        *features,
+    ], cwd=staged))
+    verify_wgpu_checkout(staged, metadata)
     # No official layer in a dedicated server.
     official = not server
     packages = ["-p", GAME, "-p", OFFICIAL] if official else ["-p", GAME]
@@ -692,10 +777,6 @@ def _build_locked(out: Path, server: bool, target_dir: Path) -> None:
     macros = out / "host"
     macros.mkdir()
     copied = copy_artifacts(artifacts, deps, macros, target_dir / host)
-    metadata = json.loads(run([
-        "cargo", "metadata", "--locked", "--format-version", "1", "--filter-platform", host,
-        *features,
-    ], cwd=staged))
     eligible = facade_crates(deps, runtime_crates(metadata, GAME))
     assert_externs(out, eligible)
     native = out / NATIVE
@@ -718,8 +799,9 @@ def _build_locked(out: Path, server: bool, target_dir: Path) -> None:
     carried = {name: source.relative_to(ROOT).as_posix() for name, source in CARRIED.items() if source is not None}
     blobs = dict(tracked_blobs(ROOT, head(), tuple(carried.values())))
     for name, path in carried.items():
-        (out / name).write_bytes(blobs[path])
-    patches = carry_patches(staged, out)
+        if name != LOCK:
+            (out / name).write_bytes(blobs[path])
+    patches, registry_lock = carry_cargo_inputs(staged, out, metadata, blobs[carried[LOCK]])
     for manifest in BUILD_DATA:
         shutil.copy2(staged / manifest, out / manifest)
     if official and dylib(deps, "sunrise_official") is None:
@@ -737,19 +819,14 @@ def _build_locked(out: Path, server: bool, target_dir: Path) -> None:
         "facade_crates": eligible,
         # The game crate's features: a `[[native.mixin]]` build compiles functions copied out of its source
         # under the same cfgs (function replacement).
-        "game_features": sorted(next(
-            message["features"] for message in artifacts
-            if message["reason"] == "compiler-artifact"
-            and message["package_id"].split("#")[0].endswith("/sunrise-client")
-            and "lib" in message["target"]["kind"]
-        )),
+        **runtime_feature_fields(staged, metadata, artifacts, target_dir / host, server),
         # The common function index covers all legs; each leg's identity says which of its
         # declarations actually exist in the lower libraries this patch can link against.
         "lower_crate_cfg": lower_crate_cfgs(metadata, artifacts, staged, target_dir / host,
                                            set(run(["rustc", "--print", "cfg", "--target", host]).splitlines())),
         "registry_patches": patches,
         "patch_files": {name: digest for name, digest in files.items() if name.startswith("patches/")},
-        "registry_lock": (staged / "Cargo.lock").read_text(),
+        "registry_lock": registry_lock,
         "native_links": native_links(metadata, GAME),
         "native_log": True,
         # The API route: the mods library's crate name and metadata, and which files the `runtime` and `api` archives
@@ -761,11 +838,288 @@ def _build_locked(out: Path, server: bool, target_dir: Path) -> None:
     check(out)
 
 
-def carry_patches(staged: Path, out: Path) -> dict:
+def localize_game_lock(text: str, label: str, source: str | None) -> tuple[str, dict[str, str]]:
+    """Lower the five Git identities without re-resolving the graph or reserializing the lock."""
+    expected = tomllib.loads(text)
+    packages = expected.get("package", [])
+    unused = expected.get("patch", {}).get("unused", [])
+    versions = {}
+    counts = {}
+    for record in packages:
+        name, version = record["name"], record["version"]
+        counts[name, version] = counts.get((name, version), 0) + 1
+        lock_source = record.get("source", "")
+        if (source is not None and name in ("wgpu", "wgpu-core")
+                and lock_source != "registry+https://github.com/rust-lang/crates.io-index"):
+            raise ValueError(f"{label}: {name} must stay on crates.io when carrying the wgpu Git patches")
+        if not lock_source.startswith("git+"):
+            continue
+        if source is None or name not in WGPU_PATCHES:
+            raise ValueError(f"{label}: unsupported Git package {name} {version}: {lock_source}")
+        if lock_source != source:
+            raise ValueError(f"{label}: {name} Git source must match the manifest rev: {lock_source} != {source}")
+        if name in versions or "checksum" in record:
+            raise ValueError(f"{label}: ambiguous or invalid Git identity for {name} {version}")
+        versions[name] = version
+        del record["source"]
+    for record in unused:
+        if record.get("source", "").startswith("git+"):
+            raise ValueError(f"{label}: unused Git patch {record['name']}; all five wgpu patches must be resolved")
+    if source is not None:
+        missing = set(WGPU_PATCHES) - versions.keys()
+        if missing:
+            raise ValueError(f"{label}: missing locked wgpu Git packages: {', '.join(sorted(missing))}")
+        unused_ids = {(record["name"], record["version"]) for record in unused}
+        for name, version in versions.items():
+            if counts[name, version] != 1 or (name, version) in unused_ids:
+                raise ValueError(f"{label}: {name} {version} collides with another package identity")
+
+    refs = {f"{name} {version} ({source})": f"{name} {version}" for name, version in versions.items()}
+    for record in (*packages, *unused):
+        if "dependencies" in record:
+            record["dependencies"] = [refs.get(dep, dep) for dep in record["dependencies"]]
+    # Reject even escaped Git strings in an unrecognized reference (for example a legacy metadata key).
+    pending = [expected]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            pending.extend(value)
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
+        elif isinstance(value, str) and "git+" in value:
+            raise ValueError(f"{label}: unsupported Git source or dependency reference: {value}")
+    if not versions:
+        return text, versions
+
+    # Cargo writes one [[package]] section per row, and one dependency string per line.
+    # The semantic comparison below refuses to emit a partial rewrite if that layout changes.
+    prefix, *sections = re.split(r"(?m)(?=^[ \t]*\[\[package\]\][ \t]*(?:#[^\r\n]*)?\r?$)", text)
+    if len(sections) != len(packages):
+        raise ValueError(f"{label}: cannot locate Cargo-generated package sections for Git patch localization")
+    source_line = re.compile(rf'(?m)^([ \t]*)source[ \t]*=[ \t]*"{re.escape(source)}"[ \t]*(#[^\r\n]*)?(\r?\n|$)')
+    for index, record in enumerate(packages):
+        if versions.get(record["name"]) == record["version"]:
+            sections[index] = source_line.sub(lambda m: m[1] + m[2] + m[3] if m[2] else "", sections[index], count=1)
+    ref_values = "|".join(map(re.escape, refs))
+    result = re.sub(rf'(?m)^([ \t]*")({ref_values})("[ \t]*,[ \t]*(?:#[^\r\n]*)?\r?$)',
+                    lambda m: m[1] + refs[m[2]] + m[3], prefix + "".join(sections))
+    if tomllib.loads(result) != expected:
+        raise ValueError(f"{label}: cannot localize Git sources without changing unrelated lock records")
+    return result, versions
+
+
+def pinned_git(checkout: Path, *args: str, request: bytes = b"") -> bytes:
+    """Read local Git objects only, including with older Git that lacks GIT_NO_LAZY_FETCH."""
+    return subprocess.run(["git", *args], cwd=checkout, input=request, stdout=subprocess.PIPE,
+                          check=True, timeout=ARCHIVE_SECONDS,
+                          env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": "",
+                               "GIT_NO_REPLACE_OBJECTS": "1"}).stdout
+
+
+def pinned_wgpu_tree(checkout: Path, rev: str) -> list[tuple[str, bytes, bytes, bytes]]:
+    """The name, mode, kind and object ID of every pinned entry of the root files and the five package directories,
+    read from the checkout's Git objects once it is the top level at HEAD `rev`."""
+    if (pinned_git(checkout, "rev-parse", "--show-prefix").strip()
+            or pinned_git(checkout, "rev-parse", "HEAD").strip() != rev.encode("ascii")):
+        raise ValueError(f"wgpu Git checkout {checkout} must be the Git top level at HEAD {rev}")
+    tree = pinned_git(checkout, "ls-tree", "-r", "-z", rev, "--", *WGPU_ROOT_FILES, *WGPU_PATCHES)
+    entries = []
+    for entry in tree.rstrip(b"\0").split(b"\0") if tree else ():
+        header, raw_path = entry.split(b"\t", 1)
+        entries.append((os.fsdecode(raw_path), *header.split(b" ")))
+    return entries
+
+
+def pinned_blobs(checkout: Path, rev: str, files: dict[str, tuple[bytes, bytes]]):
+    """Yield the name, mode and bytes of each of `files` (name to mode and object ID) from the checkout's local Git
+    blobs, not an archive subject to attributes or the mutable worktree."""
+    request = b"".join(oid + b"\n" for _, oid in files.values())
+    with io.BytesIO(pinned_git(checkout, "cat-file", "--batch", request=request)) as blobs:
+        for name, (mode, oid) in files.items():
+            header = blobs.readline().split()
+            if len(header) != 3 or header[:2] != [oid, b"blob"]:
+                raise ValueError(f"wgpu Git blob {name!r} is unavailable locally at {rev}; restore Cargo's checkout")
+            size = int(header[2])
+            data = blobs.read(size)
+            if len(data) != size or blobs.read(1) != b"\n":
+                raise ValueError(f"incomplete wgpu Git blob {name!r} at {rev}")
+            yield name, mode, data
+
+
+def is_link(info: os.stat_result) -> bool:
+    """A symlink, or on Windows any reparse point (a junction included), whatever else its mode says."""
+    return stat.S_ISLNK(info.st_mode) or bool(
+        getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def wgpu_worktree(checkout: Path) -> dict[str, os.stat_result]:
+    """The `lstat` of every path that is not a directory under the root files and the five package directories, ignored
+    files included. A link or reparse point is recorded, never followed or listed."""
+    found = {}
+    pending = [*WGPU_ROOT_FILES, *WGPU_PATCHES]
+    while pending:
+        name = pending.pop()
+        path = checkout / name
+        if not os.path.lexists(path):
+            continue
+        info = path.lstat()
+        if stat.S_ISDIR(info.st_mode) and not is_link(info):
+            pending.extend(f"{name}/{child}" for child in os.listdir(path))
+        else:
+            found[name] = info
+    return found
+
+
+def verify_wgpu_worktree(checkout: Path, rev: str) -> None:
+    """Refuse unless the checkout's actual files for the root files and the five package directories are the tree at
+    `rev`: the same paths (no untracked or ignored file), bytes and executable bit. Neither Git's index, its filters
+    and attributes, nor `core.filemode` is consulted, since Cargo compiles the bytes on disk."""
+    entries = pinned_wgpu_tree(checkout, rev)
+    for name, mode, kind, _ in entries:
+        if kind != b"blob" or mode not in (b"100644", b"100755"):
+            raise ValueError(f"wgpu Git checkout cannot be verified: {name!r} at {rev} is not a regular file")
+    files = {name: (mode, oid) for name, mode, _, oid in entries}
+    pinned = {name: (mode, data) for name, mode, data in pinned_blobs(checkout, rev, files)}
+    found = wgpu_worktree(checkout)
+    for name in sorted(files.keys() | found.keys()):
+        if name in found and is_link(found[name]):
+            problem = "is a symlink or reparse point, which is never followed"
+        elif name not in files:
+            problem = "is not in the pinned tree"
+        elif name not in found:
+            problem = "is missing"
+        elif not stat.S_ISREG(found[name].st_mode):
+            problem = "is not a regular file"
+        elif (checkout / name).read_bytes() != pinned[name][1]:
+            problem = "has other bytes than the pinned file"
+        elif os.name == "posix" and bool(found[name].st_mode & stat.S_IXUSR) != (pinned[name][0] == b"100755"):
+            problem = "has another executable mode than the pinned file"
+        else:
+            continue
+        raise ValueError(f"Cargo's wgpu Git checkout is not the pinned tree at {rev}: {name!r} {problem}. "
+                         f"Remove Cargo's checkout {checkout} so Cargo restores it, then build again.")
+
+
+def carry_wgpu(checkout: Path, rev: str, destination: Path) -> None:
+    """Copy blobs, not an archive subject to attributes or files from the mutable checkout."""
+    files = {}
+    for name, mode, kind, oid in pinned_wgpu_tree(checkout, rev):
+        parts = name.split("/")
+        if ".cargo" in parts or name.startswith(WGPU_OMIT):
+            continue
+        if kind != b"blob" or mode not in (b"100644", b"100755"):
+            raise ValueError(f"wgpu Git patch {name!r} at {rev} is not a regular file (symlink or submodule)")
+        if (name not in WGPU_ROOT_FILES and (parts[0] not in WGPU_PATCHES or len(parts) < 2)
+                or any(part in ("", ".", "..", ".git") for part in parts) or "\\" in name or ":" in name):
+            raise ValueError(f"unexpected wgpu Git patch path {name!r} at {rev}")
+        if len(parts) > 2 and parts[-1] == "Cargo.toml":
+            raise ValueError(f"unexpected nested crate in wgpu Git patch: {name}")
+        files[name] = (mode, oid)
+    required = {*WGPU_ROOT_FILES, *(f"{name}/Cargo.toml" for name in WGPU_PATCHES)}
+    if missing := required - files.keys():
+        raise ValueError(f"wgpu Git patch {rev} is missing {', '.join(sorted(missing))}")
+
+    destination.mkdir(parents=True)
+    for name, mode, data in pinned_blobs(checkout, rev, files):
+        path = destination / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("xb") as file:
+            file.write(data)
+        if os.name == "posix" and mode == b"100755":
+            path.chmod(stat.S_IMODE(path.stat().st_mode) | 0o111)
+
+
+def staged_patches(staged: Path) -> dict:
+    return tomllib.loads((staged / "Cargo.toml").read_text()).get("patch", {})
+
+
+def wgpu_pin(patches: dict) -> tuple[dict, str | None, str | None]:
+    """The game's Git patch specs, their one full rev and the lock source it gives, all None without Git patches."""
+    git_specs = {(registry, name): spec for registry, entries in patches.items() for name, spec in entries.items()
+                 if "git" in spec}
+    rev = None
+    source = None
+    if git_specs:
+        if git_specs.keys() != {("crates-io", name) for name in WGPU_PATCHES}:
+            raise ValueError(f"only the five crates.io wgpu Git patches may be carried, together; got {sorted(git_specs)}")
+        for (_, name), spec in git_specs.items():
+            if spec.keys() != {"git", "rev"} or spec["git"] != WGPU_FORK:
+                raise ValueError(f"{name}: SDK Git patches require only git = {WGPU_FORK!r} and a full rev")
+            pin = spec["rev"]
+            if not isinstance(pin, str) or not re.fullmatch(r"[0-9a-f]{40}", pin) or (rev and rev != pin):
+                raise ValueError(f"{name}: all wgpu Git patches must use the same full lowercase rev")
+            rev = pin
+        source = f"git+{WGPU_FORK}?rev={rev}#{rev}"
+    return git_specs, rev, source
+
+
+def locked_git_packages(metadata: dict) -> list[dict]:
+    return [package for package in metadata["packages"] if (package.get("source") or "").startswith("git+")]
+
+
+def wgpu_checkout(resolved: list[dict]) -> Path:
+    """The one Cargo checkout the locked metadata resolves every Git package of `resolved` from."""
+    roots = set()
+    for package in resolved:
+        name = package["name"]
+        manifest = Path(package["manifest_path"])
+        root = manifest.parent.parent.resolve()
+        if (not manifest.is_absolute() or manifest.name != "Cargo.toml" or manifest.parent.name != name
+                or manifest.resolve() != root / name / "Cargo.toml"):
+            raise ValueError(f"{name}: locked Cargo metadata must point to <wgpu checkout>/{name}/Cargo.toml")
+        roots.add(root)
+    if len(roots) != 1:
+        raise ValueError("locked Cargo metadata must resolve all wgpu Git patches from one checkout")
+    return roots.pop()
+
+
+def verify_wgpu_checkout(staged: Path, metadata: dict) -> None:
+    """Before the locked game build: refuse a Cargo checkout of the pinned wgpu patches whose files are not the pin's.
+    Cargo reuses a checkout at the right HEAD whatever its worktree holds, so the compiled game and the blobs
+    `carry_wgpu` ships could otherwise differ. Without Git packages in the locked resolution there is nothing to verify."""
+    resolved = locked_git_packages(metadata)
+    if not resolved:
+        return
+    _, rev, _ = wgpu_pin(staged_patches(staged))
+    if rev is not None:  # Git packages the manifest does not pin are refused by `carry_cargo_inputs`.
+        verify_wgpu_worktree(wgpu_checkout(resolved), rev)
+
+
+def carry_cargo_inputs(staged: Path, out: Path, metadata: dict, committed_lock: bytes) -> tuple[dict, str]:
+    """Carry the committed lock and the staged registry lock separately, using the resolved game metadata."""
+    patches = staged_patches(staged)
+    git_specs, rev, source = wgpu_pin(patches)
+
+    stage_lock = (staged / LOCK).read_bytes().decode("utf-8") if rev is not None else (staged / LOCK).read_text()
+    registry_lock, versions = localize_game_lock(stage_lock, f"staged {LOCK}", source)
+    lock, committed_versions = localize_game_lock(committed_lock.decode("utf-8"), f"committed {LOCK}", source)
+    if versions != committed_versions:
+        raise ValueError(f"the staged and committed {LOCK} disagree on wgpu Git package identities")
+    resolved = locked_git_packages(metadata)
+    identities = sorted((package["name"], package["version"], package["source"]) for package in resolved)
+    if identities != sorted((name, version, source) for name, version in versions.items()):
+        raise ValueError(f"locked Cargo metadata does not match the game Git lock identities: {identities}")
+    if rev is not None:
+        carry_wgpu(wgpu_checkout(resolved), rev, out / "patches/wgpu")
+        for registry, name in git_specs:
+            patches[registry][name] = {"path": f"patches/wgpu/{name}"}
+
+    patches = carry_patches(staged, out, patches=patches, copied=git_specs.keys())
+    (out / LOCK).write_bytes(lock.encode("utf-8") if rev is not None else committed_lock)
+    return patches, registry_lock
+
+
+def carry_patches(staged: Path, out: Path, *, patches: dict | None = None, copied=()) -> dict:
     """Carry only game-owned registry patch crates, never the rest of the game source."""
-    patches = tomllib.loads((staged / "Cargo.toml").read_text()).get("patch", {})
-    for registry in patches.values():
-        for spec in registry.values():
+    if patches is None:
+        patches = staged_patches(staged)
+    for registry, entries in patches.items():
+        for name, spec in entries.items():
+            if (registry, name) in copied:
+                continue
+            if "path" not in spec or spec.keys() & {"git", "rev", "tag", "branch", "registry", "registry-index"}:
+                raise ValueError(f"{name}: unsupported game SDK patch source; expected a game-owned path or the pinned wgpu group")
             source = staged / spec["path"]
             if source.is_symlink() or any(path.is_symlink() for path in source.rglob("*")):
                 raise ValueError("game patch contains a symlink")

@@ -1,2 +1,2 @@
-sunrise-client game::native_entity_motion::tests::set_on_ground_follows_the_server_players_parked_and_acting_bodies lib daily child-process
-sunrise-client game::native_entity_motion::tests::set_on_ground_refreshes_the_live_footprint_without_moving_the_body lib daily child-process
+sunrise-gameplay game::server_side::native_entity_motion::tests::set_on_ground_follows_the_server_players_parked_and_acting_bodies lib daily child-process
+sunrise-gameplay game::server_side::native_entity_motion::tests::set_on_ground_refreshes_the_live_footprint_without_moving_the_body lib daily child-process

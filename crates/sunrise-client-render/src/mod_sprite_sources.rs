@@ -20,6 +20,14 @@ type SpriteSourceTable = BTreeMap<String, Arc<BoundSpriteSource>>;
 
 static SOURCES: RwLock<SpriteSourceTable> = RwLock::new(BTreeMap::new());
 
+#[cfg(any(test, feature = "test-support"))]
+pub fn has_registered() -> bool {
+    !SOURCES
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .is_empty()
+}
+
 fn bind_into(
     table: &RwLock<SpriteSourceTable>,
     sources: Vec<Answered<SpriteSourceRegistration>>,

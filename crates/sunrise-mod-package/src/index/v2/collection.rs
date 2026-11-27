@@ -18,6 +18,7 @@ pub struct Collection {
     pub summary: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
     pub member: Vec<Member>,
 }
 

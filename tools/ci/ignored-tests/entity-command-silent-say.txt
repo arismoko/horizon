@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_commands::tests::silent_entity_say_reaches_every_guest_without_feedback_or_outer_capture lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_commands::tests::silent_entity_say_reaches_every_guest_without_feedback_or_outer_capture lib daily child-process

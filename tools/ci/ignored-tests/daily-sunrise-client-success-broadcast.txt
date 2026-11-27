@@ -1,5 +1,5 @@
 # Success feedback that tells the other operators and the log (Commands::feedback's broadcast_to_admins, #4632): mods registered per process.
-sunrise-client game::native_success_broadcast_tests::a_tracking_command_block_is_logged_while_feedback_is_off lib daily child-process
-sunrise-client game::native_success_broadcast_tests::an_entity_in_another_level_names_the_admin_line lib daily child-process
-sunrise-client game::native_success_broadcast_tests::console_output_is_logged_and_broadcast_once lib daily child-process
-sunrise-client game::native_success_broadcast_tests::feedback_tells_the_other_operators_and_the_log_under_their_rules lib daily child-process
+sunrise-client cut_layout::game::server_side::native_success_broadcast_tests::a_tracking_command_block_is_logged_while_feedback_is_off lib daily child-process
+sunrise-client cut_layout::game::server_side::native_success_broadcast_tests::an_entity_in_another_level_names_the_admin_line lib daily child-process
+sunrise-client cut_layout::game::server_side::native_success_broadcast_tests::console_output_is_logged_and_broadcast_once lib daily child-process
+sunrise-client cut_layout::game::server_side::native_success_broadcast_tests::feedback_tells_the_other_operators_and_the_log_under_their_rules lib daily child-process

@@ -17,6 +17,9 @@ def units(html: str) -> list[dict]:
 
 
 def summary(data: list[dict], top: int) -> list[str]:
+    if not data:
+        # A fully cached build: Cargo writes the report with no units.
+        return ["units=0: nothing compiled"]
     end = max(unit["start"] + unit["duration"] for unit in data)
     lines = [f"units={len(data)} wall={end:.1f}s summed={sum(unit['duration'] for unit in data):.1f}s"]
     for unit in sorted(data, key=lambda unit: unit["duration"], reverse=True)[:top]:

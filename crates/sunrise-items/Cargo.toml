@@ -9,7 +9,7 @@ description = "Blocks and items as the client knows them: block facts, item stac
 [dependencies]
 sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false }
 sunrise-mod-vocab = { path = "../sunrise-mod-vocab" }
-sunrise-client-core = { path = "../sunrise-client-core" }
+sunrise-game-data = { path = "../sunrise-game-data" }
 sunrise-core = { path = "../sunrise-core" }
 sunrise-world = { path = "../sunrise-world" }
 serde = { version = "1", features = ["derive"] }

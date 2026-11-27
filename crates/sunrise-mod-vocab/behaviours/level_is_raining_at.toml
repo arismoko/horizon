@@ -2,6 +2,6 @@ version = 1
 handle = "handle:LevelRef::is_raining_at"
 doc = "LevelRef::is_raining_at and is_raining compare the level's own float rain strength widened to a double against 0.2, as Level.isRaining does, so a strength of 0.2_f32 counts as raining where the level can have weather; the position check then also needs sky light, no roof and rain precipitation."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_world.rs::rain_at_a_position_checks_sky_roof_and_biome",
-    "crates/sunrise-client/src/game/modding/native_level_world.rs::rain_and_thunder_start_above_vanillas_thresholds",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_world.rs::rain_at_a_position_checks_sky_roof_and_biome",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_world.rs::rain_and_thunder_start_above_vanillas_thresholds",
 ]

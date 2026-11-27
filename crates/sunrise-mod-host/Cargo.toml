@@ -8,11 +8,12 @@ publish = false
 description = "The mod host above the engine: loading, Host implementations, registries and hook dispatch (#2534)"
 
 [dependencies]
-mod-render = { package = "sunrise-mod-render", path = "../sunrise-mod-render" }
+sunrise-core = { path = "../sunrise-core" }
+mod-render = { package = "sunrise-mod-render", path = "../sunrise-mod-render", optional = true }
 sunrise-client = { path = "../sunrise-client", default-features = false }
 sunrise-hooks = { path = "../sunrise-hooks" }
 
-sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false }
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["runtime-process"] }
 mod-api = { package = "sunrise-mod-api", path = "../sunrise-mod-api" }
 
 log = "0.4"
@@ -36,16 +37,30 @@ object = { version = "0.39", default-features = false, features = ["pe"] }
 workspace = true
 
 [features]
-default = ["audio", "controllers", "sunrise-extras"]
-audio = ["sunrise-client/audio"]
-controllers = ["sunrise-client/controllers"]
-sunrise-extras = ["sunrise-client/sunrise-extras"]
+alloc-count = ["sunrise-client/alloc-count"]
+default = ["client", "audio", "controllers", "sunrise-extras"]
+client = ["sunrise-client/client", "dep:mod-render"]
+audio = ["client", "sunrise-client/audio"]
+controllers = ["client", "sunrise-client/controllers"]
+sunrise-extras = ["client", "sunrise-client/sunrise-extras"]
 testing = ["sunrise-client/testing"]
 friends = ["sunrise-client/friends"]
-rng-trace = ["sunrise-client/rng-trace"]
+rng-trace = ["sunrise-core/rng-trace", "sunrise-client/rng-trace"]
 system-allocator = ["sunrise-client/system-allocator"]
 alloc-census = ["sunrise-client/alloc-census"]
 windows-segment-heap = ["sunrise-client/windows-segment-heap"]
 
 [dev-dependencies]
 serde_json = "1"
+
+[[example]]
+name = "wind_burst_hook_probe"
+required-features = ["client"]
+
+[[example]]
+name = "native_waypoints"
+required-features = ["client"]
+
+[[example]]
+name = "native_gui_overlay_probe"
+required-features = ["client"]

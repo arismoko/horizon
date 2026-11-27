@@ -1,10 +1,10 @@
 # The daily tests of sunrise-client-render: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
 # where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
 sunrise-client-render auth::tests::certificates_response lib daily slow
-sunrise-client-render block_edit::tests::tracked_states_are_reported lib daily slow
-sunrise-client-render chunk::tests::cloning_during_a_height_refresh_keeps_the_new_height lib daily slow
-sunrise-client-render chunk::tests::motion_blocking_follows_writes lib daily slow
-sunrise-client-render chunk::tests::world_surface_follows_writes lib daily slow
+sunrise-level block_edit::tests::tracked_states_are_reported lib daily slow
+sunrise-level chunk::tests::cloning_during_a_height_refresh_keeps_the_new_height lib daily slow
+sunrise-level chunk::tests::motion_blocking_follows_writes lib daily slow
+sunrise-level chunk::tests::world_surface_follows_writes lib daily slow
 sunrise-client-render gfx::inter_stage_tests::no_pipeline_exceeds_the_weakest_gpus_inter_stage_limit lib daily slow
 sunrise-client-render gfx::occlusion::tests::same_sections_as_vanilla lib daily slow
 sunrise-client-render gfx::occlusion::tests::vertical_clamping_matches_vanilla_without_overdraw lib daily slow
@@ -21,21 +21,13 @@ sunrise-client-render gfx::tests::shaders_translate_to_hlsl_for_directx_12_and_g
 sunrise-client-render graphics_style::tests::the_settings_screens_name_only_sprites_the_game_has lib daily resources
 sunrise-client-render graphics_ui::tests::hdr_sliders_step_through_every_value_they_can_be_set_to lib daily slow
 sunrise-client-render hud::pictures::tests::realms_pictures_do_not_enlarge_the_startup_atlas lib daily slow
-sunrise-client-render light::tests::a_tall_column_relights_as_its_full_light_and_keys_its_sections lib daily slow
+sunrise-level light::tests::a_tall_column_relights_as_its_full_light_and_keys_its_sections lib daily slow
 sunrise-client-render pack_screen::click_sound_tests::the_browsers_search_button_submits_what_was_typed lib daily network
 sunrise-client-render packs::tests::a_pack_that_unpacks_past_its_budget_fails_and_leaves_nothing lib daily slow
-sunrise-client-render perf_capture::tests::a_converted_profile_written_to_a_file_reads_back_through_the_queries lib daily slow
-sunrise-client-render perf_capture::tests::a_stack_becomes_a_root_to_leaf_chain_with_its_context lib daily slow
-sunrise-client-render perf_capture::tests::addresses_of_one_function_share_one_row lib daily slow
-sunrise-client-render perf_capture::tests::heap_samples_share_the_tables_without_the_allocators_own_frames lib daily slow
-sunrise-client-render perf_capture::tests::only_the_slow_ticks_function_is_in_the_slow_weights lib daily slow
-sunrise-client-render perf_capture::tests::three_units_of_a_and_one_of_b_split_the_samples_three_to_one lib daily slow
-sunrise-client-render perf_capture::tests::time_blocks_and_ticks_per_block_follow_when_they_were_added lib daily slow
-sunrise-client-render perf_capture::tests::wall_samples_carry_their_state_and_a_second_kind lib daily slow
 sunrise-client-render radial_overlay::tests::every_action_has_an_icon_and_every_string_a_sunrise_key lib daily slow
 sunrise-client-render skins::tests::a_failed_download_is_retried_after_the_wait lib daily network
 sunrise-client-render skins::tests::http_get_reads_2xx_bodies lib daily network
-sunrise-client-render skins::tests::profiles_resolve_through_the_services lib daily network
-sunrise-client-render streaming::cover_tests::the_buckets_answer_as_the_scan lib daily slow
-sunrise-client-render streaming::cover_tests::the_grid_answers_as_the_scan lib daily slow
+sunrise-server-profiles-http tests::profiles_resolve_through_the_services lib daily network
+sunrise-level chunk_streamer::cover_tests::the_buckets_answer_as_the_scan lib daily slow
+sunrise-level chunk_streamer::cover_tests::the_grid_answers_as_the_scan lib daily slow
 sunrise-client-render sunrise_shader::sunrise_fan::tests::angular_sector_matches_all_triangle_search test:it daily slow

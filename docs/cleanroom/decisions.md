@@ -62,10 +62,10 @@ the full list.
 - **Tests:** `gfx::pack_uniforms::initial_history_tests::custom_uniforms_read_every_player_boolean`,
   `gfx::pack_uniforms::initial_history_tests::programs_read_only_six_player_booleans` and
   `gfx::pack_post::player_boolean_tests::compute_and_quad_programs_read_only_the_listed_player_booleans`
-  (`sunrise-client-render`); the daily `game::shader_packs::player_status_tests::pack_status_follows_the_player`,
-  `game::shader_packs::player_status_tests::pack_status_leaves_queued_effects_alone`,
-  `game::shader_packs::player_status_tests::pack_status_on_a_server_follows_what_it_sent` and
-  `game::shader_packs::player_status_tests::pack_status_starts_over_with_a_new_local_player` (`sunrise-client`).
+  (`sunrise-client-render`); the daily `game::server_side::shader_packs_server::player_status_tests::pack_status_follows_the_player`,
+  `game::server_side::shader_packs_server::player_status_tests::pack_status_leaves_queued_effects_alone`,
+  `game::client_side::shader_packs::player_status_tests::pack_status_on_a_server_follows_what_it_sent` and
+  `game::client_side::shader_packs::player_status_tests::pack_status_starts_over_with_a_new_local_player` (`sunrise-client`).
 
 ## D-3: an image whose format qualifier differs from its buffer's format
 
@@ -178,3 +178,23 @@ the full list.
   `game::pack_layers::tests::full_opaque_cubes_keep_their_layer_with_a_note` and the daily
   `game::pack_layer_frame_tests::layer_rules_move_states_between_the_packs_terrain_programs` and
   `game::pack_layer_frame_tests::layer_rules_move_states_between_the_packs_shadow_programs` (`sunrise-client`).
+
+## D-6: a sampler whose class differs from its image's format
+
+- **Open point:** spec rev 1, 5.2, line 786 samples an image through its `image.*` sampler as `sampler2D` for float
+  and normalized formats and `isampler2D`/`usampler2D` for integer formats. It doesn't say what happens when the
+  sampler's class differs from the image's format (`usampler2D` over an image whose format is `R32F`), and it is not
+  one of section 9's open questions. wgpu makes a pipeline only when a sampled texture's class matches the
+  shader's, so such a program failed at pipeline creation with wgpu's error (#5223).
+- **Decision:** the program is refused by Sunrise's own check before its pipeline is made, with a note naming the
+  program, the sampler's type and name, the image and the texture's format. This holds for every pair of classes
+  that differ: an integer sampler over a float or normalized image, a float sampler over an integer image, and a
+  signed sampler over an unsigned image or the reverse. The rest of the pack keeps loading.
+- **Reason:** D-3 refuses an integer storage qualifier on a float texture for the same cause. The two other ways to
+  keep the program were rejected: a second texture in the sampler's class, kept in step with the image, needs a copy
+  after each writer and a rule for which copy a store reaches (Vulkan has no view between `R32_SFLOAT` and
+  `R32_UINT`); a stand-in of the sampler's class would let the program run while it reads nothing the pack wrote,
+  hiding the fault instead of naming it. The refusal skips no program that ran before: such a program never got a
+  pipeline.
+- **Tests:** `pack_post::tests::a_sampler_of_another_class_than_its_image_refuses_the_program`
+  (`sunrise-render-shaderpack`).

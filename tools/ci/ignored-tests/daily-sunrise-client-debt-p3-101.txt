@@ -1,2 +1,2 @@
-sunrise-client game::lan::tests::late_paired_item_display_sends_its_stack_on_pairing lib daily resources
-sunrise-client game::native_display_refs::tests::text_display_preserves_keybind_component_across_load_read_save_and_pairing lib daily resources
+sunrise-gameplay game::server_side::lan::late_pairing_tests::late_paired_item_display_sends_its_stack_on_pairing lib daily resources
+sunrise-client cut_layout::game::server_side::native_display_refs::tests::text_display_preserves_keybind_component_across_load_read_save_and_pairing lib daily resources

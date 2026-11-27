@@ -32,7 +32,7 @@ pub trait Hooks {
         answered_by = "mod",
         context = "data_load",
         version = 4,
-        target = "sunrise_client_lib::crafting::native_hooks::native_ingredient",
+        target = "sunrise_sim::crafting::native_hooks::native_ingredient",
         neoforge = "ICustomIngredient"
     )]
     fn ingredient(

@@ -1,2 +1,2 @@
-sunrise-client game::piston_push::restitution_tests::a_bounce_listener_can_remove_a_later_lid_target lib daily resources
-sunrise-client game::piston_push::restitution_tests::a_downward_shulker_box_lid_bounces_only_the_locally_driven_boat lib daily resources
+sunrise-client cut_layout::game::piston_push::restitution_tests::a_bounce_listener_can_remove_a_later_lid_target lib daily resources
+sunrise-client cut_layout::game::piston_push::restitution_tests::a_downward_shulker_box_lid_bounces_only_the_locally_driven_boat lib daily resources

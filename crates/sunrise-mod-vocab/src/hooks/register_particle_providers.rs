@@ -27,6 +27,7 @@ normal quad with its sprite, lighting and interpolated pose. An override can emi
 more independently placed opaque or translucent quads. An invalid quad is omitted; a failed
 callback does not commit that call's geometry. Resource reload does not replay the hook."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_particle_providers::native_register_particle_providers",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

@@ -1,13 +1,13 @@
-HoneyBlock.doesEntityDoHoneyBlockSlideEffects	inline	crates/sunrise-client/src/motion/integrate.rs::MotionWorld::honey_block_inside	gap: minor: only the player slides here; boats, minecarts, TNT and mobs get no slide sound or event
+HoneyBlock.doesEntityDoHoneyBlockSlideEffects	inline	crates/sunrise-sim/src/motion/integrate.rs::MotionWorld::honey_block_inside	gap: minor: only the player slides here; boats, minecarts, TNT and mobs get no slide sound or event
 HoneyBlock.fallOn	port	crates/sunrise-world/src/block_landing.rs::BlockLandingRegistry::fall_on	honey rule: slide sound, entity event 54, fall damage 0.2, fall sound
-HoneyBlock.isSlidingDown	inline	crates/sunrise-client/src/entities.rs::ArmorStand::apply_honey_slide	stand side-slide after travel; player motion, mob ai and ItemEntity retain their separate existing honey paths
-HoneyBlock.maybeDoSlideAchievement	port	crates/sunrise-client/src/game/interface/advancements/mod.rs::Game::trigger_honey_slide	gap: minor: the every-20-ticks check sits in the caller, Game::tick
-HoneyBlock.doSlideMovement	inline	crates/sunrise-client/src/motion/integrate.rs::MotionWorld::honey_block_inside	velocity damping and fall distance reset
-HoneyBlock.showParticles	port	crates/sunrise-client/src/game/blocks/block_particles.rs::Game::honey_slide_particles	five honey block particles at the entity
+HoneyBlock.isSlidingDown	inline	crates/sunrise-sim/src/entities.rs::ArmorStand::apply_honey_slide	stand side-slide after travel; player motion, mob ai and ItemEntity retain their separate existing honey paths
+HoneyBlock.maybeDoSlideAchievement	port	crates/sunrise-gameplay/src/game/interface/advancements/mod.rs::Game::trigger_honey_slide	gap: minor: the every-20-ticks check sits in the caller, Game::tick
+HoneyBlock.doSlideMovement	inline	crates/sunrise-sim/src/motion/integrate.rs::MotionWorld::honey_block_inside	velocity damping and fall distance reset
+HoneyBlock.showParticles	port	crates/sunrise-client-gameplay/src/game/blocks/block_particles_client.rs::Game::honey_entity_particles	five honey block particles at the entity
 IceBlock.randomTick	port	crates/sunrise-world/src/level/tick.rs::Sim::random_tick_block	melts through Sim::ice_melt when block light is above 11 minus dampening
-InfestedBlock.spawnInfestation	inline	crates/sunrise-client/src/game.rs::Game::break_block_as_player	silverfish at the broken block's bottom centre when blocks drop and there is no silk touch; poof via mob_poof
-InfestedBlock.infestedStateByHost	inline	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::handle_mob_events	the name swap minecraft:X to minecraft:infested_X in MobEvent::Infest; the host list is checked by the silverfish goals
-InfestedBlock.getNewStateWithProperties	inline	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::handle_mob_events	property copy is the same name swap; the map cache is java
+InfestedBlock.spawnInfestation	inline	crates/sunrise-gameplay/src/game/game_server.rs::Game::break_block_as_player	silverfish at the broken block's bottom centre when blocks drop and there is no silk touch; poof via mob_poof
+InfestedBlock.infestedStateByHost	inline	crates/sunrise-gameplay-common/src/game/mobs/creatures/mod.rs::Game::handle_mob_events	the name swap minecraft:X to minecraft:infested_X in MobEvent::Infest; the host list is checked by the silverfish goals
+InfestedBlock.getNewStateWithProperties	inline	crates/sunrise-gameplay-common/src/game/mobs/creatures/mod.rs::Game::handle_mob_events	property copy is the same name swap; the map cache is java
 IronBarsBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	arms per horizontal side and waterlogged from the replaced fluid
 IronBarsBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	waterlogged tick and side attachment
 IronBarsBlock.skipRendering	port	crates/sunrise-world/src/block_render.rs::FaceVisibility::skips	bars face culling for the mesher
@@ -16,12 +16,12 @@ JigsawBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTra
 JigsawBlock.mirror	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::mirror	orientation property through the mirror table
 JigsawBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	orientation from clicked face and horizontal facing
 JigsawBlock.useWithoutItem	port	crates/sunrise-world/src/level/interact.rs::Sim::use_without_item	a game master gets the jigsaw editor (game/administration/jigsaw_edit.rs)
-JukeboxBlock.setPlacedBy	port	crates/sunrise-client/src/game/blocks/jukebox.rs::Game::jukebox_placed	the item's block_entity_data RecordItem turns has_record on, after apply_placed_item filled the block entity
-JukeboxBlock.useWithoutItem	port	crates/sunrise-client/src/game/blocks/jukebox.rs::Game::use_jukebox	takes the disc out through eject_record when one is in
-JukeboxBlock.ownSignal	port	crates/sunrise-client/src/game/blocks/jukebox.rs::jukebox_signals	15 while a song plays
-JukeboxBlock.getAnalogOutputSignal	port	crates/sunrise-client/src/game/blocks/jukebox.rs::jukebox_signals	comparator output of the song
-JukeboxBlock.getTicker	port	crates/sunrise-client/src/game/blocks/jukebox.rs::Game::tick_jukebox	ticks only while a song plays
-LayeredCauldronBlock.isFull	inline	crates/sunrise-client/src/cauldron.rs::interact	the level 3 test that gates bucket filling
+JukeboxBlock.setPlacedBy	port	crates/sunrise-gameplay/src/game/blocks/jukebox_server.rs::Game::jukebox_placed	the item's block_entity_data RecordItem turns has_record on, after apply_placed_item filled the block entity
+JukeboxBlock.useWithoutItem	port	crates/sunrise-gameplay/src/game/blocks/jukebox_server.rs::Game::use_jukebox	takes the disc out through eject_record when one is in
+JukeboxBlock.ownSignal	port	crates/sunrise-gameplay-common/src/game/blocks/jukebox_common.rs::jukebox_signals	15 while a song plays
+JukeboxBlock.getAnalogOutputSignal	port	crates/sunrise-gameplay-common/src/game/blocks/jukebox_common.rs::jukebox_signals	comparator output of the song
+JukeboxBlock.getTicker	port	crates/sunrise-gameplay/src/game/blocks/jukebox_server.rs::Game::tick_jukebox	ticks only while a song plays
+LayeredCauldronBlock.isFull	inline	crates/sunrise-sim/src/cauldron.rs::interact	the level 3 test that gates bucket filling
 LayeredCauldronBlock.canReceiveStalactiteDrip	port	crates/sunrise-world/src/level/speleothem.rs::Sim::cauldron_can_receive	the water cauldron is the rain type here
 LayeredCauldronBlock.handlePrecipitation	port	crates/sunrise-world/src/level/tick.rs::Sim::precipitation_tick	rain or snow chance, cycles the level below 3
 LayeredCauldronBlock.receiveStalactiteDrip	port	crates/sunrise-world/src/level/speleothem.rs::Sim::cauldron_tick	adds one level below full with level event 1047
@@ -36,19 +36,19 @@ LeavesBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::S
 LecternBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	gap: minor: a Book in the placed item's data does not set HAS_BOOK here; apply_placed_item fills the block entity only
 LecternBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate	facing through the rotate table
 LecternBlock.createBlockStateDefinition	skip:data	-	state properties come from the data tables
-LecternBlock.tryPlaceBook	port	crates/sunrise-client/src/game/interface/books.rs::Game::use_lectern	a book goes onto an empty lectern
-LecternBlock.placeBook	inline	crates/sunrise-client/src/game/interface/books.rs::Game::use_lectern	consumes the held book, sets has_book from the placing player through `resetBookState`, which posts `minecraft:block_change`, and plays the put sound
-LecternBlock.resetBookState	port	crates/sunrise-client/src/game/interface/books.rs::Game::lectern_menu_done	book removal clears powered and has_book, and `set_lectern_has_book` posts `minecraft:block_change`
-LecternBlock.changePowered	port	crates/sunrise-client/src/game/interface/books.rs::Game::set_lectern_powered
-LecternBlock.updateBelow	inline	crates/sunrise-client/src/game/interface/books.rs::Game::set_lectern_powered	neighbour update below the lectern
+LecternBlock.tryPlaceBook	port	crates/sunrise-gameplay/src/game/interface/books_server.rs::Game::use_lectern	a book goes onto an empty lectern
+LecternBlock.placeBook	inline	crates/sunrise-gameplay/src/game/interface/books_server.rs::Game::use_lectern	consumes the held book, sets has_book from the placing player through `resetBookState`, which posts `minecraft:block_change`, and plays the put sound
+LecternBlock.resetBookState	port	crates/sunrise-gameplay/src/game/interface/books_server.rs::Game::lectern_menu_done	book removal clears powered and has_book, and `set_lectern_has_book` posts `minecraft:block_change`
+LecternBlock.changePowered	port	crates/sunrise-gameplay/src/game/interface/books_server.rs::Game::set_lectern_powered
+LecternBlock.updateBelow	inline	crates/sunrise-gameplay/src/game/interface/books_server.rs::Game::set_lectern_powered	neighbour update below the lectern
 LecternBlock.affectNeighborsAfterRemoval	port	crates/sunrise-world/src/level/hooks.rs::Sim::affect_neighbors_after_removal	powered lectern updates the block below on removal
 LecternBlock.getDirectSignal	port	crates/sunrise-world/src/level/redstone.rs::Sim::state_direct_signal	gap: minor: no Lectern arm; the power of a powered lectern comes from the data table's strong value
-LecternBlock.getAnalogOutputSignal	port	crates/sunrise-gameplay/src/lectern.rs::lectern_signal	page-based comparator signal, 0 without a book
-LecternBlock.useWithoutItem	port	crates/sunrise-client/src/game/interface/books.rs::Game::open_lectern	opens the book view when a book is on the lectern
-LecternBlock.getMenuProvider	port	crates/sunrise-client/src/game/interface/books.rs::Game::lectern_menu	the lectern menu over the block entity's book and page
+LecternBlock.getAnalogOutputSignal	port	crates/sunrise-gameplay-common/src/lectern.rs::lectern_signal	page-based comparator signal, 0 without a book
+LecternBlock.useWithoutItem	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::open_lectern	opens the book view when a book is on the lectern
+LecternBlock.getMenuProvider	port	crates/sunrise-gameplay/src/game/interface/books_server.rs::Game::lectern_menu	the lectern menu over the block entity's book and page
 LeverBlock.makeShapes	skip:data	-	collision and outline shapes are precomputed from the data
 LeverBlock.useWithoutItem	port	crates/sunrise-world/src/level/redstone.rs::Sim::lever_pull	the toggle, its click, game event and neighbour updates; the clicking client's red dust puff is crates/sunrise-client/src/game.rs::Game::lever_puff (LeverBlock.makeParticle)
-LeverBlock.onExplosionHit	port	crates/sunrise-client/src/game/interface/wind.rs::Game::wind_trigger_block	the same path toggles a lever, powered or not
+LeverBlock.onExplosionHit	port	crates/sunrise-gameplay/src/game/interface/wind.rs::Game::wind_trigger_block	the same path toggles a lever, powered or not
 LeverBlock.playSound	inline	crates/sunrise-world/src/level/redstone.rs::Sim::lever_pull	click sound at volume 0.3 and pitch 0.6 on or 0.5 off
 LeverBlock.affectNeighborsAfterRemoval	port	crates/sunrise-world/src/level/hooks.rs::Sim::affect_neighbors_after_removal	powered lever updates neighbours on removal unless moved by a piston
 LeverBlock.getDirectSignal	port	crates/sunrise-world/src/level/redstone.rs::Sim::state_direct_signal	powered lever's strong power from the data table
@@ -57,8 +57,8 @@ LightBlock.createBlockStateDefinition	skip:data	-	state properties come from the
 LightBlock.useWithoutItem	port	crates/sunrise-world/src/level/interact.rs::Sim::use_without_item	game masters cycle the light level
 LightBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	waterlogged tick
 LightBlock.getFluidState	port	crates/sunrise-world/src/level/update.rs::Sim::fluid_at	waterlogged fluid from block data
-LightBlock.getCloneItemStack	port	crates/sunrise-client/src/game/blocks/block_items.rs::Game::picked_stack	the light's level goes on the picked stack's block_state
-LightBlock.setLightOnStack	port	crates/sunrise-client/src/game/blocks/block_items.rs::Game::picked_stack	the picked light carries its level as the stack's block_state
+LightBlock.getCloneItemStack	port	crates/sunrise-gameplay-common/src/game/blocks/block_items.rs::Game::picked_stack	the light's level goes on the picked stack's block_state
+LightBlock.setLightOnStack	port	crates/sunrise-gameplay-common/src/game/blocks/block_items.rs::Game::picked_stack	the picked light carries its level as the stack's block_state
 LightningRodBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	facing from clicked face, waterlogged from the replaced fluid
 LightningRodBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	waterlogged tick
 LightningRodBlock.getFluidState	port	crates/sunrise-world/src/level/update.rs::Sim::fluid_at	waterlogged fluid from block data
@@ -74,8 +74,8 @@ LiquidBlock.getFluidState	port	crates/sunrise-world/src/level/update.rs::Sim::fl
 LiquidBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	bubble column schedule below
 LiquidBlock.neighborChanged	port	crates/sunrise-world/src/level/fluids.rs::Sim::liquid_block_changed	gap: minor: spread and bubble-column tick only; the Neo fluid interaction check is not ported here
 LiquidBlock.pickupBlock	port	crates/sunrise-world/src/level/fluids.rs::Sim::pickup_block	source blocks only, leaves air and yields the bucket
-LoomBlock.useWithoutItem	port	crates/sunrise-client/src/game/blocks/stations.rs::Game::open_station	opens the loom station
-LoomBlock.getMenuProvider	port	crates/sunrise-client/src/game/blocks/stations.rs::Game::open_station	the loom menu over the block position
+LoomBlock.useWithoutItem	port	crates/sunrise-gameplay/src/game/blocks/stations_server.rs::Game::open_station	opens the loom station
+LoomBlock.getMenuProvider	port	crates/sunrise-gameplay/src/game/blocks/stations_server.rs::Game::open_station	the loom menu over the block position
 Mirror.mirror	inline	crates/sunrise-world/src/worldgen/structure/processor.rs::turn_facing	a hanging entity's Facing takes the same axis flips (LEFT_RIGHT swaps north and south, FRONT_BACK west and east) before the rotation; a block state's mirrored result is the exported per-state table (StateTransforms::mirror)
 Mirror.getRotation	inline	crates/sunrise-world/src/worldgen/structure/processor.rs::turn_facing	the 180 degree turn an axis-flipped facing implies is the swap turn_facing makes; for a block state it is already in the exported mirror table
 MossyCarpetBlock.makeShapes	skip:data	-	collision and outline shapes are precomputed from the data
@@ -117,14 +117,14 @@ MushroomBlock.randomTick	port	crates/sunrise-world/src/level/tick.rs::Sim::mushr
 MushroomBlock.canSpread	inline	crates/sunrise-world/src/level/tick.rs::Sim::mushroom_random_tick	at most four of the same mushroom in the 9x3x9 box, counted in the tick
 MushroomBlock.isValidBonemealTarget	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::bonemeal_valid	mushroom arm
 NetherPortalBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	portal breaks when the frame is incomplete
-NetherPortalBlock.getPortalTransitionTime	port	crates/sunrise-client/src/game/world/server_travel.rs::Game::handle_server_portal	creative and default delay game rules by invulnerability; the delay counter is in the same fn
-NetherPortalBlock.getExitPortal	port	crates/sunrise-client/src/game/blocks/nether_portal.rs::Game::nether_exit_portal	gap: minor: the Nether exit only; the End variant is Game::end_portal_exit
-NetherPortalBlock.getDimensionTransitionFromExit	port	crates/sunrise-client/src/game/blocks/nether_portal.rs::Game::portal_plan
+NetherPortalBlock.getPortalTransitionTime	port	crates/sunrise-gameplay/src/game/world/server_travel.rs::Game::handle_server_portal	creative and default delay game rules by invulnerability; the delay counter is in the same fn
+NetherPortalBlock.getExitPortal	port	crates/sunrise-gameplay/src/game/blocks/nether_portal.rs::Game::nether_exit_portal	gap: minor: the Nether exit only; the End variant is Game::end_portal_exit
+NetherPortalBlock.getDimensionTransitionFromExit	port	crates/sunrise-gameplay/src/game/blocks/nether_portal.rs::Game::portal_plan
 NetherPortalBlock.animateTick	port	crates/sunrise-client/src/animate_tick.rs::block_animate_tick	portal ambient sound and particles
 NetherPortalBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate	axis swap through the rotate table
 NoteBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	instrument follows the block below
 NoteBlock.neighborChanged	port	crates/sunrise-world/src/level/redstone.rs::Sim::note_neighbor_changed
-NoteBlock.getCustomSoundId	inline	crates/sunrise-client/src/game.rs::Game::process_level_events
+NoteBlock.getCustomSoundId	inline	crates/sunrise-gameplay/src/game/game_server.rs::Game::server_process_level_events
 NoteBlock.createBlockStateDefinition	skip:data	-	state properties come from the data tables
 PathBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	pushes entities up when the path would not survive
 PathBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	schedules a tick when the block above changes
@@ -135,11 +135,11 @@ PitcherCropBlock.getCollisionShape	skip:data	-	collision shape per state comes f
 PitcherCropBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class
 PitcherCropBlock.canSurvive	port	crates/sunrise-world/src/level/survive.rs::Sim::can_survive_class
 PitcherCropBlock.createBlockStateDefinition	skip:data	-	state properties come from the data tables
-PitcherCropBlock.entityInside	port	crates/sunrise-client/src/mobs/ravager.rs::ai_step	ticked in #3516; `PitcherCropBlock.entityInside` is cited at crates/sunrise-client/src/mobs/ravager.rs:136 (in a comment, so `where` names the enclosing fn)
+PitcherCropBlock.entityInside	port	crates/sunrise-sim/src/mobs/ravager.rs::ai_step	ticked in #3516; `PitcherCropBlock.entityInside` is cited at crates/sunrise-client/src/mobs/ravager.rs:136 (in a comment, so `where` names the enclosing fn)
 PitcherCropBlock.isRandomlyTicking	inline	crates/sunrise-world/src/level/tick.rs::Sim::random_tick_block	the lower half and not max age test gates the pitcher arm
 PitcherCropBlock.canGrowInto	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::pitcher_can_grow
 PitcherCropBlock.isLower	inline	crates/sunrise-world/src/level/survive.rs::Sim::can_survive_class	lower-half test used by the survival check
 PitcherCropBlock.isMaxAge	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::crop_max_age
 PitcherCropBlock.isValidBonemealTarget	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::bonemeal_valid	pitcher arm
 PitcherCropBlock.performBonemeal	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::perform_bonemeal	pitcher growth
-TestBlock.ownSignal	port	crates/sunrise-client/src/game.rs::Game::block_entity_signal	the block state mode gates the block entity powered flag
+TestBlock.ownSignal	port	crates/sunrise-gameplay-common/src/game/modding/native_level_signals.rs::block_entity_signal	the block state mode gates the block entity powered flag

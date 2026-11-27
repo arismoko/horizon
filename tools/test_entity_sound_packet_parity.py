@@ -46,7 +46,7 @@ def main():
     report.unlink(missing_ok=True)
     paths = ['tools/test_entity_sound_packet_parity.py', 'tools/oracle_harness.py', 'tools/lab.py',
              'tools/test_rust_parity.py', 'tools/integration_env.py', 'Cargo.toml', 'Cargo.lock',
-             'crates/sunrise-client-render/src/audio.rs', 'crates/sunrise-client/src/lan/containers.rs',
+             'crates/sunrise-client-render/src/audio.rs', 'crates/sunrise-sim/src/lan/containers.rs',
              'crates/sunrise-protocol/src/packets/play.rs', 'crates/sunrise-protocol/src/packets/mod.rs',
              'crates/sunrise-client/examples/probe/main.rs',
              'crates/sunrise-client/examples/probe/entity_sound_packet_fixture.rs',

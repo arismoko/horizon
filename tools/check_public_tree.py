@@ -49,6 +49,14 @@ REMOVED_COMMERCIAL_PREFIXES = (
     # Upstream's in-game side of the cosmetics (emotes, the emote wheel, their effects).
     "crates/sunrise-client/src/game/cosmetics",
     "crates/sunrise-client/src/game/interface/cosmetics",
+    "crates/sunrise-client/src/cut_layout/game/cosmetics",
+    "crates/sunrise-client/src/cut_layout/game/interface/cosmetics",
+    "crates/sunrise-gameplay-common/src/game/cosmetics",
+    "crates/sunrise-gameplay-common/src/game/interface/cosmetics",
+    "crates/sunrise-gameplay/src/game/cosmetics",
+    "crates/sunrise-gameplay/src/game/interface/cosmetics",
+    "crates/sunrise-client-gameplay/src/game/cosmetics",
+    "crates/sunrise-client-gameplay/src/game/interface/cosmetics",
     "crates/sunrise-official-servers",
 )
 # The launcher lives in sunrise-org/sunrise-launcher (launcher split D1); its removed commercial pages and sculk art

@@ -2,5 +2,5 @@ version = 1
 handle = "handle:LevelRef::set_world_border_damage"
 doc = "LevelRef::set_world_border_damage stores finite, possibly signed damage-per-block and safe-zone values on the named level's border; damage settings stay server-side and send no packet."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_border.rs::border_setters_notify_the_named_level",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_border.rs::border_setters_notify_the_named_level",
 ]

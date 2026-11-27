@@ -5,14 +5,18 @@ import os
 import shutil
 import sys
 import struct
+import stat
 import subprocess
 import tarfile
 import tempfile
+import tomllib
+import types
 import unittest
 from unittest.mock import patch
 from pathlib import Path
 
 import tools
+from tests.git_fixture import isolated_git_env
 from tools import lab, prebuilt_game
 from tests.os_support import needs_runner_shell, needs_symlinks
 
@@ -169,11 +173,12 @@ class StageToolTests(unittest.TestCase):
             manifest.parent.mkdir(parents=True)
             manifest.write_text("[package]\nname = 'fixture'\n")
             git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.autocrlf=false"]
-            subprocess.run([*git, "init", "-q"], cwd=source, check=True)
-            subprocess.run([*git, "add", "tracked.rs", "crates"], cwd=source, check=True)
-            subprocess.run([*git, "update-index", "--chmod=+x", "tracked.rs"], cwd=source, check=True)
-            subprocess.run([*git, "commit", "-qm", "fixture"], cwd=source, check=True)
-            commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=source, check=True, text=True,
+            env = isolated_git_env()
+            subprocess.run([*git, "init", "-q"], cwd=source, env=env, check=True)
+            subprocess.run([*git, "add", "tracked.rs", "crates"], cwd=source, env=env, check=True)
+            subprocess.run([*git, "update-index", "--chmod=+x", "tracked.rs"], cwd=source, env=env, check=True)
+            subprocess.run([*git, "commit", "-qm", "fixture"], cwd=source, env=env, check=True)
+            commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=source, env=env, check=True, text=True,
                                     stdout=subprocess.PIPE).stdout.strip()
             # A Windows checkout's line endings, and edits never committed: neither reaches the stage.
             (source / "tracked.rs").write_bytes(committed.replace(b"\n", b"\r\n") + b"fn edited() {}\r\n")
@@ -282,6 +287,20 @@ class RegistryPatchTests(unittest.TestCase):
             self.assertFalse((sdk / "game.rs").exists())
             self.assertNotIn("workspace", (sdk / "Cargo.toml").read_text())
 
+    def test_path_only_sdk_keeps_the_committed_and_staged_locks_distinct(self):
+        with tempfile.TemporaryDirectory() as directory:
+            staged, sdk = Path(directory) / "stage", Path(directory) / "sdk"
+            staged.mkdir()
+            sdk.mkdir()
+            (staged / "Cargo.toml").write_text("[workspace]\nmembers = []\n")
+            committed = b"# committed\r\nversion = 4\r\n"
+            staged_lock = "# staged\nversion = 4\n"
+            (staged / "Cargo.lock").write_bytes(staged_lock.encode())
+            patches, registry_lock = prebuilt_game.carry_cargo_inputs(staged, sdk, {"packages": []}, committed)
+            self.assertEqual(patches, {})
+            self.assertEqual(registry_lock, staged_lock)
+            self.assertEqual((sdk / "Cargo.lock").read_bytes(), committed)
+
     @needs_symlinks
     def test_source_symlink_is_refused_without_copying_its_target(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -331,6 +350,281 @@ class RegistryPatchTests(unittest.TestCase):
             extra.symlink_to(declared)
             with self.assertRaisesRegex(SystemExit, "symlinks"):
                 prebuilt_game.check(sdk)
+
+
+LINK_PROBLEM = "is a symlink or reparse point, which is never followed"
+
+
+class CargoBuildReached(Exception):
+    """The run got as far as the game's own `cargo build`."""
+
+
+class GitRegistryPatchTests(unittest.TestCase):
+    FORK = "https://github.com/sunrise-org/sunrise-wgpu"
+    MEMBERS = ("naga", "naga-types", "wgpu-hal", "wgpu-naga-bridge", "wgpu-types")
+    VERSION = "30.0.1"
+    EXTRA_STAGE_ROW = '\n[[package]]\nname = "staged-only"\nversion = "1.0.0"\n'
+
+    def git(self, *args):
+        return subprocess.check_output(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+             "-c", "core.autocrlf=false", *args], cwd=self.checkout, stdin=subprocess.DEVNULL,
+        ).decode("ascii").strip()
+
+    def setUp(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        self.checkout, self.staged, self.sdk = root / "checkout", root / "stage", root / "sdk"
+        for directory in (self.checkout, self.staged, self.sdk):
+            directory.mkdir()
+        self.git("init", "-q", "--object-format=sha1")
+        members = [*self.MEMBERS, "naga/hlsl-snapshots", "wgpu", "wgpu-core"]
+        self.payload = {
+            "Cargo.toml": (f"[workspace]\nmembers = {json.dumps(members)}\n"
+                           f"[workspace.package]\nversion = '{self.VERSION}'\n").encode(),
+            "LICENSE.APACHE": b"root Apache notice\n",
+            "LICENSE.MIT": b"root MIT notice\n",
+            "SUNRISE.md": b"downstream attribution\n",
+            "naga/src/space name.bin": b"\0\xff\r\n",
+        }
+        for name in self.MEMBERS:
+            self.payload[f"{name}/Cargo.toml"] = f"[package]\nname = '{name}'\nversion.workspace = true\n".encode()
+            self.payload[f"{name}/src/lib.rs"] = f"// committed {name}\n".encode()
+            self.payload[f"{name}/LICENSE.MIT"] = f"MIT notice for {name}\n".encode()
+        for name, data in (self.payload | {
+            ".gitattributes": b"naga/src/lib.rs export-ignore\n",
+            ".cargo/config.toml": b"# repository config\n",
+            "naga/.cargo/config.toml": b"# member config\n",
+            "naga/hlsl-snapshots/Cargo.toml": b"# nested dev crate\n",
+            "Cargo.lock": b"# the fork's own workspace lock\n",
+            "wgpu/Cargo.toml": b"# registry version is used instead\n",
+            "wgpu-core/Cargo.toml": b"# registry version is used instead\n",
+        }).items():
+            file = self.checkout / name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(data)
+        self.git("add", "--all", "--force")
+        self.git("update-index", "--chmod=+x", "naga/src/lib.rs")
+        if os.name == "posix":
+            (self.checkout / "naga/src/lib.rs").chmod(0o755)  # as a checkout of the commit has it
+        self.git("commit", "-qm", "fixture checkout")
+        self.rev = self.git("rev-parse", "HEAD")
+        self.source = f"git+{self.FORK}?rev={self.rev}#{self.rev}"
+        fixture = prebuilt_game.ROOT / "tools/fixtures/sdk-git-patches"
+        self.game_lock = (fixture / "game.lock").read_text(encoding="utf-8").replace("1" * 40, self.rev)
+        self.sdk_lock = (fixture / "sdk.lock").read_text(encoding="utf-8")
+        self.metadata = {"packages": [
+            {"name": name, "version": self.VERSION, "source": self.source,
+             "manifest_path": str(self.checkout / name / "Cargo.toml")} for name in self.MEMBERS
+        ]}
+        self.manifest = "[patch.crates-io]\n" + "".join(
+            f'{name} = {{ git = "{self.FORK}", rev = "{self.rev}" }}\n' for name in self.MEMBERS
+        ) + 'allocator-sys = { path = "vendor/allocator-sys" }\n'
+        (self.staged / "Cargo.toml").write_text(self.manifest)
+        allocator = self.staged / "vendor/allocator-sys/Cargo.toml"
+        allocator.parent.mkdir(parents=True)
+        allocator.write_bytes(b"[package]\nname = 'allocator-sys'\nversion = '1.0.0'\n")
+        (self.staged / "Cargo.lock").write_bytes((self.game_lock + self.EXTRA_STAGE_ROW).encode())
+
+    def carry(self):
+        committed = self.game_lock.replace("\n", "\r\n").encode()
+        return prebuilt_game.carry_cargo_inputs(self.staged, self.sdk, self.metadata, committed)
+
+    def dirty_checkout(self) -> Path:
+        """A modified tracked file and an untracked one beside it in the member that sorts after it."""
+        dirty = self.checkout / "naga/src/lib.rs"
+        dirty.write_bytes(b"// dirty checkout\r\n")
+        (self.checkout / "naga/untracked").write_bytes(b"not committed")
+        return dirty
+
+    def build_locked(self, commands: list[list[str]]) -> None:
+        """`_build_locked` on the fixture: the locked metadata names its checkout, and the game's own `cargo build`
+        is where the run stops."""
+        def run(command, **kwargs):
+            commands.append(command[:2])
+            if command[:2] == ["cargo", "metadata"]:
+                return json.dumps(self.metadata | {"resolve": {"nodes": []}})
+            raise CargoBuildReached
+
+        with patch.object(prebuilt_game, "stage", return_value=self.staged), \
+             patch.object(prebuilt_game, "head", return_value=self.rev), \
+             patch.object(prebuilt_game, "rustc_host", return_value="fixture-host"), \
+             patch.object(prebuilt_game, "run", side_effect=run):
+            prebuilt_game._build_locked(self.sdk / "out", False, self.sdk / "target")
+
+    def assert_build_refused(self, name: str, problem: str) -> None:
+        """The build side refuses naming `name` first, and `cargo build` never starts."""
+        commands = []
+        with self.assertRaises(ValueError) as refused:
+            self.build_locked(commands)
+        self.assertIn(f"{name!r} {problem}", str(refused.exception))
+        self.assertIn(f"Remove Cargo's checkout {self.checkout}", str(refused.exception))
+        self.assertEqual(commands, [["cargo", "metadata"]])
+
+    def test_a_clean_checkout_reaches_the_locked_game_build(self):
+        commands = []
+        with self.assertRaises(CargoBuildReached):
+            self.build_locked(commands)
+        self.assertEqual(commands, [["cargo", "metadata"], ["cargo", "build"]])
+
+    def test_the_build_refuses_a_modified_tracked_file_naming_the_first_differing_path(self):
+        self.dirty_checkout()
+        self.assert_build_refused("naga/src/lib.rs", "has other bytes than the pinned file")
+
+    def test_the_build_refuses_an_untracked_file(self):
+        (self.checkout / "naga/untracked").write_bytes(b"not committed")
+        self.assert_build_refused("naga/untracked", "is not in the pinned tree")
+
+    def test_the_build_refuses_a_missing_file_and_a_changed_root_file(self):
+        (self.checkout / "wgpu-types/src/lib.rs").unlink()
+        self.assert_build_refused("wgpu-types/src/lib.rs", "is missing")
+        (self.checkout / "wgpu-types/src/lib.rs").write_bytes(self.payload["wgpu-types/src/lib.rs"])
+        (self.checkout / "LICENSE.MIT").write_bytes(b"other notice\n")
+        self.assert_build_refused("LICENSE.MIT", "has other bytes than the pinned file")
+
+    def test_an_ignored_file_is_refused_though_git_does_not_show_it(self):
+        (self.checkout / ".git/info").mkdir(exist_ok=True)
+        (self.checkout / ".git/info/exclude").write_text("ignored.rs\n")
+        (self.checkout / "naga-types/ignored.rs").write_bytes(b"// compiled but ignored by Git\n")
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assert_build_refused("naga-types/ignored.rs", "is not in the pinned tree")
+
+    def test_index_flags_and_filemode_cannot_hide_a_change(self):
+        self.git("update-index", "--assume-unchanged", "naga/src/lib.rs", "naga-types/src/lib.rs")
+        self.git("config", "core.filemode", "false")
+        (self.checkout / "naga/src/lib.rs").write_bytes(b"// hidden by the index\n")
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assert_build_refused("naga/src/lib.rs", "has other bytes than the pinned file")
+        (self.checkout / "naga/src/lib.rs").write_bytes(self.payload["naga/src/lib.rs"])
+        if os.name == "posix":
+            (self.checkout / "naga-types/src/lib.rs").chmod(0o755)
+            self.assertEqual(self.git("status", "--porcelain"), "")
+            self.assert_build_refused("naga-types/src/lib.rs", "has another executable mode than the pinned file")
+            (self.checkout / "naga-types/src/lib.rs").chmod(0o644)
+            (self.checkout / "naga/src/lib.rs").chmod(0o644)
+            self.assert_build_refused("naga/src/lib.rs", "has another executable mode than the pinned file")
+
+    @needs_symlinks
+    def test_the_build_reports_links_without_following_them(self):
+        outside = self.checkout.with_name("outside")
+        outside.mkdir()
+        (outside / "leaked.rs").write_bytes(b"// outside the checkout\n")
+        (self.checkout / "naga/linked").symlink_to(outside, target_is_directory=True)
+        self.assert_build_refused("naga/linked", LINK_PROBLEM)
+        (self.checkout / "naga/linked").unlink()
+        member = self.checkout / "wgpu-types/src/lib.rs"
+        member.unlink()
+        member.symlink_to(outside / "leaked.rs")
+        self.assert_build_refused("wgpu-types/src/lib.rs", LINK_PROBLEM)
+
+    def test_a_reparse_point_is_refused_whatever_its_mode_says(self):
+        """`st_file_attributes` only exists on Windows, so a stand-in `lstat` result carries it on any system: a
+        regular-looking file and a directory (as a junction reads), neither followed."""
+        real_lstat = Path.lstat
+        for name, mode in ("naga-types/src/lib.rs", stat.S_IFREG | 0o644), ("naga/src", stat.S_IFDIR | 0o755):
+            def lstat(path, name=name, mode=mode):
+                if path != self.checkout / name:
+                    return real_lstat(path)
+                return types.SimpleNamespace(st_mode=mode, st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+            with self.subTest(name=name), patch.object(Path, "lstat", lstat):
+                self.assert_build_refused(name, LINK_PROBLEM)
+
+    @unittest.skipUnless(os.name == "nt", "directory junctions, reparse points that are not symlinks, exist only on Windows")
+    def test_the_build_refuses_a_junction_without_following_it(self):
+        outside = self.checkout.with_name("outside")
+        outside.mkdir()
+        (outside / "leaked.rs").write_bytes(b"// outside the checkout\n")
+        junction = self.checkout / "naga/linked"
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(junction), str(outside)], check=True, capture_output=True)
+        self.assert_build_refused("naga/linked", LINK_PROBLEM)
+        os.rmdir(junction)
+        shutil.copytree(self.checkout / "wgpu-types/src", outside / "src")
+        shutil.rmtree(self.checkout / "wgpu-types/src")
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(self.checkout / "wgpu-types/src"), str(outside / "src")],
+                       check=True, capture_output=True)
+        self.assert_build_refused("wgpu-types/src", LINK_PROBLEM)
+
+    def test_sdk_localizes_both_locks_and_carries_only_the_pinned_wgpu_payload(self):
+        dirty = self.dirty_checkout()
+        patches, registry_lock = self.carry()
+        expected_paths = {name: {"path": f"patches/wgpu/{name}"} for name in self.MEMBERS}
+        expected_paths["allocator-sys"] = {"path": "patches/allocator-sys"}
+        self.assertEqual(patches, {"crates-io": expected_paths})
+        self.assertEqual(tomllib.loads((self.sdk / "Cargo.toml").read_text()), {"patch": patches})
+        self.assertEqual(dirty.read_bytes(), b"// dirty checkout\r\n")
+        self.assertEqual((self.sdk / "Cargo.lock").read_bytes(), self.sdk_lock.replace("\n", "\r\n").encode())
+        self.assertEqual(registry_lock, self.sdk_lock + self.EXTRA_STAGE_ROW)
+        self.assertEqual((self.staged / "Cargo.lock").read_bytes(), (self.game_lock + self.EXTRA_STAGE_ROW).encode())
+        self.assertNotIn("git+", registry_lock)
+        self.assertNotIn(b"git+", (self.sdk / "Cargo.lock").read_bytes())
+        payload = {f"patches/wgpu/{name}": data for name, data in self.payload.items()}
+        payload["patches/allocator-sys/Cargo.toml"] = (self.staged / "vendor/allocator-sys/Cargo.toml").read_bytes()
+        self.assertEqual({path.relative_to(self.sdk).as_posix(): path.read_bytes()
+                          for path in (self.sdk / "patches").rglob("*") if path.is_file()}, payload)
+        if os.name == "posix":
+            self.assertTrue((self.sdk / "patches/wgpu/naga/src/lib.rs").stat().st_mode & 0o100)
+        with linux_package():
+            write_build_data(self.sdk, {"patch_files": {name: prebuilt_game.sha256(self.sdk / name) for name in payload}})
+            prebuilt_game.check(self.sdk)
+        identity = json.loads((self.sdk / prebuilt_game.IDENTITY).read_text())
+        engine = prebuilt_game.archives(self.sdk, identity["slices"])["engine"]
+        self.assertTrue({"Cargo.lock", "Cargo.toml", *payload} <= set(engine))
+
+    def test_lock_rev_must_match_the_manifest_rev(self):
+        lock = self.staged / "Cargo.lock"
+        bad_source = self.source.rsplit("#", 1)[0] + "#" + "0" * 40
+        lock.write_bytes(self.game_lock.replace(self.source, bad_source, 1).encode())
+        with self.assertRaisesRegex(ValueError, "Git source must match the manifest rev"):
+            self.carry()
+        self.assertFalse((self.sdk / "patches").exists())
+
+    def test_unknown_or_unused_git_packages_are_refused(self):
+        for header, name, message in (("package", "intruder", "unsupported Git package intruder"),
+                                      ("patch.unused", "naga", "unused Git patch naga")):
+            with self.subTest(header=header):
+                row = f'\n[[{header}]]\nname = "{name}"\nversion = "{self.VERSION}"\nsource = "{self.source}"\n'
+                (self.staged / "Cargo.lock").write_bytes((self.game_lock + row).encode())
+                with self.assertRaisesRegex(ValueError, message):
+                    self.carry()
+        self.assertFalse((self.sdk / "patches").exists())
+
+    def test_git_patch_group_rejects_partial_membership_urls_and_other_selectors(self):
+        for manifest, message in (
+            (self.manifest.replace("naga-types = ", "other = "), "five crates.io wgpu Git patches"),
+            (self.manifest.replace(self.FORK, "https://example.invalid/wgpu", 1), "SDK Git patches require"),
+            (self.manifest.replace(" rev = ", " branch = ", 1), "SDK Git patches require"),
+        ):
+            with self.subTest(message=message):
+                (self.staged / "Cargo.toml").write_text(manifest)
+                with self.assertRaisesRegex(ValueError, message):
+                    self.carry()
+        self.assertFalse((self.sdk / "patches").exists())
+
+    def test_git_identity_cannot_collide_with_another_source_at_the_same_version(self):
+        lock = self.game_lock.replace('version = "29.0.0"', f'version = "{self.VERSION}"')
+        (self.staged / "Cargo.lock").write_bytes(lock.encode())
+        with self.assertRaisesRegex(ValueError, "naga 30.0.1 collides with another package identity"):
+            self.carry()
+        self.assertFalse((self.sdk / "patches").exists())
+
+    def test_metadata_must_name_exactly_one_match_per_locked_identity(self):
+        self.metadata["packages"].append(self.metadata["packages"][0].copy())
+        with self.assertRaisesRegex(ValueError, "metadata does not match the game Git lock identities"):
+            self.carry()
+        self.assertFalse((self.sdk / "patches").exists())
+
+    def test_metadata_cannot_split_the_group_across_checkouts(self):
+        separate = self.checkout.with_name("other-checkout")
+        self.metadata["packages"][0]["manifest_path"] = str(separate / "naga/Cargo.toml")
+        with self.assertRaisesRegex(ValueError, "from one checkout"):
+            self.carry()
+        self.assertFalse((self.sdk / "patches").exists())
+
+    def test_checkout_head_must_be_the_pin_even_when_the_pin_is_present(self):
+        self.git("commit", "--allow-empty", "-qm", "wrong checkout HEAD")
+        with self.assertRaisesRegex(ValueError, "must be the Git top level at HEAD"):
+            self.carry()
+        self.assertFalse((self.sdk / "patches").exists())
 
 
 class SdkAssetTests(unittest.TestCase):
@@ -665,11 +959,12 @@ class TrackedBlobsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", folder]
-            subprocess.run([*git, "init", "-q"], check=True)
+            env = isolated_git_env()
+            subprocess.run([*git, "init", "-q"], env=env, check=True)
             (root / "a.rs").write_bytes(b"fn a() {}\nfn b() {}\n")
-            subprocess.run([*git, "add", "a.rs"], check=True)
-            subprocess.run([*git, "commit", "-q", "-m", "a"], check=True)
-            subprocess.run([*git, "config", "core.autocrlf", "true"], check=True)
+            subprocess.run([*git, "add", "a.rs"], env=env, check=True)
+            subprocess.run([*git, "commit", "-q", "-m", "a"], env=env, check=True)
+            subprocess.run([*git, "config", "core.autocrlf", "true"], env=env, check=True)
             blobs = dict(prebuilt_game.tracked_blobs(root, "HEAD"))
         self.assertEqual(blobs, {"a.rs": b"fn a() {}\nfn b() {}\n"})
 
@@ -922,6 +1217,69 @@ class PrebuiltContentsTests(unittest.TestCase):
             {"name": "native-sys", "version": "1.0.0", "library": "native"},
         ])
 
+    def test_runtime_feature_facts_follow_target_artifacts_and_normal_aliases(self):
+        target = Path("/target/triple")
+        edges = {"host": {"common_loan": "common", "sim": "server", "ui": "client"}}
+        packages = []
+        nodes = []
+        artifacts = []
+        for owner in ("host", "common", "server", "client"):
+            name = f"fixture_{owner}"
+            lib = {"name": name, "kind": ["lib"]}
+            packages.append({"id": owner, "name": owner, "version": "0.1.0", "targets": [lib]})
+            nodes.append({"id": owner, "deps": [
+                {"name": alias, "pkg": dep, "dep_kinds": [{"kind": None}]}
+                for alias, dep in edges.get(owner, {}).items()
+            ]})
+            artifacts.append({"reason": "compiler-artifact", "package_id": owner, "target": lib,
+                              "features": [f"feature-{owner}"], "filenames": [str(target / name)]})
+        host_artifact = dict(artifacts[1], features=["host-only"], filenames=["/target/debug/common"])
+        metadata = {"packages": packages, "resolve": {"nodes": nodes}}
+
+        desktop = prebuilt_game.runtime_role_facts(metadata, "host", artifacts + [host_artifact], target, "client")
+        dedicated = prebuilt_game.runtime_role_facts(metadata, "host", artifacts[:-1], target, "server")
+        self.assertEqual(desktop["libraries"]["common@0.1.0:fixture_common"], {
+            "package": "common", "library": "fixture_common", "features": ["feature-common"], "aliases": {}, "artifacts": [],
+        })
+        self.assertEqual(desktop["libraries"]["host@0.1.0:fixture_host"]["aliases"], {
+            "common_loan": "common@0.1.0:fixture_common", "sim": "server@0.1.0:fixture_server",
+            "ui": "client@0.1.0:fixture_client",
+        })
+        self.assertEqual(dedicated["side"], "server")
+        self.assertNotIn("client@0.1.0:fixture_client", dedicated["libraries"])
+        self.assertNotIn("ui", dedicated["libraries"]["host@0.1.0:fixture_host"]["aliases"])
+
+    def test_split_identity_keeps_features_of_the_target_shell(self):
+        root = self.folder()
+        marker = root / "crates/sunrise-mod-api-gen/source-layout"
+        marker.parent.mkdir(parents=True)
+        marker.write_text("split")
+        target = Path("/target/triple")
+        packages, nodes, artifacts = [], [], []
+        for package in (prebuilt_game.GAME, "sunrise-client", "sunrise-gameplay"):
+            library = {"name": package.replace("-", "_"), "kind": ["lib"]}
+            packages.append({"id": package, "name": package, "version": "0.1.0", "targets": [library]})
+            children = {"sunrise-client": ["sunrise-gameplay"], prebuilt_game.GAME: ["sunrise-client"]}
+            nodes.append({"id": package, "deps": [
+                {"name": dep.replace("-", "_"), "pkg": dep, "dep_kinds": [{"kind": None}]}
+                for dep in children.get(package, [])
+            ]})
+            artifacts.append({"reason": "compiler-artifact", "package_id": package, "target": library,
+                              "features": [package], "filenames": [str(target / library["name"])]})
+        host_shell = dict(artifacts[1], features=["host-shell"], filenames=["/target/debug/sunrise_client"])
+        metadata = {"packages": packages, "resolve": {"nodes": nodes}}
+
+        for server in (False, True):
+            with self.subTest(server=server):
+                identity = prebuilt_game.runtime_feature_fields(root, metadata, [host_shell, *artifacts],
+                                                                target, server)
+                self.assertEqual(identity["game_features"], ["sunrise-client"])
+                self.assertEqual(identity["runtime_role"]["libraries"]["sunrise-gameplay@0.1.0:sunrise_gameplay"]
+                                 ["features"], ["sunrise-gameplay"])
+        with self.assertRaisesRegex(ValueError, "exactly one sunrise-client runtime library, found 0"):
+            prebuilt_game.runtime_feature_fields(root, metadata, [host_shell, artifacts[0], artifacts[2]],
+                                                 target, True)
+
     def test_sdk_assertion_refuses_a_duplicate_eligible_facade_on_every_os(self):
         root = self.folder("deps/libsunrise_core-one.rmeta", "deps/libmod_api-one.rmeta",
                            "deps/libsunrise_mod_package-one.rmeta")
@@ -1091,20 +1449,21 @@ class LauncherCheckoutTests(unittest.TestCase):
             root = Path(directory)
             (script, _), pin_file = scripts_beside_a_pin(directory, "launcher_checkout.sh", "launcher_pin.sh")
             source = root / "source"
-            subprocess.run(git + ["init", "-q", str(source)], check=True)
+            env = isolated_git_env(LAUNCHER_URL=source.as_uri())
+            subprocess.run(git + ["init", "-q", str(source)], env=env, check=True)
             commits = []
             for name in ("one", "two"):
                 (source / "file").write_text(name)
-                subprocess.run(git + ["-C", str(source), "add", "file"], check=True)
-                subprocess.run(git + ["-C", str(source), "commit", "-q", "-m", name], check=True)
-                commits.append(subprocess.run(["git", "-C", str(source), "rev-parse", "HEAD"], check=True,
+                subprocess.run(git + ["-C", str(source), "add", "file"], env=env, check=True)
+                subprocess.run(git + ["-C", str(source), "commit", "-q", "-m", name], env=env, check=True)
+                commits.append(subprocess.run(["git", "-C", str(source), "rev-parse", "HEAD"], env=env, check=True,
                                               capture_output=True, text=True).stdout.strip())
-            env = {**os.environ, "LAUNCHER_URL": source.as_uri(), "GIT_CONFIG_GLOBAL": os.devnull}
             pin_file.write_text(commits[0] + "\n")
             done = subprocess.run([str(script), str(root / "out")], env=env, capture_output=True, text=True)
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual((root / "out/file").read_text(), "one")
-            state = subprocess.run(["git", "-C", str(root / "out"), "symbolic-ref", "-q", "HEAD"], capture_output=True)
+            state = subprocess.run(["git", "-C", str(root / "out"), "symbolic-ref", "-q", "HEAD"], env=env,
+                                   capture_output=True)
             self.assertNotEqual(state.returncode, 0)  # detached
             pin_file.write_text("f" * 40 + "\n")
             done = subprocess.run([str(script), str(root / "out2")], env=env, capture_output=True, text=True)

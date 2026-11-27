@@ -35,7 +35,7 @@ from tools.test_dedicated_server_parity import Server, game_time
 NAME = 'arrow-hit-ding-parity'
 ORACLE_SOURCE = 'mods/sunrise/src/test/java/dev/sunriselab/parity/LocatorBarClient.java'
 WITNESS_ENV = 'SUNRISE_ARROW_HIT_DING_WITNESS'
-TEST = 'game::lan_pvp::arrow_hit_sound_tests::an_arrow_that_hurts_another_player_dings_its_shooter'
+TEST = 'game::server_side::lan_pvp::arrow_hit_sound_tests::an_arrow_that_hurts_another_player_dings_its_shooter'
 PLAYERS = ['Alice', 'Bob']
 # (case name, shooter player name, Silent flag, pvp game rule, victim game mode)
 CASES = [

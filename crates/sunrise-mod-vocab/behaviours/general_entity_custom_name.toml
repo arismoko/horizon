@@ -1,7 +1,7 @@
 version = 1
 doc = "A general entity row keeps a custom name and its visibility, as `Entity.getCustomName` and `Entity.isCustomNameVisible` do: saved as `CustomName` and `CustomNameVisible`, synced to tracking clients as `Entity.DATA_CUSTOM_NAME` and `DATA_CUSTOM_NAME_VISIBLE`, read and written through `EntityRef::name`, `custom_name`, `set_custom_name`, `custom_name_visible` and `set_custom_name_visible` (the visibility reads on a client too), and used by `@e[name=...]` and command output."
 tests = [
-  "crates/sunrise-client/src/game/entities/general/save_load_tests.rs::a_general_records_custom_name_survives_save_and_load",
-  "crates/sunrise-client/src/game/entities/general/save_load_tests.rs::a_general_rows_custom_name_is_read_selected_and_saved",
-  "crates/sunrise-client/src/game/network/remote/general.rs::a_general_rows_synced_name_and_visibility_read_through_its_handle",
+  "crates/sunrise-client/src/cut_layout/game/entities/general/save_load_tests.rs::a_general_records_custom_name_survives_save_and_load",
+  "crates/sunrise-client/src/cut_layout/game/entities/general/save_load_tests.rs::a_general_rows_custom_name_is_read_selected_and_saved",
+  "crates/sunrise-client/src/cut_layout/game/network/remote/general.rs::a_general_rows_synced_name_and_visibility_read_through_its_handle",
 ]

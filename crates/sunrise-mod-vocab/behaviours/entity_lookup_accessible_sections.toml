@@ -1,5 +1,5 @@
 version = 1
 doc = "Host::entity and EntitiesServerHost::entity_by_uuid find only entities in accessible sections (server players always), so a hidden entity is addressed through the handle its spawn returned."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_falling.rs::fresh_fall_does_not_require_summon_bounds_or_a_loaded_chunk",
+    "crates/sunrise-gameplay/src/game/modding/native_falling.rs::fresh_fall_does_not_require_summon_bounds_or_a_loaded_chunk",
 ]

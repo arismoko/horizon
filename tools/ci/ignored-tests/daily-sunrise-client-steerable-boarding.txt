@@ -1,1 +1,1 @@
-sunrise-client game::mounts::steerable_boarding_tests::interact_with_a_pig_or_strider lib daily child-process
+sunrise-client cut_layout::game::server_side::mounts::steerable_boarding_tests::interact_with_a_pig_or_strider lib daily child-process

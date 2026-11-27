@@ -16,7 +16,7 @@ pub trait Hooks {
     /// Afterwards [`Hooks::item_tooltip`]
     /// sees the finished list, including these parts' lines.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_tooltip",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_tooltip",
         receiver = "read",
         dispatch = "flat",
         side = "client",

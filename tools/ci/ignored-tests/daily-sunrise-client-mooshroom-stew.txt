@@ -1,1 +1,1 @@
-sunrise-client game::sculk::farm_animal_interaction_tests::a_brown_mooshroom_milks_the_effects_of_a_mod_block_item lib daily resources
+sunrise-client cut_layout::game::client_side::sculk::farm_animal_interaction_tests::a_brown_mooshroom_milks_the_effects_of_a_mod_block_item lib daily resources

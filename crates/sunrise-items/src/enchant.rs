@@ -254,7 +254,7 @@ pub struct Enchantment {
     pub description_key: String,
     /// `Enchantment.description`, the definition's component as written: a translatable key
     /// with its fallback and arguments, or a literal, with its style.
-    pub description_text: sunrise_client_core::text::Text,
+    pub description_text: sunrise_game_data::text::Text,
     pub max_level: u32,
     pub weight: u32,
     pub anvil_cost: u32,
@@ -474,16 +474,16 @@ fn parse_entry(
             // A data pack's entry may name itself with a literal component
             // rather than a translation key.
             if key.is_empty() && !v["description"].is_null() {
-                sunrise_client_core::scoreboard::comp_text(&v["description"]).plain()
+                sunrise_game_data::scoreboard::comp_text(&v["description"]).plain()
             } else {
                 id.trim_start_matches("minecraft:").replace('_', " ")
             }
         }),
         description_key: key.to_owned(),
         description_text: if v["description"].is_null() {
-            sunrise_client_core::text::Text::literal(id)
+            sunrise_game_data::text::Text::literal(id)
         } else {
-            sunrise_client_core::scoreboard::comp_text(&v["description"])
+            sunrise_game_data::scoreboard::comp_text(&v["description"])
         },
         max_level: v["max_level"].as_u64().unwrap_or(1) as u32,
         weight: v["weight"].as_u64().unwrap_or(1) as u32,
@@ -863,14 +863,14 @@ impl Enchantments {
     }
     /// `Enchantment.getFullname` as plain text and whether it is a curse (red).
     pub fn full_name(&self, id: &str, level: u32) -> (String, bool) {
-        let language = sunrise_client_core::lang::current();
+        let language = sunrise_game_data::lang::current();
         self.full_name_in(language.as_deref(), id, level)
     }
     /// `Enchantment.getFullname` against `language`; `None` (no language loaded: a
     /// dedicated server, the probes) keeps the English names loaded above.
     pub fn full_name_in(
         &self,
-        language: Option<&sunrise_client_core::lang::Language>,
+        language: Option<&sunrise_game_data::lang::Language>,
         id: &str,
         level: u32,
     ) -> (String, bool) {
@@ -880,7 +880,7 @@ impl Enchantments {
     /// [`Enchantments::full_name_in`] with the level as a number when `numeric`.
     fn full_name_with(
         &self,
-        language: Option<&sunrise_client_core::lang::Language>,
+        language: Option<&sunrise_game_data::lang::Language>,
         id: &str,
         level: u32,
         numeric: bool,
@@ -2052,7 +2052,7 @@ pub mod tests {
                 id: Arc::from(*id),
                 description: id.trim_start_matches("minecraft:").into(),
                 description_key: v["description"]["translate"].as_str().unwrap_or("").into(),
-                description_text: sunrise_client_core::scoreboard::comp_text(&v["description"]),
+                description_text: sunrise_game_data::scoreboard::comp_text(&v["description"]),
                 max_level: v["max_level"].as_u64().unwrap() as u32,
                 weight: v["weight"].as_u64().unwrap() as u32,
                 anvil_cost: v["anvil_cost"].as_u64().unwrap() as u32,
@@ -2599,7 +2599,7 @@ pub mod tests {
     #[test]
     fn names_follow_the_language() {
         struct Mem(HashMap<String, Vec<u8>>);
-        impl sunrise_client_core::lang::ResourceSource for Mem {
+        impl sunrise_game_data::lang::ResourceSource for Mem {
             fn read(&self, path: &str) -> Option<Vec<u8>> {
                 self.0.get(path).cloned()
             }
@@ -2610,7 +2610,7 @@ pub mod tests {
                 .as_bytes()
                 .to_vec(),
         )]));
-        let ru = sunrise_client_core::lang::Language::load(&[&ru], "ru_ru");
+        let ru = sunrise_game_data::lang::Language::load(&[&ru], "ru_ru");
         let e = sample();
         assert_eq!(
             e.full_name_in(Some(&ru), "minecraft:sharpness", 5).0,
@@ -2676,7 +2676,7 @@ mod ignite_tests {
             id: Arc::from("minecraft:fire_aspect"),
             description: "fire_aspect".into(),
             description_key: String::new(),
-            description_text: sunrise_client_core::text::Text::literal("fire_aspect"),
+            description_text: sunrise_game_data::text::Text::literal("fire_aspect"),
             max_level: 2,
             weight: 2,
             anvil_cost: 4,

@@ -1,1 +1,1 @@
-sunrise-client game::native_server::sidebar_tests::sidebar_routes_by_live_identity_and_publishes_only_valid_committed_changes lib daily child-process
+sunrise-client cut_layout::game::native_server::sidebar_tests::sidebar_routes_by_live_identity_and_publishes_only_valid_committed_changes lib daily child-process

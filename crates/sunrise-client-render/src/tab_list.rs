@@ -18,71 +18,9 @@ use std::{
 };
 use sunrise_core::java_number::float_to_string;
 
-/// `GameType.SPECTATOR` id.
-pub const SPECTATOR: i32 = 3;
+pub use sunrise_level::profile_lookup::{SPECTATOR, TabPlayer, default_skin};
 /// `PlayerTabOverlay.MAX_ROWS_PER_COL`.
 pub const MAX_ROWS_PER_COL: i32 = 20;
-
-/// One `PlayerInfo` the list can show.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TabPlayer {
-    pub uuid: u128,
-    /// `GameProfile.name`: the score holder and team member name.
-    pub name: String,
-    /// `GameType` id (0 survival, 1 creative, 2 adventure, 3 spectator).
-    pub game_mode: i32,
-    /// Milliseconds; negative when unknown.
-    pub latency: i32,
-    /// `tabListDisplayName` as a component (its root style matters: a
-    /// spectator's name is made italic at the root).
-    pub display_name: Option<Comp>,
-    pub list_order: i32,
-    pub show_hat: bool,
-    /// Skin texture path, e.g. `entity/player/wide/steve`.
-    pub skin: String,
-}
-impl TabPlayer {
-    /// A player with the default skin for their UUID.
-    pub fn new(uuid: u128, name: impl Into<String>) -> Self {
-        Self {
-            uuid,
-            name: name.into(),
-            game_mode: 0,
-            latency: 0,
-            display_name: None,
-            list_order: 0,
-            show_hat: true,
-            skin: default_skin(uuid).to_owned(),
-        }
-    }
-}
-
-/// `DefaultPlayerSkin.get(UUID)`: the default skin by `UUID.hashCode`.
-pub fn default_skin(uuid: u128) -> &'static str {
-    const SKINS: [&str; 18] = [
-        "entity/player/slim/alex",
-        "entity/player/slim/ari",
-        "entity/player/slim/efe",
-        "entity/player/slim/kai",
-        "entity/player/slim/makena",
-        "entity/player/slim/noor",
-        "entity/player/slim/steve",
-        "entity/player/slim/sunny",
-        "entity/player/slim/zuri",
-        "entity/player/wide/alex",
-        "entity/player/wide/ari",
-        "entity/player/wide/efe",
-        "entity/player/wide/kai",
-        "entity/player/wide/makena",
-        "entity/player/wide/noor",
-        "entity/player/wide/steve",
-        "entity/player/wide/sunny",
-        "entity/player/wide/zuri",
-    ];
-    let hilo = ((uuid >> 64) as u64) ^ (uuid as u64);
-    let hash = ((hilo >> 32) as i32) ^ (hilo as i32);
-    SKINS[hash.rem_euclid(SKINS.len() as i32) as usize]
-}
 
 /// `blitSprite(sprite, x, y, w, h)`.
 fn sprite(name: &'static str, x: i32, y: i32, w: i32, h: i32) -> GuiDraw {

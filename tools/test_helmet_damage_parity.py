@@ -19,15 +19,17 @@ PARITY_RUST_SCOPE = [
     'crates/sunrise-world/src/living_damage.rs',
     'crates/sunrise-world/src/server_player_combat.rs',
     'crates/sunrise-world/src/server_player_damage.rs',
-    'crates/sunrise-client/src/health',
-    'crates/sunrise-client/src/health.rs',
-    'crates/sunrise-client/src/game.rs',
-    'crates/sunrise-client/src/game/mobs/creatures',
-    'crates/sunrise-client/src/game/items/potions.rs',
-    'crates/sunrise-client/src/game/entities/falling_damage',
-    'crates/sunrise-client/src/game/entities/falling_damage.rs',
+    'crates/sunrise-sim/src/health',
+    'crates/sunrise-sim/src/health.rs',
+    'crates/sunrise-gameplay-common/src/game.rs',
+    'crates/sunrise-gameplay-common/src/game/mobs/creatures',
+    'crates/sunrise-gameplay/src/game/mobs/creatures',
+    'crates/sunrise-client-gameplay/src/game/mobs/creatures',
+    'crates/sunrise-client-gameplay/src/game/items/potions.rs',
+    'crates/sunrise-client/src/cut_layout/game/entities/falling_damage',
+    'crates/sunrise-gameplay/src/game/entities/falling_damage.rs',
 ]
-TEST = 'game::falling_damage::helmet_tests::falling_impacts_wear_the_helmet_before_normal_armor_and_reduction'
+TEST = 'game::server_side::falling_damage::helmet_tests::falling_impacts_wear_the_helmet_before_normal_armor_and_reduction'
 
 
 def main():

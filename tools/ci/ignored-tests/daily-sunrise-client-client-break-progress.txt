@@ -1,2 +1,2 @@
-sunrise-client game::remote::tests::client_break_progress_tests::server_cracks_are_told_as_sent lib daily game-boot
-sunrise-client game::remote::tests::client_break_progress_tests::the_local_dig_tells_its_stage_every_tick_and_its_stop lib daily game-boot
+sunrise-client-gameplay game::client_side::remote_client::client_break_progress_tests::server_cracks_are_told_as_sent lib daily game-boot
+sunrise-client-gameplay game::client_side::remote_client::client_break_progress_tests::the_local_dig_tells_its_stage_every_tick_and_its_stop lib daily game-boot

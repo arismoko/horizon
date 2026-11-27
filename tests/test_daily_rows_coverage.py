@@ -99,12 +99,17 @@ class DailyRowsCoverage(unittest.TestCase):
 
     def test_each_row_runs_in_exactly_one_place(self):
         rows = [row("sunrise-world", "a"), row("sunrise-world", "b", "test:integration"),
-                row("sunrise-client", "c", "test:lan_bot"), row("sunrise-relay", "d")]
+                row("sunrise-client", "c", "test:lan_bot"), row("sunrise-relay", "d"),
+                row("sunrise-gameplay-common", "e"), row("sunrise-gameplay", "f"),
+                row("sunrise-client-gameplay", "g")]
         groups = ignored_tests.daily_rows_groups(rows)
         for entry in rows:
             in_shard = ignored_tests.shard_runs(entry.package, entry.reference)
             in_leg = entry.test in groups.get((entry.package, entry.reference), ())
             self.assertNotEqual(in_shard, in_leg, entry)
+        for package in ("sunrise-gameplay-common", "sunrise-gameplay", "sunrise-client-gameplay"):
+            self.assertTrue(ignored_tests.shard_runs(package, "lib"), package)
+            self.assertNotIn((package, "lib"), groups)
 
 
 class WindowsDailyWorkflow(unittest.TestCase):
@@ -189,7 +194,7 @@ class DailyRowsMatchTheSource(unittest.TestCase):
     def test_a_shared_source_folder_belongs_to_both_packages(self):
         owners = check.source_packages()
         self.assertEqual(owners["crates/sunrise-client"], self.CLIENT)
-        functions = [("crates/sunrise-client/src/save.rs", 3, "slow", self.CLIENT)]
+        functions = [("crates/sunrise-sim/src/save.rs", 3, "slow", self.CLIENT)]
         self.assertEqual(check.source_problems([row("sunrise-client-lib", "save::tests::slow")], functions), [])
         self.assertEqual(len(check.source_problems([row("sunrise-world", "save::tests::slow")], functions)), 2)
 

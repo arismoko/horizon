@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate crates/sunrise-client/src/lan/command_order.rs: the order of the
+"""Generate crates/sunrise-sim/src/lan/command_order.rs: the order of the
 children of every node of vanilla's command tree (Commands constructed with
 CommandSelection.ALL), which the tree sent to players keeps. Brigadier keeps
 children in registration order; the data generator's commands report, which
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools import lab, test_rust_parity as base
 
-OUT = lab.ROOT / 'crates/sunrise-client/src/lan/command_order.rs'
+OUT = lab.ROOT / 'crates/sunrise-sim/src/lan/command_order.rs'
 
 
 def main():

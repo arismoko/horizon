@@ -18,7 +18,7 @@ pub trait Hooks {
 
 `screen_files_dropped(screen, paths)` is vanilla's `Screen.onFilesDrop`: it fires once for each drop on the window while a screen is open, with every dropped path in the order the operating system gave them. A path that is not UTF-8 is passed through as it is. The game reads no file, so open the paths yourself. The hook only observes: the game's own handling of the drop (a dropped resource pack) always runs, whatever a mod does."#]
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_screen_files_dropped",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_screen_files_dropped",
         receiver = "read",
         dispatch = "flat",
         side = "client",

@@ -746,7 +746,8 @@ impl CachedWalk<'_> {
 mod tests {
     use super::*;
     use crate::gfx::entity_skin::expand;
-    use crate::mobs::{Mob, MobData, MobTypes, render};
+    use crate::mobs::{Mob, MobTypes, render};
+    use crate::mobs_render::{ClientMobData, ClientMobModels, ClientMobRender};
 
     #[test]
     fn rotation_cache_can_be_bypassed_between_frames() {
@@ -935,23 +936,14 @@ mod tests {
             return;
         }
         let types = MobTypes::load(&root).unwrap();
-        let data = MobData {
-            states: Vec::new(),
-            placements: Default::default(),
-            heightmaps: Default::default(),
-            animations: MobData::load_animations(&root).unwrap(),
-            biome_tags: Default::default(),
-            villager_hats: Default::default(),
-            frame_models: Default::default(),
-            cem: Default::default(),
-            random_textures: Default::default(),
-            emissive: Default::default(),
-            blinks: Default::default(),
-            pois: Default::default(),
-            species_placements: Default::default(),
-            mod_spawns: Default::default(),
-            vanilla_spawn_placements: None,
-            resolved: Default::default(),
+        let mob_models = ClientMobModels::load(&root).unwrap();
+        let data = ClientMobData {
+            animations: ClientMobData::load_animations(&root).unwrap(),
+            ..Default::default()
+        };
+        let render_source = ClientMobRender {
+            models: &mob_models,
+            data: &data,
         };
         // Every texture its own rect, so a swapped texture shows.
         let atlas = |name: &str| {
@@ -995,7 +987,16 @@ mod tests {
                         m.extra.variant2 = 2;
                     }
                     let mut cpu = Vec::new();
-                    render::render_with(&m, 0.4, camera, &atlas, 0x50a0, &data, &[], &mut cpu);
+                    render::render_with(
+                        &m,
+                        0.4,
+                        camera,
+                        &atlas,
+                        0x50a0,
+                        &render_source,
+                        &[],
+                        &mut cpu,
+                    );
                     models.begin(&mut frame, store.len() as u32);
                     models.tagged = eyes;
                     let mut gpu = Vec::new();
@@ -1006,7 +1007,7 @@ mod tests {
                         camera,
                         &atlas,
                         0x50a0,
-                        &data,
+                        &render_source,
                         &mut render::FrameDraw::default(),
                         &mut gpu,
                         &mut skin,
@@ -1082,13 +1083,13 @@ mod tests {
             eprintln!("no prepared resources: skipped");
             return;
         }
-        let types = MobTypes::load(&root).unwrap();
-        let turtle = &types.types["minecraft:turtle"];
+        let models = ClientMobModels::load(&root).unwrap();
+        let turtle = models.get("minecraft:turtle").expect("turtle model");
         let baby_turtle = turtle.layer("turtle_baby#main").expect("baby turtle model");
         let cases: [(&str, &std::sync::Arc<crate::mobs::Part>, i8, u32); 5] = [
             (
                 "minecraft:bat",
-                &types.types["minecraft:bat"].model,
+                models.model("minecraft:bat").expect("bat model"),
                 crate::mesher::SHADED_CULL_W,
                 1,
             ),
@@ -1101,13 +1102,13 @@ mod tests {
             ("minecraft:turtle", &turtle.model, -127, 0),
             (
                 "minecraft:cow",
-                &types.types["minecraft:cow"].model,
+                models.model("minecraft:cow").expect("cow model"),
                 -127,
                 0,
             ),
             (
                 "minecraft:cat",
-                &types.types["minecraft:cat"].model,
+                models.model("minecraft:cat").expect("cat model"),
                 -127,
                 0,
             ),

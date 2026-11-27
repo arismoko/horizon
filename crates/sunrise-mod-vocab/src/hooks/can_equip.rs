@@ -34,7 +34,7 @@ pub trait Hooks {
         scope = "item",
         key = "stack",
         host = "read",
-        target = "sunrise_client::game::native_hooks::can_equip::NativeHookHost<'_>::native_can_equip",
+        target = "sunrise_gameplay_common::game::native_hooks::can_equip::NativeHookHost<'_>::native_can_equip",
         cancellable = false,
         neoforge = "IItemExtension.canEquip"
     )]

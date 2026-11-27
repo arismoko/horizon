@@ -1,4 +1,4 @@
-PistonMovingBlockEntity.moveCollidedEntities	port	crates/sunrise-client/src/game/blocks/piston_push.rs::Game::push_for_piston	push loop; per-box distance from crates/sunrise-world/src/piston_push.rs::collided_amount
+PistonMovingBlockEntity.moveCollidedEntities	port	crates/sunrise-gameplay/src/game/blocks/piston_push_server.rs::Game::push_for_piston	push loop; per-box distance from crates/sunrise-world/src/piston_push.rs::collided_amount
 PistonMovingBlockEntity.tick	port	crates/sunrise-world/src/level/pistons.rs::Sim::moving_piston_tick	a moving piston reports the push moveCollidedEntities would do at its new progress, and the caller moves the entities because Ticks has none
 PistonMovingBlockEntity.finalTick	port	crates/sunrise-world/src/level/pistons.rs::Sim::moving_piston_final_tick	the arrival: the moved state is placed and the block's own update runs
 PistonMovingBlockEntity.getExtendedProgress	port	crates/sunrise-world/src/piston_push.rs::extended_progress	where along its travel the moved block is, in blocks
@@ -7,18 +7,18 @@ PistonMovingBlockEntity.moveByPositionAndProgress	port	crates/sunrise-world/src/
 PistonMovingBlockEntity.matchesStickyCritera	port	crates/sunrise-world/src/piston_push.rs::matches_sticky_criteria	the sticky test on the block ahead of the piston
 PistonMovingBlockEntity.getCollisionRelatedBlockState	port	crates/sunrise-world/src/piston_shape.rs::PistonBlockBindings::collision_related_state	the collision state is the moved block's, unless a retracting source piston shows its head
 PistonMovingBlockEntity.fixEntityWithinPistonBase	port	crates/sunrise-world/src/piston_push.rs::fix_within_piston_base	a retracting source piston drags an entity still inside its own block out the opposite way
-PistonMovingBlockEntity.saveAdditional	port	crates/sunrise-client/src/game/world/piston_nbt.rs::Game::moving_piston_to_nbt	the moved state, facing, progress, extending and source fields, into the compound the entity's id and position are written to as well
-PistonMovingBlockEntity.loadAdditional	port	crates/sunrise-client/src/game/world/persist.rs::Game::moving_piston_from_nbt	the moved state, facing, progress, extending and source read back, for an entity whose block is still a moving piston
+PistonMovingBlockEntity.saveAdditional	port	crates/sunrise-gameplay-common/src/game/world/piston_nbt.rs::Game::moving_piston_to_nbt	the moved state, facing, progress, extending and source fields, into the compound the entity's id and position are written to as well
+PistonMovingBlockEntity.loadAdditional	port	crates/sunrise-gameplay/src/game/world/persist.rs::Game::moving_piston_from_nbt	the moved state, facing, progress, extending and source read back, for an entity whose block is still a moving piston
 SideChainPart.whenConnectedToTheRight	port	crates/sunrise-world/src/level/shelf.rs::Part::connected_to_the_right	same arms as vanilla
 SideChainPart.whenConnectedToTheLeft	port	crates/sunrise-world/src/level/shelf.rs::Part::connected_to_the_left	same arms as vanilla
 ProtoChunk.getFluidState	port	crates/sunrise-world/src/worldgen/feature_region.rs::TerrainRegion::fluid_state	gap: minor: read through the region's block queries; no chunk-level accessor, fluid comes from the block state
 ProtoChunk.getNoiseBiome	port	crates/sunrise-world/src/worldgen/generator.rs::ProtoChunk::biome_id_at	gap: minor: takes block coordinates (quart shift inside); no check that the BIOMES status was reached, vanilla throws before it
 StructureTemplate.Palette.jigsaws	port	crates/sunrise-world/src/worldgen/structure/template.rs::StructureTemplate::jigsaws	per-palette OnceLock stands in for cachedJigsaws
-SkyLightEngine.updateSourcesInColumn	inline	crates/sunrise-client-render/src/light.rs::relight_region	column loop finds the lowest sky source and reseeds cells above and below it
-FlyNodeEvaluator.findAcceptedNode	port	crates/sunrise-client/src/mobs/path.rs::Finder::fly_accepted	cost, walkable +1 and node update match vanilla
-LevelStorageSource.writeGameRules	port	crates/sunrise-client-core/src/gamerules.rs::GameRules::save	gap: minor: writes in place with no temp-file swap; no runtime caller, the game saves rules through level.game_rules in level.dat
-LevelStorageSource.readLevelSummary	port	crates/sunrise-client/src/save/worlds.rs::list_worlds	a world whose level.dat cannot be read is listed as corrupted (#4219); gap: minor: symlinked worlds are not flagged
-LevelStorageSource.readLightweightData	port	crates/sunrise-client/src/save/level_dat.rs::read_dat	gap: minor: reads the whole level.dat; Player and WorldGenSettings are not skipped
+SkyLightEngine.updateSourcesInColumn	inline	crates/sunrise-level/src/light.rs::relight_region	column loop finds the lowest sky source and reseeds cells above and below it
+FlyNodeEvaluator.findAcceptedNode	port	crates/sunrise-sim/src/mobs/path.rs::Finder::fly_accepted	cost, walkable +1 and node update match vanilla
+LevelStorageSource.writeGameRules	port	crates/sunrise-game-data/src/gamerules.rs::GameRules::save	gap: minor: writes in place with no temp-file swap; no runtime caller, the game saves rules through level.game_rules in level.dat
+LevelStorageSource.readLevelSummary	port	crates/sunrise-sim/src/save/worlds.rs::list_worlds	a world whose level.dat cannot be read is listed as corrupted (#4219); gap: minor: symlinked worlds are not flagged
+LevelStorageSource.readLightweightData	port	crates/sunrise-sim/src/save/level_dat.rs::read_dat	gap: minor: reads the whole level.dat; Player and WorldGenSettings are not skipped
 LevelStorageSource.validateAndCreateAccess	port	crates/sunrise-client/src/title/world_management.rs::symlinks	DirectoryValidator.validateDirectory: Title::play walks the folder for links before the session lock and refuses the world with the symlink warning
-SavedDataStorage.scheduleSave	inline	crates/sunrise-client/src/game/world/autosave.rs::Game::save_game_metadata	gap: minor: each saved-data file is written directly on every save; no dirty check and no async batching
+SavedDataStorage.scheduleSave	inline	crates/sunrise-gameplay/src/game/world/autosave_server.rs::Game::save_game_metadata	gap: minor: each saved-data file is written directly on every save; no dirty check and no async batching
 TrackedWaypoint.ChunkWaypoint.writeContents	port	crates/sunrise-protocol/src/packets/play/waypoints.rs::TrackedWaypoint::write	chunk arm writes varint 2, then x and z

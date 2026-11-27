@@ -1,0 +1,1 @@
+sunrise-native-build prebuilt::tests::registry_refuses_linked_kept_and_target_folders_before_restaging lib daily child-process

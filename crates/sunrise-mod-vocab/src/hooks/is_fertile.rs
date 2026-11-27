@@ -17,7 +17,7 @@ pub trait Hooks {
         out = "fertile",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::is_fertile::GameLevel<'_>::native_is_fertile",
+        target = "sunrise_gameplay_common::game::native_hooks::is_fertile::GameLevel<'_>::native_is_fertile",
         neoforge = "IBlockExtension.isFertile"
     )]
     fn is_fertile(dimension: LevelDimension, state: BlockState, pos: BlockPos, fertile: &mut bool);

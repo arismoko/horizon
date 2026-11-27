@@ -13,7 +13,7 @@ pub trait Hooks {
     /// blocks), a TNT minecart and a sulfur cube. Server-side and in single
     /// player.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_tnt_primed",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_tnt_primed",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

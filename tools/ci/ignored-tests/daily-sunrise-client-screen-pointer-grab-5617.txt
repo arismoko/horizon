@@ -1,4 +1,4 @@
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::a_pointer_grab_is_refused_on_another_mods_screen lib daily child-process
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::a_pointer_grab_is_refused_while_the_window_is_unfocused lib daily child-process
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::a_pointer_grab_is_refused_with_no_screen_open lib daily child-process
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::hover_moves_fire_before_drag_and_a_screen_grab_ends_with_the_screen lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::a_pointer_grab_is_refused_on_another_mods_screen lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::a_pointer_grab_is_refused_while_the_window_is_unfocused lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::a_pointer_grab_is_refused_with_no_screen_open lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::hover_moves_fire_before_drag_and_a_screen_grab_ends_with_the_screen lib daily child-process
