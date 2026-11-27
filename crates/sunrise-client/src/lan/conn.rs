@@ -1919,18 +1919,49 @@ fn login_and_configure(
     }))
 }
 
+/// What a configuration receive loop needs of its connection, so the loop that waits with a
+/// keep-alive thread is the one the others run. [`ConfigIo`] is the connection itself;
+/// [`DirectWait`] is a connection with no queued writer, whose halves a wait lends out.
+trait ConfigWire {
+    fn read(&mut self) -> Result<(i32, Vec<u8>), String>;
+    fn write(&mut self, body: &[u8]) -> Result<(), String>;
+    /// The reason that closes the connection.
+    fn reject(&mut self, reason: sunrise_core::nbt::Tag);
+    /// An application payload: `Some` when nothing took it.
+    fn deliver(
+        &mut self,
+        payload: cfg::CustomPayload,
+    ) -> Result<Option<cfg::CustomPayload>, String>;
+}
+impl ConfigWire for ConfigIo<'_> {
+    fn read(&mut self) -> Result<(i32, Vec<u8>), String> {
+        (**self).recv().map_err(|e| e.to_string())
+    }
+    fn write(&mut self, body: &[u8]) -> Result<(), String> {
+        self.send(body).map_err(|e| e.to_string())
+    }
+    fn reject(&mut self, reason: sunrise_core::nbt::Tag) {
+        self.disconnect(reason);
+    }
+    fn deliver(
+        &mut self,
+        payload: cfg::CustomPayload,
+    ) -> Result<Option<cfg::CustomPayload>, String> {
+        self.application(payload)
+    }
+}
+
 fn send_payload_control(
-    c: &mut ConfigIo<'_>,
+    c: &mut impl ConfigWire,
     control: sunrise_protocol::payload_negotiation::Control,
 ) -> Result<(), String> {
-    c.send(
+    c.write(
         &cfg::Clientbound::CustomPayload(cfg::CustomPayload {
             channel: sunrise_protocol::payload_negotiation::CHANNEL.into(),
             data: control.encode().map_err(|e| e.to_string())?,
         })
         .encode(),
     )
-    .map_err(|e| e.to_string())
 }
 
 /// The configuration ping that orders a Sunrise client's payload Offer before
@@ -1964,16 +1995,16 @@ fn await_payload_answer(
     }
     Ok(())
 }
-fn payload_disconnect(c: &mut ConfigIo<'_>, error: String) -> String {
+fn payload_disconnect(c: &mut impl ConfigWire, error: String) -> String {
     let reason = sunrise_core::nbt::Tag::String(error.as_str().into());
-    c.disconnect(reason);
+    c.reject(reason);
     error
 }
 
 /// Consume transport metadata in every configuration receive loop. Application
 /// payloads stay ordered for the configuration dispatcher (not implemented here).
 fn receive_configuration(
-    c: &mut ConfigIo<'_>,
+    c: &mut impl ConfigWire,
     id: i32,
     bytes: &[u8],
     transport: &Transport,
@@ -1999,7 +2030,7 @@ fn receive_configuration(
     }
     match packet {
         cfg::Serverbound::CustomPayload(payload) => c
-            .application(payload)
+            .deliver(payload)
             .map(|payload| payload.map(cfg::Serverbound::CustomPayload)),
         packet => Ok(Some(packet)),
     }
@@ -2172,6 +2203,59 @@ fn accept_code_of_conduct(
     })
 }
 
+/// The wait's connection when no engine writer was queued: the keep-alive thread owns the
+/// writer's lock beside the reads, so this reads and replies through the halves it was lent.
+/// With no sender [`ConfigIo::application`] only runs the engine's channels and hands every
+/// other payload back, which is all [`Self::deliver`] does. [`Self::reject`] sends nothing:
+/// [`wait_alive`] closes the connection once, after the keep-alive thread stopped.
+struct DirectWait<'a, 'w> {
+    reader: &'a mut sunrise_protocol::connection::ConnReader,
+    writer: &'a Mutex<&'w mut ConnWriter>,
+    channels: &'a mut super::config_payloads::EngineChannels,
+}
+impl ConfigWire for DirectWait<'_, '_> {
+    fn read(&mut self) -> Result<(i32, Vec<u8>), String> {
+        self.reader.recv().map_err(|e| e.to_string())
+    }
+    fn write(&mut self, body: &[u8]) -> Result<(), String> {
+        self.writer
+            .lock()
+            .unwrap()
+            .send(body)
+            .map_err(|e| e.to_string())
+    }
+    fn reject(&mut self, _: sunrise_core::nbt::Tag) {}
+    fn deliver(
+        &mut self,
+        payload: cfg::CustomPayload,
+    ) -> Result<Option<cfg::CustomPayload>, String> {
+        Ok((!self.channels.receive(&payload)?).then_some(payload))
+    }
+}
+
+/// Run `body` while a thread sends a keep-alive through `send` every `KEEP_ALIVE_EVERY`
+/// (ServerConfigurationPacketListenerImpl.tick), until `body` returns.
+fn with_keep_alive<R>(
+    send: impl Fn(&[u8]) -> sunrise_protocol::Result<()> + Send,
+    body: impl FnOnce() -> R,
+) -> R {
+    std::thread::scope(|scope| {
+        let (stop, stopped) = channel::<()>();
+        scope.spawn(move || {
+            let start = Instant::now();
+            while stopped.recv_timeout(KEEP_ALIVE_EVERY) == Err(RecvTimeoutError::Timeout) {
+                let id = i64::try_from(start.elapsed().as_millis()).unwrap_or(0);
+                if send(&cfg::Clientbound::KeepAlive(cfg::KeepAlive { id }).encode()).is_err() {
+                    break;
+                }
+            }
+        });
+        let result = body();
+        drop(stop);
+        result
+    })
+}
+
 /// Read configuration packets until `answer` has a result, sending a
 /// keep-alive every `KEEP_ALIVE_EVERY` meanwhile
 /// (ServerConfigurationPacketListenerImpl.tick).
@@ -2179,125 +2263,50 @@ fn wait_alive<T>(
     c: &mut ConfigIo<'_>,
     transport: &Transport,
     negotiation: &mut sunrise_protocol::payload_negotiation::Negotiation,
-    mut answer: impl FnMut(Result<cfg::Serverbound, String>) -> Option<Result<T, String>>,
+    answer: impl FnMut(Result<cfg::Serverbound, String>) -> Option<Result<T, String>>,
 ) -> Result<T, String> {
     if let Some(sender) = c.sender.clone() {
-        return std::thread::scope(|scope| {
-            let (stop, stopped) = channel::<()>();
-            scope.spawn(move || {
-                let start = Instant::now();
-                while stopped.recv_timeout(KEEP_ALIVE_EVERY) == Err(RecvTimeoutError::Timeout) {
-                    let id = i64::try_from(start.elapsed().as_millis()).unwrap_or(0);
-                    if sender
-                        .send_packet(&cfg::Clientbound::KeepAlive(cfg::KeepAlive { id }).encode())
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-            });
-            let result = loop {
-                let (id, payload) = match c.recv() {
-                    Ok(packet) => packet,
-                    Err(e) => break Err(e.to_string()),
-                };
-                let packet = match receive_configuration(c, id, &payload, transport, negotiation) {
-                    Ok(Some(packet)) => Ok(packet),
-                    Ok(None) => continue,
-                    Err(e) => Err(e),
-                };
-                if let Some(result) = answer(packet) {
-                    break result;
-                }
-            };
-            drop(stop);
-            result
-        });
+        return with_keep_alive(
+            move |body| sender.send_packet(body),
+            || answer_configuration(c, transport, negotiation, answer),
+        );
     }
     // The engine's channels live on ConfigIo, which the wait below borrows as a plain connection.
     let mut channels = std::mem::take(&mut c.channels);
     let result = {
         let connection = &mut **c;
         let writer = Mutex::new(&mut connection.writer);
-        std::thread::scope(|scope| {
-            let (stop, stopped) = channel::<()>();
-            let keep_writer = &writer;
-            scope.spawn(move || {
-                let start = Instant::now();
-                while stopped.recv_timeout(KEEP_ALIVE_EVERY) == Err(RecvTimeoutError::Timeout) {
-                    let id = i64::try_from(start.elapsed().as_millis()).unwrap_or(0);
-                    let keep_alive = cfg::Clientbound::KeepAlive(cfg::KeepAlive { id });
-                    if keep_writer
-                        .lock()
-                        .unwrap()
-                        .send(&keep_alive.encode())
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-            });
-            let result = loop {
-                let packet = match connection.reader.recv() {
-                    Ok((id, payload)) => cfg::Serverbound::decode_with_payload_codecs(
-                        id,
-                        &payload,
-                        &transport.local.codecs,
-                    )
-                    .map_err(|e| e.to_string()),
-                    Err(err) => break Err(err.to_string()),
-                };
-                if let Ok(cfg::Serverbound::CustomPayload(payload)) = &packet
-                    && payload.channel == sunrise_protocol::payload_negotiation::CHANNEL
-                {
-                    let result = (|| {
-                        let control =
-                            sunrise_protocol::payload_negotiation::Control::decode(&payload.data)
-                                .map_err(|e| e.to_string())?;
-                        if let Some(reply) =
-                            negotiation.receive(control).map_err(|e| e.to_string())?
-                        {
-                            let body = cfg::Clientbound::CustomPayload(
-                                sunrise_protocol::packets::custom_payload::CustomPayload {
-                                    channel: sunrise_protocol::payload_negotiation::CHANNEL.into(),
-                                    data: reply.encode().map_err(|e| e.to_string())?,
-                                },
-                            )
-                            .encode();
-                            writer
-                                .lock()
-                                .unwrap()
-                                .send(&body)
-                                .map_err(|e| e.to_string())?;
-                        }
-                        if let Some(accepted) = negotiation.accepted() {
-                            transport.accept(accepted)?;
-                        }
-                        Ok::<(), String>(())
-                    })();
-                    if let Err(error) = result {
-                        break Err(error);
-                    }
-                    continue;
-                }
-                // As receive_configuration does: the engine's channels are read here too.
-                if let Ok(cfg::Serverbound::CustomPayload(payload)) = &packet {
-                    match channels.receive(payload) {
-                        Ok(true) => continue,
-                        Ok(false) => {}
-                        Err(error) => break Err(error),
-                    }
-                }
-                if let Some(result) = answer(packet) {
-                    break result;
-                }
-            };
-            drop(stop);
-            result
-        })
+        let mut wire = DirectWait {
+            reader: &mut connection.reader,
+            writer: &writer,
+            channels: &mut channels,
+        };
+        with_keep_alive(
+            |body| writer.lock().unwrap().send(body),
+            || answer_configuration(&mut wire, transport, negotiation, answer),
+        )
     };
     c.channels = channels;
     result.map_err(|error| payload_disconnect(c, error))
+}
+
+fn answer_configuration<T>(
+    wire: &mut impl ConfigWire,
+    transport: &Transport,
+    negotiation: &mut sunrise_protocol::payload_negotiation::Negotiation,
+    mut answer: impl FnMut(Result<cfg::Serverbound, String>) -> Option<Result<T, String>>,
+) -> Result<T, String> {
+    loop {
+        let (id, payload) = wire.read()?;
+        let packet = match receive_configuration(wire, id, &payload, transport, negotiation) {
+            Ok(Some(packet)) => Ok(packet),
+            Ok(None) => continue,
+            Err(e) => Err(e),
+        };
+        if let Some(result) = answer(packet) {
+            return result;
+        }
+    }
 }
 
 fn play(
