@@ -622,12 +622,17 @@ impl Screen {
         let pings: Pings = Arc::default();
         let icons: Icons = Arc::default();
         ping_all(&servers, &pings, &icons, &servers_file(saves));
+        // The LAN scanner lives in a dependency, where cfg(test) does not apply.
+        #[cfg(test)]
+        let lan = Scanner::for_tests(Vec::new());
+        #[cfg(not(test))]
+        let lan = Scanner::start();
         Self::List {
             servers,
             selected: None,
             pings,
             icons,
-            lan: Scanner::start(),
+            lan,
             scroll: crate::ui::Scroll::default(),
             held: None,
         }

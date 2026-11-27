@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_state::tests::a_granted_player_does_not_burn_or_take_damage_in_lava lib daily resources
+sunrise-gameplay game::server_side::native_entity_state::tests::a_granted_player_does_not_burn_or_take_damage_in_lava lib daily resources

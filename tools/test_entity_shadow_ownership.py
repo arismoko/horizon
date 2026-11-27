@@ -28,7 +28,8 @@ def program(root):
     gfx = (root / "crates/sunrise-client-render/src/gfx/culling_control.rs").read_text()
     # The shader pack pipeline lives in its own crate: `shadow_casters` runs the frame.
     post = (root / "crates/sunrise-render-shaderpack/src/pack_post/execution.rs").read_text()
-    game = (root / "crates/sunrise-client/src/game.rs").read_text()
+    game_client = root / "crates/sunrise-client-gameplay/src/game/game_client.rs"
+    game = (game_client if game_client.is_file() else root / "crates/sunrise-gameplay-common/src/game.rs").read_text()
     geometry = game.index("fn entity_geometry(")
     start = game.index("let pack_shadows =", geometry)
     end = game.index("if let Some(sprite) = shadow_sprite", start)
@@ -57,12 +58,13 @@ struct Gui { atlas: Atlas }
 struct Colors { shadows: bool }
 impl Colors { fn entity_shadows(&self) -> bool { self.shadows } }
 struct Pack { polytone_colors: Colors }
-struct Game { dim: Dim, renderer: Option<Renderer>, settings: Settings, gui: Gui, pack: Pack }
-impl Game {
+struct ClientState { renderer: (Option<Renderer>,), settings: Settings, gui: Gui, client_pack: Pack }
+struct ClientGame { dim: Dim, client: ClientState }
+impl ClientGame {
     fn overworld_skybox(&self) -> bool { self.dim == Dim::Overworld }
     fn selected_blob(&self) -> Option<usize> { __GUARD__ shadow_sprite }
 }
-fn scene(kind: &str, dim: Dim, enabled: bool, sprite: bool) -> Game {
+fn scene(kind: &str, dim: Dim, enabled: bool, sprite: bool) -> ClientGame {
     let casters = |entities: bool, only_player: bool, blocks: bool, targets: bool| {
         Some((0, Some(post::PackPost {
             entities: Some(post::Entities {
@@ -81,14 +83,16 @@ fn scene(kind: &str, dim: Dim, enabled: bool, sprite: bool) -> Game {
         "pending" => Some((0, None)),
         _ => None,
     };
-    Game {
+    ClientGame {
         dim,
-        renderer: (kind != "no_renderer").then_some(Renderer { pack_post }),
-        settings: Settings { entity_shadows: enabled },
-        pack: Pack { polytone_colors: Colors { shadows: kind != "pack_hides" } },
-        gui: Gui { atlas: Atlas { sprites: if sprite {
-            [("misc/shadow", 73)].into_iter().collect()
-        } else { Default::default() } } },
+        client: ClientState {
+            renderer: ((kind != "no_renderer").then_some(Renderer { pack_post }),),
+            settings: Settings { entity_shadows: enabled },
+            client_pack: Pack { polytone_colors: Colors { shadows: kind != "pack_hides" } },
+            gui: Gui { atlas: Atlas { sprites: if sprite {
+                [("misc/shadow", 73)].into_iter().collect()
+            } else { Default::default() } } },
+        },
     }
 }
 '''

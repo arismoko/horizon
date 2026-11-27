@@ -40,9 +40,9 @@ def main():
     report.unlink(missing_ok=True)
     sources = [Path(__file__), lab.ROOT / 'tools/lab.py', lab.ROOT / 'tools/oracle_harness.py',
                lab.ROOT / 'tools/test_rust_parity.py', lab.ROOT / 'Cargo.toml', lab.ROOT / 'Cargo.lock',
-               lab.ROOT / 'crates/sunrise-client/src/save.rs',
-               lab.ROOT / 'crates/sunrise-client/src/save/block_entity_decode.rs',
-               lab.ROOT / 'crates/sunrise-client-core/src/identifier.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/save.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/save/block_entity_decode.rs',
+               lab.ROOT / 'crates/sunrise-game-data/src/identifier.rs',
                lab.ROOT / 'crates/sunrise-client/examples/probe/chest_load_fixture.rs',
                lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaChestLoadOracle.java',
                lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/ParityData.java']

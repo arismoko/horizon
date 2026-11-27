@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools import lab, test_rust_parity as base, test_model_baking_parity as baking
 
-FIXTURE = 'game::explosion::tests::explosion_items_parity_fixture'
+FIXTURE = 'game::server_side::explosion::tests::explosion_items_parity_fixture'
 
 
 def cases():
@@ -47,9 +47,9 @@ def main():
     parser.add_argument('--test-binary', type=Path, help='already built gameplay test executable')
     args = parser.parse_args()
     source_paths = [lab.ROOT / path for path in (
-        'crates/sunrise-client/src/entities.rs',
-        'crates/sunrise-client/src/game/entities/explosion.rs',
-        'crates/sunrise-client/src/game.rs',
+        'crates/sunrise-sim/src/entities.rs',
+        'crates/sunrise-gameplay/src/game/entities/explosion.rs',
+        'crates/sunrise-gameplay-common/src/game.rs',
         'mods/sunrise/src/test/java/dev/sunriselab/parity/ParityData.java',
         'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaVehicleContainerOracle.java',
         'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaExplosionItemsOracle.java',

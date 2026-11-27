@@ -12,7 +12,7 @@ pub trait Hooks {
         neoforge = "none (NeoForge has no such event)",
         paper = "LeavesDecayEvent",
         cancellable = true,
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_leaves_decay"
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_leaves_decay"
     )]
     fn leaves_decay(dimension: LevelDimension, pos: BlockPos, cancel: &mut bool);
 }

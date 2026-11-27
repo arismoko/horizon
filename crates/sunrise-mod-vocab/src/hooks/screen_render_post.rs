@@ -19,7 +19,7 @@ pub trait Hooks {
     /// their `screen.id` from the title state machine and the whole window
     /// their `rect`, and no dialog or prompt over them.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_screen_render_post",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_screen_render_post",
         receiver = "read",
         dispatch = "flat",
         side = "client",

@@ -1,1 +1,1 @@
-sunrise-client game::remote::interaction_event_tests::mapping_press_tests::a_mod_shortens_the_right_click_delay_of_a_held_use lib daily resources
+sunrise-client cut_layout::game::remote::interaction_event_tests::mapping_press_tests::a_mod_shortens_the_right_click_delay_of_a_held_use lib daily resources

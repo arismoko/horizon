@@ -1,1 +1,1 @@
-sunrise-client game::native_hit_causer_tests::a_hit_listener_reads_the_causer_at_each_damage_site lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hit_causer_tests::a_hit_listener_reads_the_causer_at_each_damage_site lib daily child-process

@@ -1,1 +1,1 @@
-sunrise-client game::native_item_places::tests::whole_stack_component_edit_preserves_slot_and_refuses_invalid_components lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::whole_stack_component_edit_preserves_slot_and_refuses_invalid_components lib daily resources

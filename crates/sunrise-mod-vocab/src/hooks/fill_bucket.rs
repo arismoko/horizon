@@ -7,7 +7,7 @@ pub trait Hooks {
     /// Emptying a bucket is `bucket_empty`'s moment, not this one. Server-side,
     /// for every player of the world (`host.players().acting_player()` says who).
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_fill_bucket",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_fill_bucket",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

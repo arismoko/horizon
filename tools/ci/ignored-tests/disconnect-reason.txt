@@ -1,2 +1,2 @@
-sunrise-client game::native_disconnect_tests::a_deep_local_disconnect_reason_reaches_the_screen lib daily resources
-sunrise-client game::native_disconnect_tests::a_translatable_reason_reads_in_the_players_language lib daily resources
+sunrise-client-gameplay game::client_side::native_disconnect_tests::a_deep_local_disconnect_reason_reaches_the_screen lib daily resources
+sunrise-client-gameplay game::client_side::native_disconnect_tests::a_translatable_reason_reads_in_the_players_language lib daily resources

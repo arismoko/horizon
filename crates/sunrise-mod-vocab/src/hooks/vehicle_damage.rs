@@ -6,7 +6,7 @@ pub trait Hooks {
     /// to leave its damage and wobble unchanged. The attack itself still
     /// completes. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_vehicle_damage",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_vehicle_damage",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

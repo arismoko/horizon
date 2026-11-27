@@ -11,7 +11,7 @@ pub trait Hooks {
         context = "loop",
         cancellable = false,
         version = 2,
-        target = "sunrise_client_lib::motion::native_player_stays_on_ground_surface",
+        target = "sunrise_sim::motion::native_player_stays_on_ground_surface",
         neoforge = "none (vanilla Player.isStayingOnGroundSurface; NeoForge adds no event or extension for it)"
     )]
     fn player_stays_on_ground_surface(entity: u32, staying: &mut bool);

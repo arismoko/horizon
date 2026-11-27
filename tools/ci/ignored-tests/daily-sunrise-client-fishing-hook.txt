@@ -1,2 +1,2 @@
 # Client read of the local player's fishing hook (#5713), from the prepared resources.
-sunrise-client game::native_client_session::tests::fishing_hook_read_follows_the_local_players_bobber lib daily resources
+sunrise-client-gameplay game::client_side::native_client_session::tests::fishing_hook_read_follows_the_local_players_bobber lib daily resources

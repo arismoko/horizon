@@ -38,7 +38,7 @@ use sunrise_client::{
     mesher::{MeshScratch, MeshTables, Mesher, Region, SectionMesh, TerrainVertex, borrow},
     models,
     spans::thread_cpu,
-    streaming::{Streaming, WorkerContext},
+    streaming::{ChunkWorkerContext, MeshStreamer, MeshWorkerContext, WorkerContext},
     vanillagen::VanillaTerrain,
     world::World,
 };
@@ -79,8 +79,9 @@ fn main() -> Result<(), Error> {
         .unwrap_or((-60, 10));
 
     let assets = Arc::new(Assets::load(&root)?);
-    let render = Arc::new(assets.reload(
+    let render = Arc::new(sunrise_client::assets::RenderAssets::load(
         &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
     )?);
     let facts = BlockFacts::load(&root, assets.registry)?;
     let visibility = models::load_visibility(&root, assets.registry)?;
@@ -88,13 +89,17 @@ fn main() -> Result<(), Error> {
         &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
     )?);
     let context = Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None)?),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
-        biomes: biomes.clone(),
-        assets: assets.clone(),
-        render,
-        hidden_states: Arc::from([]),
-        part_tables: Default::default(),
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
+            biomes: biomes.clone(),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None)?),
+            render,
+            hidden_states: Arc::from([]),
+            part_tables: Default::default(),
+        },
     });
     let item_data = test_resources::item_data(&root, DataLoadOrigin::ServerDataLoad)?;
     let terrain = VanillaTerrain::new(
@@ -111,7 +116,7 @@ fn main() -> Result<(), Error> {
     // Generation and light, on the game's worker pool (`threads` workers).
     // Meshing is left out here and measured on its own below.
     sunrise_threads::jobs::configure(threads);
-    let mut streaming = Streaming::new(Arc::new(terrain), context.clone(), threads);
+    let mut streaming = MeshStreamer::new(Arc::new(terrain), context.clone(), threads);
     streaming.mesh = false;
     streaming.center = center;
     streaming.radius = radius;
@@ -250,11 +255,11 @@ fn mesher<'a>(context: &'a WorkerContext, seed: i64) -> Mesher<'a> {
         leaf_culling: LeafCullingMode::Off,
         hidden_states: &[],
         part_tables: Default::default(),
-        assets: &context.assets,
-        render: &context.render,
-        tables: &context.tables,
-        biomes: &context.biomes,
-        visibility: context.tables.visibility.clone(),
+        assets: &context.chunk.assets,
+        render: &context.mesh.render,
+        tables: &context.mesh.tables,
+        biomes: &context.chunk.biomes,
+        visibility: context.mesh.tables.visibility.clone(),
     }
 }
 

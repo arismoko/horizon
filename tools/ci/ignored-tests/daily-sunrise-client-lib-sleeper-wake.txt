@@ -1,3 +1,3 @@
 # Daily row for #4970: a sleeper stands up by its sleeping position alone, with the prepared mob types and blocks.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client-lib mobs::villager::tests::a_sleeper_stands_up_by_its_sleeping_position_alone lib daily resources
+sunrise-sim mobs::villager::tests::a_sleeper_stands_up_by_its_sleeping_position_alone lib daily resources

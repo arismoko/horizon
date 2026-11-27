@@ -1,1 +1,1 @@
-sunrise-client game::lan_actions::menu_still_valid_tests::a_blockless_mod_menu_closes_when_its_part_answers_false lib daily resources
+sunrise-gameplay game::lan_actions::menu_still_valid_tests::a_blockless_mod_menu_closes_when_its_part_answers_false lib daily resources

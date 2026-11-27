@@ -11,7 +11,7 @@ sunrise-ctl memory            # one JSON object, from the running game
 sunrise-ctl memory > a.json   # keep it to compare with a later one
 ```
 
-The reply is built in `crates/sunrise-client/src/game/memory.rs`. Sizes are MiB with one decimal and end in `_mb`.
+The reply is built in `crates/sunrise-gameplay-common/src/game/runtime/memory_common.rs`, `crates/sunrise-gameplay/src/game/runtime/memory.rs`, and `crates/sunrise-client-gameplay/src/game/runtime/memory_client.rs`. Sizes are MiB with one decimal and end in `_mb`.
 
 | Key | What it counts |
 | --- | --- |

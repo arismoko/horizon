@@ -7,7 +7,7 @@ pub trait Hooks {
     /// commit of a transaction, once per final changed pair, so a set followed by
     /// a restore inside one transaction notifies nothing. The guest is not swapped in.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_recipe_book_settings_change",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_recipe_book_settings_change",
         dispatch = "flat",
         side = "server",
         contract = "listen",

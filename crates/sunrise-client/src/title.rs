@@ -35,7 +35,6 @@ mod splash;
 #[cfg(test)]
 mod tests;
 mod world_folder;
-pub(crate) use world_folder::sanitize_name as sanitize_world_name;
 pub mod world_management;
 mod world_toast;
 pub use buffet::State as BuffetEditor;

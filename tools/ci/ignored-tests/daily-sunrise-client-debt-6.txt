@@ -1,1 +1,1 @@
-sunrise-client game::slot_rules_tests::staged_slot_rule_reads_hide_unrepresentable_and_player_stacks lib daily resources
+sunrise-gameplay game::slot_rules_tests::staged_slot_rule_reads_hide_unrepresentable_and_player_stacks lib daily resources

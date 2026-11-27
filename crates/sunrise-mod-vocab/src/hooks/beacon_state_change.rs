@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A beacon at `pos` activated or deactivated after its beam was checked.
     /// `active` says whether it now has a complete pyramid. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_beacon_state_change",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_beacon_state_change",
         dispatch = "flat",
         side = "server",
         contract = "listen",

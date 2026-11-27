@@ -2,5 +2,5 @@ version = 1
 handle = "handle:LevelRef::set_world_border_center"
 doc = "LevelRef::set_world_border_center writes the named level's own border center with finite values and no command range, and notifies that level's watchers even when the value repeats; an invalid input or unavailable level returns false."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_border.rs::border_setters_notify_the_named_level",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_border.rs::border_setters_notify_the_named_level",
 ]

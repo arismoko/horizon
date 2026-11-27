@@ -1,6 +1,6 @@
-sunrise-client game::explosion_detonate::tests::a_position_added_by_a_listener_is_destroyed lib daily game-boot
-sunrise-client game::explosion_detonate::tests::the_edited_list_is_walked_in_order_across_kinds_and_with_repeats lib daily game-boot
-sunrise-client game::native_explosion_destroy_tests::a_detonate_listener_edits_reorders_and_adds_positions lib daily resources
-sunrise-client game::native_explosion_destroy_tests::more_than_the_old_cap_of_positions_is_accepted lib daily resources
-sunrise-client game::native_explosions_tests::unloaded_centre_and_far_coordinates_still_explode_without_loading_chunks lib daily resources
-sunrise-client game::wind::tests::a_wind_charge_posts_detonate_and_applies_edited_blocks_and_entities lib daily resources
+sunrise-client cut_layout::game::server_side::explosion_detonate::tests::a_position_added_by_a_listener_is_destroyed lib daily game-boot
+sunrise-client cut_layout::game::server_side::explosion_detonate::tests::the_edited_list_is_walked_in_order_across_kinds_and_with_repeats lib daily game-boot
+sunrise-client cut_layout::game::native_explosion_destroy_tests::a_detonate_listener_edits_reorders_and_adds_positions lib daily resources
+sunrise-client cut_layout::game::native_explosion_destroy_tests::more_than_the_old_cap_of_positions_is_accepted lib daily resources
+sunrise-client cut_layout::game::server_side::native_explosions_tests::unloaded_centre_and_far_coordinates_still_explode_without_loading_chunks lib daily resources
+sunrise-client cut_layout::game::server_side::wind::tests::a_wind_charge_posts_detonate_and_applies_edited_blocks_and_entities lib daily resources

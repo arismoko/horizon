@@ -19,7 +19,7 @@ pub trait Hooks {
     /// is the hit point. For an entity, `hit_block` is the cell of `hit_at`
     /// and `hit_face` is `[0, 0, 0]`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_ender_pearl_teleport",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_ender_pearl_teleport",
         dispatch = "api_carrier",
         side = "server",
         contract = "cancel",
@@ -44,7 +44,7 @@ pub trait Hooks {
     /// is the number of saved entity records read. This is an entity-storage
     /// notice; the terrain need not be loaded for the same column.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entities_load",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entities_load",
         dispatch = "flat",
         side = "server",
         contract = "listen",

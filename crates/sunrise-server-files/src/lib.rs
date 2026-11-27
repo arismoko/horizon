@@ -1,7 +1,8 @@
 //! The dedicated server's files and settings, ported from
 //! net.minecraft.server.dedicated and net.minecraft.server.players:
 //! server.properties, eula.txt, the four user lists, usercache.json and
-//! looking players up by name. The game's dedicated server
+//! account profile codecs (online HTTPS lookups live in
+//! `sunrise-server-profiles-http`). The game's dedicated server
 //! (`sunrise-client --dedicated`) reads them, and `sunrise-server` manages
 //! them; this crate needs neither a window nor the game.
 pub mod biome_regions;

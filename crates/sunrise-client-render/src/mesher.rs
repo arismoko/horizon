@@ -3316,10 +3316,7 @@ fn bilinear(c: &[(TerrainVertex, [f32; 2]); 4], s: f32, t: f32) -> (TerrainVerte
     (TerrainVertex::new(pos, uv, 0, color, light), uv)
 }
 /// Snapshot of the 3x3 chunk neighbourhood used by a worker job.
-pub type Region = [[Option<Arc<Chunk>>; 3]; 3];
-pub fn borrow(region: &Region) -> [[Option<&Chunk>; 3]; 3] {
-    std::array::from_fn(|z| std::array::from_fn(|x| region[z][x].as_deref()))
-}
+pub use crate::chunk::{Region, borrow};
 #[cfg(test)]
 mod quarter_tests {
     use super::*;

@@ -42,7 +42,7 @@ pub(crate) const SEE_THROUGH_GLUE: Glue = Glue {
     interface: sunrise_shaders::DEVICELESS_INTERFACE_LIMITS,
 };
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct TextShaders {
     pub gui: Option<Arc<Translated>>,
     pub world: Option<Arc<Translated>>,
@@ -57,7 +57,7 @@ pub struct TextShaders {
 }
 
 /// [`TextShaders`]' expression uniforms, program by program.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct TextExpressions {
     pub gui: Vec<crate::polytone_post::ExpressionUniform>,
     pub world: Vec<crate::polytone_post::ExpressionUniform>,
@@ -66,6 +66,7 @@ pub struct TextExpressions {
 
 /// `OIT_TEXT`'s program in each Improved Transparency stage (`OitStage`'s order), with its
 /// Polytone expression uniforms.
+#[derive(Clone)]
 pub struct OitPrograms {
     pub programs: [Arc<Translated>; 3],
     pub expressions: [Vec<crate::polytone_post::ExpressionUniform>; 3],

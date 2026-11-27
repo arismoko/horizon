@@ -10,7 +10,7 @@ pub trait Hooks {
     /// staged goals apply together, and apply refuses without recomputing if the
     /// mob or its selectors changed while listeners ran. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::register_mob_parts::Game<'_>::native_register_goals",
+        target = "sunrise_gameplay::game::native_hooks::register_mob_parts::ServerGame<'_>::native_register_goals",
         receiver = "write",
         dispatch = "direct",
         side = "server",

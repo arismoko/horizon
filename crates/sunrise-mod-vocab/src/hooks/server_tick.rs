@@ -9,6 +9,6 @@ pub trait Hooks {
     /// pass fires nothing; a frozen world carries `world_running` false except
     /// during a requested step. `host.server_has_time()` says whether optional
     /// work still fits before the next tick is due (`ServerTickEvent.hasTime`).
-    #[hook(target = "sunrise_client::game::native_hooks::base::Game<'_>::native_server_tick", dispatch = "flat", side = "server", contract = "listen", fabric = ["ServerTickEvents.START_SERVER_TICK", "ServerTickEvents.END_SERVER_TICK"], neoforge = "ServerTickEvent.Pre, ServerTickEvent.Post")]
+    #[hook(target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_server_tick", dispatch = "flat", side = "server", contract = "listen", fabric = ["ServerTickEvents.START_SERVER_TICK", "ServerTickEvents.END_SERVER_TICK"], neoforge = "ServerTickEvent.Pre, ServerTickEvent.Post")]
     fn server_tick(context: &LifecycleContext, phase: ServerTickPhase);
 }

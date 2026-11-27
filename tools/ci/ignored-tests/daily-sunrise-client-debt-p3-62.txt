@@ -1,4 +1,4 @@
-sunrise-client game::creatures::borrowed_tick::mob_tick_access_tests::lethal_burning_applies_totem_effects_before_the_effect_pass lib daily resources
-sunrise-client game::creatures::borrowed_tick::mob_tick_access_tests::trader_milk_finishes_before_its_own_entity_tick_post lib daily resources
-sunrise-client game::lan_vehicles::controller_tests::a_guests_mount_uses_its_totem_during_the_landing lib daily resources
-sunrise-client game::potions::tests::mob_effect_added_event_and_part_on_effect_added_contract lib daily child-process
+sunrise-client cut_layout::game::creatures::borrowed_tick::mob_tick_access_tests::lethal_burning_applies_totem_effects_before_the_effect_pass lib daily resources
+sunrise-client cut_layout::game::creatures::borrowed_tick::mob_tick_access_tests::trader_milk_finishes_before_its_own_entity_tick_post lib daily resources
+sunrise-client cut_layout::game::server_side::lan_vehicles::controller_tests::a_guests_mount_uses_its_totem_during_the_landing lib daily resources
+sunrise-client cut_layout::game::server_side::potions_server::tests::mob_effect_added_event_and_part_on_effect_added_contract lib daily child-process

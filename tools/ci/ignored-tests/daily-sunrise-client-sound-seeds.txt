@@ -1,3 +1,3 @@
 # LevelRef::next_sound_seed, LevelRef::play_seeded_sound and EntityRef::play_seeded_bound_sound (Level.soundSeedGenerator, ServerLevel.playSeededSound): a mod's draws and seeded plays keep the level's sound-seed stream in call order, outside and inside transactions; with_guests loads prepared resources, so each runs in its own process.
-sunrise-client game::native_sound_seed_tests::seed_draws_and_seeded_sounds_take_the_level_sound_seed_stream_in_call_order lib daily child-process
-sunrise-client game::native_sound_seed_tests::seed_draws_happen_at_the_call_inside_transactions_and_held_sounds_draw_at_commit lib daily child-process
+sunrise-client cut_layout::game::native_sound_seed_tests::seed_draws_and_seeded_sounds_take_the_level_sound_seed_stream_in_call_order lib daily child-process
+sunrise-client cut_layout::game::native_sound_seed_tests::seed_draws_happen_at_the_call_inside_transactions_and_held_sounds_draw_at_commit lib daily child-process

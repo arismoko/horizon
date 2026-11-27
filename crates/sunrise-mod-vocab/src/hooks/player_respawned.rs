@@ -15,7 +15,7 @@ pub trait Hooks {
     /// `from_end_fight` is true for the respawn after the End credits,
     /// false for death. An ordinary End portal teleport does not run this hook. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_respawn_position",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_respawn_position",
         dispatch = "api_carrier",
         side = "server",
         contract = "listen",
@@ -40,7 +40,7 @@ pub trait Hooks {
     /// (the player keeps health, food and experience), false after death. An ordinary
     /// End portal teleport does not fire this hook. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_respawned",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_respawned",
         dispatch = "flat",
         side = "server",
         contract = "listen",

@@ -24,7 +24,7 @@ edit must span the subject and other world storage atomically. A panicking liste
 edit is discarded and any open transaction rolls back) and disabled for `menu_button` for the rest of the session.
 A panic in a different hook does not discard the cursor edit of a button callback that returns normally."#]
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_menu_button",
+        target = "sunrise_gameplay_common::game::native_hooks::base::native_menu_button",
         receiver = "associated",
         dispatch = "flat",
         version = 5,

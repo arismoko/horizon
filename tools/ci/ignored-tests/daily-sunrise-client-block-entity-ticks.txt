@@ -1,2 +1,2 @@
 # Resident block-entity ticker loans, on real hosted storage.
-sunrise-client game::block_entity_part_state_tests::part_state_counts_ticks_across_chunk_reload lib daily child-process
+sunrise-client cut_layout::game::server_side::block_entity_part_state_tests::part_state_counts_ticks_across_chunk_reload lib daily child-process

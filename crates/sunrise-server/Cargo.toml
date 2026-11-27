@@ -21,7 +21,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1.1"
 # Updates: the release from GitHub, checked against the SHA-256 in its signed checksums (both already in the
-# lockfile, ureq through sunrise-server-files).
+# lockfile, ureq through sunrise-server-profiles-http).
 sunrise-release-sign = { path = "../sunrise-release-sign" }
 sha2 = "0.10"
 # Vanilla's management protocol: the WebSocket handshake's SHA-1 and Base64 (both already in the lockfile).

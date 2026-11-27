@@ -1,4 +1,4 @@
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
 # The integrated owner's attachments in every save, whoever's turn it is (#4623).
-sunrise-client game::lan::owner_attachment_connected_statistics_save_tests::owner_attachment_save_tests::a_save_in_another_players_turn_writes_the_owners_attachments lib daily child-process
-sunrise-client game::lan::owner_attachment_connected_statistics_save_tests::owner_attachment_save_tests::an_autosave_writes_the_owners_live_attachments_to_the_file_it_loads lib daily child-process
+sunrise-client cut_layout::game::server_side::lan::owner_attachment_connected_statistics_save_tests::owner_attachment_save_tests::a_save_in_another_players_turn_writes_the_owners_attachments lib daily child-process
+sunrise-client cut_layout::game::server_side::lan::owner_attachment_connected_statistics_save_tests::owner_attachment_save_tests::an_autosave_writes_the_owners_live_attachments_to_the_file_it_loads lib daily child-process

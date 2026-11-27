@@ -1,4 +1,4 @@
 # Daily resource-backed tests added for debt p3-04 review fixes.
-sunrise-client game::item_use::interact_vibration_tests::admitted_minecraft_and_custom_items_start_and_complete_timed_native_use lib daily child-process
-sunrise-client game::mods::tests::inventory::content_mod_dropped_for_foreign_minecraft_remainder_is_absent_from_save_and_join_inventories lib daily child-process
-sunrise-client game::stateful_block_entity_tests::admitted_minecraft_and_custom_blocks_share_stateful_tables_capabilities_and_menu lib daily child-process
+sunrise-client cut_layout::game::server_side::item_use::interact_vibration_tests::admitted_minecraft_and_custom_items_start_and_complete_timed_native_use lib daily child-process
+sunrise-client cut_layout::game::server_side::mods_server::tests::inventory::content_mod_dropped_for_foreign_minecraft_remainder_is_absent_from_save_and_join_inventories lib daily child-process
+sunrise-client cut_layout::game::stateful_block_entity_tests::admitted_minecraft_and_custom_blocks_share_stateful_tables_capabilities_and_menu lib daily child-process

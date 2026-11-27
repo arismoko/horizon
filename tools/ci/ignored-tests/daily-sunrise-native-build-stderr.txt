@@ -1,0 +1,1 @@
+sunrise-native-build tests::malformed_stderr_does_not_hide_later_diagnostics lib daily child-process

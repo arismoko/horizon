@@ -9,7 +9,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         cancellable = false,
-        target = "sunrise_client_lib::motion::surface::native_is_scaffolding",
+        target = "sunrise_sim::motion::surface::native_is_scaffolding",
         neoforge = "IBlockExtension.isScaffolding"
     )]
     fn is_scaffolding(entity: u32, pos: BlockPos, state: BlockState, scaffolding: &mut bool);

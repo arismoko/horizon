@@ -1,5 +1,5 @@
-sunrise-client game::pick_entity::tests::server_entity_pick_returns_lead_and_delegates_dragon_parts lib daily child-process
-sunrise-client game::remote::gamemode_actions_tests::ordinary_entity_attacks_check_both_range_edges_and_set_only_instabuild_delay lib daily child-process
-sunrise-client game::remote::gamemode_actions_tests::out_of_range_entity_click_still_swings_without_attacking_or_resetting lib daily child-process
-sunrise-client game::remote::gamemode_actions_tests::spectator_entity_use_sends_both_hands_without_feeding_or_swinging lib daily child-process
-sunrise-client game::remote::gamemode_actions_tests::mining_destroy_delay_reads_five_after_a_creative_attack_then_counts_down lib daily child-process
+sunrise-client cut_layout::game::server_side::pick_entity_server::tests::server_entity_pick_returns_lead_and_delegates_dragon_parts lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::gamemode_actions_tests::ordinary_entity_attacks_check_both_range_edges_and_set_only_instabuild_delay lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::gamemode_actions_tests::out_of_range_entity_click_still_swings_without_attacking_or_resetting lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::gamemode_actions_tests::spectator_entity_use_sends_both_hands_without_feeding_or_swinging lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::gamemode_actions_tests::mining_destroy_delay_reads_five_after_a_creative_attack_then_counts_down lib daily child-process

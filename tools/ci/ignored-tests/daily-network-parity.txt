@@ -1,11 +1,11 @@
 # Daily 26.3 network parity tests (play bundles, post_effects lifecycle, and strict entity_data decoding):
 # ignored-tests.yml generates their private vanilla witnesses via tools/test_network_parity.py --prepare-witness.
-sunrise-client game::remote::entity_data_schema::tests::entity_data_schema_matches_26_3 lib daily resources
-sunrise-client game::remote::raw_ingress::bundle_parity_tests::dependent_entity_bundle_never_splits_across_poll_or_tick_26_3 lib daily child-process
-sunrise-client game::remote::raw_ingress::bundle_parity_tests::entity_data_validation_inline_painting_and_pre_login_bundle_errors_26_3 lib daily child-process
-sunrise-client game::remote::raw_ingress::bundle_parity_tests::genpvp_ping_rotation_and_keepalive_bundle_apply_atomically_in_order_26_3 lib daily child-process
-sunrise-client game::remote::raw_ingress::post_effects_parity_tests::post_effects_before_login_disconnects_with_packet_error_26_3 lib daily child-process
-sunrise-client game::remote::raw_ingress::post_effects_parity_tests::post_effects_cleared_on_login_respawn_and_reconfigure_26_3 lib daily child-process
+sunrise-gameplay-common game::remote::entity_data_schema::tests::entity_data_schema_matches_26_3 lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::ingress_state::bundle_parity_tests::dependent_entity_bundle_never_splits_across_poll_or_tick_26_3 lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::ingress_state::bundle_parity_tests::entity_data_validation_inline_painting_and_pre_login_bundle_errors_26_3 lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::ingress_state::bundle_parity_tests::genpvp_ping_rotation_and_keepalive_bundle_apply_atomically_in_order_26_3 lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::ingress_state::post_effects_parity_tests::post_effects_before_login_disconnects_with_packet_error_26_3 lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::ingress_state::post_effects_parity_tests::post_effects_cleared_on_login_respawn_and_reconfigure_26_3 lib daily child-process
 sunrise-client-lib net::tests::bundle_holds_packets_until_closing_delimiter_and_emits_one_event_26_3 lib daily resources
 sunrise-client-lib net::tests::bundle_rejects_terminal_packet_and_oversize_over_4096_26_3 lib daily slow
 sunrise-client-lib net::tests::bundled_keepalive_waits_for_game_thread_in_bundle_order_26_3 lib daily resources

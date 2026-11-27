@@ -1,3 +1,3 @@
-sunrise-client game::music::audio_music_tests::guardian_and_elder_events_admit_two_independent_loops_each lib daily child-process # The scoped game fixture uses prepared resources and publishes registries.
-sunrise-client game::music::audio_music_tests::minecart_loops_gate_both_gains_on_live_interpolated_rails lib daily child-process # The scoped game fixture uses prepared resources and publishes registries.
-sunrise-client game::music::audio_music_tests::music_selection_and_gain_follow_the_camera_across_a_biome_boundary lib daily child-process # The scoped game fixture uses prepared resources and publishes registries.
+sunrise-client cut_layout::game::client_side::music::audio_music_tests::guardian_and_elder_events_admit_two_independent_loops_each lib daily child-process # The scoped game fixture uses prepared resources and publishes registries.
+sunrise-client cut_layout::game::client_side::music::audio_music_tests::minecart_loops_gate_both_gains_on_live_interpolated_rails lib daily child-process # The scoped game fixture uses prepared resources and publishes registries.
+sunrise-client cut_layout::game::client_side::music::audio_music_tests::music_selection_and_gain_follow_the_camera_across_a_biome_boundary lib daily child-process # The scoped game fixture uses prepared resources and publishes registries.

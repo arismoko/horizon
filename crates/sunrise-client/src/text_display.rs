@@ -1,12 +1,11 @@
 //! Display/TextDisplay synced data (26.3), checked against vanilla accessors
 //! and ClientboundSetEntityDataPacket's own stream codec.
-pub mod resident;
-
-use crate::{save::float, text::Text};
+use crate::text::Text;
 use serde::Serialize;
 use std::sync::Arc;
-use sunrise_core::nbt::Tag;
 use sunrise_protocol::entity_data::Value;
+pub use sunrise_sim::text_display_data::resident;
+pub use sunrise_sim::text_display_data::{display_data, text_display_data, transformation};
 
 /// `TextDisplay.Align`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -259,43 +258,6 @@ impl TextDisplayData {
             Align::Center
         }
     }
-}
-
-/// `Transformation.EXTENDED_CODEC`'s translation, left rotation, scale and
-/// right rotation: all four parts, or a `MATRIX4F` (sixteen floats, row-major)
-/// that `new Transformation(matrix)` decomposes (`MatrixUtil.svdDecompose`).
-pub fn transformation(tag: &Tag) -> Option<([f32; 3], [f32; 4], [f32; 3], [f32; 4])> {
-    use sunrise_assets::math::{
-        Mat4, normalize_quaternion, quaternion_from_axis_angle, svd_decompose,
-    };
-    let list = |tag: Option<&Tag>| -> Option<Vec<f32>> {
-        match tag? {
-            Tag::List(l) => l.iter().map(|v| float(Some(v)).map(|v| v as f32)).collect(),
-            _ => None,
-        }
-    };
-    if let Some(values) = list(Some(tag)) {
-        let values: [f32; 16] = values.try_into().ok()?;
-        return Some(svd_decompose(&Mat4::from_row_major(values)));
-    }
-    let vector = |key: &str| -> Option<[f32; 3]> { list(tag.get(key))?.try_into().ok() };
-    // `ExtraCodecs.QUATERNIONF`: four components (normalized) or an axis and an
-    // angle (`new Quaternionf(AxisAngle4f)`: the angle wrapped, the axis as given).
-    let rotation = |key: &str| -> Option<[f32; 4]> {
-        let value = tag.get(key)?;
-        if let Some(q) = list(Some(value)) {
-            return Some(normalize_quaternion(q.try_into().ok()?));
-        }
-        let angle = float(value.get("angle"))? as f32;
-        let axis: [f32; 3] = list(value.get("axis"))?.try_into().ok()?;
-        Some(quaternion_from_axis_angle(angle, axis))
-    };
-    Some((
-        vector("translation")?,
-        rotation("left_rotation")?,
-        vector("scale")?,
-        rotation("right_rotation")?,
-    ))
 }
 
 /// `TextDisplay.CachedInfo`: each line and its width, and the widest.
@@ -598,7 +560,6 @@ fn draw_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sunrise_core::nbt::Compound;
 
     /// Whether a text quad seen from `camera` (yaw, pitch, at `eye` from the
     /// display) faces it (counter-clockwise on screen, the face back-face
@@ -689,43 +650,6 @@ mod tests {
         assert_eq!(d.line_width, 80);
         assert_eq!(d.align(), Align::Left);
         assert_eq!(d.translation, [0.0; 3]);
-    }
-    #[test]
-    fn a_matrix_transformation_is_decomposed() {
-        let matrix = [
-            2.0, 0.0, 0.0, 1.0, 0.0, 3.0, 0.0, -2.0, 0.0, 0.0, 0.5, 0.25, 0.0, 0.0, 0.0, 1.0,
-        ];
-        let (translation, left, scale, _) = transformation(&crate::save::floats(&matrix)).unwrap();
-        assert_eq!(translation, [1.0, -2.0, 0.25]);
-        assert_eq!(scale, [2.0, 3.0, 0.5]);
-        assert_eq!(left, [0.0, 0.0, 0.0, 1.0]);
-    }
-    #[test]
-    fn axis_angle_rotations_keep_the_axis_and_wrap_the_angle() {
-        let mut rotation = Compound::new();
-        rotation.insert(
-            "angle".into(),
-            Tag::Float((-std::f32::consts::PI).to_bits()),
-        );
-        rotation.insert("axis".into(), crate::save::floats(&[0.0, 0.0, 2.0]));
-        let mut t = Compound::new();
-        t.insert("translation".into(), crate::save::floats(&[0.0; 3]));
-        t.insert("scale".into(), crate::save::floats(&[1.0; 3]));
-        t.insert("left_rotation".into(), Tag::Compound(rotation));
-        t.insert(
-            "right_rotation".into(),
-            crate::save::floats(&[0.0, 0.0, 0.0, 2.0]),
-        );
-        let (_, left, _, right) = transformation(&Tag::Compound(t)).unwrap();
-        assert_eq!(
-            left,
-            sunrise_assets::math::quaternion_from_axis_angle(
-                -std::f32::consts::PI,
-                [0.0, 0.0, 2.0]
-            )
-        );
-        assert!(left[2] > 1.9);
-        assert_eq!(right, [0.0, 0.0, 0.0, 1.0]);
     }
 
     /// `Display.updateCulling`: width or height 0 disables the frustum box.

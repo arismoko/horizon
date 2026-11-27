@@ -1,9 +1,9 @@
 version = 1
 doc = "Direct player experience writes match vanilla's setters without Mending. PlayerRef::give_experience_points adds or removes signed points and updates the player's independent score by the hook-adjusted amount without running Mending (xp_repair_ratio runs only at orb pickup); PlayerRef::give_levels adds or removes levels without changing score; both route any level-up sound to the target player's own level rather than the caller's. PlayerRef::set_experience_points writes only the bar progress with vanilla's clamp. PlayerRef::set_total_experience stores any signed total without refusing negative values and without changing the bar, level, or score."
 tests = [
-  "crates/sunrise-client/src/game/modding/native_player_food.rs::signed_points_bypass_mending",
-  "crates/sunrise-client/src/game/modding/native_player_food.rs::the_signed_total_is_set_alone",
-  "crates/sunrise-client/src/game/modding/native_player_food.rs::player_score_uses_the_signed_hook_adjusted_grant",
-  "crates/sunrise-client/src/game/interface/level_sounds.rs::experience_level_up_reaches_only_the_gaining_players_level",
-  "crates/sunrise-client/src/game/interface/experience_points_tests.rs::the_death_screen_receives_the_signed_player_score",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_player_food_server.rs::signed_points_bypass_mending",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_player_food_server.rs::the_signed_total_is_set_alone",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_player_food_server.rs::player_score_uses_the_signed_hook_adjusted_grant",
+  "crates/sunrise-client/src/cut_layout/game/interface/level_sounds.rs::experience_level_up_reaches_only_the_gaining_players_level",
+  "crates/sunrise-client/src/cut_layout/game/interface/experience_points_tests.rs::the_death_screen_receives_the_signed_player_score",
 ]

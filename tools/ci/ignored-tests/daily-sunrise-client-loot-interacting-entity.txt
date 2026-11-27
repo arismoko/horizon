@@ -1,2 +1,2 @@
-sunrise-client game::block_drops_pops_tests::a_harvest_rolls_with_its_interacting_player_and_block_origin lib daily resources
-sunrise-client game::composter::capability_tests::a_composter_click_supplies_its_interacting_player_and_no_this lib daily resources
+sunrise-client cut_layout::game::server_side::block_drops_pops_tests::a_harvest_rolls_with_its_interacting_player_and_block_origin lib daily resources
+sunrise-client cut_layout::game::server_side::composter::capability_tests::a_composter_click_supplies_its_interacting_player_and_no_this lib daily resources

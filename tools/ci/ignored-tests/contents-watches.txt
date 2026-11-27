@@ -1,4 +1,4 @@
-sunrise-client game::machines::contents_watch_tests::keyed_observers_route_source_data_without_global_or_self_duplicates lib daily resources
-sunrise-client game::machines::contents_watch_tests::watches_journal_nested_changes_and_preserve_explicit_abort_notices lib daily resources
-sunrise-client game::machines::contents_watch_tests::watch_dispatch_snapshots_membership_and_guards_the_source_not_the_observer lib daily resources
-sunrise-client game::machines::contents_watch_tests::observer_unload_reload_requires_explicit_reregistration_and_replacement_retires_it lib daily resources
+sunrise-client cut_layout::game::server_side::machines::contents_watch_tests::keyed_observers_route_source_data_without_global_or_self_duplicates lib daily resources
+sunrise-client cut_layout::game::server_side::machines::contents_watch_tests::watches_journal_nested_changes_and_preserve_explicit_abort_notices lib daily resources
+sunrise-client cut_layout::game::server_side::machines::contents_watch_tests::watch_dispatch_snapshots_membership_and_guards_the_source_not_the_observer lib daily resources
+sunrise-client cut_layout::game::server_side::machines::contents_watch_tests::observer_unload_reload_requires_explicit_reregistration_and_replacement_retires_it lib daily resources

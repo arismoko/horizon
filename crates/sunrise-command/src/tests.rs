@@ -283,7 +283,7 @@ fn resource_selector_scans_normalized_ids() {
 
 #[test]
 fn modprofile_session_command_requires_admin_permission() {
-    let rules = sunrise_client_core::gamerules::RuleRegistry::vanilla();
+    let rules = sunrise_game_data::gamerules::RuleRegistry::vanilla();
     let session = vanilla::session_dispatcher(&rules, &[]);
     assert!(vanilla::dispatcher().find("modprofile").is_none());
     for permission in 0..=4 {
@@ -306,12 +306,12 @@ fn modprofile_session_command_requires_admin_permission() {
 }
 #[test]
 fn session_dispatchers_respect_feature_flags() {
-    let first = sunrise_client_core::gamerules::RuleRegistry::vanilla();
-    let second = sunrise_client_core::gamerules::RuleRegistry::vanilla();
+    let first = sunrise_game_data::gamerules::RuleRegistry::vanilla();
+    let second = sunrise_game_data::gamerules::RuleRegistry::vanilla();
     let plain = vanilla::session_dispatcher(&first, &[]);
     let enabled = vanilla::session_dispatcher(
         &second,
-        &[sunrise_client_core::gamerules::MINECART_IMPROVEMENTS.to_owned()],
+        &[sunrise_game_data::gamerules::MINECART_IMPROVEMENTS.to_owned()],
     );
     let registries = reg();
     assert!(
@@ -865,7 +865,7 @@ fn whitespace_is_what_java_character_is_whitespace_says() {
 fn a_registered_token_reads_as_a_whole_word_before_the_vanilla_letter() {
     let mut reg = reg();
     reg.selector_tokens
-        .push(sunrise_client_core::registries::SelectorToken {
+        .push(sunrise_game_data::registries::SelectorToken {
             name: "allies".into(),
             tooltip: "test.selector.allies".into(),
             players_only: true,
@@ -886,7 +886,7 @@ fn a_registered_token_reads_as_a_whole_word_before_the_vanilla_letter() {
 fn a_registered_token_accepts_brigadier_unquoted_characters() {
     let mut reg = reg();
     reg.selector_tokens
-        .push(sunrise_client_core::registries::SelectorToken {
+        .push(sunrise_game_data::registries::SelectorToken {
             name: "Allies_1.0+team-a".into(),
             tooltip: "test.selector.allies_v1".into(),
             players_only: false,
@@ -2090,44 +2090,17 @@ fn an_ask_server_node_replies_with_the_token_range_when_it_has_no_suggestion_of_
 }
 
 #[test]
-fn an_expanded_suggestion_past_the_packet_text_limit_is_left_out() {
-    // Two completions that each fit the packet's 32767 UTF-16 units on their own: one replaces
-    // the whole 32002-character text, the other only its last character. Padding the second with
-    // the prefix it starts after expands to 64768 characters, so the packet cannot carry it; it
-    // is left out and the first one stays.
+fn local_merge_keeps_replacements_that_expand_beyond_the_packet_limit() {
     let input = "a".repeat(32002);
-    let whole = || Suggestion {
-        range: (0, input.len()),
-        text: "short".into(),
-        tooltip: None,
-        int_value: None,
-    };
-    let from_last = |len: usize| Suggestion {
-        range: (input.len() - 1, input.len()),
-        text: "b".repeat(len),
-        tooltip: None,
-        int_value: None,
-    };
-    let (range, merged) = merge_suggestions(&input, vec![whole(), from_last(32767)]);
+    let whole = sug((0, input.len()), "short");
+    let last = sug((input.len() - 1, input.len()), "b".repeat(767));
+    let (range, merged) = merge_suggestions(&input, vec![whole, last]);
     assert_eq!(range, (0, input.len()));
     assert_eq!(
-        merged.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(),
-        ["short"]
+        merged[0].apply(&input),
+        format!("{}{}", &input[..32001], "b".repeat(767))
     );
-    // The kept one applies to the whole text, so the chat can still offer it.
-    assert_eq!(merged[0].apply(&input), "short");
-    // The limit counts the expanded text: the 32001 characters in front of the last one plus
-    // its own 766 is exactly 32767 and stays, one character more does not.
-    let (_, merged) = merge_suggestions(&input, vec![whole(), from_last(766)]);
-    assert_eq!(merged.len(), 2);
-    assert!(
-        merged
-            .iter()
-            .any(|s| s.text.encode_utf16().count() == 32767),
-        "a completion expanded to exactly the limit stays"
-    );
-    let (_, merged) = merge_suggestions(&input, vec![whole(), from_last(767)]);
-    assert_eq!(merged.len(), 1, "32768 characters cannot cross the wire");
+    assert_eq!(merged[1].apply(&input), "short");
 }
 
 #[test]
@@ -2372,7 +2345,7 @@ fn a_declared_provider_is_asked_with_the_prefix_the_earlier_arguments_and_the_se
         calls.clone(),
     ));
     let mut registries = reg();
-    registries.sender = Some(sunrise_client_core::registries::CommandSender {
+    registries.sender = Some(sunrise_game_data::registries::CommandSender {
         uuid: 42,
         name: "Simon".into(),
     });
@@ -2405,15 +2378,12 @@ fn a_declared_provider_is_asked_with_the_prefix_the_earlier_arguments_and_the_se
 }
 
 #[test]
-fn a_provider_answer_is_capped_after_rejecting_candidates() {
+fn a_provider_answer_keeps_valid_candidates_for_the_dispatcher() {
     let calls: ProviderCalls = Default::default();
     let none = |text: String, tooltip: Option<String>| Suggestion {
         tooltip,
         ..sug((0, 2), text)
     };
-    // Candidates the engine rejects (past STRING_UTF8's 32767 UTF-16 code units, a tooltip past
-    // the NBT string's 65535 modified-UTF-8 bytes, a range past the typed text) come first: the
-    // cap counts what the reply keeps, so they cost it nothing.
     let mut candidates = vec![
         none(format!("pr{}", "a".repeat(MAX_SUGGESTION_TEXT)), None),
         none("prtip".into(), Some("b".repeat(MAX_SUGGESTION_TOOLTIP + 1))),
@@ -2424,14 +2394,14 @@ fn a_provider_answer_is_capped_after_rejecting_candidates() {
     let dispatcher = provider_dispatcher(provider_argument(candidates, calls.clone()));
     let registries = reg();
     let typed = "machine use fast pr";
-    let (_, suggestions) = dispatcher.suggestions(
+    let (_, suggestions) = dispatcher.client_suggestions(
         &dispatcher.parse(typed, &registries),
         typed.len(),
         &registries,
     );
     assert_eq!(calls.lock().unwrap().len(), 1, "one request, one answer");
     let texts: Vec<&str> = suggestions.iter().map(|s| s.text.as_str()).collect();
-    assert_eq!(texts.len(), MAX_PROVIDER_SUGGESTIONS);
+    assert_eq!(texts.len(), MAX_PROVIDER_SUGGESTIONS + 3);
     assert!(texts.contains(&"press"));
     assert_eq!(
         suggestions
@@ -2441,25 +2411,25 @@ fn a_provider_answer_is_capped_after_rejecting_candidates() {
         Some("a press"),
         "its tooltip survives"
     );
+    assert!(!texts.contains(&"prfar"));
     assert!(
-        !texts
+        texts
             .iter()
-            .any(|text| text.starts_with("prt") || *text == "prfar"),
-        "a rejected candidate is dropped alone"
+            .any(|text| text.len() == MAX_SUGGESTION_TEXT + 2)
     );
-    assert!(texts.iter().all(|text| text.len() <= MAX_SUGGESTION_TEXT));
-    assert!(
-        texts.contains(&"prm998"),
-        "the 1,000th kept candidate stays"
+    assert_eq!(
+        suggestions
+            .iter()
+            .find(|s| s.text == "prtip")
+            .and_then(|s| s.tooltip.as_ref())
+            .map(String::len),
+        Some(MAX_SUGGESTION_TOOLTIP + 1)
     );
-    assert!(
-        !texts.contains(&"prm999"),
-        "the count stops the reply at 1,000 kept candidates"
-    );
+    assert!(texts.contains(&"prm999"));
 }
 
 #[test]
-fn candidates_equal_to_the_input_or_repeated_spend_none_of_the_cap() {
+fn candidates_equal_to_the_input_or_repeated_are_dropped() {
     let none = |text: &str, tooltip: Option<String>| Suggestion {
         tooltip,
         ..sug((0, 2), text)

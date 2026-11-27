@@ -65,7 +65,7 @@ text = text.replace('mod text_style_capture;', 'mod text_style_capture;\npub use
 old.write_text('''#[path = "text_style_capture.rs"]
 mod text_style_capture;
 use super::{TryIntoApi, TryIntoEngine};
-use sunrise_client_core::text as engine;
+use sunrise_game_data::text as engine;
 use mod_api::text::{Text, TextFormError};
 
 pub(super) use sunrise_client_lib::api_text::captured_text;

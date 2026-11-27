@@ -1,1 +1,1 @@
-sunrise-client game::raids::victory_tests::victory_rewards_players_in_hero_set_order lib daily resources
+sunrise-client cut_layout::game::server_side::raids::victory_tests::victory_rewards_players_in_hero_set_order lib daily resources

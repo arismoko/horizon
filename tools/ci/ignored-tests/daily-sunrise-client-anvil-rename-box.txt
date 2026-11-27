@@ -1,1 +1,1 @@
-sunrise-client game::item_name_tests::a_client_anvil_click_fills_the_rename_box_with_the_parts_name lib daily child-process
+sunrise-client cut_layout::game::item_name_tests::a_client_anvil_click_fills_the_rename_box_with_the_parts_name lib daily child-process

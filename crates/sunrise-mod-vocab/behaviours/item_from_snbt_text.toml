@@ -1,6 +1,6 @@
 version = 1
 doc = "ItemsHost::item_from_snbt reads the text with the SNBT parser and the ItemStack codec, with no binary NBT byte quota: custom data larger than that quota is accepted. It returns None when the syntax, an item (the outer one or one nested in a component such as bundle contents) or a component is refused, and logs the reason."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_give_stack_tests.rs::item_from_snbt_keeps_custom_data_larger_than_the_binary_quota",
-    "crates/sunrise-client/src/game/modding/native_give_stack_tests.rs::item_from_snbt_refuses_what_is_not_one_item_compound",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_give_stack_tests.rs::item_from_snbt_keeps_custom_data_larger_than_the_binary_quota",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_give_stack_tests.rs::item_from_snbt_refuses_what_is_not_one_item_compound",
 ]

@@ -1,9 +1,10 @@
 //! The staged internals view (#589). Source copies only: the working tree keeps its visibility.
+use crate::source::{ENTRY_DOMAIN, SourceLayout};
 use proc_macro2::Span;
 use quote::{ToTokens, quote};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     fs,
     path::{Path, PathBuf},
 };
@@ -201,6 +202,8 @@ impl TypeUses {
 
 #[derive(Default)]
 struct Pass {
+    layout: SourceLayout,
+    source_root: PathBuf,
     sources: Vec<Source>,
     /// By path, kind and condition: a field and a method of one name are two entries, and so are
     /// two guarded alternatives of one item.
@@ -221,7 +224,7 @@ struct Pass {
     scope_error: Option<String>,
     /// Every `macro_rules!` name the game crate defines: an import of one stays as written,
     /// since only `#[macro_export]` makes such a macro public.
-    game_macros: BTreeSet<String>,
+    game_macros: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// Crates whose types are the mod API's own: their fields stay private in every build.
@@ -405,13 +408,48 @@ impl Scope {
     }
 }
 
+fn is_std_path(path: &str) -> bool {
+    matches!(path, "std" | "core" | "alloc")
+        || path.starts_with("std::")
+        || path.starts_with("core::")
+        || path.starts_with("alloc::")
+}
+
+fn is_foreign_prefix(path: &str) -> bool {
+    crate::crossing::CROSSING_FOREIGN.iter().any(|(listed, _)| {
+        *listed == path
+            || listed
+                .strip_prefix(path)
+                .is_some_and(|rest| rest.starts_with("::"))
+    })
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum GlobTarget {
+    Module(String),
+    Definition(String),
+    Std(String),
+    ForeignPrefix(String),
+}
+
+#[derive(Default)]
+struct ResolveState {
+    active_imports: BTreeSet<(String, String, usize)>,
+    active_ident_depth: BTreeMap<(String, String), usize>,
+    active_glob_modules: BTreeSet<String>,
+    skips: usize,
+}
+
 /// A source-level name index, not a compiler: macros and associated types remain opaque. Crates
 /// are loaded only when a signature reaches them; no visibility edits are made through this index.
 struct Shapes {
+    root: PathBuf,
     roots: BTreeMap<String, PathBuf>,
     loaded: BTreeSet<String>,
     scopes: BTreeMap<String, Scope>,
     definitions: BTreeMap<String, Vec<Definition>>,
+    direct_globs: HashMap<String, Vec<GlobTarget>>,
+    cache: HashMap<String, HashMap<String, BTreeMap<String, bool>>>,
 }
 
 impl Shapes {
@@ -439,10 +477,13 @@ impl Shapes {
             roots.insert(name, lib);
         }
         Ok(Self {
+            root: root.to_owned(),
             roots,
             loaded: BTreeSet::new(),
             scopes: BTreeMap::new(),
             definitions: BTreeMap::new(),
+            direct_globs: HashMap::new(),
+            cache: HashMap::new(),
         })
     }
 
@@ -454,13 +495,18 @@ impl Shapes {
             return Ok(());
         };
         let dir = lib.parent().expect("source parent");
-        let files =
-            crate::source::module_files(krate.to_owned(), lib.clone(), dir.to_owned(), false)?;
+        let files = crate::source::module_files(
+            &self.root,
+            krate.to_owned(),
+            lib.clone(),
+            dir.to_owned(),
+            false,
+        )?;
         self.loaded.insert(krate.to_owned());
         for file in files {
             let text = fs::read_to_string(&file.path)
                 .map_err(|e| format!("{}: {e}", file.path.display()))?;
-            let parsed = crate::game_modules::parse(&file.path, &text)?;
+            let parsed = crate::game_modules::parse(&self.root, &file.path, &text)?;
             self.items(&file.module, &file.cfg, &parsed.items);
         }
         Ok(())
@@ -533,112 +579,331 @@ impl Shapes {
         }
     }
 
-    fn resolve(
+    fn resolve(&mut self, module: &str, path: &str) -> Result<BTreeMap<String, bool>, String> {
+        if let Some(cached) = self.cache.get(module).and_then(|by_path| by_path.get(path)) {
+            return Ok(cached.clone());
+        }
+        let mut state = ResolveState::default();
+        let mut resolved = self.resolve_path(module, path, None, &mut state)?;
+        resolved.retain(|candidate, _| {
+            self.scopes.contains_key(candidate)
+                || self.definitions.contains_key(candidate)
+                || !is_foreign_prefix(candidate)
+                || crate::crossing::foreign(candidate).is_some()
+        });
+        self.cache
+            .entry(module.to_owned())
+            .or_default()
+            .insert(path.to_owned(), resolved.clone());
+        Ok(resolved)
+    }
+
+    fn classify_glob_target(&self, path: &str) -> Option<GlobTarget> {
+        if self.scopes.contains_key(path) {
+            Some(GlobTarget::Module(path.to_owned()))
+        } else if self.definitions.contains_key(path) {
+            Some(GlobTarget::Definition(path.to_owned()))
+        } else if is_std_path(path) {
+            Some(GlobTarget::Std(path.to_owned()))
+        } else if is_foreign_prefix(path) {
+            Some(GlobTarget::ForeignPrefix(path.to_owned()))
+        } else {
+            None
+        }
+    }
+
+    fn direct_globs(
+        &mut self,
+        module: &str,
+        state: &mut ResolveState,
+    ) -> Result<Vec<GlobTarget>, String> {
+        if let Some(cached) = self.direct_globs.get(module) {
+            return Ok(cached.clone());
+        }
+        let krate = module.split("::").next().expect("crate");
+        self.load(krate)?;
+        let globs: Vec<String> = self
+            .scopes
+            .get(module)
+            .map(|scope| scope.globs.iter().cloned().collect())
+            .unwrap_or_default();
+        if globs.is_empty() {
+            self.direct_globs.insert(module.to_owned(), Vec::new());
+            return Ok(Vec::new());
+        }
+        let had_outer = !state.active_imports.is_empty() || !state.active_glob_modules.is_empty();
+        if !state.active_glob_modules.insert(module.to_owned()) {
+            state.skips += 1;
+            return Ok(Vec::new());
+        }
+        let skips_before = state.skips;
+        let mut targets = BTreeSet::new();
+        loop {
+            let before = targets.len();
+            let seed: Vec<GlobTarget> = targets.iter().cloned().collect();
+            for glob in &globs {
+                if glob.is_empty() {
+                    continue;
+                }
+                let resolved = self.resolve_path(module, glob, Some(&seed), state)?;
+                for path in resolved.into_keys() {
+                    if let Some(target) = self.classify_glob_target(&path) {
+                        targets.insert(target);
+                    }
+                }
+            }
+            if targets.len() == before {
+                break;
+            }
+        }
+        state.active_glob_modules.remove(module);
+        let result: Vec<GlobTarget> = targets.into_iter().collect();
+        if !had_outer || state.skips == skips_before {
+            self.direct_globs.insert(module.to_owned(), result.clone());
+        }
+        Ok(result)
+    }
+
+    fn resolve_path(
         &mut self,
         module: &str,
         path: &str,
-        seen: &mut BTreeSet<(String, String)>,
+        seed_globs: Option<&[GlobTarget]>,
+        state: &mut ResolveState,
     ) -> Result<BTreeMap<String, bool>, String> {
-        if !seen.insert((module.to_owned(), path.to_owned())) {
-            return Ok(BTreeMap::new());
-        }
-        if let Some(path) = path.strip_prefix("::") {
-            let parts: Vec<_> = path.split("::").collect();
+        if let Some(rest) = path.strip_prefix("::") {
+            let parts: Vec<_> = rest.split("::").collect();
             if !self.roots.contains_key(parts[0]) {
                 return Ok(BTreeMap::new());
             }
             self.load(parts[0])?;
-            return self.tail(parts[0], &parts[1..], seen);
+            return self.step_tail(parts[0], false, &parts[1..], state);
         }
         let parts: Vec<_> = path.split("::").collect();
         let first = parts[0];
+        let tail = &parts[1..];
         let krate = module.split("::").next().expect("crate");
         self.load(krate)?;
-        let tail = &parts[1..];
         match first {
-            "crate" => return self.tail(krate, tail, seen),
-            "self" => return self.tail(module, tail, seen),
+            "crate" => return self.step_tail(krate, false, tail, state),
+            "self" => return self.step_tail(module, false, tail, state),
             "super" => {
                 return match module.rsplit_once("::") {
-                    Some((parent, _)) => self.tail(parent, tail, seen),
+                    Some((parent, _)) => self.step_tail(parent, false, tail, state),
                     None => Ok(BTreeMap::new()),
                 };
             }
-            "std" | "core" | "alloc" => return Ok(BTreeMap::from([(path.to_owned(), false)])),
-            _ if crate::crossing::foreign(path).is_some() => {
+            "std" | "core" | "alloc" => {
+                return Ok(BTreeMap::from([(path.to_owned(), false)]));
+            }
+            _ if is_foreign_prefix(path) => {
                 return Ok(BTreeMap::from([(path.to_owned(), false)]));
             }
             _ => {}
         }
-        if self
-            .scopes
-            .get(module)
-            .is_some_and(|scope| scope.names.contains(first))
-        {
-            return self.tail(&format!("{module}::{first}"), tail, seen);
-        }
-        let imports = self
-            .scopes
-            .get(module)
-            .and_then(|scope| scope.imports.get(first))
-            .cloned();
-        if let Some(imports) = imports {
-            let mut found = BTreeMap::new();
-            for import in imports {
-                let path = if tail.is_empty() {
-                    import
-                } else {
-                    format!("{import}::{}", tail.join("::"))
-                };
-                for (path, _) in self.resolve(module, &path, seen)? {
-                    found.insert(path, true);
-                }
-            }
-            return Ok(found);
+        if let Some(heads) = self.resolve_direct_in_module(module, first, state)? {
+            return self.step_heads(heads, tail, state);
         }
         if self.roots.contains_key(first) {
             self.load(first)?;
-            return self.tail(first, tail, seen);
+            return self.step_tail(first, false, tail, state);
         }
-        let globs = self
-            .scopes
-            .get(module)
-            .map(|scope| scope.globs.clone())
-            .unwrap_or_default();
-        let mut found = BTreeMap::new();
-        for glob in globs {
-            for (path, _) in self.resolve(module, &format!("{glob}::{path}"), seen)? {
-                found.insert(path, true);
-            }
-        }
+        let glob_heads = self.resolve_via_globs(module, first, seed_globs, state)?;
+        let found = self.step_heads(glob_heads, tail, state)?;
         if !found.is_empty() {
             return Ok(found);
         }
         if module != krate {
-            return self.resolve(krate, path, seen);
+            return self.resolve_path(krate, path, None, state);
         }
         Ok(found)
     }
 
-    fn tail(
+    fn step_heads(
         &mut self,
-        base: &str,
+        heads: BTreeMap<String, bool>,
         tail: &[&str],
-        seen: &mut BTreeSet<(String, String)>,
+        state: &mut ResolveState,
     ) -> Result<BTreeMap<String, bool>, String> {
         if tail.is_empty() {
-            return Ok(BTreeMap::from([(base.to_owned(), false)]));
+            return Ok(heads);
+        }
+        let mut found = BTreeMap::new();
+        for (head, head_imported) in heads {
+            for (resolved, tail_imported) in self.step_tail(&head, head_imported, tail, state)? {
+                found
+                    .entry(resolved)
+                    .and_modify(|flag| *flag |= tail_imported)
+                    .or_insert(tail_imported);
+            }
+        }
+        Ok(found)
+    }
+
+    fn resolve_direct_in_module(
+        &mut self,
+        module: &str,
+        ident: &str,
+        state: &mut ResolveState,
+    ) -> Result<Option<BTreeMap<String, bool>>, String> {
+        if self
+            .scopes
+            .get(module)
+            .is_some_and(|scope| scope.names.contains(ident))
+        {
+            return Ok(Some(BTreeMap::from([(
+                format!("{module}::{ident}"),
+                false,
+            )])));
+        }
+        let imports = self
+            .scopes
+            .get(module)
+            .and_then(|scope| scope.imports.get(ident))
+            .cloned();
+        if let Some(imports) = imports {
+            let depth_key = (module.to_owned(), ident.to_owned());
+            let depth = state
+                .active_ident_depth
+                .get(&depth_key)
+                .copied()
+                .unwrap_or(0);
+            if depth >= 2 {
+                state.skips += 1;
+                return Ok(Some(BTreeMap::new()));
+            }
+            *state
+                .active_ident_depth
+                .entry(depth_key.clone())
+                .or_default() += 1;
+            let mut found = BTreeMap::new();
+            let mut skipped_active = false;
+            for (index, import) in imports.into_iter().enumerate() {
+                let edge = (module.to_owned(), ident.to_owned(), index);
+                if !state.active_imports.insert(edge.clone()) {
+                    skipped_active = true;
+                    state.skips += 1;
+                    continue;
+                }
+                let resolved = self.resolve_path(module, &import, None, state);
+                state.active_imports.remove(&edge);
+                for (path, _) in resolved? {
+                    found.insert(path, true);
+                }
+            }
+            let entry = state.active_ident_depth.get_mut(&depth_key).expect("depth");
+            *entry -= 1;
+            if *entry == 0 {
+                state.active_ident_depth.remove(&depth_key);
+            }
+            if skipped_active && found.is_empty() {
+                return Ok(None);
+            }
+            return Ok(Some(found));
+        }
+        Ok(None)
+    }
+
+    fn resolve_via_globs(
+        &mut self,
+        module: &str,
+        ident: &str,
+        seed_globs: Option<&[GlobTarget]>,
+        state: &mut ResolveState,
+    ) -> Result<BTreeMap<String, bool>, String> {
+        let initial_globs = match seed_globs {
+            Some(seed) => seed.to_vec(),
+            None => self.direct_globs(module, state)?,
+        };
+        let mut found = BTreeMap::new();
+        let mut visited = BTreeSet::from([module.to_owned()]);
+        let mut queue = VecDeque::from(initial_globs);
+        while let Some(target) = queue.pop_front() {
+            match target {
+                GlobTarget::Module(target_mod) => {
+                    if !visited.insert(target_mod.clone()) {
+                        continue;
+                    }
+                    if let Some(hit) = self.resolve_direct_in_module(&target_mod, ident, state)? {
+                        for (path, _) in hit {
+                            found.insert(path, true);
+                        }
+                    } else {
+                        for next in self.direct_globs(&target_mod, state)? {
+                            queue.push_back(next);
+                        }
+                    }
+                }
+                GlobTarget::Definition(def) => {
+                    found.insert(format!("{def}::{ident}"), true);
+                }
+                GlobTarget::Std(prefix) => {
+                    found.insert(format!("{prefix}::{ident}"), true);
+                }
+                GlobTarget::ForeignPrefix(prefix) => {
+                    let candidate = format!("{prefix}::{ident}");
+                    if is_foreign_prefix(&candidate) {
+                        found.insert(candidate, true);
+                    }
+                }
+            }
+        }
+        Ok(found)
+    }
+
+    fn step_tail(
+        &mut self,
+        base: &str,
+        base_imported: bool,
+        tail: &[&str],
+        state: &mut ResolveState,
+    ) -> Result<BTreeMap<String, bool>, String> {
+        let Some((&first, rest)) = tail.split_first() else {
+            return Ok(BTreeMap::from([(base.to_owned(), base_imported)]));
+        };
+        if is_std_path(base) {
+            return Ok(BTreeMap::from([(
+                format!("{base}::{}", tail.join("::")),
+                base_imported,
+            )]));
         }
         if self.scopes.contains_key(base) {
-            self.resolve(base, &tail.join("::"), seen)
-        } else if self.definitions.contains_key(base) {
-            Ok(BTreeMap::from([(
-                format!("{base}::{}", tail.join("::")),
-                false,
-            )]))
-        } else {
-            Ok(BTreeMap::new())
+            let stepped = match first {
+                "self" => BTreeMap::from([(base.to_owned(), false)]),
+                "super" => match base.rsplit_once("::") {
+                    Some((parent, _)) => BTreeMap::from([(parent.to_owned(), false)]),
+                    None => BTreeMap::new(),
+                },
+                _ => match self.resolve_direct_in_module(base, first, state)? {
+                    Some(direct) => direct,
+                    None => self.resolve_via_globs(base, first, None, state)?,
+                },
+            };
+            let mut found = BTreeMap::new();
+            for (target, step_imported) in stepped {
+                let imported = base_imported || step_imported;
+                for (resolved, tail_imported) in self.step_tail(&target, imported, rest, state)? {
+                    found
+                        .entry(resolved)
+                        .and_modify(|flag| *flag |= tail_imported)
+                        .or_insert(tail_imported);
+                }
+            }
+            return Ok(found);
         }
+        if self.definitions.contains_key(base) {
+            return Ok(BTreeMap::from([(
+                format!("{base}::{}", tail.join("::")),
+                base_imported,
+            )]));
+        }
+        if is_foreign_prefix(base) {
+            let candidate = format!("{base}::{}", tail.join("::"));
+            if is_foreign_prefix(&candidate) {
+                return Ok(BTreeMap::from([(candidate, base_imported)]));
+            }
+        }
+        Ok(BTreeMap::new())
     }
 }
 
@@ -704,7 +969,7 @@ impl Pass {
         }
         let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         // The host forwarders are widened as written into the copy: spans address the expanded text.
-        let text = crate::game_modules::expand(path, &text)?;
+        let text = crate::game_modules::expand(&self.source_root, path, &text)?;
         let parsed = syn::parse_file(&text).map_err(|e| format!("{}: {e}", path.display()))?;
         let lines = std::iter::once(0)
             .chain(text.match_indices('\n').map(|(i, _)| i + 1))
@@ -1135,11 +1400,13 @@ impl Pass {
             // widened with the game's own items.
             Item::Use(value)
                 if !test_only(&value.attrs)
-                    && module.split("::").next() == Some("sunrise_client")
+                    && self.layout.owns(module)
                     && matches!(value.vis, Visibility::Restricted(_))
-                    && !use_names(&value.tree)
-                        .iter()
-                        .any(|name| self.game_macros.contains(name)) =>
+                    && !use_names(&value.tree).iter().any(|name| {
+                        self.game_macros
+                            .get(module.split("::").next().unwrap_or_default())
+                            .is_some_and(|macros| macros.contains(name))
+                    }) =>
             {
                 self.sources[file].public(&value.vis, value.use_token.span(), "use");
             }
@@ -1148,7 +1415,7 @@ impl Pass {
             // through the module's glob, which needs the import public.
             Item::Use(value)
                 if !test_only(&value.attrs)
-                    && module.split("::").next() != Some("sunrise_client")
+                    && !self.layout.owns(module)
                     && self
                         .cfg
                         .iter()
@@ -1444,7 +1711,7 @@ impl Pass {
                 {
                     continue;
                 }
-                let resolved = shapes.resolve(&module, &written, &mut BTreeSet::new())?;
+                let resolved = shapes.resolve(&module, &written)?;
                 let unique = resolved.len() == 1;
                 for (path, imported) in resolved {
                     if imported
@@ -1489,9 +1756,7 @@ impl Pass {
                                     (definition.module.clone(), TypeUses::item(&definition.item))
                                 });
                             }
-                        } else if !path.starts_with("sunrise_client::")
-                            && !self.entries.contains_key(&key)
-                        {
+                        } else if !self.layout.owns(&path) && !self.entries.contains_key(&key) {
                             self.cfg = definition.cfg;
                             self.entry(
                                 &definition.module,
@@ -1518,12 +1783,12 @@ impl Pass {
             .values()
             .filter(|entry| {
                 matches!(entry.kind, "struct" | "enum")
-                    && !entry.path.starts_with("sunrise_client::")
+                    && !self.layout.owns(&entry.path)
                     && !API_CRATES.contains(&entry.path.split("::").next().unwrap_or_default())
             })
             .map(|entry| entry.path.clone())
             .collect();
-        let manifest = root.join("crates/sunrise-client/Cargo.toml");
+        let manifest = self.layout.runtime.package_path(root).join("Cargo.toml");
         let text = fs::read_to_string(&manifest).map_err(|e| e.to_string())?;
         let manifest: toml::Value = toml::from_str(&text).map_err(|e| e.to_string())?;
         // The table lives in the game crate. A transitive or optional dependency's name is
@@ -1593,7 +1858,7 @@ pub(crate) fn widen_generated(path: &Path, text: String) -> Result<String, Strin
         edits: BTreeMap::new(),
         annotations: BTreeMap::new(),
     });
-    pass.items(0, "sunrise_client::game", &parsed.items);
+    pass.items(0, &format!("{}::game", ENTRY_DOMAIN.key), &parsed.items);
     Ok(pass.sources.remove(0).rendered())
 }
 
@@ -1602,23 +1867,27 @@ pub(crate) fn widen_generated(path: &Path, text: String) -> Result<String, Strin
 /// A marked replaceable lower-crate function is an internal too: its copy names declarations in
 /// the same module, including those from literal source fragments.
 pub fn widen(root: &Path) -> Result<Widened, String> {
-    stage(root, false)
+    stage(root, SourceLayout::read(root)?, false)
 }
 
 /// Instrument a discovery-only source copy. Its catalog is identical to [`widen`]'s, but
 /// compiler deprecation diagnostics identify each use by kind and catalog path.
 /// Never use this copy for a normal build or a published prebuilt.
 pub fn discover(root: &Path) -> Result<Widened, String> {
-    stage(root, true)
+    stage(root, SourceLayout::read(root)?, true)
 }
 
 /// Read the same original signatures and reachable layouts as staging, without changing files.
 /// Visibility edits are collected but never emitted, so build-time consumers can safely build
 /// a crossing rule over the catalog in a normal source checkout.
 pub fn catalog(root: &Path) -> Result<Vec<Internal>, String> {
+    catalog_with_layout(root, SourceLayout::read(root)?)
+}
+
+fn catalog_with_layout(root: &Path, layout: SourceLayout) -> Result<Vec<Internal>, String> {
     let path = root.join("crates/sunrise-mod-api-gen/internals.txt");
     let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(collect(root, &[("internals.txt", text)], false)?
+    Ok(collect(root, layout, &[("internals.txt", text)], false)?
         .entries
         .into_values()
         .collect())
@@ -1627,43 +1896,54 @@ pub fn catalog(root: &Path) -> Result<Vec<Internal>, String> {
 /// [`catalog`] with the listed foreign layouts (`winit::event_loop::ControlFlow`...), as
 /// `internals.json` has them: what a crossing rule over the game reads.
 pub fn rule_catalog(root: &Path) -> Result<Vec<Internal>, String> {
-    let mut entries = catalog(root)?;
+    rule_catalog_with_layout(root, SourceLayout::read(root)?)
+}
+
+pub(crate) fn rule_catalog_with_layout(
+    root: &Path,
+    layout: SourceLayout,
+) -> Result<Vec<Internal>, String> {
+    let mut entries = catalog_with_layout(root, layout)?;
     entries.extend(crate::crossing::foreign_internals(root)?);
     Ok(entries)
 }
 
-fn stage(root: &Path, discovery: bool) -> Result<Widened, String> {
+pub(crate) fn stage(root: &Path, layout: SourceLayout, discovery: bool) -> Result<Widened, String> {
     let path = root.join("crates/sunrise-mod-api-gen/internals.txt");
     let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-    widen_mode(root, &[("internals.txt", text)], discovery)
+    collect(root, layout, &[("internals.txt", text)], discovery)?.finish()
 }
 
 /// [`widen`] with each list's file name and text, so an error names the file and line it came from.
 #[cfg(test)]
 fn widen_with(root: &Path, lists: &[(&str, String)]) -> Result<Widened, String> {
-    widen_mode(root, lists, false)
+    collect(root, crate::LEGACY_LAYOUT, lists, false)?.finish()
 }
 
-fn widen_mode(root: &Path, lists: &[(&str, String)], discovery: bool) -> Result<Widened, String> {
-    collect(root, lists, discovery)?.finish()
-}
-
-fn collect(root: &Path, lists: &[(&str, String)], discovery: bool) -> Result<Pass, String> {
+fn collect(
+    root: &Path,
+    layout: SourceLayout,
+    lists: &[(&str, String)],
+    discovery: bool,
+) -> Result<Pass, String> {
     let mut pass = Pass {
+        layout,
+        source_root: root.to_owned(),
         discovery,
         ..Pass::default()
     };
-    let src = root.join("crates/sunrise-client/src");
-    let mut files = Vec::new();
-    for source in crate::source::game_files(&src, false)?
-        .into_iter()
-        .chain(std::iter::once(mod_source::modules::ModuleFile {
-            module: "sunrise_client::entry".into(),
-            path: src.join("entry.rs"),
+    let mut files = layout.files(root, false)?;
+    if let Some(entry) = layout.entry {
+        files.push(mod_source::modules::ModuleFile {
+            module: format!("{}::entry", layout.runtime.key),
+            path: layout.runtime.package_path(root).join(entry),
             cfg: Vec::new(),
             included: false,
-        }))
-    {
+        });
+    }
+    let sources = files;
+    let mut files = Vec::new();
+    for source in sources {
         let file = pass.load(&source.path)?;
         // Inline modules' macros too: `pub(crate) use` re-exports one from anywhere in the crate.
         fn macros(items: &[Item], out: &mut BTreeSet<String>) {
@@ -1681,7 +1961,19 @@ fn collect(root: &Path, lists: &[(&str, String)], discovery: bool) -> Result<Pas
                 }
             }
         }
-        macros(&pass.sources[file].parsed.items, &mut pass.game_macros);
+        macros(
+            &pass.sources[file].parsed.items,
+            pass.game_macros
+                .entry(
+                    source
+                        .module
+                        .split("::")
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned(),
+                )
+                .or_default(),
+        );
         files.push((file, source));
     }
     for (file, source) in files {
@@ -1703,7 +1995,7 @@ fn collect(root: &Path, lists: &[(&str, String)], discovery: bool) -> Result<Pas
         }
     }
     // Each marked function where its item is: a method under its `impl`'s file module.
-    for (origin, path) in crate::replace::marked_items(root)? {
+    for (origin, path) in crate::replace::marked_items(root, layout)? {
         pass.lower(root, &path, true)
             .map_err(|e| format!("{origin}: {path}: {e}"))?;
     }
@@ -1717,7 +2009,11 @@ fn collect(root: &Path, lists: &[(&str, String)], discovery: bool) -> Result<Pas
             .map(str::to_owned)
             .collect();
         for krate in crates {
-            let (_, lib) = crate::source::crate_root(root, &krate)?;
+            let lib = if let Some(domain) = layout.domain(&krate) {
+                domain.library(root)?
+            } else {
+                crate::source::crate_root(root, &krate)?.1
+            };
             let file = pass.load(&lib)?;
             let start = pass.sources[file]
                 .parsed
@@ -1845,9 +2141,8 @@ mod tests {
             "#![cfg(feature = \"extra\")]\nfn optional_helper() {}",
         );
         fixture.put("crates/sunrise-client/src/game/runtime.rs", "fn live() {}");
-        let src = fixture.0.join("crates/sunrise-client/src");
         for every_build in [false, true] {
-            let files = crate::source::game_files(&src, every_build).unwrap();
+            let files = ENTRY_DOMAIN.files(&fixture.0, every_build).unwrap();
             assert!(
                 !files
                     .iter()
@@ -1898,7 +2193,8 @@ mod tests {
             module,
         );
         fn modules(root: &Path) -> BTreeSet<String> {
-            crate::source::game_files(&root.join("crates/sunrise-client/src"), true)
+            ENTRY_DOMAIN
+                .files(root, true)
                 .unwrap()
                 .into_iter()
                 .map(|file| file.module)
@@ -1949,8 +2245,7 @@ mod tests {
         let moved = fixture.0.with_extension("relocated");
         fs::rename(&fixture.0, &moved).unwrap();
         fixture.0 = moved;
-        let files =
-            crate::source::game_files(&fixture.0.join("crates/sunrise-client/src"), true).unwrap();
+        let files = ENTRY_DOMAIN.files(&fixture.0, true).unwrap();
         assert!(files.iter().all(|file| file.path.starts_with(&fixture.0)));
         let modules: BTreeSet<_> = files.iter().map(|file| file.module.as_str()).collect();
         assert!(modules.contains("sunrise_client::game::feature"));
@@ -2008,8 +2303,14 @@ pub(crate) struct ItemStack { #[allow(dead_code)] kind: StackKind }
         }
         let lists = [("internals.txt", "lower::direct".into())];
         let expected = widen_with(&normal.0, &lists).unwrap();
-        let ordinary = widen_mode(&repeat.0, &lists, false).unwrap();
-        let marked = widen_mode(&discovery.0, &lists, true).unwrap();
+        let ordinary = collect(&repeat.0, crate::LEGACY_LAYOUT, &lists, false)
+            .unwrap()
+            .finish()
+            .unwrap();
+        let marked = collect(&discovery.0, crate::LEGACY_LAYOUT, &lists, true)
+            .unwrap()
+            .finish()
+            .unwrap();
         assert_eq!(expected.entries, marked.entries);
         assert_eq!(
             serde_json::to_vec(&expected.entries).unwrap(),
@@ -3041,6 +3342,71 @@ fn selected() { helper(); }
             )
             .unwrap()
             .starts_with("pub type PadId")
+        );
+    }
+
+    #[test]
+    fn cyclic_globs_and_self_prefix_imports_terminate_and_resolve() {
+        let fixture = Fixture::new(
+            r#"
+mod side {
+    pub mod sub {
+        pub struct SubValue;
+        pub fn sub() -> SubValue { SubValue }
+        pub fn helper() {}
+    }
+}
+pub use side::sub;
+use sub::{SubValue, helper, sub};
+
+mod a {
+    pub use super::b::*;
+    pub struct FromA;
+}
+mod b {
+    pub use super::a::*;
+    use super::*;
+    use a::*;
+    use external_missing::glob::*;
+    fn use_both(_: FromA, _: SubValue) {
+        helper();
+        sub();
+        missing_call();
+    }
+}
+fn caller(_: SubValue) {
+    helper();
+    sub();
+}
+"#,
+        );
+        let entries = widen_with(&fixture.0, &[]).unwrap().entries;
+        let find = |path: &str| {
+            entries
+                .iter()
+                .find(|entry| entry.path == format!("sunrise_client::game::{path}"))
+                .unwrap()
+        };
+        let use_both = find("b::use_both");
+        assert_eq!(use_both.refs["FromA"], "sunrise_client::game::a::FromA");
+        assert_eq!(
+            use_both.refs["SubValue"],
+            "sunrise_client::game::side::sub::SubValue"
+        );
+        assert_eq!(
+            use_both.refs["helper"],
+            "sunrise_client::game::side::sub::helper"
+        );
+        assert!(!use_both.refs.contains_key("missing_call"));
+
+        let caller = find("caller");
+        assert_eq!(
+            caller.refs["SubValue"],
+            "sunrise_client::game::side::sub::SubValue"
+        );
+        assert_eq!(
+            caller.refs["helper"],
+            "sunrise_client::game::side::sub::helper"
         );
     }
 }

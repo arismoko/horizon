@@ -1,1 +1,1 @@
-sunrise-client game::remote::client_level_tick::boss_darken_tests::boss_darkening_interpolates_across_zero_and_holds_the_negative_endpoint lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::client_level_tick::boss_darken_tests::boss_darkening_interpolates_across_zero_and_holds_the_negative_endpoint lib daily child-process

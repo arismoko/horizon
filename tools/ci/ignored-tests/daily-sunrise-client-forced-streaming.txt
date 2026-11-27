@@ -1,1 +1,1 @@
-sunrise-client game::native_level_refs::tests::paused_forced_loads_are_queued_and_stopped_generation_refuses_adds lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_refs::tests::paused_forced_loads_are_queued_and_stopped_generation_refuses_adds lib daily resources

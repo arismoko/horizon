@@ -19,16 +19,9 @@ use sunrise_core::random::LegacyRandom;
 pub mod hooks;
 pub use hooks::PreparedPlay;
 
-/// `SoundSource` indices (vanilla order).
-pub const MASTER: usize = 0;
-pub const MUSIC: usize = 1;
-pub const RECORDS: usize = 2;
-pub const WEATHER: usize = 3;
-pub const BLOCKS: usize = 4;
-pub const NEUTRAL: usize = 6;
-pub const PLAYERS: usize = 7;
-pub const AMBIENT: usize = 8;
-pub const UI: usize = 10;
+pub use sunrise_game_data::sound_source::{
+    AMBIENT, BLOCKS, MASTER, MUSIC, NEUTRAL, PLAYERS, RECORDS, SoundEntityState, UI, WEATHER,
+};
 /// The pool sizes `Library.init` derives from OpenAL Soft's default 255 mono
 /// sources: `clamp((int) sqrt(255), 2, 8)` streaming, the rest static.
 pub const STATIC_CHANNELS: usize = 247;
@@ -55,12 +48,6 @@ pub enum Attenuation {
 pub struct SoundEntity {
     pub id: u32,
     state: Arc<RwLock<SoundEntityState>>,
-}
-#[derive(Clone, Copy, Debug)]
-pub struct SoundEntityState {
-    pub position: [f64; 3],
-    pub silent: bool,
-    pub removed: bool,
 }
 impl SoundEntity {
     pub fn new(id: u32, position: [f64; 3], silent: bool) -> Self {

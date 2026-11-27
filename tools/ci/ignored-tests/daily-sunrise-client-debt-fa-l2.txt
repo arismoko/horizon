@@ -1,2 +1,2 @@
-sunrise-client game::model_baking_completed_tests::pack_reload_runs_listeners_on_both_sides_of_model_manager lib daily child-process
-sunrise-client game::server_reload::tests::reload_command_runs_listeners_on_both_sides_of_function_library lib daily child-process
+sunrise-client-gameplay game::client_side::model_baking_completed_tests::pack_reload_runs_listeners_on_both_sides_of_model_manager lib daily child-process
+sunrise-client cut_layout::game::server_side::server_reload::tests::reload_command_runs_listeners_on_both_sides_of_function_library lib daily child-process

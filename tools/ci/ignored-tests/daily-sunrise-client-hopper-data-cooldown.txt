@@ -1,3 +1,3 @@
 # /data on a hopper reads its live TransferCooldown (#2356).
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::commands::data::hopper_cooldown_tests::data_reads_a_hoppers_live_transfer_cooldown lib daily resources
+sunrise-client cut_layout::game::server_side::commands::data::hopper_cooldown_tests::data_reads_a_hoppers_live_transfer_cooldown lib daily resources

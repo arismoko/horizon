@@ -1,17 +1,20 @@
 //! The `screen_room` hooks and helpers: declarations the mod API generator reads (see `hooks/mod.rs`).
 
 pub trait Hooks {
-    /// Room for a mod's own panel right of the open container screen's window, in GUI pixels:
-    /// `right` starts at 0; raise it to the width your panel takes beside the window, its gap
-    /// included, and leave it be otherwise. Later mods see earlier mods' answers: keep the larger
-    /// (`event.right = event.right.max(mine)`). When the window, the recipe book open beside it and
-    /// that room all fit across the screen, the window and the book move left by half the room
-    /// (rounded down), so the three stay centred as vanilla's recipe book moves the window right to
-    /// make room for itself (`RecipeBookComponent.updateScreenPosition`); when they don't fit,
-    /// nothing moves. This API is right-only: mod panels reserve the right while the existing
-    /// recipe book occupies the left; left reservations are not part of this hook.
+    /// Room for a mod's own panels beside the open container screen's window, in GUI pixels:
+    /// `left` and `right` start at 0; raise one to the width your panel takes on that side of the
+    /// window, its gap included, and leave it be otherwise. A room on the left is measured from
+    /// the recipe book open beside the window (its selected tab included), not from the window.
+    /// Later mods see earlier mods' answers: keep the larger
+    /// (`event.right = event.right.max(mine)`). When the left room, the recipe book, the window and
+    /// the right room all fit across the screen, the window and the book move right by half the
+    /// left room less half the right room (each rounded down), so the four stay centred as
+    /// vanilla's recipe book moves the window right to make room for itself
+    /// (`RecipeBookComponent.updateScreenPosition`); when they don't fit, or a mod menu's recipe
+    /// book toggle would leave the screen, nothing moves. Version 2: a left room was added, so
+    /// another mod's left answer can change or cancel the move a right-only answer gets.
     /// The query's `ScreenView::rect` is pre-reservation. Later draw/input views expose the
-    /// shifted window; check that rectangle's right edge plus the room against the viewport.
+    /// shifted window; check the room you asked against the viewport before drawing in it.
     /// Keep this query pure and cheap. Its answer is memoized for the frame and screen; recursive
     /// queries during dispatch see zero. Asked once a
     /// frame while the player's inventory, a container or a mod's menu screen is open, not for the
@@ -27,7 +30,8 @@ pub trait Hooks {
         contract = "collect",
         out = "right",
         neoforge = "none (a NeoForge mod reads AbstractContainerScreen.leftPos and cannot move it)",
-        cancellable = false
+        cancellable = false,
+        version = 2
     )]
-    fn screen_room(screen: &ScreenView<'_>, right: &mut f32);
+    fn screen_room(screen: &ScreenView<'_>, left: &mut f32, right: &mut f32);
 }

@@ -1,6 +1,6 @@
-sunrise-client game::commands::peaceful_tests::a_persisted_mod_type_despawns_when_difficulty_switches_to_peaceful lib daily resources
-sunrise-client game::commands::peaceful_tests::summon_checks_the_mod_type_instead_of_its_template lib daily resources
-sunrise-client game::creatures::a_hand_egg_checks_and_spawns_the_type_named_by_its_component lib daily resources
-sunrise-client game::dispenser::tests::a_dispenser_drops_an_egg_without_prototype_entity_data lib daily resources
-sunrise-client game::dispenser::tests::a_dispenser_keeps_the_egg_if_its_type_cannot_spawn_in_peaceful lib daily resources
-sunrise-client game::stations::tests::spawn_egg_tooltip_warns_for_the_mod_type_in_peaceful lib daily resources
+sunrise-client cut_layout::game::server_side::commands_server::peaceful_tests::a_persisted_mod_type_despawns_when_difficulty_switches_to_peaceful lib daily resources
+sunrise-client cut_layout::game::server_side::commands::peaceful_tests::summon_checks_the_mod_type_instead_of_its_template lib daily resources
+sunrise-gameplay game::server_side::creatures_server::a_hand_egg_checks_and_spawns_the_type_named_by_its_component lib daily resources
+sunrise-client cut_layout::game::server_side::dispenser::tests::a_dispenser_drops_an_egg_without_prototype_entity_data lib daily resources
+sunrise-gameplay game::server_side::dispenser::tests::a_dispenser_keeps_the_egg_if_its_type_cannot_spawn_in_peaceful lib daily resources
+sunrise-client-gameplay game::client_side::stations::tests::spawn_egg_tooltip_warns_for_the_mod_type_in_peaceful lib daily resources

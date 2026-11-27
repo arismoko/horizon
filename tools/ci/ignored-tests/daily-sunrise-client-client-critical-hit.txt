@@ -1,1 +1,1 @@
-sunrise-client game::remote::attack_target::tests::the_attacking_client_asks_critical_hit_once_per_attack_on_a_living_target lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::attack_target_tests::the_attacking_client_asks_critical_hit_once_per_attack_on_a_living_target lib daily child-process

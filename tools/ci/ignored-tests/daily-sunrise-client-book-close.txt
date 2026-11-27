@@ -1,4 +1,4 @@
 # Closing a book, a lectern and a screen over them (ClientHost::close_screen): prepared resources and a client connection.
-sunrise-client game::native_client_screens::client_screen_tests::a_confirmation_over_a_lectern_closes_alone lib daily resources
-sunrise-client game::native_client_screens::client_screen_tests::closing_a_lectern_sends_its_menu_id lib daily resources
-sunrise-client game::native_client_screens::client_screen_tests::closing_an_ordinary_book_sends_nothing lib daily resources
+sunrise-client cut_layout::game::client_side::native_client_screens::client_screen_tests::a_confirmation_over_a_lectern_closes_alone lib daily resources
+sunrise-client cut_layout::game::client_side::native_client_screens::client_screen_tests::closing_a_lectern_sends_its_menu_id lib daily resources
+sunrise-client cut_layout::game::client_side::native_client_screens::client_screen_tests::closing_an_ordinary_book_sends_nothing lib daily resources

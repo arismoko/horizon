@@ -54,7 +54,7 @@ def main():
             env[key] = str(directory)
         with (build / 'rust.log').open('w') as output:
             subprocess.run([executable,
-                            'game::native_entity_moves::tests::move_boundaries_match_vanilla',
+                            'game::server_side::native_entity_moves::tests::move_boundaries_match_vanilla',
                             '--exact', '--test-threads=1', '--nocapture'], cwd=scratch, env=env,
                            stdout=output, stderr=subprocess.STDOUT, check=True, timeout=900)
         text = (build / 'rust.log').read_text()

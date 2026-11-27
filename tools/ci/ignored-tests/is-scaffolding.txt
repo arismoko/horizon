@@ -1,2 +1,2 @@
 # BlockPart::is_scaffolding (#1106).
-sunrise-client game::native_living_flags::tests::a_block_part_decides_whether_a_block_is_scaffolding_to_a_sneaking_player lib daily resources
+sunrise-client cut_layout::game::server_side::native_living_flags::tests::a_block_part_decides_whether_a_block_is_scaffolding_to_a_sneaking_player lib daily resources

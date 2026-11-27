@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player threw an egg, after its projectile was launched and the use was applied.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_egg_throw",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_egg_throw",
         dispatch = "flat",
         side = "server",
         contract = "listen",

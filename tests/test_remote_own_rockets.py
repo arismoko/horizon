@@ -9,28 +9,19 @@ import subprocess
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
-GAME = ROOT / "crates/sunrise-client/src/game"
-
-
-def lift(path, start, end):
-    source = path.read_text()
-    a = source.index(start)
-    return source[a : source.index(end, a)].replace("pub(super) ", "")
+from rust_items import rust_fn
 
 
 @unittest.skipUnless(shutil.which("rustc"), "requires Rust")
 class RemoteOwnRocketTests(unittest.TestCase):
     def test_the_spark_follows_the_moved_player_at_the_rocket_hand(self):
-        methods = lift(
-            GAME / "entities/fireworks.rs",
-            "    /// `Entity.getHandHoldingItemAngle",
-            "    /// `FireworkRocketItem.use` while gliding",
-        ) + lift(
-            GAME / "network/remote_projectiles.rs",
-            "    /// This client's own player's entity id",
-            "    /// One tick of interpolation",
-        )
+        methods = "\n".join([
+            rust_fn("rocket_hand_angle", owner="sunrise-gameplay-common"),
+            rust_fn("follow_own_player", owner="sunrise-gameplay-common"),
+            rust_fn("rocket_spark", owner="sunrise-client-gameplay"),
+            rust_fn("remote_player_id", owner="sunrise-client-gameplay"),
+            rust_fn("tick_own_rockets", owner="sunrise-client-gameplay"),
+        ])
         fixture = r'''
 #![allow(dead_code)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -55,15 +46,15 @@ mod sunrise_world {
 }
 // Storage is not the subject of this physics fixture. Real numbered-list
 // identity and restoration have separate production tests.
-mod sunrise_client {
+mod sunrise_sim {
     pub mod join_seq { pub enum RestoreOrder { SurvivorsFirst } }
 }
 trait Lift: Default + Sized {
     fn lift(&mut self) -> Self { std::mem::take(self) }
-    fn restore(&mut self, taken: Self, order: sunrise_client::join_seq::RestoreOrder);
+    fn restore(&mut self, taken: Self, order: sunrise_sim::join_seq::RestoreOrder);
 }
 impl<T> Lift for Vec<T> {
-    fn restore(&mut self, taken: Self, _: sunrise_client::join_seq::RestoreOrder) {
+    fn restore(&mut self, taken: Self, _: sunrise_sim::join_seq::RestoreOrder) {
         assert!(self.is_empty(), "this physics fixture injects no nested spawn");
         *self = taken;
     }
@@ -94,41 +85,64 @@ impl Clock {
     fn world_runs(&mut self) -> bool { panic!("TickRateManager.tick a second time in one client tick") }
 }
 struct Settings { main_hand_left: bool }
+struct ClientState { remote: Option<Remote>, settings: Settings, particles: (Particles,) }
+mod game {
+    pub struct Side;
+    impl Side {
+        pub fn main_hand_left(side: &crate::ClientState) -> bool { side.settings.main_hand_left }
+    }
+}
 struct Player { position: Vec3, velocity: Vec3, fall_flying: bool }
 #[derive(Default)]
 struct Rocket { id: u32, attached_to: Option<u32>, position: Vec3, velocity: Vec3 }
-struct Game {
-    remote: Option<Remote>, clock: Clock, player: Option<Player>, settings: Settings,
+struct CommonGame {
+    clock: Clock, player: Option<Player>,
     hotbar: Option<ItemStack>, offhand: Option<ItemStack>, selected: usize,
-    rockets: Vec<Rocket>, yaw: f32, pitch: f32, world: World, particles: Particles,
+    rockets: Vec<Rocket>, yaw: f32, pitch: f32, world: World,
 }
-impl Game {
-fn stack_in(&self, slot: usize) -> Option<&ItemStack> { self.hotbar.as_ref().filter(|_| slot == 3) }
+struct ClientGame {
+    common: CommonGame,
+    client: ClientState,
+}
+impl std::ops::Deref for ClientGame {
+    type Target = CommonGame;
+    fn deref(&self) -> &CommonGame { &self.common }
+}
+impl std::ops::DerefMut for ClientGame {
+    fn deref_mut(&mut self) -> &mut CommonGame { &mut self.common }
+}
+impl ClientGame {
+fn side_state(&self) -> &ClientState { &self.client }
+fn stack_in(&self, slot: usize) -> Option<&ItemStack> { self.common.hotbar.as_ref().filter(|_| slot == 3) }
 // The pick-section index is not the subject of this physics fixture.
 fn pick_section_move(&mut self, _: u32, _: [f64; 3]) {}
 METHODS
 }
 fn rocket() -> Option<ItemStack> { Some(ItemStack { item: "minecraft:firework_rocket".into() }) }
-fn game(runs: bool) -> Game {
-    Game {
-        remote: Some(Remote { entity_id: 7 }),
-        clock: Clock { runs },
-        // Where the player's own tick has just moved it, facing west.
-        player: Some(Player {
-            position: Vec3::new(10.0, 70.0, 20.0),
-            velocity: Vec3::new(0.0, -0.2, 1.0),
-            fall_flying: true,
-        }),
-        settings: Settings { main_hand_left: false },
-        hotbar: rocket(), offhand: None, selected: 3,
-        rockets: vec![
-            Rocket { attached_to: Some(7), ..Rocket::default() },
-            Rocket { attached_to: Some(8), position: Vec3::new(1.0, 2.0, 3.0), ..Rocket::default() },
-            Rocket { attached_to: None, position: Vec3::new(4.0, 5.0, 6.0), ..Rocket::default() },
-        ],
-        yaw: 90.0, pitch: 0.0,
-        world: World { random: sunrise_core::random::LegacyRandom(vec![3.0, -2.0, 3.0, -2.0]) },
-        particles: Particles::default(),
+fn game(runs: bool) -> ClientGame {
+    ClientGame {
+        common: CommonGame {
+            clock: Clock { runs },
+            // Where the player's own tick has just moved it, facing west.
+            player: Some(Player {
+                position: Vec3::new(10.0, 70.0, 20.0),
+                velocity: Vec3::new(0.0, -0.2, 1.0),
+                fall_flying: true,
+            }),
+            hotbar: rocket(), offhand: None, selected: 3,
+            rockets: vec![
+                Rocket { attached_to: Some(7), ..Rocket::default() },
+                Rocket { attached_to: Some(8), position: Vec3::new(1.0, 2.0, 3.0), ..Rocket::default() },
+                Rocket { attached_to: None, position: Vec3::new(4.0, 5.0, 6.0), ..Rocket::default() },
+            ],
+            yaw: 90.0, pitch: 0.0,
+            world: World { random: sunrise_core::random::LegacyRandom(vec![3.0, -2.0, 3.0, -2.0]) },
+        },
+        client: ClientState {
+            remote: Some(Remote { entity_id: 7 }),
+            settings: Settings { main_hand_left: false },
+            particles: (Particles::default(),),
+        },
     }
 }
 fn near(a: [f64; 3], b: [f64; 3]) -> bool { a.iter().zip(b).all(|(a, b)| (a - b).abs() < 1e-4) }
@@ -136,31 +150,31 @@ fn at(v: Vec3) -> [f64; 3] { [v.x, v.y, v.z] }
 // The rocket's spot after one tick with this hand setup.
 fn hand(main_hand_left: bool, main: Option<ItemStack>, offhand: Option<ItemStack>) -> [f64; 3] {
     let mut g = game(true);
-    g.settings.main_hand_left = main_hand_left;
-    g.hotbar = main;
-    g.offhand = offhand;
+    g.client.settings.main_hand_left = main_hand_left;
+    g.common.hotbar = main;
+    g.common.offhand = offhand;
     g.tick_own_rockets();
-    at(g.rockets[0].position)
+    at(g.common.rockets[0].position)
 }
 fn main() {
     let mut g = game(true);
     g.tick_own_rockets();
     // Looking west (-x): movement + look * 0.1 + (look * 1.5 - movement) * 0.5.
     let boosted = [-0.85, -0.1, 0.5];
-    assert!(near(at(g.player.as_ref().unwrap().velocity), boosted), "{:?}", g.player.as_ref().unwrap().velocity);
-    assert_eq!(g.player.as_ref().unwrap().position, Vec3::new(10.0, 70.0, 20.0));
+    assert!(near(at(g.common.player.as_ref().unwrap().velocity), boosted), "{:?}", g.common.player.as_ref().unwrap().velocity);
+    assert_eq!(g.common.player.as_ref().unwrap().position, Vec3::new(10.0, 70.0, 20.0));
     // Facing west the right hand is north: half a block out at yaw + 80.
     let right = [10.0 - 0.0868, 70.0, 20.0 - 0.4924];
-    assert!(near(at(g.rockets[0].position), right), "{:?}", g.rockets[0].position);
-    assert!(near(at(g.rockets[0].velocity), boosted));
+    assert!(near(at(g.common.rockets[0].position), right), "{:?}", g.common.rockets[0].position);
+    assert!(near(at(g.common.rockets[0].velocity), boosted));
     // One firework spark at the rocket, drifting against the boosted motion
     // with a gaussian spread of 0.05 across it.
-    let sparks = &g.particles.added;
+    let sparks = &g.client.particles.0.added;
     assert_eq!(sparks.len(), 1);
     assert!(near(sparks[0].0, right) && near(sparks[0].1, [0.15, 0.05, -0.1]), "{:?}", sparks);
     // Rockets of another entity, or free ones, tick with the other entities.
-    assert_eq!(g.rockets[1].position, Vec3::new(1.0, 2.0, 3.0));
-    assert_eq!(g.rockets[2].position, Vec3::new(4.0, 5.0, 6.0));
+    assert_eq!(g.common.rockets[1].position, Vec3::new(1.0, 2.0, 3.0));
+    assert_eq!(g.common.rockets[2].position, Vec3::new(4.0, 5.0, 6.0));
 
     // The other arm: a left main arm, or a rocket only in the offhand.
     let left = [10.0 - 0.0868, 70.0, 20.0 + 0.4924];
@@ -171,17 +185,17 @@ fn main() {
 
     // Not gliding: it follows the player itself, without boosting it.
     let mut g = game(true);
-    g.player.as_mut().unwrap().fall_flying = false;
+    g.common.player.as_mut().unwrap().fall_flying = false;
     g.tick_own_rockets();
-    assert_eq!(g.player.as_ref().unwrap().velocity, Vec3::new(0.0, -0.2, 1.0));
-    assert_eq!(g.rockets[0].position, Vec3::new(10.0, 70.0, 20.0));
-    assert_eq!(g.particles.added.len(), 1);
+    assert_eq!(g.common.player.as_ref().unwrap().velocity, Vec3::new(0.0, -0.2, 1.0));
+    assert_eq!(g.common.rockets[0].position, Vec3::new(10.0, 70.0, 20.0));
+    assert_eq!(g.client.particles.0.added.len(), 1);
 
     // A frozen level ticks no entities.
     let mut g = game(false);
     g.tick_own_rockets();
-    assert!(g.particles.added.is_empty());
-    assert_eq!(g.player.as_ref().unwrap().velocity, Vec3::new(0.0, -0.2, 1.0));
+    assert!(g.client.particles.0.added.is_empty());
+    assert_eq!(g.common.player.as_ref().unwrap().velocity, Vec3::new(0.0, -0.2, 1.0));
 }
 '''.replace("METHODS", methods)
         with tempfile.TemporaryDirectory(prefix="remote-own-rockets-") as directory:

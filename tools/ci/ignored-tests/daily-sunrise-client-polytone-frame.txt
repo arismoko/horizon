@@ -1,3 +1,3 @@
-sunrise-client game::polytone_frame_tests::a_frame_of_gpu_records_only_draws_their_quads lib daily resources
-sunrise-client game::polytone_frame_tests::a_pending_clear_goes_before_the_heightmap_is_read lib daily resources
-sunrise-client game::polytone_frame_tests::rain_under_the_surface_is_hidden_from_its_first_frame lib daily resources
+sunrise-client cut_layout::game::client_side::polytone_frame_tests::a_frame_of_gpu_records_only_draws_their_quads lib daily resources
+sunrise-client cut_layout::game::client_side::polytone_frame_tests::a_pending_clear_goes_before_the_heightmap_is_read lib daily resources
+sunrise-client cut_layout::game::client_side::polytone_frame_tests::rain_under_the_surface_is_hidden_from_its_first_frame lib daily resources

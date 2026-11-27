@@ -23,7 +23,7 @@ pub trait Hooks {
     /// fixed positions; adding bars doesn't move them. Cancel and redraw the
     /// corresponding layer if it needs to move.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_gui_layer_pre",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_gui_layer_pre",
         receiver = "read",
         dispatch = "flat",
         side = "client",

@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A smithing result was prepared for a server player at `pos`. Change it before it is sent.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_prepare_smithing",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_prepare_smithing",
         dispatch = "flat",
         side = "server",
         contract = "replace",

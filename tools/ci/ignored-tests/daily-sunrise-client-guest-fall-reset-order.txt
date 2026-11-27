@@ -1,3 +1,3 @@
-sunrise-client game::lan_actions::guest_body::tests::fall_reset::a_lethal_landing_records_death_and_drops_before_the_next_move lib daily child-process
-sunrise-client game::lan_actions::guest_body::tests::fall_reset::a_totem_saves_the_guest_before_its_tracked_fall_ends lib daily child-process
-sunrise-client game::lan_actions::guest_body::tests::fall_reset::entering_water_ends_a_tracked_fall_before_the_next_move lib daily child-process
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::fall_reset::a_lethal_landing_records_death_and_drops_before_the_next_move lib daily child-process
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::fall_reset::a_totem_saves_the_guest_before_its_tracked_fall_ends lib daily child-process
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::fall_reset::entering_water_ends_a_tracked_fall_before_the_next_move lib daily child-process

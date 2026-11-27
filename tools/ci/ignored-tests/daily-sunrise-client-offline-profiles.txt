@@ -1,3 +1,3 @@
-sunrise-client game::native_server::profile_tests::failed_join_placement_does_not_populate_user_cache lib daily child-process
-sunrise-client game::native_server::profile_tests::game_profile_arguments_use_the_vanilla_parser_and_deliver_profiles lib daily child-process
-sunrise-client game::native_server::profile_tests::profiles_are_available_online_offline_and_before_login lib daily child-process
+sunrise-gameplay game::server_side::native_server_server::profile_tests::failed_join_placement_does_not_populate_user_cache lib daily child-process
+sunrise-gameplay game::server_side::native_server_server::profile_tests::game_profile_arguments_use_the_vanilla_parser_and_deliver_profiles lib daily child-process
+sunrise-gameplay game::server_side::native_server_server::profile_tests::profiles_are_available_online_offline_and_before_login lib daily child-process

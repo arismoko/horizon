@@ -1,2 +1,2 @@
 # A client mod clearing the local player's predicted fall distance.
-sunrise-client game::native_local_player_writes::tests::resetting_a_local_fall_discards_the_distance_before_landing lib daily resources
+sunrise-client cut_layout::game::client_side::native_local_player_writes::tests::resetting_a_local_fall_discards_the_distance_before_landing lib daily resources

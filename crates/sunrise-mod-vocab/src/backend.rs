@@ -40,6 +40,14 @@ pub enum ActionRefused {
 pub trait NoBackend {
     /// The error for a host without a game.
     fn no_backend() -> Self;
+
+    /// The error for a call made on the side that does not have it.
+    fn wrong_side() -> Self
+    where
+        Self: Sized,
+    {
+        Self::no_backend()
+    }
 }
 
 impl NoBackend for ActionRefused {

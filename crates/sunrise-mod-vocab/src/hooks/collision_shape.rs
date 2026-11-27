@@ -37,7 +37,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         cancellable = false,
-        target = "sunrise_client_lib::collision_parts::native_collision_shape",
+        target = "sunrise_sim::collision_parts::native_collision_shape",
         neoforge = "none (vanilla BlockBehaviour.getCollisionShape with its CollisionContext; NeoForge adds no event or extension for it)"
     )]
     fn collision_shape(

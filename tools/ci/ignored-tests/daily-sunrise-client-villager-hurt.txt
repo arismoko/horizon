@@ -1,3 +1,3 @@
-sunrise-client game::villagers::witness_tests::every_accepted_hurt_counts_for_its_own_attacker lib daily child-process
-sunrise-client game::villagers::witness_tests::hurt_gossip_belongs_to_the_hits_own_player lib daily child-process
-sunrise-client game::villagers::witness_tests::two_hits_of_a_mob_without_uuid_share_one lib daily child-process
+sunrise-client cut_layout::game::server_side::villagers::witness_tests::every_accepted_hurt_counts_for_its_own_attacker lib daily child-process
+sunrise-client cut_layout::game::server_side::villagers::witness_tests::hurt_gossip_belongs_to_the_hits_own_player lib daily child-process
+sunrise-client cut_layout::game::server_side::villagers::witness_tests::two_hits_of_a_mob_without_uuid_share_one lib daily child-process

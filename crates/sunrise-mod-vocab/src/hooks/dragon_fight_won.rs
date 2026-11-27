@@ -14,7 +14,7 @@ pub trait Hooks {
     /// vanilla. A refused block write is not retried, and the win is recorded either way.
     /// The host is read-only. NeoForge has no such event.
     #[hook(
-        target = "sunrise_client::game::native_hooks::dragon_fight::Game<'_>::native_dragon_fight_won",
+        target = "sunrise_gameplay::game::native_hooks::dragon_fight::ServerGame<'_>::native_dragon_fight_won",
         receiver = "read",
         dispatch = "flat",
         side = "server",

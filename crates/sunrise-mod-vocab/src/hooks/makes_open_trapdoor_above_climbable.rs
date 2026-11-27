@@ -9,7 +9,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         cancellable = false,
-        target = "sunrise_client_lib::motion::ladder::native_makes_open_trapdoor_above_climbable",
+        target = "sunrise_sim::motion::ladder::native_makes_open_trapdoor_above_climbable",
         neoforge = "IBlockExtension.makesOpenTrapdoorAboveClimbable"
     )]
     fn makes_open_trapdoor_above_climbable(

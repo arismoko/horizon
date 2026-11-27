@@ -1,4 +1,4 @@
 # #1710: evoker fangs, the panic goal's water search and iron golem spawning on a block whose entity publishes its shapes.
-sunrise-client game::published_collision_mob_tests::an_iron_golem_stands_only_on_a_full_published_top lib daily resources
-sunrise-client game::published_collision_mob_tests::evoker_fangs_stand_on_the_published_collision_top lib daily resources
-sunrise-client game::published_collision_mob_tests::the_panic_goal_looks_for_water_in_a_published_empty_shape lib daily resources
+sunrise-client cut_layout::game::published_collision_mob_tests::an_iron_golem_stands_only_on_a_full_published_top lib daily resources
+sunrise-client cut_layout::game::published_collision_mob_tests::evoker_fangs_stand_on_the_published_collision_top lib daily resources
+sunrise-client cut_layout::game::published_collision_mob_tests::the_panic_goal_looks_for_water_in_a_published_empty_shape lib daily resources

@@ -52,7 +52,7 @@ pub trait Hooks {
     /// world load or client sync. The declaring package's parts run first, then dependent
     /// packages in dispatch and registration order. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::mob_effect_events::Game<'_>::native_on_effect_added",
+        target = "sunrise_gameplay::game::native_hooks::mob_effect_events::ServerGame<'_>::native_on_effect_added",
         dispatch = "flat",
         side = "server",
         scope = "effect",

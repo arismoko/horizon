@@ -38,6 +38,7 @@ from the decoder rejects the enclosing item definition without falling back to a
 decoder or per-stack callback disables that mod's callback for the session and surfaces an error toast. A
 foreign property no mod registers reads 0, decided once at load."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_range_select_item_model_property::native_register_range_select_item_model_property",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

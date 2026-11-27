@@ -1,3 +1,3 @@
 # A part's on_stop_using and can_continue_using around a golden apple's use (#2951).
-sunrise-client game::continue_using_tests::a_part_keeps_or_stops_a_use_whatever_the_hand_holds lib daily resources
-sunrise-client game::stop_using_tests::a_part_hears_each_stop_of_its_items_use_once lib daily resources
+sunrise-client cut_layout::game::server_side::continue_using_tests::a_part_keeps_or_stops_a_use_whatever_the_hand_holds lib daily resources
+sunrise-client cut_layout::game::server_side::stop_using_tests::a_part_hears_each_stop_of_its_items_use_once lib daily resources

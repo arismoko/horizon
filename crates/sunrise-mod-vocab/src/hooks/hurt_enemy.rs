@@ -8,7 +8,7 @@ pub trait Hooks {
     /// every player of the world (the helpers read the acting one).
     /// Read the borrowed stack with `get`; call `project` only to keep an owned copy.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_hurt_enemy",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_hurt_enemy",
         dispatch = "flat",
         side = "server",
         contract = "listen",

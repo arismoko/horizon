@@ -1197,6 +1197,7 @@ mod tests {
             register_mod_fluid(ModFluidType {
                 id: format!("fluid_facts:{id}"),
                 flowing_id: format!("fluid_facts:flowing_{id}"),
+                block_id: format!("fluid_facts:{id}"),
                 bucket: None,
                 rules: ModFluidRules {
                     tick_delay,

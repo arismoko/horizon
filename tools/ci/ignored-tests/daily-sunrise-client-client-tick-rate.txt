@@ -1,1 +1,1 @@
-sunrise-client game::native_small_reads_tests::tick_rate_reads_the_clients_tick_rate_manager lib daily resources
+sunrise-client cut_layout::game::client_side::native_small_reads_tests::tick_rate_reads_the_clients_tick_rate_manager lib daily resources

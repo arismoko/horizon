@@ -1,0 +1,1 @@
+sunrise-client-gameplay game::client_side::remote_camera::tests::spectated_entities_pick_their_chain lib daily child-process

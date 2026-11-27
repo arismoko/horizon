@@ -1,3 +1,3 @@
 # The daily tests of sunrise-client: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
 # where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
-sunrise-client game::packs::clouds_reload_tests::a_pack_whose_clouds_vanilla_reads_past_fails_the_load lib daily slow
+sunrise-client cut_layout::game::client_side::packs::clouds_reload_tests::a_pack_whose_clouds_vanilla_reads_past_fails_the_load lib daily slow

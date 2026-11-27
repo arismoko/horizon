@@ -17,7 +17,7 @@ pub trait Hooks {
     /// that are no edit of the text (dyeing, glow ink, waxing, `/data`,
     /// `/setblock`, or a mod using `BlockEntityRef::replace_data`).
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_sign_changed",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_sign_changed",
         dispatch = "api_carrier",
         side = "server",
         contract = "cancel",
@@ -42,7 +42,7 @@ pub trait Hooks {
     /// no model and log the registering mod. Look up results through `RenderAssets::model`
     /// in or after `model_baking_completed`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_standalone_models",
+        target = "sunrise_gameplay_common::game::native_hooks::base::native_standalone_models",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

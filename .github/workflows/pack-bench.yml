@@ -47,7 +47,8 @@ jobs:
         env:
           SCALE: ${{ inputs.scale || '1' }}
         run: |
-          cargo run --profile fast -p sunrise-client-render --example pack_load_bench -- --scale "$SCALE" > head.md
+          CARGO_TARGET_DIR="$PWD/target" CARGO_BUILD_BUILD_DIR="$PWD/target" \
+            cargo run --profile fast -p sunrise-client-render --example pack_load_bench -- --scale "$SCALE" > head.md
       - name: Bench the base, with the branch's bench
         env:
           BASE: ${{ inputs.base || 'main' }}
@@ -61,9 +62,9 @@ jobs:
           cp crates/sunrise-client-render/examples/pack_load_bench.rs ../base/crates/sunrise-client-render/examples/
           # A bench row that times a function the base lacks keeps it from building there: then
           # the branch's own rows compare the two ways.
-          target=${CARGO_TARGET_DIR:-$GITHUB_WORKSPACE/target}
-          (cd ../base && CARGO_TARGET_DIR="$target" cargo run --profile fast -p sunrise-client-render \
-            --example pack_load_bench -- --scale "$SCALE") > base.md \
+          # The copied bench makes this worktree dirty; its artifacts never belong to the branch's target.
+          (cd ../base && CARGO_TARGET_DIR="$PWD/target" CARGO_BUILD_BUILD_DIR="$PWD/target" \
+            cargo run --profile fast -p sunrise-client-render --example pack_load_bench -- --scale "$SCALE") > base.md \
             || echo "The bench does not build on the base." > base.md
       - name: Summary
         # Through the environment, as the step before: an input pasted into the script would run.

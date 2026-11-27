@@ -1,5 +1,5 @@
 # Frame view on BlockEntityDrawContext, EntityRenderState placement, and posed retained draws (#5077).
-sunrise-client game::frame_view_retained_draw_tests::block_entity_entity_renderer_scene_and_two_view_isolation lib daily child-process
-sunrise-client game::frame_view_retained_draw_tests::entity_layer_and_scene_entity_receive_their_view_and_placement lib daily child-process
-sunrise-client game::frame_view_retained_draw_tests::posed_instance_group_draws_under_pose_and_rejects_stale_or_disabled lib daily resources
-sunrise-client game::frame_view_retained_draw_tests::prepare_item_and_prepared_item_match_draw_item_and_invalidate lib daily resources
+sunrise-client-gameplay game::client_side::frame_view_retained_draw_tests::block_entity_entity_renderer_scene_and_two_view_isolation lib daily child-process
+sunrise-client-gameplay game::client_side::frame_view_retained_draw_tests::entity_layer_and_scene_entity_receive_their_view_and_placement lib daily child-process
+sunrise-client-gameplay game::client_side::frame_view_retained_draw_tests::posed_instance_group_draws_under_pose_and_rejects_stale_or_disabled lib daily resources
+sunrise-client-gameplay game::client_side::frame_view_retained_draw_tests::prepare_item_and_prepared_item_match_draw_item_and_invalidate lib daily resources

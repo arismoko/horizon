@@ -1,1 +1,1 @@
-sunrise-client game::lan::login_profile_tests::a_login_sends_the_properties_its_listeners_leave_when_they_fit lib daily child-process
+sunrise-client cut_layout::game::server_side::lan::login_profile_tests::a_login_sends_the_properties_its_listeners_leave_when_they_fit lib daily child-process

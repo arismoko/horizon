@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server guest's block-breaking animation changed to `progress` at
     /// `pos` (0 through 9).
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_block_break_progress_update",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_block_break_progress_update",
         dispatch = "flat",
         side = "server",
         contract = "listen",

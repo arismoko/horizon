@@ -1,3 +1,3 @@
-sunrise-client game::payload_transport::work_panic_tests::a_handled_child_abort_rolls_back_work_but_still_reports_the_panicking_owner lib daily child-process
-sunrise-client game::transactions::scratch::tests::scratch_merges_explicit_default_components_without_overflow lib daily child-process
-sunrise-client game::transactions::tests::packet_refusal_rolls_back_the_child_and_reaches_the_transaction_caller lib daily child-process
+sunrise-client cut_layout::game::payload_transport::work_panic_tests::a_handled_child_abort_rolls_back_work_but_still_reports_the_panicking_owner lib daily child-process
+sunrise-client cut_layout::game::transactions::scratch::tests::scratch_merges_explicit_default_components_without_overflow lib daily child-process
+sunrise-client cut_layout::game::transactions::tests::packet_refusal_rolls_back_the_child_and_reaches_the_transaction_caller lib daily child-process

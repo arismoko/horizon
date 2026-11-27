@@ -33,12 +33,12 @@ root = Path.cwd()
 artifacts = root / 'target' / 'stored-id-proof'
 artifacts.mkdir(parents=True, exist_ok=True)
 subprocess.run(['git', 'diff', 'HEAD', '--exit-code', '--',
-                'crates/sunrise-client/src/game/modding/native_entities.rs',
-                'crates/sunrise-client/src/game/blocks/nether_portal.rs',
-                'crates/sunrise-client/src/game/entities/entity.rs'], check=True)
-native = 'crates/sunrise-client/src/game/modding/native_entities.rs'
-portal = 'crates/sunrise-client/src/game/blocks/nether_portal.rs'
-entity = 'crates/sunrise-client/src/game/entities/entity.rs'
+                'crates/sunrise-gameplay/src/game/modding/native_entities.rs',
+                'crates/sunrise-gameplay/src/game/blocks/nether_portal.rs',
+                'crates/sunrise-gameplay/src/game/entities/entity.rs'], check=True)
+native = 'crates/sunrise-gameplay/src/game/modding/native_entities.rs'
+portal = 'crates/sunrise-gameplay/src/game/blocks/nether_portal.rs'
+entity = 'crates/sunrise-gameplay/src/game/entities/entity.rs'
 # Each case changes one actual expression; repeated expression positions are explicit.
 cases = [
     Mutation(
@@ -97,61 +97,61 @@ cases = [
     ),
     Mutation(
         'native-tnt', native,
-        'super::entity::assign_stored_id(&mut self.next_entity, &mut e.id, None)',
+        'super::entity::assign_stored_id(&mut self.server.next_entity, &mut e.id, None)',
         '0',
         0, 'native_roots_keep_the_loaded_id',
     ),
     Mutation(
         'native-rocket', native,
-        'super::entity::assign_stored_id(&mut self.next_entity, &mut e.id, None)',
+        'super::entity::assign_stored_id(&mut self.server.next_entity, &mut e.id, None)',
         '0',
         1, 'native_roots_keep_the_loaded_id',
     ),
     Mutation(
         'native-falling', native,
-        'super::entity::assign_stored_id(\n                            &mut self.next_entity,\n                            &mut f.id,\n                            Some(&f.attachment_lifetime),\n                        )',
+        'super::entity::assign_stored_id(\n                            &mut self.server.next_entity,\n                            &mut f.id,\n                            Some(&f.attachment_lifetime),\n                        )',
         '0',
         0, 'native_roots_keep_the_loaded_id',
     ),
     Mutation(
         'pending-tnt', native,
-        'super::entity::assign_stored_id(&mut self.next_entity, &mut t.id, None);',
+        'super::entity::assign_stored_id(&mut self.server.next_entity, &mut t.id, None);',
         'let _ = t;',
         0, 'pending_ids_keep_counter_order',
     ),
     Mutation(
         'pending-trident', native,
-        'super::entity::assign_stored_id(&mut self.next_entity, &mut t.id, None);',
+        'super::entity::assign_stored_id(&mut self.server.next_entity, &mut t.id, None);',
         'let _ = t;',
         1, 'pending_ids_keep_counter_order',
     ),
     Mutation(
         'pending-falling', native,
-        'super::entity::assign_stored_id(\n                &mut self.next_entity,\n                &mut f.id,\n                Some(&f.attachment_lifetime),\n            );',
+        'super::entity::assign_stored_id(\n                &mut self.server.next_entity,\n                &mut f.id,\n                Some(&f.attachment_lifetime),\n            );',
         'let _ = f;',
         0, 'pending_ids_keep_counter_order',
     ),
     Mutation(
         'pending-projectile', native,
-        'super::entity::assign_stored_id(\n                &mut self.next_entity,\n                &mut p.id,\n                Some(&p.attachment_lifetime),\n            );',
+        'super::entity::assign_stored_id(\n                &mut self.server.next_entity,\n                &mut p.id,\n                Some(&p.attachment_lifetime),\n            );',
         'let _ = p;',
         0, 'pending_ids_keep_counter_order',
     ),
     Mutation(
         'pending-rocket', native,
-        'super::entity::assign_stored_id(&mut self.next_entity, &mut r.id, None);',
+        'super::entity::assign_stored_id(&mut self.server.next_entity, &mut r.id, None);',
         'let _ = r;',
         0, 'pending_ids_keep_counter_order',
     ),
     Mutation(
         'portal-trident', portal,
-        'super::entity::assign_stored_id(&mut self.next_entity, &mut t.id, None);',
+        'super::entity::assign_stored_id(&mut self.server.next_entity, &mut t.id, None);',
         'let _ = t;',
         0, 'portal_ids_follow_only',
     ),
     Mutation(
         'portal-rocket', portal,
-        'super::entity::assign_stored_id(&mut self.next_entity, &mut r.id, None);',
+        'super::entity::assign_stored_id(&mut self.server.next_entity, &mut r.id, None);',
         'let _ = r;',
         0, 'portal_ids_follow_only',
     ),

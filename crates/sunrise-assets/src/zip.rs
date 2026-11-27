@@ -13,7 +13,8 @@ use std::{
         atomic::{AtomicU64, Ordering},
     },
 };
-use zip::{CompressionMethod, ZipArchive, result::ZipError};
+use zip::{CompressionMethod, result::ZipError};
+pub use zip::{ZipArchive, ZipWriter, write};
 
 /// The most one entry inflates to: far above any real pack file, but a zip
 /// bomb stops here.

@@ -14,11 +14,11 @@ mixins = "MIXINS"
 
 [[native.state]]
 id = "count"
-owner = "sunrise_client::game::Game"
+owner = "sunrise_gameplay_common::game::CommonGame"
 field = "count"
 type = "u32"
 
 [[native.bridge]]
 id = "clock"
-owner = "sunrise_client::game::Game"
+owner = "sunrise_gameplay_common::game::CommonGame"
 field = "clock"

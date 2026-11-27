@@ -1,10 +1,10 @@
 # A client mod's dynamic texture as a GPU texture of its own, drawn through GuiCanvas::texture on the real HUD pipeline, with a region update read back (#4982).
-sunrise-client game::native_dynamic_textures_tests::a_dynamic_texture_draws_through_the_gui_texture_path_and_takes_a_region_update lib daily resources # SUNRISE_TEST_RESOURCES and software Vulkan required.
+sunrise-client cut_layout::game::native_dynamic_textures_tests::a_dynamic_texture_draws_through_the_gui_texture_path_and_takes_a_region_update lib daily resources # SUNRISE_TEST_RESOURCES and software Vulkan required.
 # A dynamic texture released after its draw was submitted draws vanilla's missing texture.
-sunrise-client game::native_dynamic_textures_tests::a_texture_released_after_its_draw_was_submitted_draws_the_missing_texture lib daily resources # SUNRISE_TEST_RESOURCES and software Vulkan required.
+sunrise-client cut_layout::game::native_dynamic_textures_tests::a_texture_released_after_its_draw_was_submitted_draws_the_missing_texture lib daily resources # SUNRISE_TEST_RESOURCES and software Vulkan required.
 # A create the device refuses leaves the id drawing vanilla's missing texture until an update of another size creates it again.
-sunrise-client game::native_dynamic_textures_tests::a_create_the_device_refuses_draws_the_missing_texture lib daily resources # SUNRISE_TEST_RESOURCES and software Vulkan required.
+sunrise-client cut_layout::game::native_dynamic_textures_tests::a_create_the_device_refuses_draws_the_missing_texture lib daily resources # SUNRISE_TEST_RESOURCES and software Vulkan required.
 # A client mod's dynamic texture and the resource stack's own ids: who owns an id.
-sunrise-client game::native_dynamic_textures_tests::a_foreign_id_is_not_owned_before_the_resource_stack_is_asked lib daily resources # SUNRISE_TEST_RESOURCES required.
+sunrise-client cut_layout::game::native_dynamic_textures_tests::a_foreign_id_is_not_owned_before_the_resource_stack_is_asked lib daily resources # SUNRISE_TEST_RESOURCES required.
 # A texture upload in bands of rows (one belt chunk each) lands exactly, from the corner and at an origin.
 sunrise-client-render gfx::upload::tests::texture_uploads_in_row_bands_land_exactly lib daily gpu

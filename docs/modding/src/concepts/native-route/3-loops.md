@@ -37,7 +37,7 @@ impl BlockEntityTickSlot for Throttle {
         if tick.kind != TickedKind::Hopper {
             return LoopFlow::Continue;
         }
-        match tick.game.hoppers.get_mut(&tick.pos) {
+        match tick.game.server.hoppers.get_mut(&tick.pos) {
             Some(state) if state.cooldown > 1 => {
                 state.cooldown -= 1;
                 self.skipped += 1;
@@ -50,8 +50,8 @@ impl BlockEntityTickSlot for Throttle {
 ```
 
 Unlike a mixin helper, this file may hold any Rust items, `pub` or not, with no `use` lines. It sees what the module
-`sunrise_client::game::block_entity_ticks` sees: `BlockEntityTickSlot`, `BlockEntityTick`, `LoopFlow`,
-`TickedKind`, `OwnBlockEntities`, `Game`, `BlockEntity` and the rest. Like a [mixin helper](2-mixins.md#writing-a-helper), it may
+`sunrise_gameplay::game::server_side::block_entity_ticks` sees: `BlockEntityTickSlot`, `BlockEntityTick`, `LoopFlow`,
+`TickedKind`, `OwnBlockEntities`, `ServerGame`, `BlockEntity` and the rest. Like a [mixin helper](2-mixins.md#writing-a-helper), it may
 call your mod's crate by its Rust crate name.
 
 ## Fields
@@ -91,7 +91,7 @@ after `before`, just before invoking its ticker. The cursor `tick` has:
 
 | Member | What it is |
 | --- | --- |
-| `game` | `&mut Game`: the whole game, including its level and its `hoppers`. |
+| `game` | `&mut ServerGame`: the server game state, including its level (through `common`) and its `server.hoppers`. |
 | `pos` | The block entity's position. |
 | `kind` | A `TickedKind`: `Hopper`, `Crafter`, `Jukebox`, `Beacon`, `CreakingHeart`, `Spawner`, `TrialSpawner`, `Vault`, `Beehive`, `Furnace`, `BrewingStand`, `DaylightDetector`, `EndGateway`, `Campfire`, `PotentSulfur`, or `Mod` for any mod's block entity. |
 | `block_entity()` | The block entity itself, `Option<&mut BlockEntity>`; `None` if it is gone from the level. |
@@ -157,8 +157,8 @@ Its saved data is `entity.nbt`, its item slots `entity.items` and its menu data 
 - Within one entry, every slot's `before` gets the same cursor: if an earlier slot replaced the entity and
   continued, a later slot's `before` sees the `kind` and type from before that edit (the loop then
   rechecks and skips the replaced entity, so it doesn't tick as the old one).
-- Your slot value is made with `Default` on the loop's first run and kept. There is one per `Game`, the
-  game state of one running server, which ticks every dimension in turn: read `tick.game.dim` to tell them apart.
+- Your slot value is made with `Default` on the loop's first run and kept. There is one per `ServerGame`, the
+  game state of one running server, which ticks every dimension in turn: read `tick.game.common.dim` (or `tick.game.dim`) to tell them apart.
 - A slot may add, remove or replace block entities. If it removes the visited one, replaces it with another
   `kind` or a mod block entity of another type, or leaves a mod block entity on an incompatible block,
   its tick and all `after` calls for that visit are skipped. One removed later in the list is passed over.
@@ -166,14 +166,14 @@ Its saved data is `entity.nbt`, its item slots `entity.items` and its menu data 
 - Calling `tick.game.tick_block_entities()` from inside a slot runs the game's own loop, without any slots,
   as a whole pass.
 - A panic in a slot is reported naming your mod and the loop: `in native mod <id>, hook loop
-  block_entities.tick, part <id>::<Type>`. The panic unwinds the call. Subsequent calls on that `Game` run the loop without any mod's slots.
+  block_entities.tick, part <id>::<Type>`. The panic unwinds the call. Subsequent calls on that `ServerGame` run the loop without any mod's slots.
 
 ## Mixins on the loop
 
-The loop's entry is `sunrise_client::game::block_entity_ticks::Game<'_>::tick_block_entities`. A `HEAD` or
+The loop's entry is `sunrise_gameplay::game::server_side::block_entity_ticks::ServerGame<'_>::tick_block_entities`. A `HEAD` or
 `RETURN` mixin on it runs around the loop. To change a place inside the loop,
 target the loop's body, `…::tick_block_entities_with`. Such a mixin does not apply when the loop runs
-without slots, from inside a slot or after a panic.
+without slots, from inside a slot or after a panic. See [Moving a native mod to the gameplay crates](../../how-to/native-mods/17-moving-to-the-gameplay-crates.md) when updating native targets from the single-crate layout.
 
 ## Errors
 

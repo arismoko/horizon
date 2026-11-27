@@ -19,7 +19,7 @@ pub trait Hooks {
     /// its slot methods still refuse those indices.
     /// The player's state is swapped in. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_container_open",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_container_open",
         dispatch = "flat",
         side = "server",
         version = 2,

@@ -55,7 +55,7 @@ def engine():
         lab.RESOURCES)
     return subprocess.check_output([
         lab.parity_fixtures(), TEST,
-        '--ignored', '--exact', f'game::persist::lookup_order_tests::{TEST}',
+        '--ignored', '--exact', f'game::server_side::persist::lookup_order_tests::{TEST}',
         '--nocapture'],
         cwd=lab.ROOT, text=True, env={**os.environ, 'SUNRISE_TEST_RESOURCES': resources})
 

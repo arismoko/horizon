@@ -8,6 +8,7 @@ pub trait Hooks {
     /// water's textures when it has none. Asked at startup and on resource reload before baking, and
     /// only on the client.
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_fluid_models::native_register_fluid_models",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

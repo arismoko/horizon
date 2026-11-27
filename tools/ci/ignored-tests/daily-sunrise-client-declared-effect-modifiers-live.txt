@@ -1,5 +1,5 @@
 # Daily rows for #4473: a content mod effect's declared modifiers in the live attribute maps of a reloaded mob, an aborted baby mob and the player, with the prepared mob types.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::commands::world_cmds::effect_attribute_tests::attribute_reports_and_removes_a_reloaded_mobs_saved_effect_modifier lib daily resources
-sunrise-client game::lan_attributes::effect_modifier_tests::an_undone_declared_baby_modifier_brings_the_bonus_back_in_the_packet lib daily resources
-sunrise-client game::potions::declared_modifier_player_tests::a_declared_modifier_follows_the_players_effect_in_its_attribute_map lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::effect_attribute_tests::attribute_reports_and_removes_a_reloaded_mobs_saved_effect_modifier lib daily resources
+sunrise-client cut_layout::game::server_side::lan_attributes::effect_modifier_tests::an_undone_declared_baby_modifier_brings_the_bonus_back_in_the_packet lib daily resources
+sunrise-client cut_layout::game::server_side::potions_server::declared_modifier_player_tests::a_declared_modifier_follows_the_players_effect_in_its_attribute_map lib daily resources

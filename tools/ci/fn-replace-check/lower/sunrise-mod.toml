@@ -14,13 +14,13 @@ mixins = "MIXINS"
 
 [[native.mixin]]
 id = "commands"
-target = "sunrise_client_lib::lan::hub::Hub::send_permission_level"
+target = "sunrise_sim::lan::hub::Hub::send_permission_level"
 kind = "HEAD"
 helper = "src/mixins/commands.rs"
 
 [[native.mixin]]
 id = "worldgen"
-target = "sunrise_client_lib::vanillagen::shared_data_with"
+target = "sunrise_sim::vanillagen::shared_data_with"
 kind = "HEAD"
 helper = "src/mixins/worldgen.rs"
 
@@ -40,7 +40,7 @@ helper = "src/mixins/render.rs"
 # write to the emitted quads.
 [[native.mixin]]
 id = "pose"
-target = "sunrise_client_lib::mobs::anim::setup"
+target = "sunrise_sim::mobs::anim::setup"
 kind = "RETURN"
 helper = "src/mixins/pose.rs"
 bindings = [
@@ -81,7 +81,7 @@ bindings = [
 # movement before collision. The dedicated server moves no player here: the build is the check.
 [[native.mixin]]
 id = "self_move"
-target = "sunrise_client_lib::motion::MotionWorld<'_, '_, '_>::move_self"
+target = "sunrise_sim::motion::MotionWorld<'_, '_, '_>::move_self"
 kind = "HEAD"
 helper = "src/mixins/self_move.rs"
 
@@ -136,7 +136,7 @@ bindings = [
 # `fnr_control` beside it converts (sunrise-org/sunrise#4824).
 [[native.mixin]]
 id = "melee"
-target = "sunrise_client_lib::mobs::goals::MeleeAttack::check_and_perform_attack"
+target = "sunrise_sim::mobs::goals::MeleeAttack::check_and_perform_attack"
 kind = "HEAD"
 cancellable = true
 helper = "src/mixins/melee.rs"
@@ -147,7 +147,7 @@ bindings = [
 
 [[native.mixin]]
 id = "skeleton_shot"
-target = "sunrise_client_lib::mobs::undead::perform_ranged_attack"
+target = "sunrise_sim::mobs::undead::perform_ranged_attack"
 kind = "HEAD"
 cancellable = true
 helper = "src/mixins/skeleton_shot.rs"
@@ -158,7 +158,7 @@ bindings = [
 
 [[native.mixin]]
 id = "drowned_throw"
-target = "sunrise_client_lib::mobs::undead::drowned_throw"
+target = "sunrise_sim::mobs::undead::drowned_throw"
 kind = "HEAD"
 cancellable = true
 helper = "src/mixins/drowned_throw.rs"
@@ -166,7 +166,7 @@ bindings = [{ name = "m", ty = "&Mob", value = "&*m" }]
 
 [[native.mixin]]
 id = "witch_throw"
-target = "sunrise_client_lib::mobs::witch::witch_attack"
+target = "sunrise_sim::mobs::witch::witch_attack"
 kind = "HEAD"
 cancellable = true
 helper = "src/mixins/witch_throw.rs"
@@ -174,7 +174,7 @@ bindings = [{ name = "m", ty = "&Mob", value = "&*m" }]
 
 [[native.mixin]]
 id = "crossbow_shot"
-target = "sunrise_client_lib::mobs::illager::shoot_crossbow"
+target = "sunrise_sim::mobs::illager::shoot_crossbow"
 kind = "HEAD"
 cancellable = true
 helper = "src/mixins/crossbow_shot.rs"
@@ -182,7 +182,7 @@ bindings = [{ name = "m", ty = "&Mob", value = "&*m" }]
 
 [[native.mixin]]
 id = "server_ai"
-target = "sunrise_client_lib::mobs::ai::server_ai_step"
+target = "sunrise_sim::mobs::ai::server_ai_step"
 kind = "HEAD"
 cancellable = true
 helper = "src/mixins/server_ai.rs"
@@ -190,7 +190,7 @@ bindings = [{ name = "m", ty = "&Mob", value = "&*m" }]
 
 [[native.mixin]]
 id = "sun_burn"
-target = "sunrise_client_lib::mobs::ai::sun_burn_tick"
+target = "sunrise_sim::mobs::ai::sun_burn_tick"
 kind = "HEAD"
 cancellable = true
 helper = "src/mixins/sun_burn.rs"
@@ -225,7 +225,7 @@ bindings = [
 # is the check.
 [[native.mixin]]
 id = "harm"
-target = "sunrise_client_lib::health::can_harm_player"
+target = "sunrise_sim::health::can_harm_player"
 kind = "RETURN"
 helper = "src/mixins/harm.rs"
 bindings = [
@@ -236,7 +236,7 @@ bindings = [
 
 [[native.mixin]]
 id = "desired_pose"
-target = "sunrise_client_lib::pose::desired_pose"
+target = "sunrise_sim::pose::desired_pose"
 kind = "RETURN"
 helper = "src/mixins/desired_pose.rs"
 bindings = [
@@ -247,7 +247,7 @@ bindings = [
 
 [[native.mixin]]
 id = "free_slot"
-target = "sunrise_client_lib::menu::free_slot"
+target = "sunrise_sim::menu::free_slot"
 kind = "RETURN"
 helper = "src/mixins/free_slot.rs"
 bindings = [
@@ -257,7 +257,7 @@ bindings = [
 
 [[native.mixin]]
 id = "remaining_space"
-target = "sunrise_client_lib::menu::slot_with_remaining_space"
+target = "sunrise_sim::menu::slot_with_remaining_space"
 kind = "RETURN"
 helper = "src/mixins/remaining_space.rs"
 bindings = [
@@ -268,7 +268,7 @@ bindings = [
 
 [[native.mixin]]
 id = "hotbar_slot"
-target = "sunrise_client_lib::pick_item::suitable_hotbar_slot"
+target = "sunrise_sim::pick_item::suitable_hotbar_slot"
 kind = "RETURN"
 helper = "src/mixins/hotbar_slot.rs"
 bindings = [

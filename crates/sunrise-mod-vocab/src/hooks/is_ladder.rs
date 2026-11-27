@@ -9,7 +9,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         cancellable = false,
-        target = "sunrise_client_lib::motion::surface::native_is_ladder",
+        target = "sunrise_sim::motion::surface::native_is_ladder",
         neoforge = "IBlockExtension.isLadder"
     )]
     fn is_ladder(entity: u32, pos: BlockPos, state: BlockState, ladder: &mut bool);

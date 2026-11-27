@@ -15,7 +15,7 @@ pub trait Hooks {
     /// and change the world only on the server (`native_window` is false
     /// there), not on a server's client.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_living_entity_use_item_start",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_living_entity_use_item_start",
         dispatch = "flat",
         side = "both",
         contract = "cancel",

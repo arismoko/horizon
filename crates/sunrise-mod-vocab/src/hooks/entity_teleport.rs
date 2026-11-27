@@ -7,7 +7,7 @@ pub trait Hooks {
     /// use Sunrise's same-level target path; it does not change vanilla's
     /// movement.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_teleport",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_teleport",
         dispatch = "flat",
         side = "server",
         contract = "listen",

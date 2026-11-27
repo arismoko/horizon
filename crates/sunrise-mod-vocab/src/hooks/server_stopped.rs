@@ -15,7 +15,7 @@ pub trait Hooks {
     /// Failed opens save only worlds already adopted by the server (the
     /// prepared level is installed; the session lock alone is not adoption).
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_server_stopped",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_server_stopped",
         dispatch = "flat",
         side = "server",
         contract = "listen",

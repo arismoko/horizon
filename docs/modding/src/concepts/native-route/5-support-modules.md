@@ -15,7 +15,7 @@ it are on [Bridges](4-bridges.md#example).
 ```toml
 [[native.module]]
 id = "runtime"
-file = "crates/sunrise-client/src/game/world/autosave.rs"
+file = "crates/sunrise-gameplay/src/game/world/autosave_server.rs"
 name = "fnr_runtime"
 source = "src/runtime.rs"
 ```
@@ -28,10 +28,10 @@ pub fn bumped(ticks: i64) -> i64 {
 }
 ```
 
-A helper calls it by its path in the game crate: `crate::game::autosave::fnr_runtime::bumped(*ticks)`. That
-file is the module `game::autosave`, because `world/` is an area ([Naming the target](2-mixins.md#naming-the-target)).
+A helper calls it by its path in the target's gameplay crate: `crate::game::server_side::autosave_server::fnr_runtime::bumped(*ticks)`. That
+file is mounted as `game::server_side::autosave_server` ([Naming the target](2-mixins.md#naming-the-target)).
 
-Inside the module, `super::` is the game module that received it, such as `super::Game`. Make the items that
+Inside the module, `super::` is the game module that received it, such as `super::ServerGame`. Make the items that
 helpers call `pub`. The module may call your mod's crate; your mod's crate cannot call the module.
 
 ## Fields
@@ -39,7 +39,7 @@ helpers call `pub`. The module may call your mod's crate; your mod's crate canno
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `id` | yes | The row's name, unique in the mod. |
-| `file` | yes | The game source file whose module is mirrored, relative to the repository root: `crates/sunrise-client/src/…`. |
+| `file` | yes | The game source file whose module is mirrored, relative to the repository root: `crates/sunrise-gameplay-common/src/…`, `crates/sunrise-gameplay/src/…`, or `crates/sunrise-client-gameplay/src/…`. State files are `crates/sunrise-gameplay/src/game/server_side.rs` and `crates/sunrise-client-gameplay/src/game/client_side.rs` (see [Repinning native targets for gameplay crates](../../how-to/native-mods/16-repinning-side-module-targets.md) and [Moving a native mod to the gameplay crates](../../how-to/native-mods/17-moving-to-the-gameplay-crates.md)). |
 | `name` | yes | The module's Rust name. Pick one the destination module does not use, with a prefix of your own, such as `fnr_`. |
 | `source` | yes | Your file under `src/` with the module's items. |
 | `visibility` | no | The module's visibility: `"pub(crate)"` (the default, enough for your helpers) or `"pub"`. |
@@ -54,7 +54,7 @@ The `sunrise-mod.toml:` errors come when the manifest is read; the coded ones co
 
 | Message | Fix |
 | --- | --- |
-| ``E_MIXIN_MODULE_DESTINATION: <mod>:<row>: <file> is not a file of the game crate (`sunrise_client`); …`` | Name a file under `crates/sunrise-client/src/`. |
+| ``E_MIXIN_MODULE_DESTINATION: <mod>:<row>: <file> is not a file of the game crate (`sunrise_client`); …`` | Name a file under `crates/sunrise-gameplay-common/src/`, `crates/sunrise-gameplay/src/`, or `crates/sunrise-client-gameplay/src/`. |
 | `E_MIXIN_MODULE_SOURCE: <mod>:<row>: <parse error>` | Fix the Rust error shown in `source`. |
 | `sunrise-mod.toml: module file must be a plain path` | Write `file` as a relative path without `..`. |
 | `sunrise-mod.toml: module name must be an identifier` | Use a Rust identifier. |

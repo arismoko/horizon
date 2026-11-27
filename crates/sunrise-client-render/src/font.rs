@@ -73,6 +73,7 @@ impl Filter {
     }
 }
 /// A bitmap glyph whose sheet is not in the atlas: the cell to copy.
+#[derive(Clone)]
 struct SheetCell {
     sheet: Arc<(u32, Vec<u8>)>,
     x: u32,
@@ -81,6 +82,7 @@ struct SheetCell {
     h: u32,
     glyph: Glyph,
 }
+#[derive(Clone)]
 enum BitmapGlyph {
     Atlas(Glyph),
     Sheet(SheetCell),
@@ -95,12 +97,13 @@ struct TrueType {
     /// FT_Set_Transform's delta, in oversampled pixels (y down).
     shift: (f32, f32),
 }
+#[derive(Clone)]
 enum Provider {
     Space(HashMap<char, f32>),
     Bitmap(Filter, HashMap<char, BitmapGlyph>),
     /// The definition, and its glyphs once read.
     Unihex(Filter, serde_json::Value, Option<HashMap<u32, HexGlyph>>),
-    TrueType(Filter, Box<TrueType>),
+    TrueType(Filter, Arc<TrueType>),
 }
 /// One font (`FontSet`): its providers and the glyphs resolved so far.
 struct FontSet {
@@ -822,6 +825,51 @@ impl Font {
         font.cache.borrow_mut().sets = sets;
         font
     }
+    /// Clone parsed font providers with a fresh glyph cache for test resource sharing.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn clone_for_tests(&self) -> Self {
+        let sets = self
+            .cache
+            .borrow()
+            .sets
+            .iter()
+            .map(|(id, set)| {
+                (
+                    id.clone(),
+                    FontSet {
+                        providers: set.providers.clone(),
+                        glyphs: Default::default(),
+                        non_fishy: Default::default(),
+                        by_width: None,
+                    },
+                )
+            })
+            .collect();
+        Self {
+            sheets: self.sheets.clone(),
+            missing: self.missing,
+            missing_rect: self.missing_rect,
+            white: self.white,
+            source: self.source.clone(),
+            atlas: self.atlas,
+            region: self.region,
+            metrics_only: self.metrics_only,
+            cache: RefCell::new(Cache {
+                sets,
+                region: Region {
+                    cursor: (0, 0),
+                    row: 0,
+                    pending: Vec::new(),
+                    full: false,
+                },
+                random: crate::random_source::create(),
+                draw: DrawJournal::default(),
+            }),
+            generation: std::cell::Cell::new(next_generation()),
+            uniform: self.uniform,
+            japanese: self.japanese,
+        }
+    }
     /// `FontManager`: a font's providers with references expanded.
     fn load_set(&self, id: &str, pixels: &[u8]) -> FontSet {
         let mut all = Vec::new();
@@ -851,7 +899,7 @@ impl Font {
                 "unihex" => Some(Provider::Unihex(Filter::of(p), p.clone(), None)),
                 "ttf" => Some(Provider::TrueType(
                     Filter::of(p),
-                    Box::new(load_true_type(&self.source, p)?),
+                    Arc::new(load_true_type(&self.source, p)?),
                 )),
                 _ => None,
             })

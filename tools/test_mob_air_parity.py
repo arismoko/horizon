@@ -41,10 +41,10 @@ def main():
     sources = [Path(__file__), lab.ROOT / 'tools/lab.py', lab.ROOT / 'tools/oracle_harness.py',
                lab.ROOT / 'tools/test_rust_parity.py', lab.ROOT / 'tools/integration_env.py',
                lab.ROOT / 'Cargo.toml', lab.ROOT / 'Cargo.lock',
-               lab.ROOT / 'crates/sunrise-client/src/game/network/lan/mod.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/network/remote_mob_data.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs.rs',
-               lab.ROOT / 'crates/sunrise-client/src/lan/entity.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/network/lan/mod.rs',
+               lab.ROOT / 'crates/sunrise-client-gameplay/src/game/network/remote_mob_data.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/lan/entity.rs',
                lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaMobAirOracle.java']
     hashes = base.source_hashes(sources)
     rows = list(cases())
@@ -59,7 +59,7 @@ def main():
         env = integration_env.game_environment(os.environ, scratch)
         env.update(SUNRISE_MOB_AIR_INPUT=str(inputs), SUNRISE_MOB_AIR_OUTPUT=str(build / 'rust.txt'))
         harness.run_logged([lab.parity_fixtures(),
-                            'game::remote_mob_data::tests::mob_air_parity_fixture',
+                            'game::client_side::remote_mob_data::tests::mob_air_parity_fixture',
                             '--exact', '--ignored'], build, 'rust', env=env)
     matched = harness.compare(build / 'client.txt', build / 'rust.txt', len(rows))
     base.ensure_sources_unchanged(sources, hashes)

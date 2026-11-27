@@ -1,10 +1,11 @@
 use super::*;
-use crate::tests::{A, dir, project_manifest, write_bundle};
+use crate::tests::{A, dir, project_manifest, split_source, write_bundle};
 use std::cell::Cell;
 use sunrise_platform::mod_build::api_gen::crossing::CROSSING_FOREIGN_FILE;
 
-const STRUCT: &str = "sunrise_client::game::ported_level::PortedGame";
-const METHOD: &str = "sunrise_client::game::ported_level::PortedGame::tick";
+const GAME: &str = "crates/sunrise-gameplay/src/game.rs";
+const STRUCT: &str = "sunrise_gameplay::game::ported_level::PortedGame";
+const METHOD: &str = "sunrise_gameplay::game::ported_level::PortedGame::tick";
 const PAYLOAD: &str =
     "pub struct PortedGame; impl PortedGame { pub fn tick(&mut self) -> u32 { 7 } }";
 
@@ -22,20 +23,13 @@ impl Fixture {
         if modules {
             let manifest = folder.join(sunrise_mod_package::manifest::MANIFEST);
             let text = project_manifest("example", "0.1.0", A, crate::MIXINS_REV);
-            fs::write(manifest, format!("{text}\n[[native.module]]\nid='ported'\nfile='game.rs'\nname='ported_level'\nsource='src/ported.rs'\n")).unwrap();
+            fs::write(manifest, format!("{text}\n[[native.module]]\nid='ported'\nfile='{GAME}'\nname='ported_level'\nsource='src/ported.rs'\n")).unwrap();
             fs::write(folder.join("src/ported.rs"), PAYLOAD).unwrap();
         }
         let source = root.join("source");
+        split_source(&source);
         for (file, text) in [
             ("Cargo.toml", "[workspace]\nmembers=[]\n"),
-            (
-                "crates/sunrise-client/Cargo.toml",
-                "[package]\nname='sunrise-client'\n",
-            ),
-            ("crates/sunrise-client/src/lib.rs", "mod game; mod entry;"),
-            ("crates/sunrise-client/src/entry.rs", ""),
-            ("crates/sunrise-client/src/game.rs", ""),
-            ("crates/sunrise-mod-api-gen/internals.txt", ""),
             (CROSSING_FOREIGN_FILE, "[]"),
         ] {
             let path = source.join(file);
@@ -60,15 +54,12 @@ impl Fixture {
                 assert_eq!(identity.revision(), crate::MIXINS_REV);
                 // This is the external tool seam only. Production code prepares the real tool
                 // input and pristine source, and runs the actual discovery staging afterwards.
-                assert_eq!(
-                    fs::read_to_string(prepared.join("crates/sunrise-client/src/game.rs")).unwrap(),
-                    ""
-                );
+                assert_eq!(fs::read_to_string(prepared.join(GAME)).unwrap(), "");
                 let payload = fs::read_to_string(input.join("example/src/ported.rs")).unwrap();
                 assert!(input.join("example/horizon-mixin.toml").is_file());
                 crate::sync(prepared, output)?;
                 fs::write(
-                    output.join("crates/sunrise-client/src/game.rs"),
+                    output.join(GAME),
                     format!("pub mod ported_level {{ {payload} }}"),
                 )
                 .map_err(|e| e.to_string())
@@ -101,10 +92,7 @@ fn pinned_module_catalog_uses_canonical_paths_and_fresh_source_twice() {
         previous = Some(bytes);
     }
     assert_eq!(calls.get(), 2);
-    assert_eq!(
-        fs::read_to_string(fixture.source.join("crates/sunrise-client/src/game.rs")).unwrap(),
-        ""
-    );
+    assert_eq!(fs::read_to_string(fixture.source.join(GAME)).unwrap(), "");
 }
 
 #[test]

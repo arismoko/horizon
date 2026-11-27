@@ -1,12 +1,12 @@
 # World-space name tags with prepared resources.
-sunrise-client game::world_name_tag_tests::a_deep_label_renders_and_non_finite_is_refused lib daily resources
-sunrise-client game::world_name_tag_tests::a_label_hides_behind_a_wall_unless_it_is_see_through lib daily resources
-sunrise-client game::world_name_tag_tests::a_label_keeps_the_name_tag_styles lib daily resources
-sunrise-client game::world_name_tag_tests::a_render_hook_can_add_labels_to_both_depth_passes lib daily resources
-sunrise-client game::world_name_tag_tests::a_see_through_label_is_lit_at_least_2_in_the_world_and_unlit_over_it lib daily resources
-sunrise-client game::world_name_tag_tests::labels_four_times_as_far_are_a_quarter_the_size_on_screen lib daily resources
-sunrise-client game::world_name_tag_tests::labels_grow_past_initial_quad_hint_and_upload_glyphs lib daily resources
-sunrise-client game::world_name_tag_tests::the_text_background_opacity_sets_the_backdrop_and_the_faded_text lib daily resources
-sunrise-client game::world_name_tag_tests::without_see_through_a_label_is_one_translucent_copy_in_the_callers_light lib daily resources
+sunrise-client-gameplay game::client_side::world_name_tag_tests::a_deep_label_renders_and_non_finite_is_refused lib daily resources
+sunrise-client-gameplay game::client_side::world_name_tag_tests::a_label_hides_behind_a_wall_unless_it_is_see_through lib daily resources
+sunrise-client-gameplay game::client_side::world_name_tag_tests::a_label_keeps_the_name_tag_styles lib daily resources
+sunrise-client-gameplay game::client_side::world_name_tag_tests::a_render_hook_can_add_labels_to_both_depth_passes lib daily resources
+sunrise-client-gameplay game::client_side::world_name_tag_tests::a_see_through_label_is_lit_at_least_2_in_the_world_and_unlit_over_it lib daily resources
+sunrise-client-gameplay game::client_side::world_name_tag_tests::labels_four_times_as_far_are_a_quarter_the_size_on_screen lib daily resources
+sunrise-client-gameplay game::client_side::world_name_tag_tests::labels_grow_past_initial_quad_hint_and_upload_glyphs lib daily resources
+sunrise-client-gameplay game::client_side::world_name_tag_tests::the_text_background_opacity_sets_the_backdrop_and_the_faded_text lib daily resources
+sunrise-client-gameplay game::client_side::world_name_tag_tests::without_see_through_a_label_is_one_translucent_copy_in_the_callers_light lib daily resources
 sunrise-client-render gfx::entity_pixel_test::see_through_tests::graded_light_shows_on_lit_quads_and_not_on_unlit_see_through_ones lib daily slow
 sunrise-client-render gfx::entity_pixel_test::see_through_tests::see_through_quads_draw_over_the_wall_that_hides_entity_quads lib daily slow

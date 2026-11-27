@@ -17,12 +17,12 @@ SnbtPrinterTagVisitor.visitLongArray	skip:data		datagen .snbt writer only (NbtUt
 SnbtPrinterTagVisitor.visitList	skip:data		datagen .snbt writer only (NbtUtils.structureToSnbt); Sunrise writes no .snbt
 SnbtPrinterTagVisitor.visitCompound	skip:data		datagen .snbt writer only (NbtUtils.structureToSnbt); Sunrise writes no .snbt
 SnbtPrinterTagVisitor.getKeys	skip:data		structure key order for .snbt files; Sunrise writes no .snbt
-StringTagVisitor.visitByteArray	inline	crates/sunrise-client-core/src/snbt.rs::visit	compact [B;..B] form
-StringTagVisitor.visitIntArray	inline	crates/sunrise-client-core/src/snbt.rs::visit	compact [I;..] form
-StringTagVisitor.visitLongArray	inline	crates/sunrise-client-core/src/snbt.rs::visit	compact [L;..L] form
-StringTagVisitor.visitList	inline	crates/sunrise-client-core/src/snbt.rs::visit	compact list form
-StringTagVisitor.visitCompound	inline	crates/sunrise-client-core/src/snbt.rs::visit	compact form; keys sorted
-StringTagVisitor.handleKeyEscape	inline	crates/sunrise-client-core/src/snbt.rs::Pretty::compound	decides bare or quoted key; quote_and_escape does the quoting
+StringTagVisitor.visitByteArray	inline	crates/sunrise-game-data/src/snbt.rs::visit	compact [B;..B] form
+StringTagVisitor.visitIntArray	inline	crates/sunrise-game-data/src/snbt.rs::visit	compact [I;..] form
+StringTagVisitor.visitLongArray	inline	crates/sunrise-game-data/src/snbt.rs::visit	compact [L;..L] form
+StringTagVisitor.visitList	inline	crates/sunrise-game-data/src/snbt.rs::visit	compact list form
+StringTagVisitor.visitCompound	inline	crates/sunrise-game-data/src/snbt.rs::visit	compact form; keys sorted
+StringTagVisitor.handleKeyEscape	inline	crates/sunrise-game-data/src/snbt.rs::Pretty::compound	decides bare or quoted key; quote_and_escape does the quoting
 Tag.acceptAsRoot	skip:java		streaming visitor entry point; Sunrise reads whole trees
 Tag.asBoolean	port	crates/sunrise-world/src/datafix/dynamic.rs::as_bool_opt	non-zero number is true
 TagParser.castToCompoundOrThrow	inline	crates/sunrise-command/src/snbt.rs::parse_compound_argument	expected-compound error
@@ -31,17 +31,17 @@ TagType.parseRoot	skip:java		streaming root parse; Sunrise reads whole trees
 TagType.StaticSize.skip	skip:java		streaming skip; Sunrise reads whole trees
 TagType.VariableSize.skip	skip:java		streaming skip; Sunrise reads whole trees
 TagTypes.getType	inline	crates/sunrise-core/src/nbt.rs::Reader::payload	tag id dispatch; unknown id is an error
-TextComponentTagVisitor.visitByte	inline	crates/sunrise-client-core/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
-TextComponentTagVisitor.visitShort	inline	crates/sunrise-client-core/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
-TextComponentTagVisitor.visitLong	inline	crates/sunrise-client-core/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
-TextComponentTagVisitor.visitFloat	inline	crates/sunrise-client-core/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
-TextComponentTagVisitor.visitDouble	inline	crates/sunrise-client-core/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
-TextComponentTagVisitor.visitByteArray	port	crates/sunrise-client-core/src/snbt.rs::Pretty::array	128-element cap with <...>
-TextComponentTagVisitor.visitIntArray	port	crates/sunrise-client-core/src/snbt.rs::Pretty::array	128-element cap with <...>
-TextComponentTagVisitor.visitLongArray	port	crates/sunrise-client-core/src/snbt.rs::Pretty::array	128-element cap with <...>
-TextComponentTagVisitor.shouldWrapListElements	inline	crates/sunrise-client-core/src/snbt.rs::Pretty::list	wrap when under 8 elements and one is not numeric
-TextComponentTagVisitor.appendSubTag	port	crates/sunrise-client-core/src/snbt.rs::Pretty::sub	depth and indent tracking
-TextComponentTagVisitor.RichStyling.overrideToken	inline	crates/sunrise-client-core/src/snbt.rs::Pretty::number	token colours are fixed in code; nothing to override
+TextComponentTagVisitor.visitByte	inline	crates/sunrise-game-data/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
+TextComponentTagVisitor.visitShort	inline	crates/sunrise-game-data/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
+TextComponentTagVisitor.visitLong	inline	crates/sunrise-game-data/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
+TextComponentTagVisitor.visitFloat	inline	crates/sunrise-game-data/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
+TextComponentTagVisitor.visitDouble	inline	crates/sunrise-game-data/src/snbt.rs::Pretty::visit	number arm: gold value, red suffix
+TextComponentTagVisitor.visitByteArray	port	crates/sunrise-game-data/src/snbt.rs::Pretty::array	128-element cap with <...>
+TextComponentTagVisitor.visitIntArray	port	crates/sunrise-game-data/src/snbt.rs::Pretty::array	128-element cap with <...>
+TextComponentTagVisitor.visitLongArray	port	crates/sunrise-game-data/src/snbt.rs::Pretty::array	128-element cap with <...>
+TextComponentTagVisitor.shouldWrapListElements	inline	crates/sunrise-game-data/src/snbt.rs::Pretty::list	wrap when under 8 elements and one is not numeric
+TextComponentTagVisitor.appendSubTag	port	crates/sunrise-game-data/src/snbt.rs::Pretty::sub	depth and indent tracking
+TextComponentTagVisitor.RichStyling.overrideToken	inline	crates/sunrise-game-data/src/snbt.rs::Pretty::number	token colours are fixed in code; nothing to override
 CollectFields.visitEntry	skip:java		streaming field filter for speed; Sunrise reads whole tags
 CollectFields.visitContainerEnd	skip:java		streaming field filter for speed; Sunrise reads whole tags
 CollectToTag.visit	skip:java		streaming tag builder; Sunrise parses to a tree directly
@@ -64,7 +64,7 @@ net/minecraft/network/Connection#validateListener	skip:other		the per-phase deco
 net/minecraft/network/Connection#syncAfterConfigurationChange	skip:other		Netty future sync
 net/minecraft/network/Connection#setupInboundProtocol	inline	crates/sunrise-client/src/net.rs::run	phase switch: the decode enum used for each phase
 net/minecraft/network/Connection#setupOutboundProtocol	inline	crates/sunrise-client/src/net.rs::run	phase switch: the encode enum used for each phase
-net/minecraft/network/Connection#setListenerForServerboundHandshake	inline	crates/sunrise-client/src/lan/conn.rs::serve_connection	the handshake intent picks the path
+net/minecraft/network/Connection#setListenerForServerboundHandshake	inline	crates/sunrise-sim/src/lan/conn.rs::serve_connection	the handshake intent picks the path
 net/minecraft/network/Connection#initiateServerboundPlayConnection	port	crates/sunrise-client/src/net.rs::run	handshake intention and login hello; transfer intent via the TRANSFER flag
 net/minecraft/network/Connection#initiateServerboundConnection	port	crates/sunrise-client/src/net.rs::run	handshake intention and login hello
 net/minecraft/network/Connection#runOnceConnected	inline	crates/sunrise-client/src/net.rs::run	the action runs at once: the socket is connected before run sends
@@ -75,8 +75,8 @@ net/minecraft/network/Connection#flush	inline	crates/sunrise-protocol/src/connec
 net/minecraft/network/Connection#flushQueue	skip:other		pending actions exist only while disconnected; run is always connected
 net/minecraft/network/Connection#tick	skip:other		the receive thread blocks in recv instead of ticking
 net/minecraft/network/Connection#tickSecond	skip:debug		packet averages for the F3 screen; debug_keys samples raw counters per tick
-net/minecraft/network/Connection#getLoggableAddress	port	crates/sunrise-client/src/lan/conn.rs::user_name	gap: minor: name with address or withheld; no local form
-net/minecraft/network/Connection#disconnect	port	crates/sunrise-client/src/lan/conn.rs::PlayerSender::disconnect	gap: minor: server-side kick; the client's own close is Session::disconnect
+net/minecraft/network/Connection#getLoggableAddress	port	crates/sunrise-sim/src/lan/conn.rs::user_name	gap: minor: name with address or withheld; no local form
+net/minecraft/network/Connection#disconnect	port	crates/sunrise-sim/src/lan/conn.rs::PlayerSender::disconnect	gap: minor: server-side kick; the client's own close is Session::disconnect
 net/minecraft/network/Connection#isMemoryConnection	port	crates/sunrise-protocol/src/connection.rs::Connection::is_memory	in-memory pipe
 net/minecraft/network/Connection#connectToServer	port	crates/sunrise-protocol/src/connection.rs::Connection::connect_addresses	gap: minor: the SRV lookup is in connect_server
 net/minecraft/network/Connection#configurePacketHandler	skip:other		Netty handler workaround
@@ -85,7 +85,7 @@ net/minecraft/network/Connection#createFrameDecoder	skip:other		Netty frame deco
 net/minecraft/network/Connection#connectToLocalServer	port	crates/sunrise-protocol/src/connection.rs::Connection::local	the pipe comes from lan/mod.rs Lan::connect_local
 net/minecraft/network/Connection#fromChannel	port	crates/sunrise-protocol/src/connection.rs::Connection::from_stream	gap: minor: the 30 s read timeout is set in lan/conn.rs::serve_connection
 net/minecraft/network/Connection#setEncryptionKey	port	crates/sunrise-protocol/src/connection.rs::Connection::enable_encryption	CFB8 both directions
-net/minecraft/network/Connection#isConnected	inline	crates/sunrise-client/src/net.rs::Session::send	no connected flag: sends stop once the writer is gone
+net/minecraft/network/Connection#isConnected	inline	crates/sunrise-client/src/net.rs::Session::connected	no connected flag: sends stop once the writer is gone
 net/minecraft/network/Connection#setupCompression	port	crates/sunrise-protocol/src/connection.rs::Connection::set_compression	negative threshold turns compression off
 net/minecraft/network/Connection#handleDisconnection	inline	crates/sunrise-client/src/net.rs::Session::start	the thread ends and reports Disconnected with the reason
 FriendlyByteBuf.readWithCodec	skip:java		DataFixer codec plumbing; Sunrise has its typed Codec trait
@@ -144,10 +144,10 @@ HiddenByteBuf.retain	skip:java		Netty reference counting
 HiddenByteBuf.touch	skip:java		Netty leak detection
 MonitoredLocalFrameDecoder.channelRead	port	crates/sunrise-protocol/src/connection.rs::ConnReader::recv	bytes_in counter for the bandwidth chart
 PacketBundlePacker.decode	port	crates/sunrise-client/src/net/play_bundle.rs::PlayBundle::accept	collects delimiters, passes ordinary packets and refuses terminal or oversized bundles
-PacketBundleUnpacker.encode	port	crates/sunrise-client/src/lan/entity.rs::ServerEntity::send_changes	gap: minor: delimiters only around the projectile motion and power pair
+PacketBundleUnpacker.encode	port	crates/sunrise-sim/src/lan/entity.rs::ServerEntity::send_changes	gap: minor: delimiters only around the projectile motion and power pair
 PacketDecoder.decode	port	crates/sunrise-protocol/src/packets/mod.rs::decode	rejects leftover bytes (larger than expected)
 PacketEncoder.encode	port	crates/sunrise-protocol/src/packets/mod.rs::encode	gap: minor: no error log and no skippable-packet path
 PacketListener.fillCrashReport	skip:debug		crash report category
-PacketProcessor.scheduleIfPossible	port	crates/sunrise-client/src/lan/io_pool.rs::Pool::push	gap: minor: no shutdown rejection here; the hand-off is Hub::poll
-PacketProcessor.processQueuedPackets	port	crates/sunrise-client/src/lan/hub/moves.rs::Hub::process_inbox	per guest; at most 400 packets per tick, the rest wait
-PacketProcessor.ListenerAndPacket.handle	inline	crates/sunrise-client/src/lan/hub/moves.rs::Hub::process_inbox	gap: minor: no per-packet error catch; a failing handler does not become a disconnect
+PacketProcessor.scheduleIfPossible	port	crates/sunrise-sim/src/lan/io_pool.rs::Pool::push	gap: minor: no shutdown rejection here; the hand-off is Hub::poll
+PacketProcessor.processQueuedPackets	port	crates/sunrise-sim/src/lan/hub/moves.rs::Hub::process_inbox	per guest; at most 400 packets per tick, the rest wait
+PacketProcessor.ListenerAndPacket.handle	inline	crates/sunrise-sim/src/lan/hub/moves.rs::Hub::process_inbox	gap: minor: no per-packet error catch; a failing handler does not become a disconnect

@@ -1,1 +1,1 @@
-sunrise-client game::server_reload::tests::datapack_publication_tests::world_open_and_wire_use_the_pack_biome_instead_of_the_bundled_file lib daily child-process
+sunrise-client cut_layout::game::server_side::server_reload::tests::datapack_publication_tests::world_open_and_wire_use_the_pack_biome_instead_of_the_bundled_file lib daily child-process

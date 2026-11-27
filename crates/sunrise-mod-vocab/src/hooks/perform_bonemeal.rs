@@ -13,7 +13,7 @@ pub trait Hooks {
         contract = "listen",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_perform_bonemeal",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_perform_bonemeal",
         neoforge = "none (vanilla BonemealableBlock.performBonemeal; NeoForge adds no event or extension for it)"
     )]
     fn perform_bonemeal(

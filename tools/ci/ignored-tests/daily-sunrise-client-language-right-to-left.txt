@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::client_text::tests::the_active_languages_direction_reads_outside_a_world lib daily resources
+sunrise-client cut_layout::game::native_hooks::client_text::tests::the_active_languages_direction_reads_outside_a_world lib daily resources

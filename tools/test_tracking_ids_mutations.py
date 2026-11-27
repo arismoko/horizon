@@ -17,8 +17,8 @@ def terminate(signum, _frame):
 signal.signal(signal.SIGTERM, terminate)
 if not os.environ.get('SUNRISE_TEST_RESOURCES'):
     raise SystemExit('Set SUNRISE_TEST_RESOURCES')
-lan = Path('crates/sunrise-client/src/game/network/lan_entities.rs')
-dragon = Path('crates/sunrise-client/src/game/mobs/dragon.rs')
+lan = Path('crates/sunrise-gameplay/src/game/network/lan_entities.rs')
+dragon = Path('crates/sunrise-gameplay/src/game/mobs/dragon.rs')
 originals = {p: p.read_text() for p in (lan, dragon)}
 subprocess.run(['git', 'diff', 'HEAD', '--exit-code', '--', str(lan), str(dragon)], check=True)
 logs = Path('target/tracking-id-proof')
@@ -50,9 +50,9 @@ for name, expr in [('falling', 'Some(&f.attachment_lifetime)'),
 start = originals[dragon].index('    pub(super) fn assign_dragon_and_crystal_ids(')
 end = originals[dragon].index('\n    }', start)
 body = originals[dragon][start:end]
-for name, expr in [('dragon', 'super::entity::assign_stored_id(&mut self.next_entity, &mut d.id, None);'),
-                   ('parts', 'self.next_entity += 8;'),
-                   ('late-crystal', 'super::entity::assign_stored_id(&mut self.next_entity, &mut c.id, None);')]:
+for name, expr in [('dragon', 'super::entity::assign_stored_id(&mut self.server.next_entity, &mut d.id, None);'),
+                   ('parts', 'self.server.next_entity += 8;'),
+                   ('late-crystal', 'super::entity::assign_stored_id(&mut self.server.next_entity, &mut c.id, None);')]:
     offset = originals[dragon].index(expr, start, end)
     cases.append((name, dragon, offset, offset + len(expr), ';',
                   'late_dragon_ids_reserve_parts_before_crystals'))

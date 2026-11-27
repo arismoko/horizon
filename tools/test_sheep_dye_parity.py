@@ -31,8 +31,8 @@ def main():
     paths = [
         'tools/test_sheep_dye_parity.py', 'tools/oracle_harness.py',
         'tools/test_rust_parity.py', 'tools/lab.py', 'tools/integration_env.py',
-        'Cargo.toml', 'Cargo.lock', 'crates/sunrise-client/src/mobs/sheep_dye.rs',
-        'crates/sunrise-client/src/mobs.rs',
+        'Cargo.toml', 'Cargo.lock', 'crates/sunrise-sim/src/mobs/sheep_dye.rs',
+        'crates/sunrise-sim/src/mobs.rs',
         'crates/sunrise-client/examples/probe/main.rs',
         'crates/sunrise-client/examples/probe/sheep_dye_fixture.rs',
         'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaSheepDyeOracle.java',

@@ -1,2 +1,2 @@
 # P3-60: native living_travel applies edits directly through vanilla travel/velocity operations
-sunrise-client game::lan_actions::guest_body::tests::travel::vanilla_travel_operations_apply_large_and_non_finite_edits_independently lib daily child-process
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::travel::vanilla_travel_operations_apply_large_and_non_finite_edits_independently lib daily child-process

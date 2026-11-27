@@ -52,4 +52,4 @@ sunrise-client-render mesher::tint_tests::one_biome_shortcut_blends_like_the_ful
 sunrise-client-render options_ui::tests::classic_hover_draws_the_selected_options_wrapped_tooltip lib daily resources
 sunrise-client-render options_ui::tests::the_new_video_options_read_as_vanilla_words_them lib daily resources
 sunrise-client-render pack_screen::footer_label_tests::the_footer_draws_in_every_language_file lib daily resources
-sunrise-client-render streaming::tests::late_generated_saves_yield_before_writing_in_all_receive_loops lib daily resources
+sunrise-level chunk_streamer::tests::late_generated_saves_yield_before_writing_in_all_receive_loops lib daily resources

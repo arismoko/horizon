@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools import lab, test_rust_parity as base
 
-TEST = 'game::end::cooldown_tests::gateway_counters_match_actual_vanilla_methods'
+TEST = 'game::server_side::end::cooldown_tests::gateway_counters_match_actual_vanilla_methods'
 
 
 def main():

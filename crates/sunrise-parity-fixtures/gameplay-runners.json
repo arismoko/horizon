@@ -1,0 +1,2303 @@
+{
+  "schema": 1,
+  "runners": [
+    {
+      "public_test": "game::block_entity_reach_draw_tests::block_entity_draws_match_the_vanilla_cases",
+      "libtest": "cut_layout::game::block_entity_reach_draw_tests::block_entity_draws_match_the_vanilla_cases",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::block_entity_reach_draw_tests::run_block_entity_draws_match_the_vanilla_cases",
+      "definition": "crates/sunrise-client/src/game/blocks/block_entity_reach_draw_tests.rs:5139:7647",
+      "destination": "crates/sunrise-client/src/cut_layout/game/blocks/block_entity_reach_draw_tests.rs",
+      "source": "crates/sunrise-client/src/game/blocks/block_entity_reach_draw_tests.rs",
+      "line": 135,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::crosshair_pick_tests::dynamic_redirectable_tag_controls_arrow_pick_and_in_ground_stops_it",
+      "libtest": "cut_layout::game::client_side::crosshair_pick_tests::dynamic_redirectable_tag_controls_arrow_pick_and_in_ground_stops_it",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::crosshair_pick_tests::run_dynamic_redirectable_tag_controls_arrow_pick_and_in_ground_stops_it",
+      "definition": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs:30415:32723",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/crosshair_pick_tests.rs",
+      "source": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs",
+      "line": 813,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::crosshair_pick_tests::middle_click_sends_pick_item_from_entity_for_tnt_and_falling_block",
+      "libtest": "cut_layout::game::client_side::crosshair_pick_tests::middle_click_sends_pick_item_from_entity_for_tnt_and_falling_block",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::crosshair_pick_tests::run_middle_click_sends_pick_item_from_entity_for_tnt_and_falling_block",
+      "definition": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs:27020:30054",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/crosshair_pick_tests.rs",
+      "source": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs",
+      "line": 742,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::crosshair_pick_tests::nested_ride_root_vehicle_exclusion_matches_26_3_witness",
+      "libtest": "cut_layout::game::client_side::crosshair_pick_tests::nested_ride_root_vehicle_exclusion_matches_26_3_witness",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::crosshair_pick_tests::run_nested_ride_root_vehicle_exclusion_matches_26_3_witness",
+      "definition": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs:23826:24743",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/crosshair_pick_tests.rs",
+      "source": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs",
+      "line": 657,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::crosshair_pick_tests::primed_tnt_and_falling_blocks_match_26_3_witness",
+      "libtest": "cut_layout::game::client_side::crosshair_pick_tests::primed_tnt_and_falling_blocks_match_26_3_witness",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::crosshair_pick_tests::run_primed_tnt_and_falling_blocks_match_26_3_witness",
+      "definition": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs:20014:23553",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/crosshair_pick_tests.rs",
+      "source": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs",
+      "line": 570,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::crosshair_pick_tests::review_parity_cases_match_26_3_witness",
+      "libtest": "cut_layout::game::client_side::crosshair_pick_tests::review_parity_cases_match_26_3_witness",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::crosshair_pick_tests::run_review_parity_cases_match_26_3_witness",
+      "definition": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs:25072:26658",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/crosshair_pick_tests.rs",
+      "source": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs",
+      "line": 691,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::crosshair_pick_tests::singleplayer_and_unstored_pick_share_unified_query_and_root_exclusion_26_3",
+      "libtest": "cut_layout::game::client_side::crosshair_pick_tests::singleplayer_and_unstored_pick_share_unified_query_and_root_exclusion_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::crosshair_pick_tests::run_singleplayer_and_unstored_pick_share_unified_query_and_root_exclusion_26_3",
+      "definition": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs:33034:66497",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/crosshair_pick_tests.rs",
+      "source": "crates/sunrise-client/src/game/entities/crosshair_pick_tests.rs",
+      "line": 873,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::debug_options::tests::title_debug_options_open_draw_and_return_without_a_level",
+      "libtest": "cut_layout::game::client_side::debug_options::tests::title_debug_options_open_draw_and_return_without_a_level",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::debug_options::tests::run_title_debug_options_open_draw_and_return_without_a_level",
+      "definition": "crates/sunrise-client/src/game/interface/debug_options.rs:29649:33775",
+      "destination": "crates/sunrise-client/src/cut_layout/game/interface/debug_options.rs",
+      "source": "crates/sunrise-client/src/game/interface/debug_options.rs",
+      "line": 747,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::debug_options::tests::title_debug_overlay_draws_without_a_level",
+      "libtest": "cut_layout::game::client_side::debug_options::tests::title_debug_overlay_draws_without_a_level",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::debug_options::tests::run_title_debug_overlay_draws_without_a_level",
+      "definition": "crates/sunrise-client/src/game/interface/debug_options.rs:27402:29460",
+      "destination": "crates/sunrise-client/src/cut_layout/game/interface/debug_options.rs",
+      "source": "crates/sunrise-client/src/game/interface/debug_options.rs",
+      "line": 695,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::interactions::tests::interaction_negative_height_bounds_invert_downward_26_3",
+      "libtest": "game::client_side::interactions::tests::interaction_negative_height_bounds_invert_downward_26_3",
+      "target": "lib",
+      "package": "sunrise-client-gameplay",
+      "runner": "game::client_side::interactions::tests::run_interaction_negative_height_bounds_invert_downward_26_3",
+      "definition": "crates/sunrise-client/src/game/items/interactions.rs:7128:8343",
+      "destination": "crates/sunrise-client-gameplay/src/game/items/interactions.rs",
+      "source": "crates/sunrise-client/src/game/items/interactions.rs",
+      "line": 195,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::interactions::tests::interaction_unsynced_default_sync_and_pose_sync_seat_height_26_3",
+      "libtest": "game::client_side::interactions::tests::interaction_unsynced_default_sync_and_pose_sync_seat_height_26_3",
+      "target": "lib",
+      "package": "sunrise-client-gameplay",
+      "runner": "game::client_side::interactions::tests::run_interaction_unsynced_default_sync_and_pose_sync_seat_height_26_3",
+      "definition": "crates/sunrise-client/src/game/items/interactions.rs:5616:6912",
+      "destination": "crates/sunrise-client-gameplay/src/game/items/interactions.rs",
+      "source": "crates/sunrise-client/src/game/items/interactions.rs",
+      "line": 156,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::item_draw::tests::item_display_end_crystal_world_submit_uses_vanilla_glint_scale_and_atlas_uv_26_3",
+      "libtest": "game::client_side::item_draw::tests::item_display_end_crystal_world_submit_uses_vanilla_glint_scale_and_atlas_uv_26_3",
+      "target": "lib",
+      "package": "sunrise-client-gameplay",
+      "runner": "game::client_side::item_draw::tests::run_item_display_end_crystal_world_submit_uses_vanilla_glint_scale_and_atlas_uv_26_3",
+      "definition": "crates/sunrise-client/src/game/interface/item_draw.rs:69492:82985",
+      "destination": "crates/sunrise-client-gameplay/src/game/interface/item_draw.rs",
+      "source": "crates/sunrise-client/src/game/interface/item_draw.rs",
+      "line": 1740,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::native_client_screens::client_screen_tests::done_on_an_unedited_book_sends_it_and_drops_its_filtered_text",
+      "libtest": "cut_layout::game::client_side::native_client_screens::client_screen_tests::done_on_an_unedited_book_sends_it_and_drops_its_filtered_text",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::native_client_screens::client_screen_tests::run_done_on_an_unedited_book_sends_it_and_drops_its_filtered_text",
+      "definition": "crates/sunrise-client/src/game/interface/native_client_screens.rs:14041:19397",
+      "destination": "crates/sunrise-client/src/cut_layout/game/interface/native_client_screens.rs",
+      "source": "crates/sunrise-client/src/game/interface/native_client_screens.rs",
+      "line": 336,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::native_render_pair_tests::entity_draw_order_after_client_packets",
+      "libtest": "game::client_side::native_render_pair_tests::entity_draw_order_after_client_packets",
+      "target": "lib",
+      "package": "sunrise-client-gameplay",
+      "runner": "game::client_side::native_render_pair_tests::run_entity_draw_order_after_client_packets",
+      "definition": "crates/sunrise-client/src/game/modding/native_render_pair_tests.rs:11357:20013",
+      "destination": "crates/sunrise-client-gameplay/src/game/modding/native_render_pair_tests.rs",
+      "source": "crates/sunrise-client/src/game/modding/native_render_pair_tests.rs",
+      "line": 309,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::remote_camera::camera_mount_tests::a_spectated_rider_backs_off_by_its_living_vehicles_camera_distance",
+      "libtest": "cut_layout::game::client_side::remote_camera::camera_mount_tests::a_spectated_rider_backs_off_by_its_living_vehicles_camera_distance",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::remote_camera::camera_mount_tests::run_a_spectated_rider_backs_off_by_its_living_vehicles_camera_distance",
+      "definition": "crates/sunrise-client/src/game/network/tests/camera_mount_tests.rs:6561:12003",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/tests/camera_mount_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/tests/camera_mount_tests.rs",
+      "line": 208,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::remote_camera::camera_tests::a_spectated_sleeping_villager_shows_the_bed_view",
+      "libtest": "game::client_side::remote_camera::camera_tests::a_spectated_sleeping_villager_shows_the_bed_view",
+      "target": "lib",
+      "package": "sunrise-client-gameplay",
+      "runner": "game::client_side::remote_camera::camera_tests::run_a_spectated_sleeping_villager_shows_the_bed_view",
+      "definition": "crates/sunrise-client/src/game/network/tests/remote_camera_tests.rs:6138:10066",
+      "destination": "crates/sunrise-client-gameplay/src/game/network/tests/remote_camera_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/tests/remote_camera_tests.rs",
+      "line": 171,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::remote_client::client_camera_tests::a_named_mob_the_server_camera_is_attached_to_shows_no_name_tag",
+      "libtest": "cut_layout::game::client_side::remote_client::client_camera_tests::a_named_mob_the_server_camera_is_attached_to_shows_no_name_tag",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::remote_client::client_camera_tests::run_a_named_mob_the_server_camera_is_attached_to_shows_no_name_tag",
+      "definition": "crates/sunrise-client/src/game/network/remote/client_camera_tests_client.rs:5433:8686",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/client_camera_tests_client.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/client_camera_tests_client.rs",
+      "line": 16,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::remote_mob_data::tests::mob_air_parity_fixture",
+      "libtest": "game::client_side::remote_mob_data::tests::mob_air_parity_fixture",
+      "target": "lib",
+      "package": "sunrise-client-gameplay",
+      "runner": "game::client_side::remote_mob_data::tests::run_mob_air_parity_fixture",
+      "definition": "crates/sunrise-client/src/game/network/remote_mob_data.rs:39402:40224",
+      "destination": "crates/sunrise-client-gameplay/src/game/network/remote_mob_data.rs",
+      "source": "crates/sunrise-client/src/game/network/remote_mob_data.rs",
+      "line": 831,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::remote_mob_data::tests::raider_celebration_parity_fixture",
+      "libtest": "game::client_side::remote_mob_data::tests::raider_celebration_parity_fixture",
+      "target": "lib",
+      "package": "sunrise-client-gameplay",
+      "runner": "game::client_side::remote_mob_data::tests::run_raider_celebration_parity_fixture",
+      "definition": "crates/sunrise-client/src/game/network/remote_mob_data.rs:47015:48361",
+      "destination": "crates/sunrise-client-gameplay/src/game/network/remote_mob_data.rs",
+      "source": "crates/sunrise-client/src/game/network/remote_mob_data.rs",
+      "line": 1045,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::remote_mob_data::tests::sulfur_cube_max_fuse_sets_the_client_fuse",
+      "libtest": "game::client_side::remote_mob_data::tests::sulfur_cube_max_fuse_sets_the_client_fuse",
+      "target": "lib",
+      "package": "sunrise-client-gameplay",
+      "runner": "game::client_side::remote_mob_data::tests::run_sulfur_cube_max_fuse_sets_the_client_fuse",
+      "definition": "crates/sunrise-client/src/game/network/remote_mob_data.rs:69590:73416",
+      "destination": "crates/sunrise-client-gameplay/src/game/network/remote_mob_data.rs",
+      "source": "crates/sunrise-client/src/game/network/remote_mob_data.rs",
+      "line": 1628,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::remote_vehicles::tests::steering_mount_control_matches_vanilla",
+      "libtest": "cut_layout::game::client_side::remote_vehicles::tests::steering_mount_control_matches_vanilla",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::remote_vehicles::tests::run_steering_mount_control_matches_vanilla",
+      "definition": "crates/sunrise-client/src/game/network/remote_vehicles.rs:45942:54392",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote_vehicles.rs",
+      "source": "crates/sunrise-client/src/game/network/remote_vehicles.rs",
+      "line": 1076,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::client_side::spawner_client_tick_tests::client_ticks_match_the_vanilla_cases",
+      "libtest": "cut_layout::game::client_side::spawner_client_tick_tests::client_ticks_match_the_vanilla_cases",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::client_side::spawner_client_tick_tests::run_client_ticks_match_the_vanilla_cases",
+      "definition": "crates/sunrise-client/src/game/mobs/spawner_client_tick_tests.rs:1854:4068",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/spawner_client_tick_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/spawner_client_tick_tests.rs",
+      "line": 41,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "feature=\"client\""
+        ],
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::mob_pearl_hook_tests::mob_pearls_use_the_hook_and_recheck_listener_writes_without_player_side_effects",
+      "libtest": "cut_layout::game::creatures::mob_pearl_hook_tests::mob_pearls_use_the_hook_and_recheck_listener_writes_without_player_side_effects",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::mob_pearl_hook_tests::run_mob_pearls_use_the_hook_and_recheck_listener_writes_without_player_side_effects",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/mob_pearl_hook_tests.rs:3191:6798",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/mob_pearl_hook_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/mob_pearl_hook_tests.rs",
+      "line": 92,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectile_targets_tests::witness_armor_stand_targets",
+      "libtest": "cut_layout::game::creatures::projectile_targets_tests::witness_armor_stand_targets",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectile_targets_tests::run_witness_armor_stand_targets",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs:22546:22656",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectile_targets_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs",
+      "line": 566,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectile_targets_tests::witness_falling_block_targets",
+      "libtest": "cut_layout::game::creatures::projectile_targets_tests::witness_falling_block_targets",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectile_targets_tests::run_witness_falling_block_targets",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs:23642:23746",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectile_targets_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs",
+      "line": 606,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectile_targets_tests::witness_item_frame_targets",
+      "libtest": "cut_layout::game::creatures::projectile_targets_tests::witness_item_frame_targets",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectile_targets_tests::run_witness_item_frame_targets",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs:23092:23236",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectile_targets_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs",
+      "line": 586,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectile_targets_tests::witness_leash_knot_targets",
+      "libtest": "cut_layout::game::creatures::projectile_targets_tests::witness_leash_knot_targets",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectile_targets_tests::run_witness_leash_knot_targets",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs:23382:23490",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectile_targets_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs",
+      "line": 596,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectile_targets_tests::witness_painting_and_cushion_targets",
+      "libtest": "cut_layout::game::creatures::projectile_targets_tests::witness_painting_and_cushion_targets",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectile_targets_tests::run_witness_painting_and_cushion_targets",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs:22822:22946",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectile_targets_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectile_targets_tests.rs",
+      "line": 576,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectiles_120_124_tests::witness_piercing_arrow_multihit_123",
+      "libtest": "cut_layout::game::creatures::projectiles_120_124_tests::witness_piercing_arrow_multihit_123",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectiles_120_124_tests::run_witness_piercing_arrow_multihit_123",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs:32786:43256",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "line": 883,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectiles_120_124_tests::witness_review_round1_regressions",
+      "libtest": "cut_layout::game::creatures::projectiles_120_124_tests::witness_review_round1_regressions",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectiles_120_124_tests::run_witness_review_round1_regressions",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs:56507:107902",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "line": 1491,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectiles_120_124_tests::witness_spectator_player_120",
+      "libtest": "cut_layout::game::creatures::projectiles_120_124_tests::witness_spectator_player_120",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectiles_120_124_tests::run_witness_spectator_player_120",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs:12880:17851",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "line": 367,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectiles_120_124_tests::witness_trident_enderman_dodge_122",
+      "libtest": "cut_layout::game::creatures::projectiles_120_124_tests::witness_trident_enderman_dodge_122",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectiles_120_124_tests::run_witness_trident_enderman_dodge_122",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs:22272:32622",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "line": 607,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::creatures::projectiles_120_124_tests::witness_wind_charge_end_crystal_121",
+      "libtest": "cut_layout::game::creatures::projectiles_120_124_tests::witness_wind_charge_end_crystal_121",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::creatures::projectiles_120_124_tests::run_witness_wind_charge_end_crystal_121",
+      "definition": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs:18015:22110",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/creatures/projectiles_120_124_tests.rs",
+      "line": 498,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::mob_discard_tests::discarded_mob_leaves_selectors_and_saves_while_frozen",
+      "libtest": "cut_layout::game::mob_discard_tests::discarded_mob_leaves_selectors_and_saves_while_frozen",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::mob_discard_tests::run_discarded_mob_leaves_selectors_and_saves_while_frozen",
+      "definition": "crates/sunrise-client/src/game/mobs/mob_discard_tests.rs:348:8519",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/mob_discard_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/mob_discard_tests.rs",
+      "line": 9,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::native_components::item_resource_property_tests::item_resource_changed_defaults_and_consumption",
+      "libtest": "cut_layout::game::native_components::item_resource_property_tests::item_resource_changed_defaults_and_consumption",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::native_components::item_resource_property_tests::run_item_resource_changed_defaults_and_consumption",
+      "definition": "crates/sunrise-client/src/game/modding/native_components.rs:22915:31143",
+      "destination": "crates/sunrise-client/src/cut_layout/game/modding/native_components.rs",
+      "source": "crates/sunrise-client/src/game/modding/native_components.rs",
+      "line": 568,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::native_hooks::render_tooltip_texture::render_tooltip_texture_tests::an_items_tooltip_style_draws_its_own_sprites",
+      "libtest": "cut_layout::game::native_hooks::render_tooltip_texture::render_tooltip_texture_tests::an_items_tooltip_style_draws_its_own_sprites",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::native_hooks::render_tooltip_texture::render_tooltip_texture_tests::run_an_items_tooltip_style_draws_its_own_sprites",
+      "definition": "crates/sunrise-client/src/game/native_hooks/render_tooltip_texture.rs:3076:7833",
+      "destination": "crates/sunrise-client/src/cut_layout/game/native_hooks/render_tooltip_texture.rs",
+      "source": "crates/sunrise-client/src/game/native_hooks/render_tooltip_texture.rs",
+      "line": 78,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::abilities::gamemode_split_tests::change_game_mode_updates_only_local_mode_and_abilities_26_3",
+      "libtest": "cut_layout::game::remote::abilities::gamemode_split_tests::change_game_mode_updates_only_local_mode_and_abilities_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::abilities::gamemode_split_tests::run_change_game_mode_updates_only_local_mode_and_abilities_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs:13233:16921",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/gamemode_split_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs",
+      "line": 391,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::abilities::gamemode_split_tests::genpvp_packet_sequence_matches_26_3_oracle_step_by_step",
+      "libtest": "cut_layout::game::remote::abilities::gamemode_split_tests::genpvp_packet_sequence_matches_26_3_oracle_step_by_step",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::abilities::gamemode_split_tests::run_genpvp_packet_sequence_matches_26_3_oracle_step_by_step",
+      "definition": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs:10776:12666",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/gamemode_split_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs",
+      "line": 338,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::abilities::gamemode_split_tests::hud_camera_mounts_match_26_3_oracle",
+      "libtest": "cut_layout::game::remote::abilities::gamemode_split_tests::hud_camera_mounts_match_26_3_oracle",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::abilities::gamemode_split_tests::run_hud_camera_mounts_match_26_3_oracle",
+      "definition": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs:54863:60194",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/gamemode_split_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs",
+      "line": 1292,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::abilities::gamemode_split_tests::live_player_info_updates_toggle_no_physics_while_local_spectator_26_3",
+      "libtest": "cut_layout::game::remote::abilities::gamemode_split_tests::live_player_info_updates_toggle_no_physics_while_local_spectator_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::abilities::gamemode_split_tests::run_live_player_info_updates_toggle_no_physics_while_local_spectator_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs:18010:20132",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/gamemode_split_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs",
+      "line": 487,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::abilities::gamemode_split_tests::login_and_respawn_set_previous_mode_and_fresh_abilities_26_3",
+      "libtest": "cut_layout::game::remote::abilities::gamemode_split_tests::login_and_respawn_set_previous_mode_and_fresh_abilities_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::abilities::gamemode_split_tests::run_login_and_respawn_set_previous_mode_and_fresh_abilities_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs:20635:22306",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/gamemode_split_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs",
+      "line": 547,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::abilities::gamemode_split_tests::respawn_keep_data_spectator_info_clears_pending_y_26_3",
+      "libtest": "cut_layout::game::remote::abilities::gamemode_split_tests::respawn_keep_data_spectator_info_clears_pending_y_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::abilities::gamemode_split_tests::run_respawn_keep_data_spectator_info_clears_pending_y_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs:23390:25035",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/gamemode_split_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs",
+      "line": 609,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::abilities::gamemode_split_tests::retained_player_login_preserves_custom_ability_speeds_26_3",
+      "libtest": "cut_layout::game::remote::abilities::gamemode_split_tests::retained_player_login_preserves_custom_ability_speeds_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::abilities::gamemode_split_tests::run_retained_player_login_preserves_custom_ability_speeds_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs:25458:26678",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/gamemode_split_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs",
+      "line": 657,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::abilities::gamemode_split_tests::split_mode_hud_rendering_reach_miss_inventory_and_input_rules",
+      "libtest": "cut_layout::game::remote::abilities::gamemode_split_tests::split_mode_hud_rendering_reach_miss_inventory_and_input_rules",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::abilities::gamemode_split_tests::run_split_mode_hud_rendering_reach_miss_inventory_and_input_rules",
+      "definition": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs:30758:52754",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/gamemode_split_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/gamemode_split_tests.rs",
+      "line": 773,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::camera_parity_red_tests::block_outline_requires_player_camera_26_3",
+      "libtest": "cut_layout::game::remote::tests::camera_parity_red_tests::block_outline_requires_player_camera_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::camera_parity_red_tests::run_block_outline_requires_player_camera_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs:8648:9786",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/camera_parity_red_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs",
+      "line": 252,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::camera_parity_red_tests::camera_entity_excluded_from_pick_for_all_pickable_kinds_26_3",
+      "libtest": "cut_layout::game::remote::tests::camera_parity_red_tests::camera_entity_excluded_from_pick_for_all_pickable_kinds_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::camera_parity_red_tests::run_camera_entity_excluded_from_pick_for_all_pickable_kinds_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs:14996:18370",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/camera_parity_red_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs",
+      "line": 423,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::camera_parity_red_tests::culling_near_plane_uses_max_of_fov_and_option_fov_26_3",
+      "libtest": "cut_layout::game::remote::tests::camera_parity_red_tests::culling_near_plane_uses_max_of_fov_and_option_fov_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::camera_parity_red_tests::run_culling_near_plane_uses_max_of_fov_and_option_fov_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs:10072:12421",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/camera_parity_red_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs",
+      "line": 292,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::camera_parity_red_tests::frozen_camera_partial_tick_matches_26_3_witness",
+      "libtest": "cut_layout::game::remote::tests::camera_parity_red_tests::frozen_camera_partial_tick_matches_26_3_witness",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::camera_parity_red_tests::run_frozen_camera_partial_tick_matches_26_3_witness",
+      "definition": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs:6383:8383",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/camera_parity_red_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs",
+      "line": 190,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::camera_parity_red_tests::spectated_rider_mount_attributes_26_3",
+      "libtest": "cut_layout::game::remote::tests::camera_parity_red_tests::spectated_rider_mount_attributes_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::camera_parity_red_tests::run_spectated_rider_mount_attributes_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs:19518:26461",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/camera_parity_red_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/camera_parity_red_tests.rs",
+      "line": 532,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::client_hud_camera_tests::hud_bars_follow_the_camera_player_like_26_3",
+      "libtest": "cut_layout::game::remote::tests::client_hud_camera_tests::hud_bars_follow_the_camera_player_like_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::client_hud_camera_tests::run_hud_bars_follow_the_camera_player_like_26_3",
+      "definition": "crates/sunrise-client/src/game/network/remote/client_hud_camera_tests.rs:6118:7713",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/client_hud_camera_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/client_hud_camera_tests.rs",
+      "line": 210,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::client_read_tests::look_at_matches_the_pinned_oracle",
+      "libtest": "cut_layout::game::remote::tests::client_read_tests::look_at_matches_the_pinned_oracle",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::client_read_tests::run_look_at_matches_the_pinned_oracle",
+      "definition": "crates/sunrise-client/src/game/network/remote/client_read_tests.rs:1477:3411",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/client_read_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/client_read_tests.rs",
+      "line": 31,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::placement_preview_tests::placement_preview_checks_obstruction_without_changing_the_level",
+      "libtest": "cut_layout::game::remote::tests::placement_preview_tests::placement_preview_checks_obstruction_without_changing_the_level",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::placement_preview_tests::run_placement_preview_checks_obstruction_without_changing_the_level",
+      "definition": "crates/sunrise-client/src/game/network/remote/placement_preview_tests.rs:177:5325",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/placement_preview_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/placement_preview_tests.rs",
+      "line": 3,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::placement_preview_tests::redstone_updates_respect_the_preview_level_side",
+      "libtest": "cut_layout::game::remote::tests::placement_preview_tests::redstone_updates_respect_the_preview_level_side",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::placement_preview_tests::run_redstone_updates_respect_the_preview_level_side",
+      "definition": "crates/sunrise-client/src/game/network/remote/placement_preview_tests.rs:5472:11472",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/placement_preview_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/placement_preview_tests.rs",
+      "line": 151,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::remote::tests::set_camera_kinds_tests::set_camera_follows_the_real_26_3_clients_camera_for_every_entity_kind",
+      "libtest": "cut_layout::game::remote::tests::set_camera_kinds_tests::set_camera_follows_the_real_26_3_clients_camera_for_every_entity_kind",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::remote::tests::set_camera_kinds_tests::run_set_camera_follows_the_real_26_3_clients_camera_for_every_entity_kind",
+      "definition": "crates/sunrise-client/src/game/network/remote/set_camera_kinds_tests.rs:645:3915",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/remote/set_camera_kinds_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/remote/set_camera_kinds_tests.rs",
+      "line": 16,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::block_entity_anims::tests::replacing_a_gateway_discards_its_old_cooldown",
+      "libtest": "cut_layout::game::server_side::block_entity_anims::tests::replacing_a_gateway_discards_its_old_cooldown",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::block_entity_anims::tests::run_replacing_a_gateway_discards_its_old_cooldown",
+      "definition": "crates/sunrise-client/src/game/blocks/block_entity_anims.rs:28905:32071",
+      "destination": "crates/sunrise-client/src/cut_layout/game/blocks/block_entity_anims.rs",
+      "source": "crates/sunrise-client/src/game/blocks/block_entity_anims.rs",
+      "line": 736,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::campfire::block_entity_items_tests::block_entity_items_match_the_vanilla_cases",
+      "libtest": "cut_layout::game::server_side::campfire::block_entity_items_tests::block_entity_items_match_the_vanilla_cases",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::campfire::block_entity_items_tests::run_block_entity_items_match_the_vanilla_cases",
+      "definition": "crates/sunrise-client/src/game/blocks/tests/block_entity_items_tests.rs:5949:6647",
+      "destination": "crates/sunrise-client/src/cut_layout/game/blocks/tests/block_entity_items_tests.rs",
+      "source": "crates/sunrise-client/src/game/blocks/tests/block_entity_items_tests.rs",
+      "line": 152,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::data::fire_tests::fire_changes_on_eyes_fangs_spawners_clouds_and_bullets",
+      "libtest": "cut_layout::game::server_side::commands::data::fire_tests::fire_changes_on_eyes_fangs_spawners_clouds_and_bullets",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::data::fire_tests::run_fire_changes_on_eyes_fangs_spawners_clouds_and_bullets",
+      "definition": "crates/sunrise-client/src/game/administration/commands/data/fire_tests.rs:3934:20635",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/data/fire_tests.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/data/fire_tests.rs",
+      "line": 107,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::data::portal_cooldown_tests::a_mob_saves_its_live_portal_cooldown",
+      "libtest": "cut_layout::game::server_side::commands::data::portal_cooldown_tests::a_mob_saves_its_live_portal_cooldown",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::data::portal_cooldown_tests::run_a_mob_saves_its_live_portal_cooldown",
+      "definition": "crates/sunrise-client/src/game/administration/commands/data/portal_cooldown_tests.rs:2009:5430",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/data/portal_cooldown_tests.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/data/portal_cooldown_tests.rs",
+      "line": 64,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::data::rotation_tests::a_cloud_and_a_falling_block_save_the_rotation_they_were_loaded_with",
+      "libtest": "cut_layout::game::server_side::commands::data::rotation_tests::a_cloud_and_a_falling_block_save_the_rotation_they_were_loaded_with",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::data::rotation_tests::run_a_cloud_and_a_falling_block_save_the_rotation_they_were_loaded_with",
+      "definition": "crates/sunrise-client/src/game/administration/commands/data/rotation_tests.rs:1225:6455",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/data/rotation_tests.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/data/rotation_tests.rs",
+      "line": 44,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::data::stand_living_tests::an_armor_stand_ticks_its_living_counters",
+      "libtest": "cut_layout::game::server_side::commands::data::stand_living_tests::an_armor_stand_ticks_its_living_counters",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::data::stand_living_tests::run_an_armor_stand_ticks_its_living_counters",
+      "definition": "crates/sunrise-client/src/game/administration/commands/data/stand_living_tests.rs:2027:4616",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/data/stand_living_tests.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/data/stand_living_tests.rs",
+      "line": 67,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::teleport_item_tests::portal_arrival_effects_command_items_merge_immediately",
+      "libtest": "cut_layout::game::server_side::commands::teleport_item_tests::portal_arrival_effects_command_items_merge_immediately",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::teleport_item_tests::run_portal_arrival_effects_command_items_merge_immediately",
+      "definition": "crates/sunrise-client/src/game/administration/commands/teleport_item_tests.rs:2283:3643",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/teleport_item_tests.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/teleport_item_tests.rs",
+      "line": 57,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::teleport_level_tests::portal_arrival_effects_explicit_tnt_teleports_protect_portals",
+      "libtest": "cut_layout::game::server_side::commands::teleport_level_tests::portal_arrival_effects_explicit_tnt_teleports_protect_portals",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::teleport_level_tests::run_portal_arrival_effects_explicit_tnt_teleports_protect_portals",
+      "definition": "crates/sunrise-client/src/game/administration/commands/teleport_level_tests.rs:10178:11897",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/teleport_level_tests.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/teleport_level_tests.rs",
+      "line": 269,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::teleport_level_tests::portal_arrival_effects_mod_items_merge_immediately",
+      "libtest": "cut_layout::game::server_side::commands::teleport_level_tests::portal_arrival_effects_mod_items_merge_immediately",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::teleport_level_tests::run_portal_arrival_effects_mod_items_merge_immediately",
+      "definition": "crates/sunrise-client/src/game/administration/commands/teleport_level_tests.rs:8682:10003",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/teleport_level_tests.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/teleport_level_tests.rs",
+      "line": 225,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::world_cmds::datapack_damage_tests::a_datapack_damage_type_hurts_a_mob",
+      "libtest": "cut_layout::game::server_side::commands::world_cmds::datapack_damage_tests::a_datapack_damage_type_hurts_a_mob",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::world_cmds::datapack_damage_tests::run_a_datapack_damage_type_hurts_a_mob",
+      "definition": "crates/sunrise-client/src/game/administration/commands/world_cmds.rs:61654:62200",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/world_cmds.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/world_cmds.rs",
+      "line": 1489,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::world_cmds::datapack_damage_tests::a_datapack_types_tags_reach_the_mob_hurt_path",
+      "libtest": "cut_layout::game::server_side::commands::world_cmds::datapack_damage_tests::a_datapack_types_tags_reach_the_mob_hurt_path",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::world_cmds::datapack_damage_tests::run_a_datapack_types_tags_reach_the_mob_hurt_path",
+      "definition": "crates/sunrise-client/src/game/administration/commands/world_cmds.rs:62629:64207",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/world_cmds.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/world_cmds.rs",
+      "line": 1511,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::world_cmds::registered_damage_tests::creaking_borrowed::borrowed_creaking_hurt_finishes_before_the_tick_continues",
+      "libtest": "cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::creaking_borrowed::borrowed_creaking_hurt_finishes_before_the_tick_continues",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::creaking_borrowed::run_borrowed_creaking_hurt_finishes_before_the_tick_continues",
+      "definition": "crates/sunrise-client/src/game/administration/commands/registered_damage_tests/creaking_borrowed.rs:5776:23200",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/registered_damage_tests/creaking_borrowed.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/registered_damage_tests/creaking_borrowed.rs",
+      "line": 169,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::commands::world_cmds::registered_damage_tests::live_damage_and_blast_creaking_reactions_and_timed_player_credit",
+      "libtest": "cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::live_damage_and_blast_creaking_reactions_and_timed_player_credit",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::run_live_damage_and_blast_creaking_reactions_and_timed_player_credit",
+      "definition": "crates/sunrise-client/src/game/administration/commands/registered_damage_tests.rs:11616:26144",
+      "destination": "crates/sunrise-client/src/cut_layout/game/administration/commands/registered_damage_tests.rs",
+      "source": "crates/sunrise-client/src/game/administration/commands/registered_damage_tests.rs",
+      "line": 298,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::consume::fox_consumption_hook_tests::fox_consumption_adapter_uses_full_host_and_preserves_listener_writes",
+      "libtest": "cut_layout::game::server_side::consume::fox_consumption_hook_tests::fox_consumption_adapter_uses_full_host_and_preserves_listener_writes",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::consume::fox_consumption_hook_tests::run_fox_consumption_adapter_uses_full_host_and_preserves_listener_writes",
+      "definition": "crates/sunrise-client/src/game/items/consume.rs:46378:52079",
+      "destination": "crates/sunrise-client/src/cut_layout/game/items/consume.rs",
+      "source": "crates/sunrise-client/src/game/items/consume.rs",
+      "line": 1171,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::consume::fox_consumption_hook_tests::fox_tick_pauses_before_movement_and_next_actor_and_preserves_full_host_writes",
+      "libtest": "cut_layout::game::server_side::consume::fox_consumption_hook_tests::fox_tick_pauses_before_movement_and_next_actor_and_preserves_full_host_writes",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::consume::fox_consumption_hook_tests::run_fox_tick_pauses_before_movement_and_next_actor_and_preserves_full_host_writes",
+      "definition": "crates/sunrise-client/src/game/items/consume.rs:52310:56376",
+      "destination": "crates/sunrise-client/src/cut_layout/game/items/consume.rs",
+      "source": "crates/sunrise-client/src/game/items/consume.rs",
+      "line": 1294,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::consume::teleport_hook_tests::consumption_hook_keeps_the_stack_before_use_and_cancellation_stops_attempts",
+      "libtest": "cut_layout::game::server_side::consume::teleport_hook_tests::consumption_hook_keeps_the_stack_before_use_and_cancellation_stops_attempts",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::consume::teleport_hook_tests::run_consumption_hook_keeps_the_stack_before_use_and_cancellation_stops_attempts",
+      "definition": "crates/sunrise-client/src/game/items/consume.rs:36498:40648",
+      "destination": "crates/sunrise-client/src/cut_layout/game/items/consume.rs",
+      "source": "crates/sunrise-client/src/game/items/consume.rs",
+      "line": 950,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::dragon::tests::the_scanning_turn_matches_the_pinned_oracle",
+      "libtest": "game::server_side::dragon::tests::the_scanning_turn_matches_the_pinned_oracle",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::dragon::tests::run_the_scanning_turn_matches_the_pinned_oracle",
+      "definition": "crates/sunrise-client/src/game/mobs/dragon.rs:151184:153581",
+      "destination": "crates/sunrise-gameplay/src/game/mobs/dragon.rs",
+      "source": "crates/sunrise-client/src/game/mobs/dragon.rs",
+      "line": 3656,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::end::cooldown_tests::gateway_counters_match_actual_vanilla_methods",
+      "libtest": "cut_layout::game::server_side::end::cooldown_tests::gateway_counters_match_actual_vanilla_methods",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::end::cooldown_tests::run_gateway_counters_match_actual_vanilla_methods",
+      "definition": "crates/sunrise-client/src/game/world/end/gateway_cooldown_tests.rs:516:3095",
+      "destination": "crates/sunrise-client/src/cut_layout/game/world/end/gateway_cooldown_tests.rs",
+      "source": "crates/sunrise-client/src/game/world/end/gateway_cooldown_tests.rs",
+      "line": 14,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::explosion::tests::explosion_items_parity_fixture",
+      "libtest": "cut_layout::game::server_side::explosion::tests::explosion_items_parity_fixture",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::explosion::tests::run_explosion_items_parity_fixture",
+      "definition": "crates/sunrise-client/src/game/entities/explosion.rs:109467:110104",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/explosion.rs",
+      "source": "crates/sunrise-client/src/game/entities/explosion.rs",
+      "line": 2576,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::falling_blocks::moving_piston_tests::a_falling_block_resting_in_a_moving_piston_cell_stays",
+      "libtest": "cut_layout::game::server_side::falling_blocks::moving_piston_tests::a_falling_block_resting_in_a_moving_piston_cell_stays",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::falling_blocks::moving_piston_tests::run_a_falling_block_resting_in_a_moving_piston_cell_stays",
+      "definition": "crates/sunrise-client/src/game/blocks/falling_blocks/moving_piston_tests.rs:1501:5839",
+      "destination": "crates/sunrise-client/src/cut_layout/game/blocks/falling_blocks/moving_piston_tests.rs",
+      "source": "crates/sunrise-client/src/game/blocks/falling_blocks/moving_piston_tests.rs",
+      "line": 38,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::falling_damage::helmet_tests::falling_impacts_wear_the_helmet_before_normal_armor_and_reduction",
+      "libtest": "cut_layout::game::server_side::falling_damage::helmet_tests::falling_impacts_wear_the_helmet_before_normal_armor_and_reduction",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::falling_damage::helmet_tests::run_falling_impacts_wear_the_helmet_before_normal_armor_and_reduction",
+      "definition": "crates/sunrise-client/src/game/entities/falling_damage/helmet_tests.rs:439:9322",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/falling_damage/helmet_tests.rs",
+      "source": "crates/sunrise-client/src/game/entities/falling_damage/helmet_tests.rs",
+      "line": 8,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::fangs::current_tests::fangs_in_a_current_are_pushed_and_fangs_in_still_water_are_not",
+      "libtest": "cut_layout::game::server_side::fangs::current_tests::fangs_in_a_current_are_pushed_and_fangs_in_still_water_are_not",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::fangs::current_tests::run_fangs_in_a_current_are_pushed_and_fangs_in_still_water_are_not",
+      "definition": "crates/sunrise-client/src/game/mobs/fangs/current_tests.rs:3894:13788",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/fangs/current_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/fangs/current_tests.rs",
+      "line": 109,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::fangs::ticking_tests::fangs_and_an_ominous_item_spawner_outside_the_ticking_chunks_do_not_tick",
+      "libtest": "cut_layout::game::server_side::fangs::ticking_tests::fangs_and_an_ominous_item_spawner_outside_the_ticking_chunks_do_not_tick",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::fangs::ticking_tests::run_fangs_and_an_ominous_item_spawner_outside_the_ticking_chunks_do_not_tick",
+      "definition": "crates/sunrise-client/src/game/mobs/fangs/ticking_tests.rs:3106:7390",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/fangs/ticking_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/fangs/ticking_tests.rs",
+      "line": 98,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::fangs::ticking_tests::fangs_and_an_ominous_item_spawner_pause_on_scheduled_ticket_removal_and_resume_26_3",
+      "libtest": "cut_layout::game::server_side::fangs::ticking_tests::fangs_and_an_ominous_item_spawner_pause_on_scheduled_ticket_removal_and_resume_26_3",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::fangs::ticking_tests::run_fangs_and_an_ominous_item_spawner_pause_on_scheduled_ticket_removal_and_resume_26_3",
+      "definition": "crates/sunrise-client/src/game/mobs/fangs/ticking_tests.rs:7803:15532",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/fangs/ticking_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/fangs/ticking_tests.rs",
+      "line": 213,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::fishing::fishing_targets_tests::witness_fishing_bobber_targets",
+      "libtest": "cut_layout::game::server_side::fishing::fishing_targets_tests::witness_fishing_bobber_targets",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::fishing::fishing_targets_tests::run_witness_fishing_bobber_targets",
+      "definition": "crates/sunrise-client/src/game/items/fishing_tests/fishing_targets_tests.rs:14888:15691",
+      "destination": "crates/sunrise-client/src/cut_layout/game/items/fishing_tests/fishing_targets_tests.rs",
+      "source": "crates/sunrise-client/src/game/items/fishing_tests/fishing_targets_tests.rs",
+      "line": 415,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::fishing::tests::breeze_hook_parity_fixture",
+      "libtest": "game::server_side::fishing::tests::breeze_hook_parity_fixture",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::fishing::tests::run_breeze_hook_parity_fixture",
+      "definition": "crates/sunrise-client/src/game/items/fishing.rs:79445:81141",
+      "destination": "crates/sunrise-gameplay/src/game/items/fishing.rs",
+      "source": "crates/sunrise-client/src/game/items/fishing.rs",
+      "line": 1888,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::fishing::tests::fishing_retrieve_reference",
+      "libtest": "game::server_side::fishing::tests::fishing_retrieve_reference",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::fishing::tests::run_fishing_retrieve_reference",
+      "definition": "crates/sunrise-client/src/game/items/fishing.rs:73554:77304",
+      "destination": "crates/sunrise-gameplay/src/game/items/fishing.rs",
+      "source": "crates/sunrise-client/src/game/items/fishing.rs",
+      "line": 1755,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::player_packet_tests::server_player_packet_witness",
+      "libtest": "cut_layout::game::server_side::lan::player_packet_tests::server_player_packet_witness",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::lan::player_packet_tests::run_server_player_packet_witness",
+      "definition": "crates/sunrise-client/src/game/network/lan/player_packet_tests.rs:25113:25685",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/lan/player_packet_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/player_packet_tests.rs",
+      "line": 771,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::sources_tests::a_loaded_sulfur_cube_fuse_matches_the_pinned_oracle",
+      "libtest": "game::server_side::lan::sources_tests::a_loaded_sulfur_cube_fuse_matches_the_pinned_oracle",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::lan::sources_tests::run_a_loaded_sulfur_cube_fuse_matches_the_pinned_oracle",
+      "definition": "crates/sunrise-client/src/game/network/lan/sulfur_cube_meta_tests.rs:3007:8625",
+      "destination": "crates/sunrise-gameplay/src/game/network/lan/sulfur_cube_meta_tests.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/sulfur_cube_meta_tests.rs",
+      "line": 67,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::tests::datapack_damage_lazy_wire_load_caches_after_all_packs_are_removed",
+      "libtest": "game::server_side::lan::tests::datapack_damage_lazy_wire_load_caches_after_all_packs_are_removed",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::lan::tests::run_datapack_damage_lazy_wire_load_caches_after_all_packs_are_removed",
+      "definition": "crates/sunrise-client/src/game/network/lan/mod.rs:171348:175494",
+      "destination": "crates/sunrise-gameplay/src/game/network/lan/mod.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/mod.rs",
+      "line": 4033,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::tests::datapack_damage_lazy_wire_snapshot_survives_reload_before_first_hub",
+      "libtest": "game::server_side::lan::tests::datapack_damage_lazy_wire_snapshot_survives_reload_before_first_hub",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::lan::tests::run_datapack_damage_lazy_wire_snapshot_survives_reload_before_first_hub",
+      "definition": "crates/sunrise-client/src/game/network/lan/mod.rs:166406:171141",
+      "destination": "crates/sunrise-gameplay/src/game/network/lan/mod.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/mod.rs",
+      "line": 3915,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::tests::datapack_damage_unrelated_packs_do_not_load_sync_data_at_open",
+      "libtest": "game::server_side::lan::tests::datapack_damage_unrelated_packs_do_not_load_sync_data_at_open",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::lan::tests::run_datapack_damage_unrelated_packs_do_not_load_sync_data_at_open",
+      "definition": "crates/sunrise-client/src/game/network/lan/mod.rs:163632:166195",
+      "destination": "crates/sunrise-gameplay/src/game/network/lan/mod.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/mod.rs",
+      "line": 3842,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::tests::datapack_damage_world_open_replaces_preload_atomically",
+      "libtest": "game::server_side::lan::tests::datapack_damage_world_open_replaces_preload_atomically",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::lan::tests::run_datapack_damage_world_open_replaces_preload_atomically",
+      "definition": "crates/sunrise-client/src/game/network/lan/mod.rs:159647:163433",
+      "destination": "crates/sunrise-gameplay/src/game/network/lan/mod.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/mod.rs",
+      "line": 3727,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::tests::datapack_damage_world_open_reuses_the_no_pack_preload",
+      "libtest": "game::server_side::lan::tests::datapack_damage_world_open_reuses_the_no_pack_preload",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::lan::tests::run_datapack_damage_world_open_reuses_the_no_pack_preload",
+      "definition": "crates/sunrise-client/src/game/network/lan/mod.rs:157270:159462",
+      "destination": "crates/sunrise-gameplay/src/game/network/lan/mod.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/mod.rs",
+      "line": 3664,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::world_spawn_sync_tests::guest_respawn_without_a_known_world_spawn_never_advertises_the_hosts_personal_point",
+      "libtest": "cut_layout::game::server_side::lan::world_spawn_sync_tests::guest_respawn_without_a_known_world_spawn_never_advertises_the_hosts_personal_point",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::lan::world_spawn_sync_tests::run_guest_respawn_without_a_known_world_spawn_never_advertises_the_hosts_personal_point",
+      "definition": "crates/sunrise-client/src/game/network/lan/mod.rs:221904:223966",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/lan/mod.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/mod.rs",
+      "line": 5200,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::world_spawn_sync_tests::join_and_respawn_contexts_use_world_spawn_not_a_personal_spawn",
+      "libtest": "cut_layout::game::server_side::lan::world_spawn_sync_tests::join_and_respawn_contexts_use_world_spawn_not_a_personal_spawn",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::lan::world_spawn_sync_tests::run_join_and_respawn_contexts_use_world_spawn_not_a_personal_spawn",
+      "definition": "crates/sunrise-client/src/game/network/lan/mod.rs:215077:215862",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/lan/mod.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/mod.rs",
+      "line": 5051,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan::world_spawn_sync_tests::setworldspawn_reaches_guests_with_the_dimension_it_ran_in",
+      "libtest": "cut_layout::game::server_side::lan::world_spawn_sync_tests::setworldspawn_reaches_guests_with_the_dimension_it_ran_in",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::lan::world_spawn_sync_tests::run_setworldspawn_reaches_guests_with_the_dimension_it_ran_in",
+      "definition": "crates/sunrise-client/src/game/network/lan/mod.rs:216053:221661",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/lan/mod.rs",
+      "source": "crates/sunrise-client/src/game/network/lan/mod.rs",
+      "line": 5074,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::lan_pvp::arrow_hit_sound_tests::an_arrow_that_hurts_another_player_dings_its_shooter",
+      "libtest": "cut_layout::game::server_side::lan_pvp::arrow_hit_sound_tests::an_arrow_that_hurts_another_player_dings_its_shooter",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::lan_pvp::arrow_hit_sound_tests::run_an_arrow_that_hurts_another_player_dings_its_shooter",
+      "definition": "crates/sunrise-client/src/game/network/lan_pvp.rs:40624:41393",
+      "destination": "crates/sunrise-client/src/cut_layout/game/network/lan_pvp.rs",
+      "source": "crates/sunrise-client/src/game/network/lan_pvp.rs",
+      "line": 1041,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::maps_server::save_tests::saved_map_codec_fixture",
+      "libtest": "game::server_side::maps_server::save_tests::saved_map_codec_fixture",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::maps_server::save_tests::run_saved_map_codec_fixture",
+      "definition": "crates/sunrise-client/src/game/blocks/maps/save_tests.rs:3803:5379",
+      "destination": "crates/sunrise-gameplay/src/game/blocks/maps/save_tests.rs",
+      "source": "crates/sunrise-client/src/game/blocks/maps/save_tests.rs",
+      "line": 126,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::mounts::steerable_boarding_tests::interact_with_a_pig_or_strider",
+      "libtest": "cut_layout::game::server_side::mounts::steerable_boarding_tests::interact_with_a_pig_or_strider",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::mounts::steerable_boarding_tests::run_interact_with_a_pig_or_strider",
+      "definition": "crates/sunrise-client/src/game/mobs/tests/steerable_boarding_tests.rs:5131:9210",
+      "destination": "crates/sunrise-client/src/cut_layout/game/mobs/tests/steerable_boarding_tests.rs",
+      "source": "crates/sunrise-client/src/game/mobs/tests/steerable_boarding_tests.rs",
+      "line": 153,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::native_entity_moves::tests::move_boundaries_match_vanilla",
+      "libtest": "game::server_side::native_entity_moves::tests::move_boundaries_match_vanilla",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::native_entity_moves::tests::run_move_boundaries_match_vanilla",
+      "definition": "crates/sunrise-client/src/game/modding/native_entity_moves.rs:22479:23943",
+      "destination": "crates/sunrise-gameplay/src/game/modding/native_entity_moves.rs",
+      "source": "crates/sunrise-client/src/game/modding/native_entity_moves.rs",
+      "line": 558,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::native_level_refs::environment_read_tests::biome_reads_follow_live_cells_parked_levels_and_client_login_without_loading",
+      "libtest": "cut_layout::game::server_side::native_level_refs::environment_read_tests::biome_reads_follow_live_cells_parked_levels_and_client_login_without_loading",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::native_level_refs::environment_read_tests::run_biome_reads_follow_live_cells_parked_levels_and_client_login_without_loading",
+      "definition": "crates/sunrise-client/src/game/modding/native_level_refs.rs:132521:135513",
+      "destination": "crates/sunrise-client/src/cut_layout/game/modding/native_level_refs.rs",
+      "source": "crates/sunrise-client/src/game/modding/native_level_refs.rs",
+      "line": 3001,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::native_level_refs::environment_read_tests::closest_biome_uses_the_named_generator_without_loading_resident_chunks",
+      "libtest": "cut_layout::game::server_side::native_level_refs::environment_read_tests::closest_biome_uses_the_named_generator_without_loading_resident_chunks",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::native_level_refs::environment_read_tests::run_closest_biome_uses_the_named_generator_without_loading_resident_chunks",
+      "definition": "crates/sunrise-client/src/game/modding/native_level_refs.rs:142032:146388",
+      "destination": "crates/sunrise-client/src/cut_layout/game/modding/native_level_refs.rs",
+      "source": "crates/sunrise-client/src/game/modding/native_level_refs.rs",
+      "line": 3219,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::native_level_refs::environment_read_tests::floor_reads_real_collision_shapes_and_refuses_unloaded_positions",
+      "libtest": "cut_layout::game::server_side::native_level_refs::environment_read_tests::floor_reads_real_collision_shapes_and_refuses_unloaded_positions",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::native_level_refs::environment_read_tests::run_floor_reads_real_collision_shapes_and_refuses_unloaded_positions",
+      "definition": "crates/sunrise-client/src/game/modding/native_level_refs.rs:135718:137746",
+      "destination": "crates/sunrise-client/src/cut_layout/game/modding/native_level_refs.rs",
+      "source": "crates/sunrise-client/src/game/modding/native_level_refs.rs",
+      "line": 3078,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::native_level_refs::environment_read_tests::level_environment_reads_match_vanilla_vectors",
+      "libtest": "cut_layout::game::server_side::native_level_refs::environment_read_tests::level_environment_reads_match_vanilla_vectors",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::native_level_refs::environment_read_tests::run_level_environment_reads_match_vanilla_vectors",
+      "definition": "crates/sunrise-client/src/game/modding/native_level_refs.rs:151475:159592",
+      "destination": "crates/sunrise-client/src/cut_layout/game/modding/native_level_refs.rs",
+      "source": "crates/sunrise-client/src/game/modding/native_level_refs.rs",
+      "line": 3441,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::native_level_refs::environment_read_tests::nearest_structure_uses_the_named_generator_without_loading_resident_chunks",
+      "libtest": "cut_layout::game::server_side::native_level_refs::environment_read_tests::nearest_structure_uses_the_named_generator_without_loading_resident_chunks",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::native_level_refs::environment_read_tests::run_nearest_structure_uses_the_named_generator_without_loading_resident_chunks",
+      "definition": "crates/sunrise-client/src/game/modding/native_level_refs.rs:146908:151206",
+      "destination": "crates/sunrise-client/src/cut_layout/game/modding/native_level_refs.rs",
+      "source": "crates/sunrise-client/src/game/modding/native_level_refs.rs",
+      "line": 3336,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::native_level_refs::environment_read_tests::sky_and_logical_height_read_the_named_dimension_and_client_state",
+      "libtest": "cut_layout::game::server_side::native_level_refs::environment_read_tests::sky_and_logical_height_read_the_named_dimension_and_client_state",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::native_level_refs::environment_read_tests::run_sky_and_logical_height_read_the_named_dimension_and_client_state",
+      "definition": "crates/sunrise-client/src/game/modding/native_level_refs.rs:137951:141815",
+      "destination": "crates/sunrise-client/src/cut_layout/game/modding/native_level_refs.rs",
+      "source": "crates/sunrise-client/src/game/modding/native_level_refs.rs",
+      "line": 3129,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::nether_portal::arrival_effects_tests::portal_arrival_effects_join_removals_cannot_consume_live_stacks",
+      "libtest": "cut_layout::game::server_side::nether_portal::arrival_effects_tests::portal_arrival_effects_join_removals_cannot_consume_live_stacks",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::nether_portal::arrival_effects_tests::run_portal_arrival_effects_join_removals_cannot_consume_live_stacks",
+      "definition": "crates/sunrise-client/src/game/blocks/nether_portal/arrival_effects_tests.rs:9567:11953",
+      "destination": "crates/sunrise-client/src/cut_layout/game/blocks/nether_portal/arrival_effects_tests.rs",
+      "source": "crates/sunrise-client/src/game/blocks/nether_portal/arrival_effects_tests.rs",
+      "line": 278,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::nether_portal::arrival_effects_tests::portal_arrival_effects_merge_items_before_their_first_tick",
+      "libtest": "cut_layout::game::server_side::nether_portal::arrival_effects_tests::portal_arrival_effects_merge_items_before_their_first_tick",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::nether_portal::arrival_effects_tests::run_portal_arrival_effects_merge_items_before_their_first_tick",
+      "definition": "crates/sunrise-client/src/game/blocks/nether_portal/arrival_effects_tests.rs:1996:3487",
+      "destination": "crates/sunrise-client/src/cut_layout/game/blocks/nether_portal/arrival_effects_tests.rs",
+      "source": "crates/sunrise-client/src/game/blocks/nether_portal/arrival_effects_tests.rs",
+      "line": 51,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::nether_portal::arrival_effects_tests::portal_arrival_effects_nested_spawns_do_not_hide_the_real_arrival",
+      "libtest": "cut_layout::game::server_side::nether_portal::arrival_effects_tests::portal_arrival_effects_nested_spawns_do_not_hide_the_real_arrival",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::nether_portal::arrival_effects_tests::run_portal_arrival_effects_nested_spawns_do_not_hide_the_real_arrival",
+      "definition": "crates/sunrise-client/src/game/blocks/nether_portal/arrival_effects_tests.rs:13644:15559",
+      "destination": "crates/sunrise-client/src/cut_layout/game/blocks/nether_portal/arrival_effects_tests.rs",
+      "source": "crates/sunrise-client/src/game/blocks/nether_portal/arrival_effects_tests.rs",
+      "line": 395,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::nether_portal::arrival_effects_tests::portal_arrival_effects_tnt_protection_is_live_but_not_saved",
+      "libtest": "cut_layout::game::server_side::nether_portal::arrival_effects_tests::portal_arrival_effects_tnt_protection_is_live_but_not_saved",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::nether_portal::arrival_effects_tests::run_portal_arrival_effects_tnt_protection_is_live_but_not_saved",
+      "definition": "crates/sunrise-client/src/game/blocks/nether_portal/arrival_effects_tests.rs:5676:7575",
+      "destination": "crates/sunrise-client/src/cut_layout/game/blocks/nether_portal/arrival_effects_tests.rs",
+      "source": "crates/sunrise-client/src/game/blocks/nether_portal/arrival_effects_tests.rs",
+      "line": 153,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::nether_portal::cooldown_tests::portal_contact_and_waiting_handoff_match_vanilla_counters",
+      "libtest": "cut_layout::game::server_side::nether_portal::cooldown_tests::portal_contact_and_waiting_handoff_match_vanilla_counters",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::nether_portal::cooldown_tests::run_portal_contact_and_waiting_handoff_match_vanilla_counters",
+      "definition": "crates/sunrise-client/src/game/blocks/tests/portal_cooldown_tests.rs:443:6666",
+      "destination": "crates/sunrise-client/src/cut_layout/game/blocks/tests/portal_cooldown_tests.rs",
+      "source": "crates/sunrise-client/src/game/blocks/tests/portal_cooldown_tests.rs",
+      "line": 9,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::nether_portal::tests::portal_transfer_pending_arrival_does_not_save_transient_tnt_immunity",
+      "libtest": "game::server_side::nether_portal::tests::portal_transfer_pending_arrival_does_not_save_transient_tnt_immunity",
+      "target": "lib",
+      "package": "sunrise-gameplay",
+      "runner": "game::server_side::nether_portal::tests::run_portal_transfer_pending_arrival_does_not_save_transient_tnt_immunity",
+      "definition": "crates/sunrise-client/src/game/blocks/nether_portal.rs:104866:105512",
+      "destination": "crates/sunrise-gameplay/src/game/blocks/nether_portal.rs",
+      "source": "crates/sunrise-client/src/game/blocks/nether_portal.rs",
+      "line": 2559,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::persist::lookup_order_tests::a_crossing_without_a_listener_saves_after_the_entity_already_in_the_section",
+      "libtest": "cut_layout::game::server_side::persist::lookup_order_tests::a_crossing_without_a_listener_saves_after_the_entity_already_in_the_section",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::persist::lookup_order_tests::run_a_crossing_without_a_listener_saves_after_the_entity_already_in_the_section",
+      "definition": "crates/sunrise-client/src/game/world/persist/lookup_order_tests.rs:7789:9318",
+      "destination": "crates/sunrise-client/src/cut_layout/game/world/persist/lookup_order_tests.rs",
+      "source": "crates/sunrise-client/src/game/world/persist/lookup_order_tests.rs",
+      "line": 203,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::persist::lookup_order_tests::chunk_loaded_families_keep_vanilla_lookup_and_save_order",
+      "libtest": "cut_layout::game::server_side::persist::lookup_order_tests::chunk_loaded_families_keep_vanilla_lookup_and_save_order",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::persist::lookup_order_tests::run_chunk_loaded_families_keep_vanilla_lookup_and_save_order",
+      "definition": "crates/sunrise-client/src/game/world/persist/lookup_order_tests.rs:2046:7586",
+      "destination": "crates/sunrise-client/src/cut_layout/game/world/persist/lookup_order_tests.rs",
+      "source": "crates/sunrise-client/src/game/world/persist/lookup_order_tests.rs",
+      "line": 64,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::persist::tests::comparator_and_hopper_live_state_survives_chunk_reload",
+      "libtest": "cut_layout::game::server_side::persist::tests::comparator_and_hopper_live_state_survives_chunk_reload",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::persist::tests::run_comparator_and_hopper_live_state_survives_chunk_reload",
+      "definition": "crates/sunrise-client/src/game/world/persist/tests.rs:11785:21220",
+      "destination": "crates/sunrise-client/src/cut_layout/game/world/persist/tests.rs",
+      "source": "crates/sunrise-client/src/game/world/persist/tests.rs",
+      "line": 307,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::persist::thrown_item_tests::a_moved_thrown_item_projectile_saves_its_loaded_item",
+      "libtest": "cut_layout::game::server_side::persist::thrown_item_tests::a_moved_thrown_item_projectile_saves_its_loaded_item",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::persist::thrown_item_tests::run_a_moved_thrown_item_projectile_saves_its_loaded_item",
+      "definition": "crates/sunrise-client/src/game/world/persist/thrown_item_tests.rs:7941:13267",
+      "destination": "crates/sunrise-client/src/cut_layout/game/world/persist/thrown_item_tests.rs",
+      "source": "crates/sunrise-client/src/game/world/persist/thrown_item_tests.rs",
+      "line": 186,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::potions_server::arrow_contents::actual_arrow_contents_match_pinned_methods",
+      "libtest": "cut_layout::game::server_side::potions_server::arrow_contents::actual_arrow_contents_match_pinned_methods",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::potions_server::arrow_contents::run_actual_arrow_contents_match_pinned_methods",
+      "definition": "crates/sunrise-client/src/game/items/potions_server.rs:159095:162922",
+      "destination": "crates/sunrise-client/src/cut_layout/game/items/potions_server.rs",
+      "source": "crates/sunrise-client/src/game/items/potions_server.rs",
+      "line": 3736,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::special_attack_fixture::tests::special_attack_cases_without_world_startup",
+      "libtest": "cut_layout::game::server_side::special_attack_fixture::tests::special_attack_cases_without_world_startup",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::special_attack_fixture::tests::run_special_attack_cases_without_world_startup",
+      "definition": "crates/sunrise-client/src/game/items/special_attack_fixture.rs:8256:8642",
+      "destination": "crates/sunrise-client/src/cut_layout/game/items/special_attack_fixture.rs",
+      "source": "crates/sunrise-client/src/game/items/special_attack_fixture.rs",
+      "line": 196,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::tnt::tests::portal_blast_sulfur_cube_uses_only_positive_cooldown",
+      "libtest": "cut_layout::game::server_side::tnt::tests::portal_blast_sulfur_cube_uses_only_positive_cooldown",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::tnt::tests::run_portal_blast_sulfur_cube_uses_only_positive_cooldown",
+      "definition": "crates/sunrise-client/src/game/entities/tnt.rs:51935:54383",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/tnt.rs",
+      "source": "crates/sunrise-client/src/game/entities/tnt.rs",
+      "line": 1304,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::tnt::tests::portal_transfer_ordinary_nbt_cannot_supply_runtime_immunity",
+      "libtest": "cut_layout::game::server_side::tnt::tests::portal_transfer_ordinary_nbt_cannot_supply_runtime_immunity",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::tnt::tests::run_portal_transfer_ordinary_nbt_cannot_supply_runtime_immunity",
+      "definition": "crates/sunrise-client/src/game/entities/tnt.rs:49486:50368",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/tnt.rs",
+      "source": "crates/sunrise-client/src/game/entities/tnt.rs",
+      "line": 1278,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::tnt::tests::portal_transfer_tnt_state_follows_memory_but_not_saved_nbt",
+      "libtest": "cut_layout::game::server_side::tnt::tests::portal_transfer_tnt_state_follows_memory_but_not_saved_nbt",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::tnt::tests::run_portal_transfer_tnt_state_follows_memory_but_not_saved_nbt",
+      "definition": "crates/sunrise-client/src/game/entities/tnt.rs:48103:49291",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/tnt.rs",
+      "source": "crates/sunrise-client/src/game/entities/tnt.rs",
+      "line": 1244,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::tnt::tests::silent_bottles_preserve_xp_and_the_server_random_stream",
+      "libtest": "cut_layout::game::server_side::tnt::tests::silent_bottles_preserve_xp_and_the_server_random_stream",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::tnt::tests::run_silent_bottles_preserve_xp_and_the_server_random_stream",
+      "definition": "crates/sunrise-client/src/game/entities/tnt.rs:74992:77243",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/tnt.rs",
+      "source": "crates/sunrise-client/src/game/entities/tnt.rs",
+      "line": 1905,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::tnt::tests::silent_creeper_keeps_the_blast_after_its_source_is_removed",
+      "libtest": "cut_layout::game::server_side::tnt::tests::silent_creeper_keeps_the_blast_after_its_source_is_removed",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::tnt::tests::run_silent_creeper_keeps_the_blast_after_its_source_is_removed",
+      "definition": "crates/sunrise-client/src/game/entities/tnt.rs:68169:69607",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/tnt.rs",
+      "source": "crates/sunrise-client/src/game/entities/tnt.rs",
+      "line": 1746,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::tnt::tests::silent_launched_potions_and_bottles_keep_their_impact",
+      "libtest": "cut_layout::game::server_side::tnt::tests::silent_launched_potions_and_bottles_keep_their_impact",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::tnt::tests::run_silent_launched_potions_and_bottles_keep_their_impact",
+      "definition": "crates/sunrise-client/src/game/entities/tnt.rs:69790:72275",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/tnt.rs",
+      "source": "crates/sunrise-client/src/game/entities/tnt.rs",
+      "line": 1787,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::tnt::tests::silent_potions_keep_the_splash_without_its_sound",
+      "libtest": "cut_layout::game::server_side::tnt::tests::silent_potions_keep_the_splash_without_its_sound",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::tnt::tests::run_silent_potions_keep_the_splash_without_its_sound",
+      "definition": "crates/sunrise-client/src/game/entities/tnt.rs:64771:67622",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/tnt.rs",
+      "source": "crates/sunrise-client/src/game/entities/tnt.rs",
+      "line": 1671,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::tnt::tests::silent_tnt_keeps_the_blast_without_its_sound",
+      "libtest": "cut_layout::game::server_side::tnt::tests::silent_tnt_keeps_the_blast_without_its_sound",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::tnt::tests::run_silent_tnt_keeps_the_blast_without_its_sound",
+      "definition": "crates/sunrise-client/src/game/entities/tnt.rs:62208:64598",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/tnt.rs",
+      "source": "crates/sunrise-client/src/game/entities/tnt.rs",
+      "line": 1608,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::server_side::vehicle_removal_tests::mob_removal_order_witness",
+      "libtest": "cut_layout::game::server_side::vehicle_removal_tests::mob_removal_order_witness",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::server_side::vehicle_removal_tests::run_mob_removal_order_witness",
+      "definition": "crates/sunrise-client/src/game/entities/vehicle_removal_tests.rs:11164:12336",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/vehicle_removal_tests.rs",
+      "source": "crates/sunrise-client/src/game/entities/vehicle_removal_tests.rs",
+      "line": 297,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    },
+    {
+      "public_test": "game::stand_low_health_tests::a_stand_breaks_on_low_health_only_through_damage_and_a_dead_one_goes_at_twenty",
+      "libtest": "cut_layout::game::stand_low_health_tests::a_stand_breaks_on_low_health_only_through_damage_and_a_dead_one_goes_at_twenty",
+      "target": "lib",
+      "package": "sunrise-client",
+      "runner": "cut_layout::game::stand_low_health_tests::run_a_stand_breaks_on_low_health_only_through_damage_and_a_dead_one_goes_at_twenty",
+      "definition": "crates/sunrise-client/src/game/entities/stand_low_health_tests.rs:2695:6844",
+      "destination": "crates/sunrise-client/src/cut_layout/game/entities/stand_low_health_tests.rs",
+      "source": "crates/sunrise-client/src/game/entities/stand_low_health_tests.rs",
+      "line": 81,
+      "cfg": [
+        "all",
+        [
+          "atom",
+          "test"
+        ]
+      ]
+    }
+  ]
+}

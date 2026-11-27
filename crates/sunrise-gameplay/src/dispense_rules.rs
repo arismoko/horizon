@@ -1,10 +1,8 @@
 //! Dispenser equipment and direction rules: slots, who may wear what, and the shared answer types.
 use std::sync::Arc;
-use sunrise_client::{
-    items::ItemStack,
-    mobs::{Mob, Species},
-};
 use sunrise_core::geometry::{Aabb, Direction, Vec3};
+use sunrise_items::items::ItemStack;
+use sunrise_sim::mobs::{Mob, Species};
 
 pub type Pos = (i32, i32, i32);
 
@@ -145,14 +143,14 @@ fn equine(s: Species) -> bool {
 pub fn body_equipment_species(s: Species) -> bool {
     equine(s)
         || matches!(s, Species::Wolf | Species::HappyGhast | Species::SulfurCube)
-        || sunrise_client::mobs::nautilus::is_nautilus(s)
+        || sunrise_sim::mobs::nautilus::is_nautilus(s)
 }
 /// What a mob holds in a slot.
 pub fn mob_slot_item(m: &Mob, slot: Slot) -> Option<Arc<str>> {
     let x = &m.extra;
     match slot {
         Slot::MainHand | Slot::OffHand | Slot::Feet | Slot::Legs | Slot::Chest | Slot::Head => {
-            sunrise_client::mobs::finalize::item(m, slot as usize)
+            sunrise_sim::mobs::finalize::item(m, slot as usize)
         }
         Slot::Body => x.body_stack().map(|s| s.item.clone()),
         Slot::Saddle => m.saddle_item().map(|s| s.item),
@@ -170,7 +168,7 @@ pub fn mob_can_use_slot(m: &Mob, slot: Slot) -> bool {
         | Species::Llama
         | Species::TraderLlama => true,
         _ if equine(s) && slot == Slot::Saddle => grown && m.extra.tame,
-        _ if sunrise_client::mobs::nautilus::is_nautilus(s)
+        _ if sunrise_sim::mobs::nautilus::is_nautilus(s)
             && matches!(slot, Slot::Saddle | Slot::Body) =>
         {
             grown && m.extra.tame
@@ -186,7 +184,7 @@ pub fn mob_can_dispenser_equip(m: &Mob, slot: Slot) -> bool {
     match s {
         Species::Pig | Species::Strider => slot == Slot::Saddle || loot,
         _ if equine(s) => matches!(slot, Slot::Body | Slot::Saddle) && m.extra.tame || loot,
-        _ if sunrise_client::mobs::nautilus::is_nautilus(s) => {
+        _ if sunrise_sim::mobs::nautilus::is_nautilus(s) => {
             matches!(slot, Slot::Body | Slot::Saddle) || loot
         }
         Species::SulfurCube | Species::HappyGhast => slot == Slot::Body,
@@ -207,7 +205,7 @@ pub fn equip_sound(m: &Mob, slot: Slot, default: Option<String>) -> Option<Strin
         Species::Camel => "minecraft:entity.camel.saddle".into(),
         Species::CamelHusk => "minecraft:entity.camel_husk.saddle".into(),
         _ if equine(s) => "minecraft:entity.horse.saddle".into(),
-        _ if sunrise_client::mobs::nautilus::is_nautilus(s) => {
+        _ if sunrise_sim::mobs::nautilus::is_nautilus(s) => {
             if m.fluids.eye_in_water {
                 "minecraft:item.nautilus_saddle_underwater_equip".into()
             } else {
@@ -224,14 +222,14 @@ pub fn mob_set_slot(m: &mut Mob, slot: Slot, stack: ItemStack) {
 pub fn tipped_effect(stack: &ItemStack) -> Option<(&'static str, i32)> {
     stack
         .potion()
-        .and_then(sunrise_client::brewing::potion)
+        .and_then(sunrise_level::brewing::potion)
         .and_then(|def| {
             def.effects
                 .iter()
-                .find(|(id, _, _)| !sunrise_client::brewing::effect(id).is_some_and(|e| e.instant))
+                .find(|(id, _, _)| !sunrise_level::brewing::effect(id).is_some_and(|e| e.instant))
                 .map(|(id, duration, _)| {
                     (
-                        sunrise_client::brewing::namespaced(id),
+                        sunrise_level::brewing::namespaced(id),
                         (duration / 8).max(1),
                     )
                 })

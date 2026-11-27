@@ -47,7 +47,7 @@ class RustChangesTests(unittest.TestCase):
             "tools/parity.py", "tools/test_tick_parity.py", "tests/test_ci_runners.py", "docs/setup.md",
         ]))
         for path in [
-            "crates/sunrise-client/src/game.rs", "xtask/src/main.rs", "Cargo.lock",
+            "crates/sunrise-gameplay-common/src/game.rs", "xtask/src/main.rs", "Cargo.lock",
             ".cargo/config.toml", ".github/workflows/ci.yml", "tools/ci/rust_changes.py",
             "tools/release_train.py", "tools/ci/sign_release.sh", "tools/native-hook-fragments/a.json",
             "tools/parity_hosts.json", "mods/sunrise/src/x.py",
@@ -76,8 +76,10 @@ class RustChangesTests(unittest.TestCase):
                      "docs/setup.md"]:
             with self.subTest(path=path):
                 self.assertFalse(needs_server_build([path]))
-        for path in ["crates/sunrise-client/src/game.rs", "crates/sunrise-client-render/src/hud.rs",
-                     "crates/sunrise-client-core/src/lang.rs", "crates/sunrise-world/Cargo.toml", "Cargo.lock",
+        for path in ["crates/sunrise-client/src/entry.rs", "crates/sunrise-client-render/src/hud.rs",
+                     "crates/sunrise-gameplay-common/src/game.rs", "crates/sunrise-gameplay/src/game.rs",
+                     "crates/sunrise-client-gameplay/src/game.rs", "crates/sunrise-game/src/main.rs",
+                     "crates/sunrise-game-data/src/lang.rs", "crates/sunrise-world/Cargo.toml", "Cargo.lock",
                      "Cargo.toml", ".cargo/config.toml", ".github/workflows/ci.yml", "tools/ci/rust_changes.py"]:
             with self.subTest(path=path):
                 self.assertTrue(needs_server_build(["docs/setup.md", path]))
@@ -114,7 +116,7 @@ class RustChangesTests(unittest.TestCase):
             "tools/README.md", "tests/fixtures/example.md", ".github/pull_request_template.md",
             "docs/modding/src/introduction.md", "roadmap/journal/example.md",
             "README.md", "ROADMAP.md", "docs/README.md",
-            "crates/sunrise-client/src/game.rs", "packaging/server/start.sh", "research-lock.json",
+            "crates/sunrise-gameplay-common/src/game.rs", "packaging/server/start.sh", "research-lock.json",
             "unknown-file",
         ]:
             with self.subTest(path=path):

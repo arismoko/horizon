@@ -181,6 +181,6 @@ if __name__ == '__main__':
         'bundled recipe, potion type/id and item candidate, plus the brewing-stand tick: brew time and '
         'speed multiplier, fuel uses and loading, ingredient shrink, outputs and bottle bits. --baseline '
         'leaves out the cross-product and whole-registry slot candidates; --no-tick leaves out the tick cases.',
-        sources=[lab.ROOT / 'crates/sunrise-client-render/src/brewing.rs',
+        sources=[lab.ROOT / 'crates/sunrise-level/src/brewing.rs',
                  lab.ROOT / 'crates/sunrise-items/src/item_data.rs',
                  lab.ROOT / 'crates/sunrise-items/src/items.rs'])

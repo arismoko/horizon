@@ -1,1 +1,1 @@
-sunrise-client game::payload_transport::task_tests::peer_completion_rejects_other_connections lib daily resources
+sunrise-client cut_layout::game::payload_transport::task_tests::peer_completion_rejects_other_connections lib daily resources

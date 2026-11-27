@@ -47,7 +47,7 @@ when the menu opens: a menu with none does no work for this hook."##]
         key = "menu",
         context = "loop",
         version = 4,
-        target = "sunrise_client_lib::lan::menu::native_menu_still_valid",
+        target = "sunrise_sim::lan::menu::native_menu_still_valid",
         neoforge = "none (vanilla AbstractContainerMenu.stillValid, which each menu overrides)"
     )]
     fn menu_still_valid(

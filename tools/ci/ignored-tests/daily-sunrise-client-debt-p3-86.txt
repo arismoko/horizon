@@ -1,7 +1,7 @@
-sunrise-client game::experience_points_tests::the_death_screen_receives_the_signed_player_score lib daily resources
-sunrise-client game::level_sounds::tests::experience_level_up_reaches_only_the_gaining_players_level lib daily resources
-sunrise-client game::native_player_food::tests::a_listener_can_rewrite_a_zero_point_grant lib daily resources
-sunrise-client game::native_player_food::tests::player_score_uses_the_signed_hook_adjusted_grant lib daily resources
-sunrise-client game::native_player_food::tests::signed_points_bypass_mending lib daily resources
-sunrise-client game::native_player_food::tests::the_signed_total_is_set_alone lib daily resources
-sunrise-client game::xp_repair_ratio_tests::orb_pickup_repairs_through_the_part lib daily resources
+sunrise-client cut_layout::game::experience_points_tests::the_death_screen_receives_the_signed_player_score lib daily resources
+sunrise-client cut_layout::game::server_side::level_sounds::tests::experience_level_up_reaches_only_the_gaining_players_level lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_food_server::tests::a_listener_can_rewrite_a_zero_point_grant lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_food_server::tests::player_score_uses_the_signed_hook_adjusted_grant lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_food_server::tests::signed_points_bypass_mending lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_food_server::tests::the_signed_total_is_set_alone lib daily resources
+sunrise-client cut_layout::game::server_side::xp_repair_ratio_tests::orb_pickup_repairs_through_the_part lib daily resources

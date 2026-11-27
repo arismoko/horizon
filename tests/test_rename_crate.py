@@ -8,6 +8,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from tests.git_fixture import git_in
+
 spec = importlib.util.spec_from_file_location("rename_crate", Path(__file__).resolve().parents[1] / "tools/rename_crate.py")
 rename = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rename)
@@ -66,11 +68,11 @@ let registry = "https://github.com/horizon-rust/horizon-mods";
             (crate / "Cargo.toml").write_text('[package]\nname = "sunrise-mods"\n')
             consumer = rename.ROOT / "consumer.rs"
             consumer.write_text("use sunrise_mods::Manifest;\n")
-            rename.run("git", "init", "-q")
-            rename.run("git", "add", "--", rename.OLD_PATH, "consumer.rs")
-            rename.run("git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
-                       "commit", "-qm", "Baseline")
-            rename.run("git", "mv", rename.OLD_PATH, rename.NEW_PATH)
+            git = git_in(rename.ROOT)
+            git("init", "-q")
+            git("add", "--", rename.OLD_PATH, "consumer.rs")
+            git("-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "Baseline")
+            git("mv", rename.OLD_PATH, rename.NEW_PATH)
             (rename.ROOT / rename.NEW_PATH / "Cargo.toml").write_text(
                 '[package]\nname = "sunrise-mod-package"\n', newline="\n")
             with self.assertRaisesRegex(AssertionError, "unexpected content change: consumer.rs"):
@@ -87,7 +89,3 @@ let registry = "https://github.com/horizon-rust/horizon-mods";
         self.assertEqual(rename.rewrite("crates/sunrise-client/assets/sunrise/lang/en_us.json", translation), translation)
         self.assertEqual(rename.rewrite("roadmap/roadmap.toml", 'dev = "sunrise-mods/native/"'),
                          'dev = "sunrise-mods/native/"')
-
-
-if __name__ == "__main__":
-    unittest.main()

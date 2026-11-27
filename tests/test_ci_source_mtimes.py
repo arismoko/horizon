@@ -3,8 +3,10 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from tools.ci.source_mtimes import restore_and_snapshot
 from tests.test_ci_concurrency import ROOT
@@ -67,6 +69,51 @@ class SourceMtimesTests(unittest.TestCase):
         os.utime(source.parent, ns=(1, 1))
         restore_and_snapshot(self.root, self.snapshot)
         self.assertGreater(source.parent.stat().st_mtime_ns, before)
+
+    def test_missing_or_malformed_snapshot_refreshes_source_and_directory_mtimes(self):
+        restore_and_snapshot(self.root, self.snapshot)
+        records = json.loads(self.snapshot.read_text(encoding="utf-8"))
+        stale = 1_000_000_000
+        for record in records.values():
+            record[1] = stale
+        records["src/value.txt"][1] = "not a timestamp"
+        invalid_record = json.dumps(records).encode("utf-8")
+        records["src/value.txt"][1] = 10**100
+        for label, data in (("missing", None), ("truncated", b'{"src": ['),
+                            ("invalid UTF-8", b"\xff"), ("invalid root", b"[]"),
+                            ("invalid record", invalid_record),
+                            ("out-of-range timestamp", json.dumps(records).encode("utf-8"))):
+            with self.subTest(label=label):
+                if data is None:
+                    self.snapshot.unlink()
+                else:
+                    self.snapshot.write_bytes(data)
+                for name in records:
+                    os.utime(self.root / name, ns=(stale, stale))
+                restore_and_snapshot(self.root, self.snapshot)
+                updated = json.loads(self.snapshot.read_text(encoding="utf-8"))
+                for name in records:
+                    mtime = (self.root / name).stat().st_mtime_ns
+                    self.assertGreater(mtime, stale)
+                    self.assertEqual(updated[name][1], mtime)
+
+    def test_snapshot_read_errors_other_than_missing_or_malformed_propagate(self):
+        restore_and_snapshot(self.root, self.snapshot)
+        with mock.patch.object(Path, "read_text", side_effect=PermissionError("snapshot unreadable")):
+            with self.assertRaisesRegex(PermissionError, "snapshot unreadable"):
+                restore_and_snapshot(self.root, self.snapshot)
+
+    def test_failed_snapshot_publication_preserves_the_previous_snapshot(self):
+        restore_and_snapshot(self.root, self.snapshot)
+        previous = self.snapshot.read_bytes()
+        (self.root / "src/value.txt").write_text("changed\n")
+        self.commit()
+        with mock.patch.object(Path, "replace", side_effect=PermissionError("publication failed")):
+            with self.assertRaisesRegex(PermissionError, "publication failed"):
+                restore_and_snapshot(self.root, self.snapshot)
+        self.assertEqual(self.snapshot.read_bytes(), previous)
+        restore_and_snapshot(self.root, self.snapshot)
+        self.assertNotEqual(self.snapshot.read_bytes(), previous)
 
     @unittest.skipIf(os.name == "nt", "creating a symlink needs a privilege on Windows")
     def test_modified_checkout_is_refused_and_symlinks_are_not_followed(self):
@@ -158,6 +205,36 @@ class PersistentTargetTests(unittest.TestCase):
                     snapshot = [i for i, run in enumerate(runs) if "tools/ci/source_mtimes.py" in run]
                     self.assertTrue(snapshot and snapshot[0] < builds[0],
                                     "restore the source snapshot before the first build step")
+
+
+@unittest.skipUnless(sys.platform == "linux" and shutil.which("bash"), "pack bench runs on Linux bash")
+class PackBenchTargetsTests(unittest.TestCase):
+    def test_the_dirty_base_bench_builds_in_its_own_target(self):
+        workflow = yaml.safe_load((ROOT / ".github/workflows/pack-bench.yml").read_text())
+        steps = {step.get("name"): step for step in workflow["jobs"]["bench"]["steps"]}
+        # Stub the tools, but run the actual step scripts, including cd, cp and the output redirections.
+        stub = r'''
+git() { :; }
+cargo() { printf '%s\n' "$PWD" "$CARGO_TARGET_DIR" "$CARGO_BUILD_BUILD_DIR" "$CARGO_HOME"; }
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory).resolve()
+            head, base = folder / "head", folder / "base"
+            bench = Path("crates/sunrise-client-render/examples/pack_load_bench.rs")
+            for tree, contents in ((head, "head bench"), (base, "base bench")):
+                (tree / bench).parent.mkdir(parents=True)
+                (tree / bench).write_text(contents)
+            downloads = str(folder / "cargo-home")
+            env = {**os.environ, "GITHUB_WORKSPACE": str(head), "CARGO_HOME": downloads,
+                   "CARGO_TARGET_DIR": str(head / "target"), "CARGO_BUILD_BUILD_DIR": str(folder / "old-build"),
+                   "BASE": "main", "SCALE": "1"}
+            for name in ("Bench the branch", "Bench the base, with the branch's bench"):
+                subprocess.run(["bash", "-e", "-c", stub + steps[name]["run"]], cwd=head, env=env, check=True)
+            self.assertEqual((base / bench).read_text(), "head bench")
+            for tree in (head, base):
+                output = (head / f"{tree.name}.md").read_text().splitlines()
+                self.assertEqual(output, [str(tree), str(tree / "target"), str(tree / "target"), downloads])
+
 
 if __name__ == "__main__":
     unittest.main()

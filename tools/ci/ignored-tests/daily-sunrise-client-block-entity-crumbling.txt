@@ -1,1 +1,1 @@
-sunrise-client game::native_block_entity_draw::tests::crumbling_overlay_covers_quad_cube_block_model_and_terrain_model_only_while_on lib daily resources
+sunrise-client cut_layout::game::client_side::native_block_entity_draw::tests::crumbling_overlay_covers_quad_cube_block_model_and_terrain_model_only_while_on lib daily resources

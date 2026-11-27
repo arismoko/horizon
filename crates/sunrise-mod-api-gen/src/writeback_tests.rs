@@ -29,12 +29,12 @@ fn untouched_writeback_runtime_and_mutants() {
     for (name, source, adapter) in [
         (
             "menu_button",
-            include_str!("../../sunrise-client/src/game/native_hooks/shared.rs"),
+            include_str!("../../sunrise-gameplay-common/src/game/native_hooks/shared.rs"),
             "fn apply_menu_button_cursor(",
         ),
         (
             "menu_quick_move",
-            include_str!("../../sunrise-client/src/game/modding/native_quick_move.rs"),
+            include_str!("../../sunrise-gameplay/src/game/modding/native_quick_move.rs"),
             "fn project_quick_move_remainder(",
         ),
     ] {

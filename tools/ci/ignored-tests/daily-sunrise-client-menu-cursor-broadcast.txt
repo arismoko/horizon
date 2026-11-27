@@ -1,7 +1,7 @@
-sunrise-client game::native_menus::owned_slots_tests::a_cursor_cleared_outside_a_click_is_sent_once_on_the_next_broadcast lib daily resources
-sunrise-client game::native_menus::tests::a_block_entity_menu_parks_only_the_active_guests_cursor lib daily resources
-sunrise-client game::native_menus::tests::shutdown_saves_current_and_parked_inventory_cursors lib daily resources
-sunrise-client game::remote::tests::client_menu_tests::inventory_repair_does_not_replace_an_open_menus_predicted_cursor lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::a_cross_level_teleport_returns_both_cursors_before_arrival lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::a_cross_level_teleport_survives_cursor_overflow_removing_an_earlier_guest lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::a_failed_cross_level_trip_closes_the_retired_client_window lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::a_cursor_cleared_outside_a_click_is_sent_once_on_the_next_broadcast lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::a_block_entity_menu_parks_only_the_active_guests_cursor lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::shutdown_saves_current_and_parked_inventory_cursors lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_menu_tests::inventory_repair_does_not_replace_an_open_menus_predicted_cursor lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::a_cross_level_teleport_returns_both_cursors_before_arrival lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::a_cross_level_teleport_survives_cursor_overflow_removing_an_earlier_guest lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::a_failed_cross_level_trip_closes_the_retired_client_window lib daily resources

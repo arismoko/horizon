@@ -1,2 +1,2 @@
-sunrise-client game::native_goal_ticks::tests::a_screens_entity_registers_no_mod_goals lib daily resources
-sunrise-client game::native_living_renderers_tests::a_screens_entity_keeps_the_layers_beside_a_registered_renderer lib daily resources
+sunrise-client cut_layout::game::server_side::native_goal_ticks::tests::a_screens_entity_registers_no_mod_goals lib daily resources
+sunrise-client cut_layout::game::native_living_renderers_tests::a_screens_entity_keeps_the_layers_beside_a_registered_renderer lib daily resources

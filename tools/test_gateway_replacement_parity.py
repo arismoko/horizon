@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools import lab, test_rust_parity as base
 
-TEST = 'game::block_entity_anims::tests::replacing_a_gateway_discards_its_old_cooldown'
+TEST = 'game::server_side::block_entity_anims::tests::replacing_a_gateway_discards_its_old_cooldown'
 
 
 def main():
@@ -36,9 +36,9 @@ def main():
     lock, jars, libraries = base.verify_artifacts()
     source = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaGatewayReplacementOracle.java'
     sources = [Path(__file__), source, source.parent / 'ParityData.java', lab.ROOT / 'Cargo.lock',
-               lab.ROOT / 'crates/sunrise-client/src/game.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/blocks/block_entity_anims.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/blocks/spill.rs']
+               lab.ROOT / 'crates/sunrise-gameplay-common/src/game.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/blocks/block_entity_anims.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/blocks/spill.rs']
     hashes = base.source_hashes(sources)
 
     def run(command, label, **kwargs):

@@ -1,2 +1,2 @@
 # A mod's own config screen from the Mods screen's Config (#1217).
-sunrise-client game::native_hooks::base::screen_widgets_tests::config_opens_the_mods_own_screen_and_closing_it_returns_to_the_mods_screen lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::config_opens_the_mods_own_screen_and_closing_it_returns_to_the_mods_screen lib daily child-process

@@ -1,3 +1,3 @@
-sunrise-client game::native_server::tests::outgoing_command_filter_reads_each_live_recipient_and_isolates_panics lib daily resources
-sunrise-client game::native_server::tests::self_deop_sends_the_tree_for_the_permission_the_listener_reads lib daily resources
-sunrise-client game::server_travel::changed_dimension_tests::cross_dimension_command_trees_see_the_player_before_portal_and_command_moves lib daily resources
+sunrise-client cut_layout::game::server_side::native_server_server::tests::outgoing_command_filter_reads_each_live_recipient_and_isolates_panics lib daily resources
+sunrise-client cut_layout::game::server_side::native_server_server::tests::self_deop_sends_the_tree_for_the_permission_the_listener_reads lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::changed_dimension_tests::cross_dimension_command_trees_see_the_player_before_portal_and_command_moves lib daily resources

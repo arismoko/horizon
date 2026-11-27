@@ -50,6 +50,54 @@ pub mod tests {
         }
     }
 
+    /// #6039: a world fluid's liquid block is a path in its namespace (or an id there), unset
+    /// when the mod names none; another namespace or the flowing form's id is refused.
+    #[test]
+    fn world_fluid_declarations_name_their_liquid_block() {
+        let named = |block: Option<&str>, flowing: Option<&str>| {
+            let mut value: crate::WorldFluid = Default::default();
+            value.block = block.map(str::to_owned);
+            value.flowing = flowing.map(str::to_owned);
+            value
+        };
+        let mut registrar = super::PartRegistrar::new("blood");
+        registrar.declare_world_fluid(
+            "life_essence_fluid",
+            named(Some("life_essence_block"), None),
+        );
+        registrar.declare_world_fluid("plasma", named(Some("blood:plasma_block"), None));
+        registrar.declare_world_fluid("oil", Default::default());
+        let blocks: Vec<_> = registrar
+            .world_fluids
+            .iter()
+            .map(|(_, (id, world))| (id.as_str(), world.block.as_deref()))
+            .collect();
+        assert_eq!(
+            blocks,
+            [
+                ("blood:life_essence_fluid", Some("blood:life_essence_block")),
+                ("blood:plasma", Some("blood:plasma_block")),
+                ("blood:oil", None),
+            ]
+        );
+        for (path, refused) in [
+            ("other_ns", named(Some("other:block"), None)),
+            (
+                "as_flowing",
+                named(Some("as_flowing_flow"), Some("as_flowing_flow")),
+            ),
+            // The default flowing id, though `flowing` is unset.
+            ("dflt", named(Some("flowing_dflt"), None)),
+        ] {
+            assert_eq!(
+                registrar.declare_world_fluid(path, refused),
+                mod_vocab::__private::parts_installation::fluid_key(u32::MAX),
+                "{path}"
+            );
+        }
+        assert_eq!(registrar.world_fluids.len(), 3);
+    }
+
     /// A port keeps its mod's ids: the flowing form and bucket are paths in the fluid's
     /// namespace, a bucket the mod declares itself any item id.
     #[test]
@@ -857,16 +905,28 @@ impl FluidsRegistrar for PartRegistrar {
             }
             Some(name) => in_namespace(name).map(Some),
         };
-        let (Some(flowing), Some(bucket_item)) = (flowing, bucket_item) else {
+        let block = match fluid.block.as_deref() {
+            None => Some(None),
+            Some(name) => in_namespace(name).map(Some),
+        };
+        let (Some(flowing), Some(bucket_item), Some(block)) = (flowing, bucket_item, block) else {
             self.refused.push(format!(
-                "mod {}: world fluid {path:?}: flowing and a generated bucket_item are ids in \
-                 namespace {namespace}, bucket_item an item id",
+                "mod {}: world fluid {path:?}: flowing, block and a generated bucket_item are ids \
+                 in namespace {namespace}, bucket_item an item id",
                 self.mod_id
             ));
             return mod_vocab::__private::parts_installation::fluid_key(u32::MAX);
         };
+        if block.as_ref() == Some(&flowing) {
+            self.refused.push(format!(
+                "mod {}: world fluid {path:?}: its block is not its flowing form's id",
+                self.mod_id
+            ));
+            return mod_vocab::__private::parts_installation::fluid_key(u32::MAX);
+        }
         fluid.flowing = Some(flowing.clone());
         fluid.bucket_item = bucket_item;
+        fluid.block = block;
         if [id.as_str(), flowing.as_str()]
             .iter()
             .any(|candidate| self.is_builtin_fluid(candidate))

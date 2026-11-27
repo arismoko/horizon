@@ -4,7 +4,7 @@ from pathlib import Path
 from textwrap import dedent, indent
 
 
-path = Path(__file__).resolve().parents[1] / "crates/sunrise-client/src/game.rs"
+path = Path(__file__).resolve().parents[1] / "crates/sunrise-gameplay-common/src/game.rs"
 source = path.read_text()
 start = '                WindowEvent::MouseInput { state, button, .. } if self.command_prompt.is_some() => {'
 end = '                // ConfirmScreen.keyPressed: Escape answers no, once its delay is over.'

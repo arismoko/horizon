@@ -16,6 +16,7 @@ impl sunrise_core::random::RandomSource for Random {
 // The paths the real `Knock::apply` and player entry name.
 extern crate self as sunrise_core;
 extern crate self as sunrise_world;
+extern crate self as sunrise_gameplay_common;
 pub mod geometry { pub use super::Vec3; }
 pub mod random {
     pub trait RandomSource { fn next_double(&mut self) -> f64; }
@@ -64,7 +65,7 @@ mod sulfur_cube {
     pub fn has_body(_: &super::Mob) -> bool { false }
     pub fn knockback(_: &mut super::Mob, _: (f64, f64), _: Option<[f64; 3]>, _: f32, _: Option<f64>) { panic!("ordinary mob") }
 }
-extern crate self as sunrise_client;
+extern crate self as sunrise_sim;
 use health::{Knock, Hurting};
 #[derive(Clone, Copy)]
 struct HurtSource<'a>(&'a str);
@@ -87,15 +88,25 @@ mod motion {
 // Attribution is a world/context service, not part of the physical push tested here.
 struct KnockbackCreditPlan;
 impl KnockbackCreditPlan { fn lend(&self, _: &mut ()) {} }
-struct Game<'a> { player: Option<motion::PlayerMotion>, level: DamageLevel<'a>, last_hurt_by_player: () }
-impl Game<'_> {
+struct ServerState { last_hurt_by_player: () }
+struct CommonGame { player: Option<motion::PlayerMotion> }
+struct ServerGame<'a> { common: CommonGame, level: DamageLevel<'a>, server: ServerState }
+impl ServerGame<'_> {
     fn prepare_knockback_credit(&self, _: i32, _: Option<()>, _: &Attack) -> KnockbackCreditPlan { KnockbackCreditPlan }
     fn player_hurt_by(&self) -> Option<(Who, ())> { None }
     fn attack_of(&self, _: i32) -> Attack { Attack { attacker: 0 } }
 }
 #[macro_export]
 macro_rules! damage_level_of { ($game:ident, $attack:ident, $credit:expr, $registry:expr) => { &mut $game.level }; }
-mod game { pub mod entity { pub(crate) use crate::damage_level_of; } }
+mod game {
+    pub(crate) use crate::ServerGame;
+    pub mod server_side {
+        pub mod entity_server { pub(crate) use crate::damage_level_of; }
+    }
+    pub mod creatures {
+        pub mod knockback { pub(crate) use crate::player_entries::apply_player_knockback; }
+    }
+}
 mod creaking {
     pub fn is_creaking(_: &super::Mob) -> bool { false }
     pub fn can_move(_: &super::Mob) -> bool { true }

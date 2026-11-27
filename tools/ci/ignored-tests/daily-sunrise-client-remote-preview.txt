@@ -1,4 +1,4 @@
 # Client interaction regressions that require prepared resources.
-sunrise-client game::remote::tests::click_ending_tests::a_rocket_used_while_gliding_ends_the_click lib daily resources
-sunrise-client game::remote::tests::placement_preview_tests::placement_preview_checks_obstruction_without_changing_the_level lib daily resources
-sunrise-client game::remote::tests::predicted_throw_tests::a_predicted_throw_from_a_slot_swings_the_hand lib daily resources
+sunrise-client cut_layout::game::remote::tests::click_ending_tests::a_rocket_used_while_gliding_ends_the_click lib daily resources
+sunrise-client cut_layout::game::remote::tests::placement_preview_tests::placement_preview_checks_obstruction_without_changing_the_level lib daily resources
+sunrise-client cut_layout::game::remote::tests::predicted_throw_tests::a_predicted_throw_from_a_slot_swings_the_hand lib daily resources

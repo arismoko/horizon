@@ -18,7 +18,7 @@ pub trait Hooks {
     /// hand; nothing is used up in creative mode. The hand holds the result,
     /// a mod's replacement included, until the server's inventory update.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_living_entity_use_item_finish",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_living_entity_use_item_finish",
         dispatch = "flat",
         side = "both",
         contract = "listen",

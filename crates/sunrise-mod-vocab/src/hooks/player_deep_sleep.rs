@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player has slept for 100 ticks in a bed and now counts as deeply asleep for the
     /// night-skip check.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_deep_sleep",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_deep_sleep",
         dispatch = "flat",
         side = "server",
         contract = "listen",

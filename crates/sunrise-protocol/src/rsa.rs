@@ -1023,7 +1023,7 @@ pub(crate) mod tests {
     fn a_key_verifies_through_its_own_context() {
         use base64::Engine as _;
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../sunrise-client/src/game/network/remote/fixtures/signed_textures.json"
+            "../../sunrise-client/src/cut_layout/game/network/remote/fixtures/signed_textures.json"
         ))
         .unwrap();
         let decode = |text: &str| {

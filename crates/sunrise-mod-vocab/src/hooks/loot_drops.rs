@@ -32,7 +32,7 @@ pub trait Hooks {
     /// non-negative signed-int damage, even above its maximum durability.
     /// Server-side, for every player.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_loot_drops",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_loot_drops",
         dispatch = "flat",
         side = "server",
         contract = "collect",

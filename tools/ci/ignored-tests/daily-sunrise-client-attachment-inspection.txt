@@ -1,1 +1,1 @@
-sunrise-client game::attachment_index::query_tests::inspecting_a_loaded_chunk_does_not_create_or_dirty_attachment_storage lib daily resources
+sunrise-client cut_layout::game::server_side::attachment_index::query_tests::inspecting_a_loaded_chunk_does_not_create_or_dirty_attachment_storage lib daily resources

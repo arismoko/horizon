@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests.git_fixture import isolated_git_env
 from tools import build_times as bt
 
 # The UNIT_DATA cargo 1.99.1 wrote for a workspace of a (lib) <- b (lib) <- c (bin with a build script).
@@ -192,7 +193,7 @@ FAKE_CARGO = textwrap.dedent('''
 
 def git(root, *args):
     subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args], cwd=root, check=True,
-                   capture_output=True)
+                   env=isolated_git_env(), capture_output=True)
 
 
 class RunTests(unittest.TestCase):
@@ -209,7 +210,7 @@ class RunTests(unittest.TestCase):
             path.parent.mkdir(parents=True)
             path.write_bytes(b"use a;\n\npub fn one() {}\n\npub fn two() {}\n\npub fn three() {}\n")
         (self.root / "crates/sunrise-items/src/lib.rs").write_text("pub mod items;\n")
-        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        git(self.root, "init", "-q")
         git(self.root, "add", "-A")
         git(self.root, "commit", "-q", "-m", "first")
         (self.root / ".gitignore").write_text(".local/\n")

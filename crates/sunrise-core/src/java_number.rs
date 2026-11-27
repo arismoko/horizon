@@ -257,7 +257,10 @@ fn java_string<const SIZE: usize>(negative: bool, digits: &[u8], exponent: i32) 
         out[pos] = b'0' + (n % 10) as u8;
         pos + 1
     };
-    std::str::from_utf8(&out).expect("ASCII floating-point text")[..end].into()
+    // Binary32's full buffer fits one ASCII validation block on 64-bit
+    // targets. For binary64, skip validating the unused part of the buffer.
+    let validate = if SIZE == 16 { &out[..] } else { &out[..end] };
+    std::str::from_utf8(validate).expect("ASCII floating-point text")[..end].into()
 }
 
 // Keep the exceptional two-digit subnormal conversion out of the hot
@@ -559,6 +562,7 @@ mod moved_tests {
             (0x44a4_5900, "1314.7812"),
             (0x4811_6728, "148892.62"),
             (0x4a00_0001, "2097152.2"),
+            (0x10fd_8a53, "1.00004027E-28"),
             (0x7f7f_ffff, "3.4028235E38"),
         ] {
             assert_eq!(float_to_string(f32::from_bits(bits)), expected);

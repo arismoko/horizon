@@ -13,85 +13,80 @@ autotests = false
 sunrise-mod-api-gen = { path = "../sunrise-mod-api-gen" }
 
 [dependencies]
-cap-fs-ext = "3.4.6"
-cap-std = "3.4.6"
 sunrise-hooks = { path = "../sunrise-hooks" }
 sunrise-mod-runtime = { path = "../sunrise-mod-runtime" }
 mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab" }
 sunrise-mod-api-macros = { path = "../sunrise-mod-api-macros" }
-sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false }
+sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false, optional = true }
 sunrise-gameplay = { path = "../sunrise-gameplay" }
-sunrise-client-gameplay = { path = "../sunrise-client-gameplay" }
+sunrise-gameplay-common = { path = "../sunrise-gameplay-common" }
+sunrise-client-gameplay = { path = "../sunrise-client-gameplay", optional = true, default-features = false }
 sunrise-assets = { path = "../sunrise-assets" }
-sunrise-client-core = { path = "../sunrise-client-core" }
-sunrise-client-input = { path = "../sunrise-client-input" }
-sunrise-client-render = { path = "../sunrise-client-render" }
+sunrise-game-data = { path = "../sunrise-game-data" }
+sunrise-client-input = { path = "../sunrise-client-input", optional = true }
+sunrise-client-render = { path = "../sunrise-client-render", optional = true }
 sunrise-command = { path = "../sunrise-command" }
 sunrise-items = { path = "../sunrise-items" }
 sunrise-core = { path = "../sunrise-core" }
 # OptiFine-format pack files: custom entity models, random entity textures.
-sunrise-optifine = { path = "../sunrise-optifine" }
 # The server thread ahead of the workers (MinecraftServer.spin's Thread.setPriority).
 sunrise-threads = { path = "../sunrise-threads" }
 sunrise-perf-format = { path = "../sunrise-perf-format" }
 sunrise-world = { path = "../sunrise-world" }
+sunrise-sim = { path = "../sunrise-sim" }
+sunrise-level = { path = "../sunrise-level" }
 sunrise-protocol = { path = "../sunrise-protocol" }
 # server.properties, eula.txt and the user lists, shared with sunrise-server.
 sunrise-server-files = { path = "../sunrise-server-files" }
+sunrise-server-profiles-http = { path = "../sunrise-server-profiles-http" }
 # The JDK's clock, for the LAN host's random seed and the probes.
 sunrise-java-properties = { path = "../sunrise-java-properties" }
 # Shader packs: reading them and turning their GLSL into naga modules.
-sunrise-shaders = { path = "../sunrise-shaders" }
+# Sunrise's own shader packs: the format, the stages and the check (docs/shaders.md).
 # Play with Friends: invite codes and their tunnel; the `friends` feature.
-sunrise-friends = { path = "../sunrise-friends", optional = true }
 # The narrator (GameNarrator): text-to-speech of chat, system messages and screens.
-sunrise-narrator = { path = "../sunrise-narrator" }
+sunrise-narrator = { path = "../sunrise-narrator", optional = true }
 # Sunrise mods: native code and content packages (docs/modding/src/how-to/content-mods.md).
 # Their runtime is the `mods` feature.
-sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["index-read", "runtime-process"] }
-wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "metal", "wgsl", "naga-ir"] }
-winit = "0.30.13"
-pollster = "0.4"
-bytemuck = { version = "1.24", features = ["derive"] }
-glam = "0.30"
-png = "0.18"
-sha2 = "0.10.9"
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["runtime-process"] }
+winit = { version = "0.30.13", optional = true }
+glam = { version = "0.30", optional = true }
+png = { version = "0.18", optional = true }
+sha2 = { version = "0.10.9", optional = true }
 # Match shared feature sets across Extras variants so CI builds the second incrementally; verify-static checks this.
-cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
-crypto-common = { version = "0.1", default-features = false, features = ["getrandom"] }
-digest = { version = "0.10", default-features = false, features = ["mac"] }
-fnv = "1"
-socket2 = { version = "0.6", default-features = false, features = ["all"] }
+cipher = { version = "0.4", default-features = false, features = ["zeroize"], optional = true }
+crypto-common = { version = "0.1", default-features = false, features = ["getrandom"], optional = true }
+digest = { version = "0.10", default-features = false, features = ["mac"], optional = true }
+fnv = { version = "1", optional = true }
+socket2 = { version = "0.6", default-features = false, features = ["all"], optional = true }
 # Server resource packs are checked and cached by their SHA-1, as vanilla does.
-sha1 = "0.10"
+sha1 = { version = "0.10", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["raw_value"] }
 # server.toml's sections the dedicated server reads itself ([entities]...).
 toml = "1.1"
 # hlsl-out: the gfx.rs tests translate every shader as wgpu's DirectX 12 backend does. A normal feature,
 # not a dev-dependency's, so builds, tests and examples share one build of naga, wgpu and this crate.
-naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out"] }
-ab_glyph = "0.2.32"
-indexmap = "2"
+indexmap = { version = "2", optional = true }
 log = "0.4"
-chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"] }
-flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs", "runtime_detection"] }
-sunrise-theme = { path = "../sunrise-theme" }
+chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"], optional = true }
+flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs", "runtime_detection"], optional = true }
 # Machine and process probes for benchmark and dedicated-server performance reports.
 sunrise-system = { path = "../sunrise-system" }
 # Opt-in data collection: the game keeps, the launcher sends (docs/telemetry.md). The
 # anonymous "I'm playing" ping is the Sunrise layer's (`sunrise-heartbeat`, in the official executable).
 sunrise-telemetry = { path = "../sunrise-telemetry", default-features = false }
 sunrise-bench = { path = "../sunrise-bench" }
-zip = { version = "9.1.3", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9.1.3", default-features = false, features = ["deflate-flate2-zlib-rs"], optional = true }
 # Controllers (evdev + libudev on Linux, IOKit on macOS, Windows.Gaming.Input); the `controllers` feature.
-gilrs = { version = "0.11", optional = true }
 # The DualSense's rumble, adaptive triggers and lights over HID (gilrs only reads it).
-sunrise-dualsense = { path = "../sunrise-dualsense", optional = true }
 # HTTPS to the Minecraft services (online-mode session join).
-ureq = { version = "2", default-features = false, features = ["tls"] }
+ureq = { version = "2", default-features = false, features = ["tls"], optional = true }
 # `LevelStorageAccess.estimateDiskSpace`: usable disk space, without unsafe code on Windows.
-fs4 = { version = "1.1.0", default-features = false, features = ["sync"] }
+fs4 = { version = "1.1.0", default-features = false, features = ["sync"], optional = true }
+# Mod file roots are descriptor-bound: no symlink race can leave a mod's area.
+cap-std = { version = "3.4.6", optional = true }
+cap-fs-ext = { version = "3.4.6", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 # The server thread's CPU time per tick (`SUNRISE_SPIKES`, spans.rs).
@@ -101,45 +96,49 @@ rustix = { version = "1", default-features = false, features = ["std", "time", "
 # DirectX 12, where Vulkan has no adapter or device, or by choice (`graphicsApi`, graphics.rs).
 # Shaders compile with FXC (d3dcompiler_47.dll, part of Windows), or on integrated GPUs with DXC
 # (dxcompiler.dll beside the game, gfx/dx12_compiler.rs).
-wgpu = { version = "30.0.1", default-features = false, features = ["dx12"] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 # OpenGL (WGL on Windows, EGL on Linux), the last fallback, for GPUs with no Vulkan or
 # DirectX 12 driver (`graphicsApi`, graphics.rs).
-wgpu = { version = "30.0.1", default-features = false, features = ["gles"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Controllers' gilrs turns this on through nix on Linux: pinned like the shared features above.
-libc = { version = "0.2", features = ["extra_traits"] }
+libc = { version = "0.2", features = ["extra_traits"], optional = true }
 
 [features]
-default = ["audio", "controllers", "sunrise-extras"]
+parity-fixtures = []
+default = ["client", "audio", "controllers", "sunrise-extras"]
+# Interactive client gameplay, UI, rendering hooks, and client-side modules.
+# Without it (`--no-default-features`, released as sunrise-engine; docs/server.md),
+# only dedicated-server and common gameplay code is compiled.
+client = ["dep:cap-fs-ext", "dep:cap-std", "dep:chrono", "dep:cipher", "dep:crypto-common", "dep:digest", "dep:flate2", "dep:fnv", "dep:fs4", "dep:glam", "dep:indexmap", "dep:libc", "dep:png", "dep:sha1", "dep:sha2", "dep:socket2", "dep:sunrise-client-gameplay", "dep:sunrise-client-input", "dep:sunrise-client-lib", "dep:sunrise-client-render", "dep:sunrise-narrator", "dep:ureq", "dep:winit", "dep:zip", "sunrise-client-gameplay/client"]
 # Scoped trait-mod installation for a mod's own tests.
 testing = []
+test-support = ["sunrise-client-gameplay?/test-support"]
 # Per-level-tick state digest for determinism checks (game/world/state_digest.rs).
-state-digest = []
+state-digest = ["sunrise-gameplay/state-digest"]
 # Sound output. Without it (and `controllers`) the program links neither libasound nor libudev on
 # Linux: the server build (`--no-default-features`, released as sunrise-engine; docs/server.md).
-audio = ["sunrise-client-render/audio", "sunrise-client-lib/audio"]
+audio = ["client", "sunrise-client-gameplay/audio"]
 # Controllers: gilrs, and the DualSense's own output. Without it only `sunrise-ctl pad`'s virtual pad.
-controllers = ["sunrise-client-lib/controllers", "dep:gilrs", "dep:sunrise-dualsense", "sunrise-client-input/controllers"]
+controllers = ["client", "sunrise-client-gameplay/controllers"]
 # Sunrise's own extras over the vanilla game, for a fork that wants them out (docs/forking.md):
 # the Sunrise Settings and Mods pages and Play with Friends. Players always get
 # them; there is no switch. `grep -rn sunrise-extras crates/` lists
 # every place it gates. Without it (`--no-default-features --features audio,controllers`) the
 # client is best effort: CI builds only the default.
-sunrise-extras = ["friends"]
+sunrise-extras = ["client", "friends", "sunrise-client-gameplay/sunrise-extras"]
 # Play with Friends: sharing a world behind an invite code (game/friends.rs). Joining one is
 # sunrise-friends' `game` side, which sunrise-official registers (`sunrise_hooks::tunnel`).
-friends = ["dep:sunrise-friends"]
+friends = ["sunrise-client-gameplay?/friends"]
 # Records the call sites of mob random draws (`mob_ai_probe` traces).
-rng-trace = ["sunrise-core/rng-trace", "sunrise-client-lib/rng-trace"]
+rng-trace = ["sunrise-core/rng-trace", "sunrise-client-gameplay?/rng-trace", "sunrise-client-lib?/rng-trace"]
 # Rust's allocations go to the system heap instead of mimalloc, where heap profilers that replace
 # malloc (heaptrack, valgrind's massif) see them. Also the Windows and macOS prebuilt archives' allocator
 # (tools/prebuilt_game.py, #2394, #3877): there std's shared library keeps its own allocator. Otherwise mimalloc is faster.
-system-allocator = ["sunrise-threads/system-allocator"]
+system-allocator = ["sunrise-threads/system-allocator", "sunrise-gameplay-common/system-allocator"]
 # mimalloc that counts each thread's allocations and frees (`stats` replies with `alloc`).
-alloc-count = ["sunrise-threads/alloc-count"]
+alloc-count = ["sunrise-threads/alloc-count", "sunrise-gameplay-common/alloc-count"]
 # mimalloc with a tag on each block: `sunrise-ctl memory` lists the live heap by startup step and
 # thread (`heap_by_tag_mb`). For measuring only: each block costs 16 bytes more.
 alloc-census = ["sunrise-threads/alloc-census"]
@@ -154,19 +153,27 @@ path = "tests/it/main.rs"
 workspace = true
 
 [dev-dependencies]
-# `runtime_files`' test packs a mod folder.
-sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["folder"] }
+sunrise-gameplay-common = { path = "../sunrise-gameplay-common", features = ["test-support"] }
+# Forward test support only when the optional client gameplay dependency is active.
+sunrise-client = { path = ".", default-features = false, features = ["test-support"] }
+sunrise-gameplay = { path = "../sunrise-gameplay", features = ["test-support"] }
 sunrise-hooks = { path = "../sunrise-hooks", features = ["test-support"] }
-sunrise-client-core = { path = "../sunrise-client-core", features = ["test-language-publication", "test-effect-registry"] }
-sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false, features = ["test-menu-validity", "test-payload-probe", "test-publication-scope", "test-residency-observer", "test-dry-side", "test-tooltip-factories", "test-pack-feedback", "test-still-clock"] }
+# `runtime_files` tests pack a mod folder.
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["folder"] }
+sunrise-game-data = { path = "../sunrise-game-data", features = ["test-language-publication", "test-effect-registry"] }
+sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false, features = ["test-menu-validity", "test-payload-probe", "test-publication-scope", "test-residency-observer", "test-dry-side", "test-tooltip-factories", "test-pack-feedback", "test-resource-cache", "test-still-clock", "test-support"] }
 tempfile = "3"
+png = "0.18"
+zip = { version = "9.1.3", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+bytemuck = { version = "1.24", features = ["derive"] }
 sunrise-mod-runtime = { path = "../sunrise-mod-runtime", features = ["test-work-count"] }
 sunrise-threads = { path = "../sunrise-threads", features = ["test-allocation-count", "test-game-dir"] }
-mod_platform = { package = "sunrise-mod-api", path = "../sunrise-mod-api", features = ["testing"] }
+# The frame tests name pack render layers.
+sunrise-shaders = { path = "../sunrise-shaders" }
+mod_platform = { package = "sunrise-mod-api", path = "../sunrise-mod-api", features = ["engine-test-platform"] }
 mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab", features = ["testing"] }
 sunrise-client-render = { path = "../sunrise-client-render", features = ["test-support"] }
 sunrise-items = { path = "../sunrise-items", features = ["test-support"] }
 sunrise-world = { path = "../sunrise-world", features = ["test-support"] }
 sunrise-perf = { path = "../sunrise-perf" }
 # Every WGSL shader translated as wgpu's DirectX 12 backend does (gfx.rs tests).
-naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out", "msl-out", "spv-out"] }

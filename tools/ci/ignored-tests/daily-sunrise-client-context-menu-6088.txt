@@ -1,4 +1,4 @@
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::context_menu_and_pointer_grab_refuse_each_other_in_both_orders lib daily child-process
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::context_menu_blocks_pointer_motion_drag_wheel_keyboard_ime_and_socket lib daily child-process
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::context_menu_overlay_draw_order_disposal_and_action_reopen lib daily child-process
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::context_menu_tracks_mouse_key_and_controller_press_ownership lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::context_menu_and_pointer_grab_refuse_each_other_in_both_orders lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::context_menu_blocks_pointer_motion_drag_wheel_keyboard_ime_and_socket lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::context_menu_overlay_draw_order_disposal_and_action_reopen lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::context_menu_tracks_mouse_key_and_controller_press_ownership lib daily child-process

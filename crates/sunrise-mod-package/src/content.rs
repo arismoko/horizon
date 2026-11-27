@@ -823,6 +823,10 @@ pub struct WorldFluid {
     /// The registry name of its flowing form, in the fluid's namespace;
     /// `<namespace>:flowing_<path>` when unset.
     pub flowing: Option<String>,
+    /// The registry name of its liquid block (`LiquidBlock`, NeoForge's
+    /// `BaseFlowingFluid.Properties.block`), in the fluid's namespace; the fluid's own id when
+    /// unset.
+    pub block: Option<String>,
 }
 impl Default for WorldFluid {
     fn default() -> Self {
@@ -833,6 +837,7 @@ impl Default for WorldFluid {
             source_conversion: false,
             bucket: true,
             flowing: None,
+            block: None,
         }
     }
 }
@@ -868,6 +873,14 @@ pub struct FluidLook {
     pub measures: FluidMeasures,
 }
 impl FluidLook {
+    /// The registry name of its liquid block: the world fluid's `block`, else the fluid's own
+    /// id.
+    pub fn block_id(&self) -> String {
+        self.world
+            .as_ref()
+            .and_then(|world| world.block.clone())
+            .unwrap_or_else(|| self.id.clone())
+    }
     /// The registry name of its flowing form: the world fluid's `flowing`, else
     /// `<namespace>:flowing_<path>`.
     pub fn flowing_id(&self) -> String {
@@ -906,6 +919,18 @@ impl FluidLook {
                     "world: flowing is an id in the fluid's namespace, not the fluid's own".into(),
                 );
             }
+            // The resolved flowing id, the default `<ns>:flowing_<path>` included, as the code
+            // registrar compares against.
+            let flowing = self.flowing_id();
+            if world
+                .block
+                .as_deref()
+                .is_some_and(|block| !own(block) || block == flowing)
+            {
+                return Err(
+                    "world: block is an id in the fluid's namespace, not its flowing form's".into(),
+                );
+            }
         }
         if let Some(item) = &self.bucket_item {
             let generated = self.world.as_ref().is_some_and(|world| world.bucket);
@@ -921,10 +946,11 @@ impl FluidLook {
         }
         Ok(())
     }
-    /// The block a world fluid is in the world: water's behaviour and states under its own id.
+    /// The block a world fluid is in the world: water's behaviour and states under its
+    /// [`Self::block_id`].
     pub fn world_block(&self) -> Option<Block> {
         self.world.as_ref().map(|_| Block {
-            id: self.id.clone(),
+            id: self.block_id(),
             template: "minecraft:water".into(),
             ..Block::default()
         })
@@ -4854,6 +4880,52 @@ capabilities = ["registries"]
                 .bucket_id(),
             None
         );
+    }
+
+    /// #6039: a world fluid names its liquid block (Blood Magic's `life_essence_block` for the
+    /// fluid `life_essence_fluid`): the block is declared under that id, not the fluid's; a
+    /// block outside the fluid's namespace or under its flowing form's id is refused.
+    #[test]
+    fn a_world_fluid_names_its_liquid_block() {
+        let files: &[(&str, &[u8])] = &[(
+            "data/ruby/sunrise/fluid/essence.json",
+            br#"{"world":{"block":"ruby:essence_block"}}"#,
+        )];
+        let content = smod("world-fluid-block", MANIFEST_TEXT, files).unwrap();
+        let essence = content
+            .fluids
+            .iter()
+            .find(|f| f.id == "ruby:essence")
+            .unwrap();
+        assert_eq!(essence.block_id(), "ruby:essence_block");
+        let block = content
+            .blocks
+            .iter()
+            .find(|b| b.id == "ruby:essence_block")
+            .unwrap();
+        assert_eq!(block.template, "minecraft:water");
+        assert!(!content.blocks.iter().any(|b| b.id == "ruby:essence"));
+        let unnamed = smod(
+            "world-fluid-plain",
+            MANIFEST_TEXT,
+            &[("data/ruby/sunrise/fluid/oil.json", br#"{"world":{}}"#)],
+        )
+        .unwrap();
+        assert_eq!(
+            unnamed.fluids[0].block_id(),
+            "ruby:oil",
+            "unset: the fluid's own id"
+        );
+        for refused in [
+            &br#"{"world":{"block":"other:essence_block"}}"#[..],
+            br#"{"world":{"block":"ruby:essence_flowing","flowing":"ruby:essence_flowing"}}"#,
+            // The default flowing id, `ruby:flowing_essence`, though `flowing` is unset.
+            br#"{"world":{"block":"ruby:flowing_essence"}}"#,
+        ] {
+            let files: &[(&str, &[u8])] = &[("data/ruby/sunrise/fluid/essence.json", refused)];
+            let error = smod("world-fluid-refused", MANIFEST_TEXT, files).unwrap_err();
+            assert!(error.to_string().contains("block"), "{error}");
+        }
     }
 
     /// A port keeps its mod's ids (Sophisticated Core's `xp_still`, `xp_flowing` and

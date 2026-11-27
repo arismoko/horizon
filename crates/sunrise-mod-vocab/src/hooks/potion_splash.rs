@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A thrown splash or lingering potion applied its hit effects.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_potion_splash",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_potion_splash",
         dispatch = "flat",
         side = "server",
         contract = "listen",

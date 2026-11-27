@@ -1,3 +1,3 @@
-sunrise-client game::api_values::loot_values::tests::a_loot_function_lists_the_loot_datas_item_tags lib daily child-process
-sunrise-client game::api_values::loot_values::tests::loot_types_read_current_membership_and_order_after_tag_reload lib daily child-process
-sunrise-client game::remote_tags::tests::item_tag_lists_follow_server_reload_and_client_packets lib daily child-process
+sunrise-gameplay-common game::api_values::loot_values::tests::a_loot_function_lists_the_loot_datas_item_tags lib daily child-process
+sunrise-gameplay-common game::api_values::loot_values::tests::loot_types_read_current_membership_and_order_after_tag_reload lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_tags::tests::item_tag_lists_follow_server_reload_and_client_packets lib daily child-process

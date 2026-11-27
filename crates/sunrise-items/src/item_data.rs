@@ -47,7 +47,7 @@ impl ModifierRow {
 /// list (`type`, `id`, `amount`, `operation`, `slot` defaulting to `any`).
 /// An entry missing a field is skipped.
 pub fn modifier_rows(tag: &Tag) -> Vec<ModifierRow> {
-    use sunrise_client_core::nbt_value::{float, text};
+    use sunrise_game_data::nbt_value::{float, text};
     let Tag::List(entries) = tag else {
         return Vec::new();
     };
@@ -702,7 +702,7 @@ impl StackData {
     }
     /// `SetNameFunction.run`: retain a loot name as its original component.
     pub fn set_loot_name(&mut self, id: &str, text: &serde_json::Value) {
-        let tag = sunrise_client_core::scoreboard::json_to_tag(text);
+        let tag = sunrise_game_data::scoreboard::json_to_tag(text);
         self.set_other(id, Some(tag));
     }
     /// Apply an ordered loot component patch without changing its NBT type.
@@ -1496,7 +1496,7 @@ impl ItemStack {
     /// by `ominous_banner` instead.
     pub fn item_name(&self) -> Option<String> {
         let name = self.data()?.other("minecraft:item_name")?;
-        Some(sunrise_client_core::component::name_text(name).plain())
+        Some(sunrise_game_data::component::name_text(name).plain())
     }
     pub fn potion(&self) -> Option<&str> {
         self.data().and_then(|d| d.potion.as_deref())
@@ -1841,7 +1841,7 @@ impl WrittenBook {
         let mut tags = Vec::with_capacity(self.page_tags.len());
         for tag in &self.page_tags {
             let resolved = resolve_page_tag(tag, &mut text);
-            let plain = sunrise_client_core::component::name_text(&resolved).plain();
+            let plain = sunrise_game_data::component::name_text(&resolved).plain();
             if plain.chars().count() > 32767 {
                 return false;
             }
@@ -1893,9 +1893,7 @@ fn read_text(t: &Tag) -> Option<String> {
         // this), so flatten the whole component instead of reading one key.
         // ComponentSerialization.CODEC also takes a list (its first element
         // styling the rest), as servers behind ViaVersion send book pages.
-        Tag::Compound(_) | Tag::List(_) => {
-            Some(sunrise_client_core::component::name_text(t).plain())
-        }
+        Tag::Compound(_) | Tag::List(_) => Some(sunrise_game_data::component::name_text(t).plain()),
         _ => None,
     }
 }
@@ -2007,7 +2005,7 @@ fn template_from_with(tag: &Tag, effects: Option<&Arc<[Admitted]>>) -> Option<It
 /// The stack a `show_item` hover event holds (`HoverEvent.ShowItem`): its
 /// `{id, count?, components?}` object.
 pub fn stack_from_hover(event: &serde_json::Value) -> Option<ItemStack> {
-    template_from(&sunrise_client_core::scoreboard::json_to_tag(event))
+    template_from(&sunrise_game_data::scoreboard::json_to_tag(event))
 }
 /// Sorted-key, type-annotated text of a tag (the differential harnesses
 /// print the same form from the vanilla side).
@@ -2109,12 +2107,21 @@ fn canonical_other_component(id: &str, tag: &Tag) -> Tag {
 /// The live component patch, including transient components and explicit defaults.
 /// Omit the top-level damage field when the caller already carries it as a scalar.
 pub fn live_component_patch(stack: &ItemStack, include_damage: bool) -> Option<Tag> {
+    live_component_patch_matching(stack, include_damage, |_| true)
+}
+
+/// Select live component IDs without the `!` on removals. Nested stacks keep their full live patches.
+pub fn live_component_patch_matching(
+    stack: &ItemStack,
+    include_damage: bool,
+    selector: impl Fn(&str) -> bool,
+) -> Option<Tag> {
     let mut components = components_tag_inner(
         stack.damage,
         stack.data(),
         include_damage,
         true,
-        &|_| true,
+        &selector,
         &|nested| template_tag(nested, live_component_patch(nested, true)),
     )?;
     canonicalize_component_patch(&mut components);
@@ -4013,7 +4020,7 @@ mod tests {
             encode_components(&stack, prototype_items())
                 .unwrap()
                 .get("minecraft:custom_name"),
-            Some(&sunrise_client_core::scoreboard::json_to_tag(&styled))
+            Some(&sunrise_game_data::scoreboard::json_to_tag(&styled))
         );
     }
 
@@ -4026,7 +4033,7 @@ mod tests {
             &Some(sunrise_core::json_nbt::json_to_tag(&name).unwrap()),
         );
         assert_eq!(stack.custom_name().as_deref(), Some("Prize"));
-        let expected = sunrise_client_core::scoreboard::json_to_tag(&name);
+        let expected = sunrise_game_data::scoreboard::json_to_tag(&name);
         assert_eq!(
             encode_components(&stack, prototype_items())
                 .unwrap()

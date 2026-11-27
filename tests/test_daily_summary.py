@@ -11,9 +11,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests.git_fixture import git_in
 from tests.os_support import needs_runner_shell
 from tests.test_ci_concurrency import ROOT
-from tests.test_release_branches import MAIN, NIGHTLY, RELEASE, git_in, repository, run_gate
+from tests.test_release_branches import MAIN, NIGHTLY, RELEASE, repository, run_gate
 from tools import sunrise_mod_binstall
 from tools.ci import daily_summary as summary, parity_verdict
 from tools.ci import vendored_yaml

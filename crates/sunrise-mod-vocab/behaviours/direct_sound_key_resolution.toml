@@ -1,7 +1,7 @@
 version = 1
 doc = "Server sound writes (PlayerRef::play_sound, EntityRef::play_sound, EntityRef::play_bound_sound, LevelRef::play_sound, LevelWriteHost::play_sound, HitHost::play_sound_at, and HitHost::play_sound_from) and LevelRef::explode (ExplosionSettings::sound) resolve every valid namespace:path key uniformly regardless of namespace: registered events are sent by registry ID, valid unregistered events (including under minecraft:) are sent inline by name, and only malformed keys are refused (false, or ExplodeError::UnknownSound for explosions). Sound writes forward volume and pitch as supplied without rejecting negative or non-finite values, and success reports acceptance for delivery rather than client playback."
 tests = [
-  "crates/sunrise-client/src/game/modding/native_sound_refs.rs::sounds_reach_the_right_connections",
-  "crates/sunrise-client/src/game/modding/native_entity_sounds.rs::play_sound_queues_at_the_entity_in_its_source",
-  "crates/sunrise-client/src/game/modding/native_explosions_tests.rs::an_unknown_damage_type_particle_or_tag_explodes_nothing",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_sound_refs.rs::sounds_reach_the_right_connections",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_entity_sounds.rs::play_sound_queues_at_the_entity_in_its_source",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_explosions_tests.rs::an_unknown_damage_type_particle_or_tag_explodes_nothing",
 ]

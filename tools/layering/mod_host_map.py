@@ -9,7 +9,18 @@ STRANDS = ["loading", "host", "slots", "attachments", "content_render", "hooks"]
 # How each strand is resolved (#2534): phases 2 and 4 are dropped (owner, 2026-11-10); phase 6 is not built.
 LABEL = {"loading": "phase 1", "host": "stays in the engine", "slots": "phase 3",
          "attachments": "stays in the engine", "content_render": "phase 5", "hooks": "phase 6, not built"}
-HOST_AREAS = ("crates/sunrise-client/src/game/modding/", "crates/sunrise-client/src/game/native_hooks/")
+HOST_AREAS = (
+    "crates/sunrise-client/src/game/modding/",
+    "crates/sunrise-client/src/game/native_hooks/",
+    "crates/sunrise-client/src/cut_layout/game/modding/",
+    "crates/sunrise-client/src/cut_layout/game/native_hooks/",
+    "crates/sunrise-gameplay-common/src/game/modding/",
+    "crates/sunrise-gameplay-common/src/game/native_hooks/",
+    "crates/sunrise-gameplay/src/game/modding/",
+    "crates/sunrise-gameplay/src/game/native_hooks/",
+    "crates/sunrise-client-gameplay/src/game/modding/",
+    "crates/sunrise-client-gameplay/src/game/native_hooks/",
+)
 # What a hook-firing engine file needs of mod_api, from least to most.
 DISPATCH = re.compile(r"^mod_api::(HookId|Flow|Hooks|__subscriptions|InteractionResult|\w+(Event|Call|Result)"
                       r"|__private::(listened|has_\w+_hook|built|enter|\w+Call))(::|$)")
@@ -21,10 +32,16 @@ MORE = re.compile(r"^mod_api::(\w*Host|HostSide|Backend\w*|RegistrationContext|R
 
 
 def area(path):
-    m = re.match(r"crates/sunrise-client/src/game/(\w+)/", path)
+    m = re.match(r"crates/(?:sunrise-client/src/(?:cut_layout/)?|sunrise-gameplay(?:-common)?/src/|sunrise-client-gameplay/src/)game/(\w+)/", path)
     if m:
         return f"game/{m.group(1)}"
-    if path == "crates/sunrise-client/src/game.rs":
+    if path in {
+        "crates/sunrise-gameplay-common/src/game.rs",
+        "crates/sunrise-gameplay/src/game.rs",
+        "crates/sunrise-client-gameplay/src/game.rs",
+        "crates/sunrise-client/src/cut_layout/game.rs",
+        "crates/sunrise-client/src/game.rs",
+    }:
         return "game.rs"
     if path.startswith("crates/sunrise-client/"):
         return "client (non-game)"

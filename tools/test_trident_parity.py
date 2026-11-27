@@ -105,11 +105,11 @@ def main():
                ROOT / 'Cargo.toml', ROOT / 'Cargo.lock',
                ROOT / 'crates/sunrise-client/examples/probe/trident_probe.rs',
                ROOT / 'crates/sunrise-client/examples/probe/main.rs',
-               ROOT / 'crates/sunrise-client/src/entities/arrows.rs',
-               ROOT / 'crates/sunrise-client/src/entities/arrows/flight.rs',
-               ROOT / 'crates/sunrise-client/src/entities/arrows/contact.rs',
-               ROOT / 'crates/sunrise-client/src/entities/arrows/state.rs',
-               ROOT / 'crates/sunrise-client/src/game/items/trident.rs']
+               ROOT / 'crates/sunrise-sim/src/entities/arrows.rs',
+               ROOT / 'crates/sunrise-sim/src/entities/arrows/flight.rs',
+               ROOT / 'crates/sunrise-sim/src/entities/arrows/contact.rs',
+               ROOT / 'crates/sunrise-sim/src/entities/arrows/state.rs',
+               ROOT / 'crates/sunrise-gameplay/src/game/items/trident.rs']
     tested = base.source_hashes(sources)
     cases = fixtures()
     (build / 'inputs.txt').write_text(''.join(json.dumps(row, separators=(',', ':')) + '\n'

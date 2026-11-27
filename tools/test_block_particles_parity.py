@@ -21,7 +21,7 @@ def main():
     resources = lab.RESOURCES
     build = lab.LOCAL / "block-particles-parity"
     build.mkdir(exist_ok=True)
-    paths = [lab.ROOT / p for p in ["tools/test_block_particles_parity.py", "tools/test_breaking_model_parity.py", "tools/oracle_harness.py", "tools/lab.py", "crates/sunrise-client-render/src/particles.rs", "crates/sunrise-client/src/game.rs", "crates/sunrise-items/src/blocks.rs", "crates/sunrise-client-render/src/mesher.rs", "crates/sunrise-client/examples/probe/block_particles_fixture.rs", "mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaBlockParticlesOracle.java", "crates/sunrise-core/src/random.rs", "Cargo.lock", "mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaGameplayFactsExporter.java"]]
+    paths = [lab.ROOT / p for p in ["tools/test_block_particles_parity.py", "tools/test_breaking_model_parity.py", "tools/oracle_harness.py", "tools/lab.py", "crates/sunrise-client-render/src/particles.rs", "crates/sunrise-gameplay-common/src/game.rs", "crates/sunrise-items/src/blocks.rs", "crates/sunrise-client-render/src/mesher.rs", "crates/sunrise-client/examples/probe/block_particles_fixture.rs", "mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaBlockParticlesOracle.java", "crates/sunrise-core/src/random.rs", "Cargo.lock", "mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaGameplayFactsExporter.java"]]
     tested = base.source_hashes(paths)
     rows = [dict(case=i, seed=(-1 if i % 2 else 1) * i * 987654321, **row) for i, row in enumerate(breaking.cases(resources))]
     rows[0]["seed"] = -(2**63)

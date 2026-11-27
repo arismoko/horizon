@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 from tools import lab
 
 GROUP = 'falling block resting in moving piston'
-TEST = 'game::falling_blocks::moving_piston_tests::a_falling_block_resting_in_a_moving_piston_cell_stays'
+TEST = 'game::server_side::falling_blocks::moving_piston_tests::a_falling_block_resting_in_a_moving_piston_cell_stays'
 
 
 def main():

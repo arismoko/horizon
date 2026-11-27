@@ -2,11 +2,8 @@
 //! content build puts in the root's `worldgen/biomes.json`) joins the biome table after the
 //! built-in ones and reaches a joining client with its data.
 use std::path::PathBuf;
-use sunrise_client::{
-    biome::Biomes,
-    chunk::LevelShapes,
-    lan::data::{BIOME_REGISTRY, SyncData, client_biomes},
-};
+use sunrise_level::{biome::Biomes, chunk::LevelShapes};
+use sunrise_sim::lan::data::{BIOME_REGISTRY, SyncData, client_biomes};
 
 /// Removes the folder when the test ends, passed or not.
 struct Scratch(PathBuf);
@@ -73,7 +70,7 @@ fn server_load() -> sunrise_world::native_load_context::LoadContext {
 
 fn sync_of(root: &std::path::Path) -> SyncData {
     let defaults = sunrise_world::item_defaults::read(root).unwrap();
-    let items = sunrise_client::items::Items::catalog(
+    let items = sunrise_items::items::Items::catalog(
         root,
         &sunrise_world::loot::PackOverlay::NONE,
         &defaults,
@@ -84,7 +81,7 @@ fn sync_of(root: &std::path::Path) -> SyncData {
         &sunrise_world::loot::PackOverlay::NONE,
         Some(&load(root)),
         &defaults,
-        &sunrise_client::crafting::ResolvedSources::load(
+        &sunrise_sim::crafting::ResolvedSources::load(
             root,
             &items,
             &sunrise_world::loot::PackOverlay::NONE,

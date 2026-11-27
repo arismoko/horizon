@@ -70,7 +70,7 @@ def main():
         "relative-delta/rotate-delta combination. World simulation, connection "
         "scheduling and live anticheat behaviour are outside this harness.",
         sources=[lab.ROOT / "crates/sunrise-client/src/player_sync.rs",
-                 lab.ROOT / "crates/sunrise-client/src/game/network/remote/mod.rs",
+                 lab.ROOT / "crates/sunrise-gameplay-common/src/game/network/remote/mod.rs",
                  lab.ROOT / "crates/sunrise-client/src/net.rs"])
 
 

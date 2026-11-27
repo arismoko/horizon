@@ -26,11 +26,11 @@ def main():
     report.unlink(missing_ok=True)
     source = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaMobDiscardOracle.java'
     sources = [source, Path(__file__).resolve(),
-               lab.ROOT / 'crates/sunrise-client/src/game/mobs/mob_discard_tests.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/administration/commands/mod.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/entities/entity.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/modding/native_mobs.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/world/persist.rs']
+               lab.ROOT / 'crates/sunrise-client/src/cut_layout/game/mobs/mob_discard_tests.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/administration/commands/mod.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/entities/entity.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/modding/native_mobs.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/world/persist.rs']
     def hashes():
         return {str(p.relative_to(lab.ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
     tested = hashes()

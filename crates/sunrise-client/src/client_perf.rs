@@ -1,5 +1,12 @@
 //! The client's .hzperf captures (docs/perf-platform.md §4.1): the window's frames feed the always-on health history, and a capture writes it with the samples of the render thread.
-use crate::gfx::pack_timing::{GpuReadout, TimedFrames};
+use crate::gfx::pack_timing::{
+    Counters as PackCounters, DetailSupport, FragmentUnit, GpuReadout, PartsMode, PassCounters,
+    Readings, TimedFrame, TimedFrames,
+};
+use crate::perf_types::{
+    GpuBackendKind, GpuCounters, GpuDetailSupport, GpuFragmentUnitKind, GpuPartsModeKind,
+    GpuPassCounters, GpuPassReadings, GpuPerfSnapshot, TimedFrameDto, TimedFramesDto,
+};
 use crate::server_perf::traffic::{Conn, Wire};
 use crate::server_perf::{
     self, CaptureEnd, CaptureOptions, CaptureStatus, MAX_WINDOW_S, Role, SamplerOptions, Saved,
@@ -11,7 +18,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
-use sunrise_perf_format::FieldSender;
 use sunrise_perf_format::v1::{
     BenchResult, Machine, Side, Start, StopReason, Trigger, WarningCode,
 };
@@ -40,26 +46,7 @@ pub fn env_gpu(timing: Option<&OsStr>, detail: Option<&OsStr>) -> GpuSwitch {
     }
 }
 
-/// Where a client's captures go: `SUNRISE_PROFILE` when set, else `reports/` in the game home.
-pub fn reports_dir(profile: Option<&OsStr>, home: &Path) -> PathBuf {
-    match profile.filter(|p| !p.is_empty()) {
-        Some(dir) => PathBuf::from(dir),
-        None => home.join("reports"),
-    }
-}
-
-/// What a side on another thread needs to write into the running capture's file.
-#[derive(Clone)]
-pub struct Join {
-    pub sender: FieldSender,
-    pub path: PathBuf,
-    /// The instant every `t` of the capture counts from.
-    pub origin: Instant,
-    /// When the capture's window ends, and why it stops then.
-    pub ends: Option<(Instant, StopReason)>,
-    pub options: StartOptions,
-    pub trigger: Trigger,
-}
+pub use sunrise_sim::perf_types::{Join, reports_dir};
 
 /// The client's health history, always on, and the capture running from it, if any.
 pub struct ClientPerf {
@@ -164,7 +151,7 @@ impl ClientPerf {
 
     /// The GPU frames timed since the last frame, with this frame's CPU ms, for a capture that times the GPU.
     pub fn gpu_frames(&mut self, t: f64, cpu_ms: f32, frames: &TimedFrames) {
-        self.perf.gpu_frames(t, cpu_ms, frames);
+        self.perf.gpu_frames(t, cpu_ms, &timed_frames_dto(frames));
     }
 
     /// Opens a capture in `dir`; call it on the render thread, which it samples.
@@ -240,7 +227,7 @@ impl ClientPerf {
         self.window = None;
         self.running = None;
         let end = CaptureEnd {
-            gpu,
+            gpu: gpu.map(gpu_perf_snapshot),
             bench,
             wire: wire_of(self.connection.as_deref()),
             ..CaptureEnd::default()
@@ -316,5 +303,87 @@ pub fn start_message(same_process: bool, gpu: Option<&str>) -> Start {
         machine: Some(machine),
         same_process,
         ..Start::default()
+    }
+}
+
+fn timed_frame_dto(frame: &TimedFrame) -> TimedFrameDto {
+    TimedFrameDto {
+        at: frame.at,
+        total_ms: frame.total_ms,
+        passes: frame.passes.clone(),
+        parts: frame.parts.clone(),
+    }
+}
+
+fn timed_frames_dto(frames: &TimedFrames) -> TimedFramesDto {
+    TimedFramesDto {
+        own: frames.own.iter().map(timed_frame_dto).collect(),
+        pack: frames.pack.iter().map(timed_frame_dto).collect(),
+    }
+}
+
+fn pack_counters(c: PackCounters) -> GpuCounters {
+    GpuCounters {
+        vertex_shader_invocations: c.vertex_shader_invocations,
+        clipper_invocations: c.clipper_invocations,
+        clipper_primitives_out: c.clipper_primitives_out,
+        fragment_shader_invocations: c.fragment_shader_invocations,
+    }
+}
+
+fn pass_counters(c: PassCounters) -> GpuPassCounters {
+    GpuPassCounters {
+        total: pack_counters(c.total),
+        pixels: c.pixels,
+        parts: c
+            .parts
+            .into_iter()
+            .map(|(name, part)| (name, pack_counters(part)))
+            .collect(),
+    }
+}
+
+fn detail_support(s: DetailSupport) -> GpuDetailSupport {
+    GpuDetailSupport {
+        parts: match s.parts {
+            PartsMode::InsidePasses => GpuPartsModeKind::InsidePasses,
+            PartsMode::SeparatePasses => GpuPartsModeKind::SeparatePasses,
+        },
+        encoder_stamps: s.encoder_stamps,
+        counters: s.counters,
+        fragment_unit: s.fragment_unit.map(|u| match u {
+            FragmentUnit::Pixel => GpuFragmentUnitKind::Pixel,
+            FragmentUnit::Quad => GpuFragmentUnitKind::Quad,
+        }),
+    }
+}
+
+fn pass_readings(r: Readings) -> GpuPassReadings {
+    GpuPassReadings {
+        passes: r.passes,
+        parts: r.parts,
+        counters: r
+            .counters
+            .into_iter()
+            .map(|(pass, c)| (pass, pass_counters(c)))
+            .collect(),
+        support: detail_support(r.support),
+    }
+}
+
+fn gpu_perf_snapshot(r: GpuReadout) -> GpuPerfSnapshot {
+    let driver = format!("{} {}", r.adapter.driver, r.adapter.driver_info);
+    GpuPerfSnapshot {
+        adapter: r.adapter.name,
+        backend: match r.adapter.backend {
+            wgpu::Backend::Vulkan => GpuBackendKind::Vulkan,
+            wgpu::Backend::Metal => GpuBackendKind::Metal,
+            wgpu::Backend::Dx12 => GpuBackendKind::Dx12,
+            wgpu::Backend::Gl => GpuBackendKind::Gl,
+            _ => GpuBackendKind::Other,
+        },
+        driver: driver.trim().to_owned(),
+        own: r.own.map(pass_readings),
+        pack: r.pack.map(pass_readings),
     }
 }

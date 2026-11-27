@@ -1,22 +1,39 @@
 //! The source-only CI check for catalog targets. Build generation never calls the check.
 mod calls;
+mod semantic;
 mod sources;
 
-use crate::{Catalog, Hook, catalog::DispatchStyle, dispatch, free_function_source, source};
+use crate::{
+    Catalog, Hook,
+    catalog::{DispatchStyle, Side},
+    dispatch, free_function_source, source,
+};
 pub(super) use calls::{Callee, has_call_matching};
 use calls::{Routes, Target, path_is};
+use quote::ToTokens;
 use sources::{Build, Sources};
 use std::path::Path;
-use syn::{Block, Expr, Item};
+use syn::{Block, Expr, Item, Type};
 
 /// Check that each declared hook target reaches its adapter or dispatcher. Never writes sources.
 /// Each entry in `target_cfgs` is one supported build's `rustc --print cfg` output.
 pub fn check_hook_wiring(root: &Path, target_cfgs: &[String]) -> Result<(), String> {
-    check_with_builds(
-        root,
-        &Catalog::load(root)?.hooks,
-        Build::from_targets(target_cfgs)?,
-    )
+    let build = Build::from_targets(target_cfgs)?;
+    if crate::SourceLayout::read(root)?.is_split() {
+        return check_split(root, build);
+    }
+    check_with_builds(root, &Catalog::load(root)?.hooks, build)
+}
+
+pub fn check_gameplay_hook_wiring(root: &Path, target_cfgs: &[String]) -> Result<(), String> {
+    check_split(root, Build::from_targets(target_cfgs)?)
+}
+
+fn check_split(root: &Path, build: Build) -> Result<(), String> {
+    let routing = crate::gameplay::Routing::load(root)?;
+    let catalog = routing.catalog(root)?;
+    check_with_builds(root, &catalog.hooks, build.clone())?;
+    semantic::check(root, &routing, &build)
 }
 
 #[cfg(test)]
@@ -81,57 +98,303 @@ fn functions<'a>(
 
 const NATIVE_HOOKS: &str = "sunrise_client::game::native_hooks::";
 
+fn owner_matches(item: &syn::ItemImpl, expected: &str) -> bool {
+    let actual_raw = source::owner(&item.self_ty);
+    let expected = expected.replace(' ', "");
+    if actual_raw == expected {
+        return true;
+    }
+    fn strip_prefix(s: &str) -> &str {
+        s.strip_prefix("crate::game::")
+            .or_else(|| s.strip_prefix("super::"))
+            .unwrap_or(s)
+    }
+    let actual = strip_prefix(&actual_raw);
+    let expected = strip_prefix(&expected);
+    if actual == expected {
+        return true;
+    }
+    let is_server_actual = matches!(
+        actual,
+        "ServerGame<'_>"
+            | "Game<'_,crate::game::server_side::ServerState>"
+            | "Game<'_,server_side::ServerState>"
+            | "Game<'_,ServerState>"
+    );
+    let is_client_actual = matches!(
+        actual,
+        "ClientGame<'_>"
+            | "Game<'_,crate::game::client_side::ClientState>"
+            | "Game<'_,client_side::ClientState>"
+            | "Game<'_,ClientState>"
+    );
+    let is_generic_game_actual = actual
+        .strip_prefix("Game<'_,")
+        .and_then(|s| s.strip_suffix('>'))
+        .is_some_and(|param| item.generics.type_params().any(|tp| tp.ident == param));
+    match expected {
+        "ServerGame<'_>" => is_server_actual,
+        "ClientGame<'_>" => is_client_actual,
+        "Game<'_,S>" => is_generic_game_actual || actual == "Game<'_>",
+        "Game<'_>" => is_server_actual || is_client_actual || is_generic_game_actual,
+        "ReadLevel<'_,'_>" => actual
+            .strip_prefix("ReadLevel<'_,'_,")
+            .and_then(|s| s.strip_suffix('>'))
+            .is_some_and(|param| item.generics.type_params().any(|tp| tp.ident == param)),
+        _ => false,
+    }
+}
+
+fn check_gameplay_owner(
+    index: &mut mod_source::index::Index<'_>,
+    mut scope: usize,
+    package: &str,
+    owner: &syn::Path,
+) -> Result<(), String> {
+    use mod_source::index::{Binding, Found};
+    let mut path = owner.clone();
+    let mut aliases = std::collections::HashSet::new();
+    loop {
+        let words = path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect::<Vec<_>>();
+        let Binding::Found(Found::Item(id)) =
+            index.resolve_type_binding(scope, &words, path.leading_colon.is_some())?
+        else {
+            return Err("inherent receiver owner is unresolved".into());
+        };
+        if index.modules[id.module].krate != package {
+            return Err("inherent receiver owner belongs to another package".into());
+        }
+        match index.item(id) {
+            Item::Struct(_) | Item::Enum(_) | Item::Union(_) => return Ok(()),
+            Item::Type(alias) if aliases.insert(id) => {
+                let Type::Path(ty) = &*alias.ty else {
+                    return Err("inherent receiver alias does not name a nominal type".into());
+                };
+                path = ty.path.clone();
+                scope = id.module;
+            }
+            _ => return Err("inherent receiver owner is unresolved".into()),
+        }
+    }
+}
+
+fn check_gameplay_target(
+    sources: &mut Sources<'_>,
+    hook: &Hook,
+    build: &Build,
+    binding: &crate::catalog::GameplayBinding,
+) -> Result<bool, String> {
+    use crate::catalog::BindingKind;
+    if binding.package == crate::GameplayPackage::Client
+        && build.evaluate("feature = \"client\"") == Some(false)
+    {
+        return Ok(false);
+    }
+    let package = binding.package.domain().key;
+    let items = sources
+        .items(build, package, &binding.module)?
+        .ok_or("binding module is absent")?;
+    let mut bodies = Vec::new();
+    let mut owners = Vec::new();
+    let receiver_ok = |sig: &syn::Signature| {
+        sig.receiver().is_some_and(|receiver| {
+            receiver.reference.is_some()
+                && Some(receiver.mutability.is_some()) == hook.receiver.mutability()
+        })
+    };
+    for item in items {
+        match (item, &binding.kind) {
+            (Item::Trait(item), BindingKind::Shared)
+                if item.ident == "GameHooks" && build.enabled(&item.attrs) =>
+            {
+                for member in &item.items {
+                    if let syn::TraitItem::Fn(method) = member
+                        && method.sig.ident == binding.function
+                        && build.enabled(&method.attrs)
+                        && receiver_ok(&method.sig)
+                        && let Some(body) = &method.default
+                    {
+                        bodies.push(body.clone());
+                    }
+                }
+            }
+            (Item::Impl(item), BindingKind::Nominal | BindingKind::Scoped(_))
+                if item.trait_.is_none() && build.enabled(&item.attrs) =>
+            {
+                let Type::Path(ty) = &*item.self_ty else {
+                    continue;
+                };
+                let expected = match &binding.kind {
+                    BindingKind::Scoped(owner) => owner.ident.to_string(),
+                    _ => binding.package.game_type().to_owned(),
+                };
+                if ty
+                    .path
+                    .segments
+                    .last()
+                    .is_none_or(|segment| segment.ident != expected)
+                {
+                    continue;
+                }
+                for member in &item.items {
+                    if let syn::ImplItem::Fn(method) = member
+                        && method.sig.ident == binding.function
+                        && build.enabled(&method.attrs)
+                        && receiver_ok(&method.sig)
+                    {
+                        owners.push(ty.path.clone());
+                        bodies.push(method.block.clone());
+                    }
+                }
+            }
+            (Item::Fn(function), BindingKind::Borrowed(expected))
+                if function.sig.ident == binding.function && build.enabled(&function.attrs) =>
+            {
+                if let Some(syn::FnArg::Typed(arg)) = function.sig.inputs.first()
+                    && let Type::Reference(reference) = &*arg.ty
+                    && Some(reference.mutability.is_some()) == hook.receiver.mutability()
+                    && reference.elem.to_token_stream().to_string()
+                        == expected.to_token_stream().to_string()
+                {
+                    bodies.push((*function.block).clone());
+                }
+            }
+            (Item::Fn(function), BindingKind::Free)
+                if function.sig.ident == binding.function && build.enabled(&function.attrs) =>
+            {
+                bodies.push((*function.block).clone())
+            }
+            _ => {}
+        }
+    }
+    if bodies.is_empty() {
+        return Err("target definition with the declared receiver form not found".into());
+    }
+    if bodies.len() != 1 {
+        return Err("several definitions match the declared gameplay binding".into());
+    }
+    let mut index = sources.binding_index(build, true);
+    let module: Vec<_> = binding.module.split("::").map(str::to_owned).collect();
+    let scope = index.module(package, &module)?;
+    for owner in owners {
+        check_gameplay_owner(&mut index, scope, package, &owner)?;
+    }
+    let mut routes = Routes::new(&mut index, build);
+    let bodies = bodies
+        .iter()
+        .map(|body| routes.calls(scope).in_block(body))
+        .collect::<Vec<_>>();
+    let name = &hook.name;
+    if hook.dispatch == DispatchStyle::Direct {
+        require_calls(&bodies, None, &[&format!("mod_api::dispatch_{name}")])?;
+    } else {
+        let fire = format!("fire_{name}");
+        let mut paths = vec![
+            format!("Self::{fire}"),
+            format!("FireHooks::{fire}"),
+            format!("crate::game::native_hooks::fire::{fire}"),
+            format!("super::fire::{fire}"),
+            format!("fire::{fire}"),
+        ];
+        if matches!(binding.kind, BindingKind::Shared) {
+            paths.push(format!(
+                "crate::game::native_hooks::fire::FireHooks::{fire}"
+            ));
+        }
+        let paths: Vec<_> = paths.iter().map(String::as_str).collect();
+        require_calls(&bodies, Some(&fire), &paths)?;
+    }
+    Ok(true)
+}
+
 fn check_target(sources: &mut Sources<'_>, hook: &Hook, build: &Build) -> Result<bool, String> {
-    let (package, module, owner, target) = if let Some(path) =
+    if let Some(binding) = hook.gameplay_binding()? {
+        return check_gameplay_target(sources, hook, build, &binding);
+    }
+    let in_native_hooks = hook.target.starts_with(NATIVE_HOOKS);
+    let (package, candidate_modules, owner, target) = if let Some(path) =
         hook.target.strip_prefix(NATIVE_HOOKS)
     {
-        let (module_and_owner, target) = path.rsplit_once("::").ok_or("expected a method")?;
-        let (module, owner) = module_and_owner
-            .rsplit_once("::")
-            .ok_or("expected a method owner")?;
+        let (prefix, target) = path.rsplit_once("::").ok_or("expected a target")?;
+        let (module, owner) = match prefix.rsplit_once("::") {
+            Some((module, owner)) => (module, Some(owner)),
+            None => (prefix, None),
+        };
         (
             "sunrise_client".to_owned(),
-            format!("game::native_hooks::{module}"),
-            Some(owner),
+            vec![
+                format!("game::native_hooks::{module}"),
+                format!("game::server_side::native_hooks_server::{module}"),
+                format!("game::client_side::native_hooks_client::{module}"),
+            ],
+            owner,
             target,
         )
     } else {
         let (package, path) = free_function_source(&hook.target).ok_or("unknown target crate")?;
         let (module, target) = path.rsplit_once("::").ok_or("expected a free function")?;
-        (package.replace('-', "_"), module.to_owned(), None, target)
+        (
+            package.replace('-', "_"),
+            vec![module.to_owned()],
+            None,
+            target,
+        )
     };
-    let Some(items) = sources.items(build, &package, &module)? else {
-        return Ok(false);
-    };
-    let bodies = if let Some(owner) = owner {
-        items
-            .filter_map(|item| match item {
-                Item::Impl(item)
-                    if item.trait_.is_none()
-                        && source::owner(&item.self_ty) == owner
-                        && build.enabled(&item.attrs) =>
-                {
-                    Some(&item.items)
-                }
-                _ => None,
-            })
-            .flatten()
-            .filter_map(|item| match item {
-                syn::ImplItem::Fn(method)
-                    if method.sig.ident == target && build.enabled(&method.attrs) =>
-                {
-                    Some(&method.block)
-                }
-                _ => None,
-            })
-            .cloned()
-            .collect::<Vec<_>>()
-    } else {
-        functions(items, target, build).cloned().collect()
-    };
-    if bodies.is_empty() {
-        return Err("target definition not found".into());
+    let mut found_module = None;
+    let mut bodies = Vec::new();
+    let mut any_module_enabled = false;
+    for candidate in &candidate_modules {
+        let Some(items) = sources.items(build, &package, candidate)? else {
+            continue;
+        };
+        any_module_enabled = true;
+        let found: Vec<_> = if let Some(owner) = owner {
+            items
+                .filter_map(|item| match item {
+                    Item::Impl(item)
+                        if item.trait_.is_none()
+                            && owner_matches(item, owner)
+                            && build.enabled(&item.attrs) =>
+                    {
+                        Some(&item.items)
+                    }
+                    _ => None,
+                })
+                .flatten()
+                .filter_map(|item| match item {
+                    syn::ImplItem::Fn(method)
+                        if method.sig.ident == target && build.enabled(&method.attrs) =>
+                    {
+                        Some(&method.block)
+                    }
+                    _ => None,
+                })
+                .cloned()
+                .collect()
+        } else {
+            functions(items, target, build).cloned().collect()
+        };
+        if !found.is_empty() {
+            found_module = Some(candidate.clone());
+            bodies = found;
+            break;
+        }
     }
+    if !any_module_enabled {
+        return Ok(false);
+    }
+    let Some(module) = found_module else {
+        // Server-only builds (`not(feature = "client")`) intentionally omit `Side::Client` hook
+        // impls even inside hybrid modules that still compile on the server.
+        if hook.side == Side::Client && build.is_disabled("feature = \"client\"") {
+            return Ok(false);
+        }
+        return Err("target definition not found".into());
+    };
     let name = &hook.name;
     let mut index = sources.index(build);
     let mut routes = Routes::new(&mut index, build);
@@ -166,9 +429,17 @@ fn check_target(sources: &mut Sources<'_>, hook: &Hook, build: &Build) -> Result
         require_calls(&bodies, Some(name), &[])?;
         return Ok(true);
     }
-    if owner.is_some() && hook.dispatch != DispatchStyle::Direct {
+    if in_native_hooks && hook.dispatch != DispatchStyle::Direct {
         let fire = format!("fire_{name}");
-        require_calls(&bodies, Some(&fire), &[&format!("Self::{fire}")])?;
+        let self_fire = format!("Self::{fire}");
+        let super_fire = format!("super::fire::{fire}");
+        let mod_fire = format!("fire::{fire}");
+        let full_fire = format!("crate::game::native_hooks::fire::{fire}");
+        require_calls(
+            &bodies,
+            Some(&fire),
+            &[&self_fire, &super_fire, &mod_fire, &full_fire],
+        )?;
         return Ok(true);
     }
     let direct = format!("mod_api::dispatch_{name}");
@@ -177,7 +448,7 @@ fn check_target(sources: &mut Sources<'_>, hook: &Hook, build: &Build) -> Result
         return Ok(true);
     }
     let (bridge, table, installer, slots) = match package.as_str() {
-        "sunrise_client_lib" => (
+        "sunrise_client_lib" | "sunrise_sim" => (
             "native_client_hooks",
             "NativeClientHooks",
             "install_client_hooks",
@@ -198,14 +469,14 @@ fn check_target(sources: &mut Sources<'_>, hook: &Hook, build: &Build) -> Result
     let outgoing = bodies
         .iter()
         .any(|body| calls(body, None, &[&wrapper_path]));
-    if package == "sunrise_client_lib" {
+    if matches!(package.as_str(), "sunrise_client_lib" | "sunrise_sim") {
         require_calls(&bodies, None, &[&direct, &wrapper_path])?;
     } else {
         require_calls(&bodies, None, &[&wrapper_path])?;
     }
     // These client-library slots precede their catalog targets. The gameplay entry is
     // part of the route even when the slot declaration is accidentally deleted.
-    let incoming = if package == "sunrise_client_lib" {
+    let incoming = if matches!(package.as_str(), "sunrise_client_lib" | "sunrise_sim") {
         match name.as_str() {
             "can_grindstone_repair" => Some(("stations", "can_grindstone_repair")),
             "is_combine_repairable" => Some(("crafting::repair_item", "combine_repairable")),
@@ -236,7 +507,7 @@ fn check_target(sources: &mut Sources<'_>, hook: &Hook, build: &Build) -> Result
         }
     }
     if outgoing || incoming.is_some() {
-        let scope = routes.module(&package, bridge)?;
+        let (bridge_package, scope) = routes.bridge_module(&package, bridge)?;
         if !routes.has_slot(scope, table, name) {
             return Err(format!("{bridge}::{table} is missing its {name} slot"));
         }
@@ -279,7 +550,7 @@ fn check_target(sources: &mut Sources<'_>, hook: &Hook, build: &Build) -> Result
                 module: "entry",
                 installer,
                 install: Target::Definition {
-                    package: &package,
+                    package: &bridge_package,
                     module: bridge,
                     name: "install",
                 },
@@ -341,13 +612,13 @@ fn check_slot(
     target: Target<'_>,
 ) -> Result<(), String> {
     let scope = routes.module(package, module)?;
-    let installers = routes.functions(scope, installer);
+    let installers = routes.installers(scope, installer);
     let missing = || format!("{module}::{installer} does not install {slots}::{name}");
     if installers.is_empty() {
         return Err(missing());
     }
-    for body in &installers {
-        let installed = routes.check_bindings(scope, body, install, |routes, scope, call, imports| {
+    for (scope, body) in &installers {
+        let installed = routes.check_bindings(*scope, body, install, |routes, scope, call, imports| {
             let Some(Expr::Struct(table)) = call.args.first().map(calls::ungroup) else {
                 return Err(format!(
                     "{module}::{installer}: cannot inspect the {slots} binding passed to {install}"
@@ -400,6 +671,103 @@ mod tests {
         );
         hook.name = "item_picked_up".into();
         hook
+    }
+
+    #[test]
+    fn split_wiring_refuses_foreign_receivers_and_competing_definitions() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        for package in ["sunrise-gameplay", "sunrise-gameplay-common"] {
+            fixture(
+                root,
+                &format!("{package}/Cargo.toml"),
+                &format!("[package]\nname = '{package}'\n"),
+            );
+        }
+        fixture(
+            root,
+            "sunrise-gameplay-common/src/lib.rs",
+            "pub mod game { pub struct View; }",
+        );
+        let mut hook = Hook::sample(
+            "sunrise_gameplay::game::native_hooks::View::native_check",
+            Side::Server,
+        );
+        hook.name = "check".into();
+        hook.receiver = crate::catalog::Receiver::Read;
+        hook.host = Some(crate::HostAccess::Read);
+        hook.dispatch = DispatchStyle::Flat;
+        fixture(
+            root,
+            "sunrise-gameplay/src/lib.rs",
+            r#"
+            mod game { mod native_hooks {
+                use sunrise_gameplay_common::game::View;
+                impl View { fn native_check(&self) { self.fire_check(); } }
+            } }
+        "#,
+        );
+        let error = super::check(root, std::slice::from_ref(&hook)).unwrap_err();
+        assert!(
+            error.contains("inherent receiver owner belongs to another package"),
+            "{error}"
+        );
+        fixture(
+            root,
+            "sunrise-gameplay/src/lib.rs",
+            r#"
+            mod game { mod native_hooks {
+                struct View;
+                impl View { fn native_check(&self) { self.fire_check(); } }
+                impl View { fn native_check(&self) { self.fire_check(); } }
+            } }
+        "#,
+        );
+        let error = super::check(root, std::slice::from_ref(&hook)).unwrap_err();
+        assert!(
+            error.contains("several definitions match the declared gameplay binding"),
+            "{error}"
+        );
+        fixture(
+            root,
+            "sunrise-gameplay/src/lib.rs",
+            r#"
+            mod game { mod native_hooks {
+                struct Local;
+                type View = Local;
+                impl View { fn native_check(&self) { self.fire_check(); } }
+            } }
+        "#,
+        );
+        super::check(root, &[hook]).unwrap();
+    }
+
+    #[test]
+    fn split_shared_wiring_names_the_defining_fire_trait() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        fixture(root, "sunrise-gameplay-common/Cargo.toml", "");
+        let mut hook = Hook::sample(
+            "sunrise_gameplay_common::game::native_hooks::GameHooks::native_check",
+            Side::Both,
+        );
+        hook.name = "check".into();
+        hook.receiver = crate::catalog::Receiver::Read;
+        hook.host = Some(crate::HostAccess::Read);
+        hook.dispatch = DispatchStyle::Flat;
+        for (owner, works) in [("FireHooks", true), ("OtherHooks", false)] {
+            fixture(
+                root,
+                "sunrise-gameplay-common/src/lib.rs",
+                &format!(
+                    "mod game {{ mod native_hooks {{ trait GameHooks {{ fn native_check(&self) {{ crate::game::native_hooks::fire::{owner}::fire_check(self); }} }} }} }}"
+                ),
+            );
+            assert_eq!(
+                super::check(root, std::slice::from_ref(&hook)).is_ok(),
+                works
+            );
+        }
     }
 
     #[test]
@@ -879,6 +1247,98 @@ mod tests {
                 result.unwrap();
             }
         }
+        fixture(
+            root,
+            "sunrise-client/src/entry.rs",
+            r"
+            use crate::game::install_client_hooks;
+            fn start() {
+                install_client_hooks();
+                sunrise_world::native_load_hooks::install(sunrise_world::native_load_hooks::NativeLoadHooks {
+                    loot_table_load: || mod_api::dispatch_loot_table_load(),
+                });
+            }
+            ",
+        );
+        fixture(
+            root,
+            "sunrise-client/src/game.rs",
+            r"
+            pub(crate) fn install_client_hooks() {
+                sunrise_client_lib::native_client_hooks::install(sunrise_client_lib::native_client_hooks::NativeClientHooks {
+                    living_heal: || mod_api::dispatch_living_heal(),
+                });
+            }
+            ",
+        );
+        check(root, &hooks).unwrap();
+    }
+
+    #[test]
+    fn client_library_bridge_resolves_the_reexported_sim_installer() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        fixture(root, "sunrise-client-lib/Cargo.toml", "");
+        fixture(root, "sunrise-sim/Cargo.toml", "");
+        fixture(root, "sunrise-client/Cargo.toml", "");
+        fixture(
+            root,
+            "sunrise-client-lib/src/lib.rs",
+            "pub use sunrise_sim::native_client_hooks; mod mobs;",
+        );
+        fixture(
+            root,
+            "sunrise-client-lib/src/mobs.rs",
+            "fn native_fixture_callback() { crate::native_client_hooks::fixture_callback(); }",
+        );
+        fixture(
+            root,
+            "sunrise-sim/src/lib.rs",
+            "pub mod native_client_hooks;",
+        );
+        fixture(
+            root,
+            "sunrise-sim/src/native_client_hooks.rs",
+            "pub struct NativeClientHooks { fixture_callback: fn() }
+             pub fn install(_: NativeClientHooks) {}
+             pub fn fixture_callback() { (get().fixture_callback)(); }",
+        );
+        fixture(root, "sunrise-client/src/lib.rs", "mod entry;");
+        fixture(
+            root,
+            "sunrise-client/src/entry.rs",
+            "fn install_client_hooks() {
+                sunrise_sim::native_client_hooks::install(sunrise_sim::native_client_hooks::NativeClientHooks {
+                    fixture_callback: || mod_api::dispatch_fixture_callback(),
+                });
+            }",
+        );
+        let mut hook = Hook::sample(
+            "sunrise_client_lib::mobs::native_fixture_callback",
+            Side::Client,
+        );
+        hook.name = "fixture_callback".into();
+        check(root, &[hook]).unwrap();
+    }
+
+    #[test]
+    fn living_model_posed_dispatches_directly_in_the_client_library() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        fixture(root, "sunrise-client-lib/Cargo.toml", "");
+        fixture(root, "sunrise-client-lib/src/lib.rs", "mod mobs;");
+        fixture(root, "sunrise-client-lib/src/mobs.rs", "mod render;");
+        fixture(
+            root,
+            "sunrise-client-lib/src/mobs/render.rs",
+            "fn native_living_model_posed() { mod_api::dispatch_living_model_posed(); }",
+        );
+        let mut hook = Hook::sample(
+            "sunrise_client_lib::mobs::render::native_living_model_posed",
+            Side::Client,
+        );
+        hook.name = "living_model_posed".into();
+        check(root, &[hook]).unwrap();
     }
 
     #[test]

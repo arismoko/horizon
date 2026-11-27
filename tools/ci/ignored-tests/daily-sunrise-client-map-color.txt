@@ -1,2 +1,2 @@
 # BlockPart::map_color (#1106).
-sunrise-client game::maps::part_color::tests::a_block_part_decides_the_map_colour_of_its_block lib daily resources
+sunrise-gameplay game::server_side::maps_server::part_color::tests::a_block_part_decides_the_map_colour_of_its_block lib daily resources

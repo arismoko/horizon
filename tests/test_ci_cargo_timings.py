@@ -24,6 +24,10 @@ class CargoTimingsTests(unittest.TestCase):
         self.assertIn("sunrise-world integration (test)", lines[2])
         self.assertEqual(len(lines), 3)
 
+    def test_a_fully_cached_build_reports_nothing_compiled(self):
+        html = "<script>\nconst UNIT_DATA = [];\nconst CONCURRENCY_DATA = [];\n</script>"
+        self.assertEqual(cargo_timings.summary(cargo_timings.units(html), top=25), ["units=0: nothing compiled"])
+
     def test_a_report_without_unit_data_is_refused(self):
         with self.assertRaisesRegex(ValueError, "no UNIT_DATA"):
             cargo_timings.units("<html></html>")

@@ -1,0 +1,10 @@
+# The daily tests of sunrise-level::perf_capture: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
+# where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
+sunrise-level perf_capture::tests::a_converted_profile_written_to_a_file_reads_back_through_the_queries lib daily slow
+sunrise-level perf_capture::tests::a_stack_becomes_a_root_to_leaf_chain_with_its_context lib daily slow
+sunrise-level perf_capture::tests::addresses_of_one_function_share_one_row lib daily slow
+sunrise-level perf_capture::tests::heap_samples_share_the_tables_without_the_allocators_own_frames lib daily slow
+sunrise-level perf_capture::tests::only_the_slow_ticks_function_is_in_the_slow_weights lib daily slow
+sunrise-level perf_capture::tests::three_units_of_a_and_one_of_b_split_the_samples_three_to_one lib daily slow
+sunrise-level perf_capture::tests::time_blocks_and_ticks_per_block_follow_when_they_were_added lib daily slow
+sunrise-level perf_capture::tests::wall_samples_carry_their_state_and_a_second_kind lib daily slow

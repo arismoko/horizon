@@ -1,4 +1,4 @@
-Projection.setupPerspective	inline	crates/sunrise-client-render/src/camera.rs::perspective	gap: minor: the dirty-flag cache and the stored fov/near/far are not kept; the matrix is built from the arguments per call
+Projection.setupPerspective	inline	crates/sunrise-level/src/camera_math.rs::perspective	gap: minor: the dirty-flag cache and the stored fov/near/far are not kept; the matrix is built from the arguments per call
 Projection.setupOrtho	skip:ui		GUI draws in pixels through Sunrise's own HUD pipeline; no ortho projection state of its own
 Projection.getMatrixVersion	skip:java		matrix version counter for the dirty-check cache
 ProjectionMatrixBuffer.getBuffer	skip:other		GPU buffer handle getter; Sunrise owns its uniform buffers in gfx.rs
@@ -8,7 +8,7 @@ Rect2i.contains	skip:ui		GUI hit test on a rectangle; Sunrise's widgets hit-test
 RenderPipelines.register	skip:data		pipeline registry; Sunrise creates its pipelines in gfx.rs
 RunningTrimmedMean.registerValueAndGetMean	skip:debug		frame-time smoothing helper; no vanilla caller in this source tree
 ScreenEffectRenderer.submit	port	crates/sunrise-client-render/src/screen_effects.rs::ScreenEffects::build	gap: minor: the item activation is not built here (see renderItemActivationAnimation)
-ScreenEffectRenderer.renderItemActivationAnimation	port	crates/sunrise-client/src/game/items/totem.rs::Game::item_activation_geometry	the totem flying up to the screen when it saves the player: `ItemActivation.activate`/`tick` and `item_activation.rs`'s pose, drawn in the hand pass with the FIXED display and no camera transform
+ScreenEffectRenderer.renderItemActivationAnimation	port	crates/sunrise-client-gameplay/src/game/items/totem.rs::Game::item_activation_geometry	the totem flying up to the screen when it saves the player: `ItemActivation.activate`/`tick` and `item_activation.rs`'s pose, drawn in the hand pass with the FIXED display and no camera transform
 ScreenEffectRenderer.submitWater	inline	crates/sunrise-client-render/src/screen_effects.rs::ScreenEffects::build	underwater overlay branch (misc/underwater)
 ScreenEffectRenderer.submitFire	inline	crates/sunrise-client-render/src/screen_effects.rs::ScreenEffects::build	first-person fire overlay branch (block/fire_1, two quads)
 ScreenEffectRenderer.buildFireQuad	inline	crates/sunrise-client-render/src/screen_effects.rs::ScreenEffects::build	the two fire quads' corners and offsets
@@ -53,19 +53,19 @@ ShaderManager.PostChainCache.loadPostChain	port	crates/sunrise-client-render/src
 ShaderManager.PostChainCache.close	skip:other		releases post chains; Sunrise has none
 Sheets.chooseSprite	port	crates/sunrise-client-render/src/block_entity_render.rs::classify	gap: minor: the Christmas chest texture is picked outside this fn (block_entity_render.rs extended_christmas)
 SkyRenderer.<init>	inline	crates/sunrise-render-shaderpack/src/pack_sky.rs::PackSky::new	gap: minor: builds the disc, sunset fan, stars and void up front; sun and moon quads are built per frame in game.rs celestial_geometry
-SkyRenderer.extractRenderState	port	crates/sunrise-client-render/src/environment.rs::Environment::sample	gap: minor: the End flash state is read in game/world/end.rs (end_flash_sky)
-SkyRenderer.render	port	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	sky pass; the frame's sky and dark-disc flags come from Game::render
+SkyRenderer.extractRenderState	port	crates/sunrise-level/src/environment.rs::Environment::sample	gap: minor: the End flash state is read in game/world/end.rs (end_flash_sky)
+SkyRenderer.render	port	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	sky pass; the frame's sky and dark-disc flags come from Game::render
 SkyRenderer.renderSkyDisc	port	crates/sunrise-render-shaderpack/src/pack_sky.rs::disc	top sky disc fan, sky colour from PackSky::prepare
-SkyRenderer.renderDarkDisc	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	dark disc pipeline (fs_dark_disc) drawn when frame.dark_disc is set
-SkyRenderer.renderSun	port	crates/sunrise-client/src/game/frame_geometry.rs::Game::celestial_geometry	sun quad 100 blocks out, half-size 30, faded by rain
-SkyRenderer.renderMoon	port	crates/sunrise-client/src/game/frame_geometry.rs::Game::celestial_geometry	moon quad 100 blocks out, half-size 20, faded by rain
-SkyRenderer.applyCelestialBodyTransform	inline	crates/sunrise-client/src/game/frame_geometry.rs::Game::celestial_geometry	the body frame: rotate Y -90, then X by the body's angle
-SkyRenderer.drawCelestialBody	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	draws the body quads with the celestial pipeline
+SkyRenderer.renderDarkDisc	inline	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	dark disc pipeline (fs_dark_disc) drawn when frame.dark_disc is set
+SkyRenderer.renderSun	port	crates/sunrise-client-gameplay/src/game/interface/frame_geometry.rs::ClientGame::celestial_geometry	sun quad 100 blocks out, half-size 30, faded by rain
+SkyRenderer.renderMoon	port	crates/sunrise-client-gameplay/src/game/interface/frame_geometry.rs::ClientGame::celestial_geometry	moon quad 100 blocks out, half-size 20, faded by rain
+SkyRenderer.applyCelestialBodyTransform	inline	crates/sunrise-client-gameplay/src/game/interface/frame_geometry.rs::ClientGame::celestial_geometry	the body frame: rotate Y -90, then X by the body's angle
+SkyRenderer.drawCelestialBody	inline	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	draws the body quads with the celestial pipeline
 SkyRenderer.renderSunriseAndSunset	port	crates/sunrise-render-shaderpack/src/pack_sky.rs::PackSky::prepare	sunset fan turned to the sun's sunrise and its alpha uploaded as sunrise
 SkyRenderer.renderEndSky	port	crates/sunrise-client-render/src/gfx/end_sky.rs::EndSky::draw	End sky cube
 SkyRenderer.buildSunriseFan	port	crates/sunrise-render-shaderpack/src/pack_sky.rs::PackSky::new	gap: minor: a unit 16-segment fan; the 120 and -40 block shape is not built here
-SkyRenderer.buildCelestialQuad	port	crates/sunrise-client/src/game/frame_geometry.rs::Game::celestial_geometry	sprite quad for the sun and moon (body closure)
-SkyRenderer.buildMoonPhases	port	crates/sunrise-client/src/game/frame_geometry.rs::Game::celestial_geometry	gap: minor: picks the phase from day time (day_time / 24000), not from the environment's moon phase value
+SkyRenderer.buildCelestialQuad	port	crates/sunrise-client-gameplay/src/game/interface/frame_geometry.rs::ClientGame::celestial_geometry	sprite quad for the sun and moon (body closure)
+SkyRenderer.buildMoonPhases	port	crates/sunrise-client-gameplay/src/game/interface/frame_geometry.rs::ClientGame::celestial_geometry	gap: minor: picks the phase from day time (day_time / 24000), not from the environment's moon phase value
 SkyRenderer.buildSkyDisc	port	crates/sunrise-render-shaderpack/src/pack_sky.rs::disc	16-block disc fan (top and bottom)
 SkyRenderer.close	skip:other		releases sky buffers; Rust drops the wgpu buffers
 SpriteCoordinateExpander.addVertex	skip:other		no callers in this vanilla tree; UV wrapper for sprite quads
@@ -91,24 +91,24 @@ StagedVertexBuffer.GpuBufferPool.endFrame	skip:other		fence bookkeeping for GPU 
 StagedVertexBuffer.GpuBufferPool.close	skip:other		releases buffers; Rust drops them
 StagedVertexBuffer.GpuBufferPool.PendingRecycle.tryRecycle	skip:other		fence wait for GPU reuse; Sunrise has no fence here
 SubmitNodeCollection.<init>	skip:other		builds the phase lists (improved transparency or not); Sunrise has fixed passes in gfx.rs
-SubmitNodeCollection.submitShadow	port	crates/sunrise-client/src/game.rs::Game::entity_geometry	entity shadow quads (misc/shadow) when the entity_shadows option is on
-SubmitNodeCollection.nameTag	port	crates/sunrise-client/src/game/interface/names.rs::Game::name_tag_geometry	name tags
-SubmitNodeCollection.submitNameTagPart	port	crates/sunrise-client/src/game/interface/names.rs::Game::name_tag_quads	adds the text quads of one name tag part
-SubmitNodeCollection.canRenderAsSolid	inline	crates/sunrise-client/src/game/interface/names.rs::Game::name_tag_geometry	the choice between the opaque and see-through pass
-SubmitNodeCollection.submitText	port	crates/sunrise-client/src/game/entities/text_displays.rs::Game::text_display_geometry	world text (text displays)
-SubmitNodeCollection.submitTextBackground	inline	crates/sunrise-client/src/game/entities/text_displays.rs::Game::text_display_geometry	background quad of a text display
-SubmitNodeCollection.submitTextPart	inline	crates/sunrise-client/src/game/entities/text_displays.rs::Game::text_display_geometry	the see-through or opaque choice for a text part
+SubmitNodeCollection.submitShadow	port	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::entity_geometry	entity shadow quads (misc/shadow) when the entity_shadows option is on
+SubmitNodeCollection.nameTag	port	crates/sunrise-client-gameplay/src/game/interface/names.rs::Game::name_tag_geometry	name tags
+SubmitNodeCollection.submitNameTagPart	port	crates/sunrise-client-gameplay/src/game/interface/names.rs::Game::name_tag_quads	adds the text quads of one name tag part
+SubmitNodeCollection.canRenderAsSolid	inline	crates/sunrise-client-gameplay/src/game/interface/names.rs::Game::name_tag_geometry	the choice between the opaque and see-through pass
+SubmitNodeCollection.submitText	port	crates/sunrise-client-gameplay/src/game/entities/text_displays.rs::Game::text_display_geometry	world text (text displays)
+SubmitNodeCollection.submitTextBackground	inline	crates/sunrise-client-gameplay/src/game/entities/text_displays.rs::Game::text_display_geometry	background quad of a text display
+SubmitNodeCollection.submitTextPart	inline	crates/sunrise-client-gameplay/src/game/entities/text_displays.rs::Game::text_display_geometry	the see-through or opaque choice for a text part
 SubmitNodeCollection.submitFlame	port	crates/sunrise-client/src/fire_render.rs::flames	entity fire flames
-SubmitNodeCollection.submitLeash	port	crates/sunrise-client/src/game/entities/leads.rs::Game::leash_geometry	lead rope from a leashed mob to its holder
-SubmitNodeCollection.submitModel	port	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::mob_geometry	mob models
-SubmitNodeCollection.submitCrumblingOverlay	port	crates/sunrise-client/src/game.rs::Game::cracks	block break cracks (destroy_stage sprites) over a block
-SubmitNodeCollection.submitMovingBlock	port	crates/sunrise-client/src/game/blocks/moving_pistons.rs::Game::moving_piston_geometry	moving piston blocks
+SubmitNodeCollection.submitLeash	port	crates/sunrise-client-gameplay/src/game/entities/leads_client.rs::Game::leash_geometry	lead rope from a leashed mob to its holder
+SubmitNodeCollection.submitModel	port	crates/sunrise-client-gameplay/src/game/mobs/creatures/mod_client.rs::Game::mob_geometry	mob models
+SubmitNodeCollection.submitCrumblingOverlay	port	crates/sunrise-client-gameplay/src/game/interface/frame_geometry.rs::ClientGame::cracks	block break cracks (destroy_stage sprites) over a block
+SubmitNodeCollection.submitMovingBlock	port	crates/sunrise-client-gameplay/src/game/blocks/moving_pistons_client.rs::Game::moving_piston_geometry	moving piston blocks
 SubmitNodeCollection.submitBlockModel	port	crates/sunrise-client-render/src/block_entity_render.rs::BlockEntityRenderer::render_block	gap: minor: block models driven by block entities only
-SubmitNodeCollection.getOutlineRenderType	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_outline	one outline pass; the render type choice is folded into it
-SubmitNodeCollection.submitBreakingBlockModel	port	crates/sunrise-client/src/game/frame_geometry.rs::Game::cracks	gap: minor: drawn as cracks; the block model itself is not redrawn
-SubmitNodeCollection.submitShapeOutline	port	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_outline	block shape outline (selection box)
-SubmitNodeCollection.submitItem	port	crates/sunrise-client/src/game/interface/item_draw.rs::Game::dropped_item_geometry	dropped item entities
-SubmitNodeCollection.submitCustomGeometry	port	crates/sunrise-client/src/mobs/guardian.rs::beam_geometry	gap: minor: the guardian beam only; screen overlay quads are built in ScreenEffects::build
+SubmitNodeCollection.getOutlineRenderType	inline	crates/sunrise-client-render/src/gfx/entity_draw.rs::Renderer::draw_outline	one outline pass; the render type choice is folded into it
+SubmitNodeCollection.submitBreakingBlockModel	port	crates/sunrise-client-gameplay/src/game/interface/frame_geometry.rs::ClientGame::cracks	gap: minor: drawn as cracks; the block model itself is not redrawn
+SubmitNodeCollection.submitShapeOutline	port	crates/sunrise-client-render/src/gfx/entity_draw.rs::Renderer::draw_outline	block shape outline (selection box)
+SubmitNodeCollection.submitItem	port	crates/sunrise-client-gameplay/src/game/interface/item_draw.rs::Game::dropped_item_geometry	dropped item entities
+SubmitNodeCollection.submitCustomGeometry	port	crates/sunrise-client/src/mobs_render.rs::guardian_beam_geometry	gap: minor: the guardian beam only; screen overlay quads are built in ScreenEffects::build
 SubmitNodeCollection.submitGizmoPrimitives	skip:debug		debug gizmo overlay
 SubmitNodeStorage.setUseImprovedTransparency	skip:other		storage toggle for the transparency path; Sunrise fixes its path in Renderer::new
 SubmitNodeStorage.order	skip:other		per-order submit collection; Sunrise draws in fixed passes
@@ -120,8 +120,8 @@ SubmitNodeStorage.submitCrumblingOverlay	skip:other		submit wrapper; see SubmitN
 SubmitNodeStorage.submitBlockModel	skip:other		submit wrapper; see SubmitNodeCollection.submitBlockModel
 SubmitNodeStorage.submitShapeOutline	skip:other		submit wrapper; see SubmitNodeCollection.submitShapeOutline
 SubmitNodeStorage.submitItem	skip:other		submit wrapper; see SubmitNodeCollection.submitItem
-SubmitNodeStorage.drainPhases	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	the pass order that draws each phase
-ViewArea.releaseAllBuffers	port	crates/sunrise-client-render/src/gfx.rs::Renderer::clear_sections	drops every section's buffers
+SubmitNodeStorage.drainPhases	inline	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	the pass order that draws each phase
+ViewArea.releaseAllBuffers	port	crates/sunrise-client-render/src/gfx/section_upload.rs::Renderer::clear_sections	drops every section's buffers
 ViewArea.repositionCamera	inline	crates/sunrise-client-render/src/gfx/occlusion.rs::Occlusion::update	gap: minor: the occlusion graph restarts on a camera section change; sections are keyed by absolute position, nothing is re-centred
 WeatherEffectRenderer.renderWeather	inline	crates/sunrise-client-render/src/gfx/weather.rs::Weather::draw	draws the rain and snow column ranges
 WeatherEffectRenderer.uploadVertexBuffer	port	crates/sunrise-client-render/src/gfx/weather.rs::Weather::prepare	gap: minor: the buffer grows to the next power of two
@@ -129,17 +129,17 @@ WeatherEffectRenderer.prepare	port	crates/sunrise-client-render/src/weather.rs::
 WeatherEffectRenderer.render	port	crates/sunrise-client-render/src/gfx/weather.rs::Weather::draw	draws the rain and snow columns
 WeatherEffectRenderer.createSnowColumnInstance	port	crates/sunrise-client-render/src/weather.rs::snow_column	snow drift and brightened light
 WeatherEffectRenderer.prepareInstances	port	crates/sunrise-client-render/src/weather.rs::column_quad	gap: minor: one column per call; the loop over columns is in the caller
-WorldBorderRenderer.renderOit	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	border wall draw when frame.border is set
+WorldBorderRenderer.renderOit	inline	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	border wall draw when frame.border is set
 WorldBorderRenderer.prepareRenderPass	inline	crates/sunrise-border/src/border_render.rs::BorderRenderer::transforms	the uniforms (colour, offset, texture scroll) for the wall
 WorldBorderRenderer.shouldRebuildWorldBorderBuffer	port	crates/sunrise-border/src/border_render.rs::BorderRenderer::prepare	rebuilds when the border moved or was invalidated
 FluidRenderer.getHeight	inline	crates/sunrise-client-render/src/mesher/fluid.rs::tesselate	corner heights from own_height and the neighbour average
 ChunkSectionLayer.byTransparency	inline	crates/sunrise-client-render/src/mesher.rs::Mesher::face	a face goes to the translucent list when it is translucent
-ChunkSectionsToRender.renderGroup	port	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_sections	gap: minor: draws the given page runs; the terrain uniforms are bound by the caller
-ChunkSectionsToRender.renderOit	port	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_sections	gap: minor: the OIT pass set-up is not in this fn
-ChunkSectionsToRender.renderLayers	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_sections	per-layer loop over the page runs
-ChunkSectionsToRender.DrawIndirect.render	port	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_sections	multi-draw indirect branch
-ChunkSectionsToRender.DrawSeparate.render	port	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_sections	per-draw branch without multi-draw
-RenderRegionCache.createRegion	inline	crates/sunrise-client-render/src/mesher.rs::borrow	gap: minor: borrows the 3x3 chunk columns around the section; nothing is copied
+ChunkSectionsToRender.renderGroup	port	crates/sunrise-client-render/src/gfx/section_upload.rs::Renderer::draw_sections	gap: minor: draws the given page runs; the terrain uniforms are bound by the caller
+ChunkSectionsToRender.renderOit	port	crates/sunrise-client-render/src/gfx/section_upload.rs::Renderer::draw_sections	gap: minor: the OIT pass set-up is not in this fn
+ChunkSectionsToRender.renderLayers	inline	crates/sunrise-client-render/src/gfx/section_upload.rs::Renderer::draw_sections	per-layer loop over the page runs
+ChunkSectionsToRender.DrawIndirect.render	port	crates/sunrise-client-render/src/gfx/section_upload.rs::Renderer::draw_sections	multi-draw indirect branch
+ChunkSectionsToRender.DrawSeparate.render	port	crates/sunrise-client-render/src/gfx/section_upload.rs::Renderer::draw_sections	per-draw branch without multi-draw
+RenderRegionCache.createRegion	inline	crates/sunrise-level/src/chunk.rs::borrow	gap: minor: borrows the 3x3 chunk columns around the section; nothing is copied
 RenderRegionCache.getSectionDataCopy	skip:java		per-thread copy cache; Sunrise borrows the chunks
 RenderSectionRegion.getBlockState	inline	crates/sunrise-client-render/src/mesher.rs::Mesher::mesh	block reads of the mesh loop
 RenderSectionRegion.getFluidState	port	crates/sunrise-client-render/src/mesher/fluid.rs::FlowView::fluid	fluid read used by the fluid mesher

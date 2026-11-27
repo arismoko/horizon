@@ -1,1 +1,1 @@
-sunrise-client game::native_explosions_tests::a_player_hit_expires_on_a_living_mob_after_the_last_memory_tick lib daily child-process
+sunrise-client cut_layout::game::server_side::native_explosions_tests::a_player_hit_expires_on_a_living_mob_after_the_last_memory_tick lib daily child-process

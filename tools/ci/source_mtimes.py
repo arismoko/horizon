@@ -9,7 +9,9 @@ not safe: a newly merged change can have an older author or committer date.
 Every job that builds in a shared persistent target must run this first, or its
 artifacts outlive a snapshot that no longer describes them. The snapshot's name
 carries a version: renaming it discards every runner's old snapshot once, so
-targets left with another tree's artifacts are judged afresh.
+targets left with another tree's artifacts are judged afresh. Missing or damaged
+snapshots refresh all tracked mtimes. Replace a snapshot only after writing its
+new contents in full.
 """
 
 import argparse
@@ -24,10 +26,32 @@ def restore_and_snapshot(root, snapshot):
     # The object IDs describe the checkout only while its tracked inputs are clean.
     subprocess.run(["git", "diff", "--exit-code", "HEAD", "--"], cwd=root,
                    check=True, stdout=subprocess.DEVNULL)
+    restored, total = restore_tree_mtimes(root, "HEAD", root, snapshot)
+    print(f"Restored mtimes for {restored} unchanged Git files and trees out of {total}")
+
+
+def restore_tree_mtimes(repo: Path, tree: str, root: Path, snapshot: Path) -> tuple[int, int]:
+    """Reconcile a verified checkout or a fresh full archive of `tree` from `repo`.
+
+    For an archive, the caller must hold the artifact cache lock from extraction
+    through the build and pass the same resolved tree ID used for extraction.
+    """
     entries = subprocess.check_output(
-        ["git", "ls-tree", "-r", "-t", "-z", "HEAD"], cwd=root,
+        ["git", "ls-tree", "-r", "-t", "-z", tree], cwd=repo,
     )
-    previous = json.loads(snapshot.read_text()) if snapshot.exists() else {}
+    try:
+        previous = json.loads(snapshot.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError, RecursionError):
+        previous = {}
+    # Treat a malformed record as a lost snapshot, not a partially trusted cache.
+    # Fresh mtimes come from time.time_ns(), a signed 64-bit clock in CPython.
+    if not isinstance(previous, dict) or any(
+        not isinstance(record, list) or len(record) != 2
+        or not isinstance(record[0], str) or type(record[1]) is not int
+        or not -(2**63) <= record[1] < 2**63
+        for record in previous.values()
+    ):
+        previous = {}
     current = {}
     restored = 0
     for entry in entries.split(b"\0"):
@@ -54,8 +78,10 @@ def restore_and_snapshot(root, snapshot):
         os.utime(path, ns=(stat.st_atime_ns, mtime))
         current[name] = [identity, path.stat().st_mtime_ns]
     snapshot.parent.mkdir(parents=True, exist_ok=True)
-    snapshot.write_text(json.dumps(current, sort_keys=True) + "\n")
-    print(f"Restored mtimes for {restored} unchanged Git files and trees out of {len(current)}")
+    pending = snapshot.with_name(snapshot.name + ".pending")
+    pending.write_text(json.dumps(current, sort_keys=True) + "\n", encoding="utf-8")
+    pending.replace(snapshot)
+    return restored, len(current)
 
 
 if __name__ == "__main__":

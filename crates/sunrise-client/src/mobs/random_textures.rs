@@ -14,11 +14,10 @@
 //! `sheep_wool3` (ETF), or an even choice when the body has no variants; villagers' layers each
 //! choose their own, as ETF does.
 
-#[cfg(test)]
-use super::MobData;
+use super::random_texture_choice::{RandomTextureChoice, RandomTextureSeen, RandomTextureWeather};
 use super::render::DYE_NAMES;
 use super::{Mob, Species};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use sunrise_optifine::random::{self, Block, Facts, Weather};
 use sunrise_optifine::random_textures::RandomTextures;
 
@@ -35,76 +34,42 @@ pub struct Seen {
     pub weather: Weather,
 }
 
+fn to_portable_weather(weather: Weather) -> RandomTextureWeather {
+    match weather {
+        Weather::Clear => RandomTextureWeather::Clear,
+        Weather::Rain => RandomTextureWeather::Rain,
+        Weather::Thunder => RandomTextureWeather::Thunder,
+    }
+}
+
+fn from_portable_weather(weather: RandomTextureWeather) -> Weather {
+    match weather {
+        RandomTextureWeather::Clear => Weather::Clear,
+        RandomTextureWeather::Rain => Weather::Rain,
+        RandomTextureWeather::Thunder => Weather::Thunder,
+    }
+}
+
+fn to_portable_seen(seen: Seen) -> RandomTextureSeen {
+    RandomTextureSeen {
+        biome: seen.biome,
+        y: seen.y,
+        blocks: seen.blocks,
+        moon_phase: seen.moon_phase,
+        day_time: seen.day_time,
+        weather: to_portable_weather(seen.weather),
+    }
+}
+
 /// A mob's variants.
-#[derive(Debug, Default)]
-pub struct Choice {
-    seen: Option<Seen>,
-    seed: i32,
-    /// The [`RandomTextures::generation`] the picks are from: another (a pack reload) makes
-    /// them stale.
-    generation: u64,
-    /// The variant each rule file chose, by its index in [`RandomTextures::rules`].
-    picks: Vec<(usize, u32)>,
-    /// The body texture's variant.
-    primary: Option<u32>,
-    /// Ticks until the next check of the facts that change.
-    countdown: u8,
-    /// Drawing found a texture with rules and no pick: choose on the next tick, unless a miss
-    /// was answered since the last regular check.
-    missed: AtomicBool,
-    /// A miss was answered since the last regular check: one per check, so a texture that
-    /// drawing keeps missing (one `drawn_textures` doesn't list) can't make the mob choose
-    /// every tick.
-    answered: bool,
-}
+pub type Choice = RandomTextureChoice;
 
-impl Clone for Choice {
-    fn clone(&self) -> Self {
-        Self {
-            seen: self.seen.clone(),
-            seed: self.seed,
-            generation: self.generation,
-            picks: self.picks.clone(),
-            primary: self.primary,
-            countdown: self.countdown,
-            missed: AtomicBool::new(self.missed.load(Ordering::Relaxed)),
-            answered: self.answered,
-        }
-    }
-}
-
-/// Ticks between checks of the facts that change.
-const RECHECK: u8 = 20;
-
-impl Choice {
-    /// Whether the mob's first sighting is recorded.
-    pub fn has_seen(&self) -> bool {
-        self.seen.is_some()
-    }
-
-    /// Called once a tick: whether [`choose`] should run now. It does on first sight, after the
-    /// packs changed, every [`RECHECK`] ticks (the first spread by `stagger`, the entity id, so
-    /// a crowd seen at once doesn't check at once), and when drawing missed a pick, once
-    /// between those checks.
-    pub fn due(&mut self, textures: &RandomTextures, stagger: u32) -> bool {
-        let fresh = !self.has_seen() || self.generation != textures.generation();
-        if fresh || self.countdown == 0 {
-            self.countdown = if fresh {
-                (stagger % u32::from(RECHECK)) as u8
-            } else {
-                RECHECK - 1
-            };
-            self.answered = false;
-            self.missed.store(false, Ordering::Relaxed);
-            return true;
-        }
-        self.countdown -= 1;
-        if self.missed.swap(false, Ordering::Relaxed) && !self.answered {
-            self.answered = true;
-            return true;
-        }
-        false
-    }
+/// Called once a tick: whether [`choose`] should run now. It does on first sight, after the
+/// packs changed, every recheck interval (the first spread by `stagger`, the entity id, so
+/// a crowd seen at once doesn't check at once), and when drawing missed a pick, once
+/// between those checks.
+pub fn due(choice: &mut Choice, textures: &RandomTextures, stagger: u32) -> bool {
+    choice.due_generation(textures.generation(), stagger)
 }
 
 /// An entity's seed from the UUID ints the client keeps (`UUIDUtil.uuidToIntArray`, most
@@ -128,7 +93,7 @@ pub fn choose(
 ) {
     let mut choice = std::mem::take(&mut m.random_textures);
     if choice.seen.is_none() {
-        choice.seen = seen;
+        choice.seen = seen.map(to_portable_seen);
     }
     let Some(seen) = choice.seen.take() else {
         m.random_textures = choice;
@@ -167,7 +132,7 @@ pub fn choose(
         health: Some((m.health, super::finalize::max_health(m))),
         moon_phase: Some(seen.moon_phase),
         day_time: Some(seen.day_time),
-        weather: Some(seen.weather),
+        weather: Some(from_portable_weather(seen.weather)),
         size: size(m),
     };
     for (i, name) in names.iter().enumerate() {
@@ -246,8 +211,23 @@ fn size(m: &Mob) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mobs_render::{ClientMobData, ClientMobModels, ClientMobRender, ClientMobVisuals};
     use std::sync::Arc;
     use sunrise_core::geometry::Vec3;
+
+    struct Fixture {
+        models: ClientMobModels,
+        data: ClientMobData,
+    }
+
+    impl Fixture {
+        fn render(&self) -> ClientMobRender<'_> {
+            ClientMobRender {
+                models: &self.models,
+                data: &self.data,
+            }
+        }
+    }
 
     fn mob(species: Species) -> Mob {
         let mut kind = crate::mobs::sensor_scan_tests::kind();
@@ -259,32 +239,29 @@ mod tests {
     fn choose_for_test(
         m: &mut Mob,
         textures: &RandomTextures,
-        data: &MobData,
+        fixture: &Fixture,
         seen: Option<Seen>,
         seed: i32,
     ) {
-        let names = super::super::render::drawn_textures(m, data);
+        let render = fixture.render();
+        let names = super::super::render::drawn_textures(m, &render);
         choose(m, textures, names, seen, seed);
     }
 
-    fn data() -> MobData {
-        MobData {
-            states: Vec::new(),
-            placements: Default::default(),
-            heightmaps: Default::default(),
-            animations: Default::default(),
-            villager_hats: Default::default(),
-            frame_models: Default::default(),
-            cem: Default::default(),
-            random_textures: Default::default(),
-            emissive: Default::default(),
-            blinks: Default::default(),
-            biome_tags: Default::default(),
-            pois: Default::default(),
-            species_placements: Default::default(),
-            mod_spawns: Default::default(),
-            vanilla_spawn_placements: None,
-            resolved: Default::default(),
+    fn data() -> Fixture {
+        let mut models = ClientMobModels::default();
+        models.insert(
+            "minecraft:cow".into(),
+            ClientMobVisuals {
+                shadow: None,
+                model: Arc::new(crate::mobs::Part::empty("root")),
+                layers: Default::default(),
+                texture: String::new(),
+            },
+        );
+        Fixture {
+            models,
+            data: ClientMobData::default(),
         }
     }
 
@@ -350,16 +327,18 @@ mod tests {
         let mut m = mob(Species::Sheep);
         assert_eq!(texture(&m, &t, SHEEP), None, "not chosen yet");
         // Entity 1: chosen at first sight, then 1 tick later (the stagger), then every 20.
-        assert!(m.random_textures.due(&t, m.id));
+        assert!(due(&mut m.random_textures, &t, m.id));
         m.extra.color = 14; // red
         choose_for_test(&mut m, &t, &data, Some(seen("minecraft:plains")), 0);
         let sheep3 = variant("entity/sheep/sheep3");
         assert_eq!(texture(&m, &t, SHEEP), Some(sheep3.as_str()));
         let wool3 = variant("entity/sheep/sheep_wool3");
         assert_eq!(texture(&m, &t, WOOL), Some(wool3.as_str()));
-        let ticks: Vec<bool> = (0..23).map(|_| m.random_textures.due(&t, 1)).collect();
-        let due: Vec<usize> = (0..23).filter(|&i| ticks[i]).collect();
-        assert_eq!(due, [1, 21]);
+        let ticks: Vec<bool> = (0..23)
+            .map(|_| due(&mut m.random_textures, &t, 1))
+            .collect();
+        let due_ticks: Vec<usize> = (0..23).filter(|&i| ticks[i]).collect();
+        assert_eq!(due_ticks, [1, 21]);
         m.extra.color = 0;
         choose_for_test(&mut m, &t, &data, None, 0);
         let sheep2 = variant("entity/sheep/sheep2");
@@ -374,7 +353,7 @@ mod tests {
             ],
         );
         assert_eq!(texture(&m, &reloaded, SHEEP), None);
-        assert!(m.random_textures.due(&reloaded, m.id));
+        assert!(due(&mut m.random_textures, &reloaded, m.id));
         choose_for_test(&mut m, &reloaded, &data, None, 0);
         assert_eq!(texture(&m, &reloaded, SHEEP), Some(sheep2.as_str()));
     }
@@ -382,10 +361,10 @@ mod tests {
     #[test]
     fn equipped_humanoid_selects_its_armour_property_rule() {
         use super::super::render::{self, RenderDataSource};
-        struct EquipmentSource(MobData);
+        struct EquipmentSource(Fixture);
         impl RenderDataSource for EquipmentSource {
-            fn mob_data(&self) -> &MobData {
-                &self.0
+            fn mob_tables(&self) -> ClientMobRender<'_> {
+                self.0.render()
             }
             fn equipment_layers(&self, mob: &Mob) -> Vec<render::Layer> {
                 if mob
@@ -532,22 +511,25 @@ mod tests {
         );
         let mut m = mob(Species::Sheep);
         choose_for_test(&mut m, &t, &data(), Some(seen("minecraft:plains")), 0);
-        assert!(m.random_textures.due(&t, 1), "checked, then 19 quiet ticks");
-        assert!(!m.random_textures.due(&t, 1));
+        assert!(
+            due(&mut m.random_textures, &t, 1),
+            "checked, then 19 quiet ticks"
+        );
+        assert!(!due(&mut m.random_textures, &t, 1));
         // The sheep never drew a cow texture: drawing one asks for a choice at once.
         assert_eq!(texture(&m, &t, "entity/cow/cow"), None);
-        assert!(m.random_textures.due(&t, 1));
-        assert!(!m.random_textures.due(&t, 1));
+        assert!(due(&mut m.random_textures, &t, 1));
+        assert!(!due(&mut m.random_textures, &t, 1));
         // Still missing (never listed): no second choice until the regular check.
         assert_eq!(texture(&m, &t, "entity/cow/cow"), None);
-        assert!(!m.random_textures.due(&t, 1));
+        assert!(!due(&mut m.random_textures, &t, 1));
         // 15 more quiet ticks, the regular check, then a miss is answered at once again.
         for _ in 0..15 {
-            assert!(!m.random_textures.due(&t, 1));
+            assert!(!due(&mut m.random_textures, &t, 1));
         }
-        assert!(m.random_textures.due(&t, 1));
+        assert!(due(&mut m.random_textures, &t, 1));
         assert_eq!(texture(&m, &t, "entity/cow/cow"), None);
-        assert!(m.random_textures.due(&t, 1));
+        assert!(due(&mut m.random_textures, &t, 1));
     }
 
     #[test]

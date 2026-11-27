@@ -12,6 +12,7 @@
     "slope_find_distance": 3,
     "source_conversion": true,
     "bucket": false,
-    "flowing": "fluid_full:brine_flowing"
+    "flowing": "fluid_full:brine_flowing",
+    "block": "fluid_full:brine_block"
   }
 }

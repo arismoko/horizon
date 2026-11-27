@@ -73,7 +73,7 @@ To replay the toast, revoke that advancement and grant it again:
 ```
 
 The native regression
-`game::advancements::icons::tests::advancement_icons_reach_local_and_remote_ui_surfaces`
+`game::client_side::advancements_client::icons::tests::advancement_icons_reach_local_and_remote_ui_surfaces`
 checks actual GUI draw submissions at 640×480 with GUI scale 1, including the
 two permission-failure cases in isolated child processes. The resource-free
 `lan::advancements::tests::advancement_icons_roundtrip_count_damage_and_opposite_glint_overrides`

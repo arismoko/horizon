@@ -105,7 +105,7 @@ mod tests {
     /// One Launch API, one version: the client's and the preparer's move together.
     #[test]
     fn the_client_speaks_the_same_version() {
-        let client = include_str!("../../sunrise-client/src/game/runtime/launch_api.rs");
+        let client = include_str!("../../sunrise-gameplay-common/src/game/runtime/launch_api.rs");
         assert!(
             client.contains(&format!("pub const VERSION: &str = \"{VERSION}\";")),
             "sunrise-client's Launch API version is not {VERSION}"

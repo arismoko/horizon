@@ -6,7 +6,7 @@ use std::{
     io::{BufRead, Write},
     path::PathBuf,
 };
-use sunrise_client::{assets, collisions, world};
+use sunrise_client::{assets, collisions};
 use sunrise_core::geometry::{Aabb, Vec3};
 use sunrise_world::{
     collision_context::CollisionContext,
@@ -40,10 +40,11 @@ pub fn main() -> Result<()> {
         return Err("radius must be 1..16".into());
     }
     let assets = assets::Assets::load(&resources)?;
-    let render = assets.reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-        resources.to_path_buf(),
-    ))?;
-    let world = world::World::test_scene(&assets, &render, radius)?;
+    let render = assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(resources.to_path_buf()),
+        &assets,
+    )?;
+    let world = assets::test_scene_world(&assets, &render, radius)?;
     let binding = collisions::load(&resources, assets.registry)?;
     let mut scene = collisions::SceneCollisions {
         world: &world,

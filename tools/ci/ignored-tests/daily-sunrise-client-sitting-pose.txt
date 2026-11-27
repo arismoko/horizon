@@ -1,2 +1,2 @@
 # TamableAnimal sitting pose (#5029): needs prepared resources.
-sunrise-client game::native_mob_refs::tests::sitting_pose_reads_and_writes_a_tamable_animal_only lib daily resources
+sunrise-client cut_layout::game::server_side::native_mob_refs::tests::sitting_pose_reads_and_writes_a_tamable_animal_only lib daily resources

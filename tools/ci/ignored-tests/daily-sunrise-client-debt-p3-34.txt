@@ -1,5 +1,5 @@
-sunrise-client game::general::save_load_tests::bare_level_feature_enables_host_query_and_general_spawn lib daily resources
-sunrise-client game::general::save_load_tests::bare_pack_feature_enables_host_query_and_general_spawn_on_first_open lib daily resources
-sunrise-client game::general::save_load_tests::feature_disabled_saved_branches_do_not_enter_summon_uuid_admission lib daily resources
-sunrise-client game::natural_spawning::tests::configured_spawner_veto_rolls_equipment_without_joining lib daily resources
-sunrise-client game::natural_spawning::tests::spawner_minecart_hooks_read_the_joined_cart_during_its_tick lib daily resources
+sunrise-client cut_layout::game::general::save_load_tests::bare_level_feature_enables_host_query_and_general_spawn lib daily resources
+sunrise-client cut_layout::game::general::save_load_tests::bare_pack_feature_enables_host_query_and_general_spawn_on_first_open lib daily resources
+sunrise-client cut_layout::game::general::save_load_tests::feature_disabled_saved_branches_do_not_enter_summon_uuid_admission lib daily resources
+sunrise-gameplay game::server_side::natural_spawning::tests::configured_spawner_veto_rolls_equipment_without_joining lib daily resources
+sunrise-gameplay game::server_side::natural_spawning::tests::spawner_minecart_hooks_read_the_joined_cart_during_its_tick lib daily resources

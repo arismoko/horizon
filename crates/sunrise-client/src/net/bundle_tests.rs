@@ -93,7 +93,8 @@ fn malformed_attachment_aborts_packet_decoding_with_or_without_a_bundle() {
 
     for bundled in [false, true] {
         let (root, data) = empty_item_data("malformed-pairing-attachment");
-        let transport = Transport::capture(Side::Client).unwrap();
+        let transport =
+            Transport::capture(Side::Client, crate::net::PAYLOAD_RECORD_OVERHEAD).unwrap();
         transport
             .accept(transport.local.manifest.entries())
             .unwrap();
@@ -156,7 +157,7 @@ fn a_pairing_bundle_accepts_a_wire_valid_high_expansion_attachment() {
     use sunrise_protocol::attachment_sync;
 
     let (root, data) = empty_item_data("expanded-pairing-attachment");
-    let transport = Transport::capture(Side::Client).unwrap();
+    let transport = Transport::capture(Side::Client, crate::net::PAYLOAD_RECORD_OVERHEAD).unwrap();
     transport
         .accept(transport.local.manifest.entries())
         .unwrap();
@@ -256,7 +257,7 @@ fn assert_memory_snapshot_fits(element_opcode: u8, fill: u8) {
     use sunrise_protocol::attachment_sync;
 
     let (root, data) = empty_item_data("memory-only-pairing-attachment");
-    let transport = Transport::capture(Side::Client).unwrap();
+    let transport = Transport::capture(Side::Client, crate::net::PAYLOAD_RECORD_OVERHEAD).unwrap();
     transport
         .accept(transport.local.manifest.entries())
         .unwrap();

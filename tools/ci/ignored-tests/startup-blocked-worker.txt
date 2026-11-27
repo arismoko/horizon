@@ -1,1 +1,1 @@
-sunrise-client game::startup_menu::tests::menu_is_usable_while_the_core_worker_is_blocked lib daily child-process
+sunrise-client cut_layout::game::client_side::startup_menu::tests::menu_is_usable_while_the_core_worker_is_blocked lib daily child-process

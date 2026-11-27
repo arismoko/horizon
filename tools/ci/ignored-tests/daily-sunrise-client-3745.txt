@@ -1,1 +1,1 @@
-sunrise-client game::general::save_load_tests::minecart_keeps_its_general_passenger_after_the_rider_tick lib daily resources
+sunrise-client cut_layout::game::general::save_load_tests::minecart_keeps_its_general_passenger_after_the_rider_tick lib daily resources

@@ -14,7 +14,7 @@ pub trait Hooks {
     /// The host is the read-only one: a listener runs on replayed ticks and must be a pure
     /// function of its inputs.
     #[hook(
-        target = "sunrise_client::game::native_hooks::spawn_cluster_size::Game<'_>::native_spawn_cluster_size",
+        target = "sunrise_gameplay::game::native_hooks::spawn_cluster_size::ServerGame<'_>::native_spawn_cluster_size",
         receiver = "read",
         dispatch = "api_carrier",
         side = "server",

@@ -1,2 +1,2 @@
-sunrise-client game::native_hooks::enchantment_and_lang_tests::a_server_host_reads_enchantment_definitions lib daily child-process # Uses prepared resources in an isolated process.
-sunrise-client game::native_hooks::enchantment_and_lang_tests::a_servers_synced_enchantment_reaches_the_registry_reads lib daily child-process # Uses prepared resources in an isolated process.
+sunrise-client cut_layout::game::native_hooks::enchantment_and_lang_tests::a_server_host_reads_enchantment_definitions lib daily child-process # Uses prepared resources in an isolated process.
+sunrise-client cut_layout::game::native_hooks::enchantment_and_lang_tests::a_servers_synced_enchantment_reaches_the_registry_reads lib daily child-process # Uses prepared resources in an isolated process.

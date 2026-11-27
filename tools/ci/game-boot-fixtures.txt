@@ -4,9 +4,12 @@
 # Add a new fixture here; remove one only with a reason in the pull request.
 
 # The game itself: every test fixture below ends here, and a test that builds its own game calls it directly.
-Game::new
+CommonGame::new
+ServerGame::new
+ClientGame::new
 
-# The prepared-data game fixtures (crates/sunrise-client/src/game/**): they read SUNRISE_TEST_RESOURCES and build a Game.
+# The prepared-data game fixtures (crates/sunrise-gameplay*/src/game/**, crates/sunrise-client-gameplay/src/game/**,
+# crates/sunrise-client/src/cut_layout/game/**): they read SUNRISE_TEST_RESOURCES and build a game instance.
 with_game
 with_game_at
 with_game_of
@@ -18,9 +21,8 @@ with_save_game
 with_packet_game
 with_command_game
 with_client_game
-with_interaction_game
 
-# A test run again in a fresh child of its own test executable (crates/sunrise-client/src/game.rs and
+# A test run again in a fresh child of its own test executable (crates/sunrise-gameplay-common/src/game.rs and
 # game/modding/native_entity_refs.rs): a game's process-wide state, so the child is a game process.
 in_own_process
 run_fresh_cases

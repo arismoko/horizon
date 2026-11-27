@@ -1,4 +1,4 @@
-sunrise-client game::boats::friction_tests::a_status_refresh_asks_friction_as_the_chest_boat_it_is lib daily resources
-sunrise-client game::boats::friction_tests::ground_friction_averages_the_blocks_under_the_hull_and_asks_subscribed_parts lib daily resources
-sunrise-client game::native_surface::tests::nested_friction_queries_stop_at_the_depth_bound_and_unknown_states_are_refused lib daily resources
-sunrise-client game::native_surface::tests::the_friction_view_reads_tags_and_resident_block_entities_of_its_side lib daily resources
+sunrise-client cut_layout::game::server_side::boats::friction_tests::a_status_refresh_asks_friction_as_the_chest_boat_it_is lib daily resources
+sunrise-client cut_layout::game::server_side::boats::friction_tests::ground_friction_averages_the_blocks_under_the_hull_and_asks_subscribed_parts lib daily resources
+sunrise-client cut_layout::game::native_surface::tests::nested_friction_queries_stop_at_the_depth_bound_and_unknown_states_are_refused lib daily resources
+sunrise-client cut_layout::game::native_surface::tests::the_friction_view_reads_tags_and_resident_block_entities_of_its_side lib daily resources

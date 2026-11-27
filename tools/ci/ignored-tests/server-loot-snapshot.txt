@@ -1,2 +1,2 @@
-sunrise-client game::commands::terrain_cmds::loot_slot_tests::loot_kill_matches_the_world_pack_entity_type_tag lib daily resources
-sunrise-client game::commands::terrain_cmds::loot_slot_tests::server_loot_without_world_tables_owns_its_resource_root lib daily resources
+sunrise-client cut_layout::game::server_side::commands_server::terrain_cmds::loot_slot_tests::loot_kill_matches_the_world_pack_entity_type_tag lib daily resources
+sunrise-client cut_layout::game::server_side::commands_server::terrain_cmds::loot_slot_tests::server_loot_without_world_tables_owns_its_resource_root lib daily resources

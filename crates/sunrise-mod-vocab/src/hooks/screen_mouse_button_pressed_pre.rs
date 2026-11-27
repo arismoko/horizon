@@ -17,7 +17,7 @@ pub trait Hooks {
     /// input (including a control-socket click sent through the window), not a
     /// gamepad's or keyboard focus's synthesized click.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_screen_mouse_button_pressed_pre",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_screen_mouse_button_pressed_pre",
         receiver = "read",
         dispatch = "flat",
         side = "client",

@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_invulnerable::tests::a_native_mods_data_damage_type_hurts_and_names_the_death lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_invulnerable::tests::a_native_mods_data_damage_type_hurts_and_names_the_death lib daily resources

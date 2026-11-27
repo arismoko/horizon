@@ -1,1 +1,1 @@
-sunrise-client game::entity_die_tests::a_data_packs_placeable_painting_variant_is_placed lib daily resources
+sunrise-client cut_layout::game::server_side::entity_die_tests::a_data_packs_placeable_painting_variant_is_placed lib daily resources

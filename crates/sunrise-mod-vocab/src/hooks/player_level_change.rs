@@ -6,7 +6,7 @@ pub trait Hooks {
     /// `ServerPlayer.setExperienceLevels` report their applied changes too. A
     /// canceled grant or a write of the same value is not reported.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_level_change",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_level_change",
         dispatch = "flat",
         side = "server",
         contract = "listen",

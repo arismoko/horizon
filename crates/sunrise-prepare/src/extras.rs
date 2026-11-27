@@ -156,15 +156,6 @@ pub fn add(
             false => done.failed.push((kind, first_error.unwrap_or_default())),
         }
     }
-    if !done.added.is_empty() {
-        let data = resources.join(DATA_FILE);
-        match std::fs::remove_file(&data) {
-            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
-                return Err(Error::Io(format!("{}: {e}", data.display())));
-            }
-            _ => {}
-        }
-    }
     done.missing = check::missing_extras(&resources);
     Ok(done)
 }

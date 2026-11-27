@@ -14,7 +14,7 @@ pub trait Hooks {
     /// callback runs, and `player_container_close` follows once teardown finishes.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::menu_removed::Game<'_>::native_menu_removed",
+        target = "sunrise_gameplay::game::native_hooks::menu_removed::ServerGame<'_>::native_menu_removed",
         dispatch = "api_carrier",
         side = "server",
         contract = "listen",

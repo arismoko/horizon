@@ -1,1 +1,1 @@
-sunrise-client-lib mobs::spear_use::tests::a_mob_spear_charge_deals_the_base_attack_damage_without_its_modifiers lib daily resources
+sunrise-sim mobs::spear_use::tests::a_mob_spear_charge_deals_the_base_attack_damage_without_its_modifiers lib daily resources

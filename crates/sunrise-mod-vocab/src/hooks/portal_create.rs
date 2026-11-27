@@ -6,7 +6,7 @@ pub trait Hooks {
     /// portal rectangle or the End platform origin. The completed blocks are
     /// already in the world.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_portal_create",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_portal_create",
         dispatch = "flat",
         side = "server",
         contract = "listen",

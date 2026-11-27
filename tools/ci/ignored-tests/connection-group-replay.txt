@@ -1,1 +1,1 @@
-sunrise-client game::native_connection_groups::tests::a_replayed_callback_sees_a_later_bulk_cell_before_its_edit lib daily child-process
+sunrise-client cut_layout::game::client_side::native_connection_groups::tests::a_replayed_callback_sees_a_later_bulk_cell_before_its_edit lib daily child-process
