@@ -24,7 +24,7 @@ pub trait Hooks {
         out = "allowed",
         scope = "block_entity",
         key = "entity",
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_can_take_item_through_face",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_can_take_item_through_face",
         neoforge = "none (vanilla WorldlyContainer.canTakeItemThroughFace; the sided item capability wraps this decision)"
     )]
     fn can_take_item_through_face(

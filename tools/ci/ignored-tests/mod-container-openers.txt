@@ -1,1 +1,1 @@
-sunrise-client game::mod_container_openers_tests::tests::mod_openers_change_synchronously_and_recheck_five_ticks_later lib daily resources
+sunrise-client cut_layout::game::server_side::mod_container_openers_tests::tests::mod_openers_change_synchronously_and_recheck_five_ticks_later lib daily resources

@@ -7,10 +7,11 @@ rust-version.workspace = true
 description = "The game as the platform runs it: the engine's entry with the platform's parts registered, for an executable to start (docs/layers.md)"
 
 [dependencies]
+sunrise-core = { path = "../sunrise-core" }
 sunrise-client = { path = "../sunrise-client", default-features = false }
 # Named only so `default` below can turn on its `default`: see there.
-sunrise-client-lib = { path = "../sunrise-client-lib", default-features = false }
-sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false }
+sunrise-client-lib = { path = "../sunrise-client-lib", optional = true, default-features = false }
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["runtime-process"] }
 
 sunrise-mod-host = { path = "../sunrise-mod-host", default-features = false }
 
@@ -28,17 +29,18 @@ test = false
 # `sunrise-client-lib/default` adds no code (it is that crate's `audio` and `controllers`), but Cargo hashes feature
 # names: without it, `-p sunrise-game` and `-p sunrise-game -p sunrise-client-lib` (which turns on the library's
 # default) built the library and sunrise-client twice into one target folder.
-default = ["audio", "controllers", "sunrise-extras", "sunrise-client-lib/default"]
-audio = ["sunrise-client/audio"]
-controllers = ["sunrise-client/controllers"]
-sunrise-extras = ["sunrise-client/sunrise-extras"]
-testing = ["sunrise-client/testing"]
-friends = ["sunrise-client/friends"]
-rng-trace = ["sunrise-client/rng-trace"]
-system-allocator = ["sunrise-client/system-allocator"]
-alloc-census = ["sunrise-client/alloc-census"]
-alloc-count = ["sunrise-client/alloc-count"]
-windows-segment-heap = ["sunrise-client/windows-segment-heap"]
+default = ["client", "audio", "controllers", "sunrise-extras", "sunrise-client-lib/default"]
+client = ["sunrise-mod-host/client", "sunrise-client/client", "dep:sunrise-client-lib"]
+audio = ["client", "sunrise-mod-host/audio"]
+controllers = ["client", "sunrise-mod-host/controllers"]
+sunrise-extras = ["client", "sunrise-mod-host/sunrise-extras"]
+testing = ["sunrise-mod-host/testing"]
+friends = ["sunrise-mod-host/friends"]
+rng-trace = ["sunrise-core/rng-trace", "sunrise-mod-host/rng-trace"]
+system-allocator = ["sunrise-mod-host/system-allocator"]
+alloc-census = ["sunrise-mod-host/alloc-census"]
+alloc-count = ["sunrise-mod-host/alloc-count"]
+windows-segment-heap = ["sunrise-mod-host/windows-segment-heap"]
 
 [build-dependencies]
 winresource = "0.1"

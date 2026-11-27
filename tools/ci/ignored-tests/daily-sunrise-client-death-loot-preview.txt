@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_refs::death_loot::tests::rolls_live_death_context_without_dropping lib daily resources
+sunrise-gameplay game::server_side::native_entity_refs::death_loot::tests::rolls_live_death_context_without_dropping lib daily resources

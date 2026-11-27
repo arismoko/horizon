@@ -35,7 +35,7 @@ pub trait Hooks {
         event_per_listener = true,
         scope = "block_entity",
         key = "id",
-        target = "sunrise_client::game::native_hooks::block_entity_save_additional::GameLevel<'_>::native_block_entity_save_additional",
+        target = "sunrise_gameplay_common::game::native_hooks::block_entity_save_additional::GameLevel<'_>::native_block_entity_save_additional",
         neoforge = "none (vanilla BlockEntity.saveAdditional; NeoForge adds no event for this moment)",
         version = 4
     )]

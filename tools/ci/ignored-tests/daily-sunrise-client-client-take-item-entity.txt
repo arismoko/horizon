@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::client_take_item_entity_tests::a_client_hears_pickups_of_entities_it_tracks lib daily resources
+sunrise-client-gameplay game::native_hooks::client_take_item_entity_tests::a_client_hears_pickups_of_entities_it_tracks lib daily resources

@@ -17,7 +17,7 @@ pub trait Hooks {
         out = "cancel",
         neoforge = "NoteBlockEvent.Play",
         cancellable = true,
-        target = "sunrise_client::game::native_hooks::note_block_play::GameLevel<'_>::native_note_block_play"
+        target = "sunrise_gameplay_common::game::native_hooks::note_block_play::GameLevel<'_>::native_note_block_play"
     )]
     fn note_block_play(
         dimension: LevelDimension,

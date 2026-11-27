@@ -1,7 +1,7 @@
 # Audit follow-up coverage for debt fa-v1 (slotless Items NBT and menu data wire ranges).
-sunrise-client game::native_hooks::block_entity_tick::tests::an_invalid_resident_block_entity_is_not_dispatched lib daily child-process
-sunrise-client game::native_hooks::block_entity_tick::tests::chunk_save_reloads_reordered_slotless_items lib daily child-process
-sunrise-client game::native_hooks::block_entity_tick::tests::invalid_resident_ticker_warns_once_until_a_valid_tick lib daily child-process
-sunrise-client game::native_hooks::block_entity_tick::tests::set_nbt_items_follows_declared_slot_count_and_clears_decoded_slots lib daily child-process
-sunrise-client game::native_hooks::screen_position_tests::stock_menu_data_sync_round_trips_above_255_and_enforces_signed_short_boundary lib daily child-process
-sunrise-client game::native_menus::tests::revision_two_blockless_menu_syncs_only_encodable_indices lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::an_invalid_resident_block_entity_is_not_dispatched lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::chunk_save_reloads_reordered_slotless_items lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::invalid_resident_ticker_warns_once_until_a_valid_tick lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::set_nbt_items_follows_declared_slot_count_and_clears_decoded_slots lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::screen_position_tests::stock_menu_data_sync_round_trips_above_255_and_enforces_signed_short_boundary lib daily child-process
+sunrise-client cut_layout::game::server_side::native_menus::tests::revision_two_blockless_menu_syncs_only_encodable_indices lib daily resources

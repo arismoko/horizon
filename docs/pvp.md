@@ -21,7 +21,7 @@ Each feature is built from what it visibly does, never from another client's or 
 |---|---|
 | Settings, parsing, the page's rows | `crates/sunrise-client-render/src/pvp.rs` (stored in `sunrise-extras.txt`, see [extras.md](extras.md)) |
 | The page | `options_ui.rs` (`Page::Pvp`), the rows of `pvp::rows()`, opened from Sunrise Settings' Extras page |
-| Game glue | `crates/sunrise-client/src/game/extras/pvp.rs` |
+| Game glue | `crates/sunrise-client-gameplay/src/game/entities/pvp.rs` |
 
 ## Crosshair (`crosshair`, default off)
 
@@ -56,7 +56,7 @@ Each feature is built from what it visibly does, never from another client's or 
 
 Boxes in the screen corners, placed like mods' boxes (`extras_hud::Corners`), each in a corner of
 its own, with an optional dark background (on by default). F3's debug screen takes the top corners as it does from
-mods' boxes. Code: `crates/sunrise-client-render/src/pvp_hud.rs` (lines, cache, layout) and `game/extras/pvp.rs`.
+mods' boxes. Code: `crates/sunrise-client-render/src/pvp_hud.rs` (lines, cache, layout) and `crates/sunrise-client-gameplay/src/game/entities/pvp.rs`.
 
 - **Armour** (bottom right): each piece worn, head first, with the uses left as a number or a percent, coloured
   like the item's durability bar (green to red). Only what the inventory already shows.
@@ -105,7 +105,7 @@ default). The game pauses where it can; each widget that is on gets a frame. Dra
 screen's edges and middle and to the other widgets' edges (the guides show where). The mouse wheel over a widget
 scales it by 10%, a right click puts it back in its corner at 100%, and the buttons set the text colour, shadow,
 background and its opacity, put every widget back in its corner at 100% (Reset), or close the editor (Esc too). The layout is saved when it closes.
-Code: `game/interface/hud_editor.rs`.
+Code: `crates/sunrise-client-gameplay/src/game/interface/hud_editor.rs`.
 
 ## Enchantment levels as numbers (`numericEnchants`, default off)
 
@@ -139,7 +139,7 @@ There is no "no hurt camera" option: vanilla's Accessibility → Damage Tilt alr
 
 The time of day (morning, noon, sunset, midnight) and the weather (clear, rain, thunder) this player sees. Only
 the frame changes: the sky's colours, sun, moon and stars, the sky's light in the lightmap, the rain and its
-fog (`Game::view_day_time`, `Game::view_weather` in `game/extras/pvp.rs`). The world's `day_time` and weather, and all
+fog (`ClientGame::view_day_time`, `ClientGame::view_weather` in `crates/sunrise-client-gameplay/src/game/entities/pvp.rs`). The world's `day_time` and weather, and all
 that plays by them (mobs, crops, beds, riptide, rain sounds), stay the server's, and nothing is sent to it.
 The moon keeps the world's phase. Only a client of a server draws it (single player's window is one), in the
 Overworld.
@@ -154,7 +154,7 @@ Overworld.
 | Chat search | `chatSearch` | Ctrl+F in the open chat: the box takes a query and only the messages holding it (any case) show. Enter, Esc or Ctrl+F again stops. |
 
 They change how `chat::Chat` lays its lines out (`ChatQol`, `set_search`): the 100 messages it keeps are the same,
-so turning an option off shows them as before. Code: `chat.rs`, `game/interface/chat.rs`.
+so turning an option off shows them as before. Code: `chat.rs`, `crates/sunrise-client-gameplay/src/game/interface/chat.rs`.
 
 ## Combat feel (`combatFeel`, default Modern)
 

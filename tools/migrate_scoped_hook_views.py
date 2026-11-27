@@ -4,12 +4,12 @@
 Run once from the pre-conversion tree after the scoped-view vocab types and
 generator scope-routing arms are in place. Rewrites the 7 hook declarations in
 `crates/sunrise-mod-vocab/src/hooks/` and removes the legacy `ClientSnapshot`
-cache in `crates/sunrise-client-render/src/block_entities.rs`.
+cache in `crates/sunrise-level/src/block_entities.rs`.
 """
 from pathlib import Path
 
 HOOKS = Path("crates/sunrise-mod-vocab/src/hooks")
-BLOCK_ENTITIES = Path("crates/sunrise-client-render/src/block_entities.rs")
+BLOCK_ENTITIES = Path("crates/sunrise-level/src/block_entities.rs")
 
 
 def rewrite(path: Path, transform) -> None:

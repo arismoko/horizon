@@ -42,7 +42,7 @@ sys.path.insert(0, str(ROOT))
 from tools import lab, test_rust_parity as base, test_model_baking_parity as baking
 
 PARITY = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity'
-TEST = 'game::spawner_client_tick_tests::client_ticks_match_the_vanilla_cases'
+TEST = 'game::client_side::spawner_client_tick_tests::client_ticks_match_the_vanilla_cases'
 COMMITTED = lab.ROOT / 'docs/parity/block-entity-client-ticks.jsonl'
 NAME = 'block_entity_client_tick'
 TRIAL_STATES = ['inactive', 'waiting_for_players', 'active', 'waiting_for_reward_ejection', 'ejecting_reward', 'cooldown']

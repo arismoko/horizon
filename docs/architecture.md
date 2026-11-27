@@ -4,23 +4,35 @@ The 40 areas changed most often in the 30 days to 2026-10-23 (commits on main to
 counted only for the game loop because nearly every gameplay change touches it). The crate map, how `Game` is
 organised and how to build and test are in [AGENTS.md](../AGENTS.md).
 
-Gameplay lives in the `sunrise-client` library; `main.rs` is a thin executable calling
-`entry::main`. The reusable modules, control tool and probes belong to `sunrise-client-lib`,
-whose library root is `crates/sunrise-client/src/client_lib.rs`. Source paths stay in place.
-The gameplay library re-exports the reusable API, keeping existing mod targets unchanged.
-Gameplay tests run in its library test target, separately from the reusable library's tests.
-There is no copy of gameplay in the executable's test target. Tools and probes depend only
-on the reusable library, so gameplay edits do not invalidate their builds.
-Gameplay is moving out of it (#2210): `sunrise-gameplay` takes the server side (vanilla's logical side) and
-`sunrise-client-gameplay` the client-only side. Waves 1 and 2 moved the modules that need no `Game` (the mob families
-on the `MobLevel` trait, the cat spawner's clock and picks and the wandering trader's state, stats, the block-entity
-ticker helpers, item areas, the server halves of `lan/` and `dedicated/`; occlusion and particle culling on the client
-side), and `game/` keeps the `impl Game` glue. `LanHost`, the types `World`, `ChunkMap`, `Mob` and `ItemEntity`, the
-level events and their dispatchers, the custom spawners' dispatch (`G/mobs/custom_spawners.rs`), the village siege
-(`G/mobs/raids/mod.rs`) and the block-entity tick loop (`G/blocks/block_entity_ticks.rs`) have not moved.
+Gameplay is split across three crates, wired together by a thin entry crate:
 
-Paths: `L/` = `crates/sunrise-client/src/`, `G/` = `crates/sunrise-client/src/game/`, `W/` =
-`crates/sunrise-world/src/`, `K/` = `crates/sunrise-client-core/src/`, `C/` = `crates/sunrise-command/src/`,
+- `sunrise-gameplay-common` (`crates/sunrise-gameplay-common`): shared gameplay state (`CommonGame`),
+  side-neutral logic, and the `SideGame` extension traits both sides implement.
+- `sunrise-gameplay` (`crates/sunrise-gameplay`): server-side gameplay (`ServerGame`), world simulation
+  and ticking, saving/loading, LAN host, dedicated server loop, and server commands and hooks.
+- `sunrise-client-gameplay` (`crates/sunrise-client-gameplay`): client-side gameplay (`ClientGame`),
+  rendering and HUD/screen glue, input and controller routing, remote server state, and client prediction.
+- `sunrise-client` (`crates/sunrise-client`): the thin entry crate (`src/entry.rs`, `src/game_facade.rs`,
+  `src/lib.rs`) that wires startup and re-exports the client surface. `sunrise-game` (`crates/sunrise-game`)
+  is the executable calling `entry::main`.
+- `sunrise-client-lib` (`crates/sunrise-client-lib`, library root `crates/sunrise-client/src/client_lib.rs`):
+  reusable non-gameplay client modules, `sunrise-ctl`, and parity probes. Because probes depend on
+  `sunrise-client-lib` rather than the gameplay crates, gameplay edits do not invalidate probe builds.
+
+Dependency direction: `sunrise-gameplay` and `sunrise-client-gameplay` each depend on
+`sunrise-gameplay-common` and never on each other. `sunrise-client` depends on `sunrise-gameplay-common`,
+`sunrise-gameplay`, and (under its default `client` feature) `sunrise-client-gameplay` and
+`sunrise-client-lib`.
+
+Dedicated server builds (`cargo build -p sunrise-game --no-default-features`, or `sunrise-client`
+without default features) disable the `client` feature, keeping `sunrise-gameplay-common` and
+`sunrise-gameplay` while omitting `sunrise-client-gameplay`, `sunrise-client-lib`, rendering, audio,
+and controller crates.
+
+Paths: `L/` = `crates/sunrise-client/src/`, `G/` = the `src/game/` tree across the three gameplay crates
+(`crates/sunrise-gameplay-common/src/game/`, `crates/sunrise-gameplay/src/game/`,
+`crates/sunrise-client-gameplay/src/game/`), `W/` =
+`crates/sunrise-world/src/`, `K/` = `crates/sunrise-game-data/src/`, `C/` = `crates/sunrise-command/src/`,
 `I/` = `crates/sunrise-items/src/`, `R/` = `crates/sunrise-client-render/src/`, `N/` = `crates/sunrise-client-input/src/`.
 Checks: a bare name is a harness (`python3 tools/parity.py <name>`, script `tools/test_<name>_parity.py`);
 `lan_e2e <check>` is `python3 tools/lan_e2e.py --check <check>`.
@@ -47,14 +59,14 @@ Check this seam with `cargo test -p sunrise-world --lib component_value::` and
 
 | # | Area (commits) | Files | Checks |
 |---|---|---|---|
-| 1 | Game loop, tick order, frame pacing (554) | `L/game.rs` (`fn tick`, `fn render`), `G/world/level_tick.rs` (`fn tick_world`), `G/runtime/window_handler.rs` (`about_to_wait`), `L/clock.rs`, `N/window.rs`, `R/spans.rs` | game_loop, frame_limiter, interaction_input, tick |
+| 1 | Game loop, tick order, frame pacing (554) | `crates/sunrise-gameplay*/src/game.rs` and `crates/sunrise-client-gameplay/src/game.rs` (`fn tick`, `fn render`), `G/world/level_tick.rs` (`fn tick_world`), `G/runtime/window_handler.rs` (`about_to_wait`), `L/clock.rs`, `N/window.rs`, `R/spans.rs` | game_loop, frame_limiter, interaction_input, tick |
 | 2 | Mobs in the game loop, spawning (166) | `G/creatures.rs`, `G/natural_spawning.rs`, `L/mobs/spawning.rs`, `L/mobs/spawn_rules.rs`, `L/mobs/spawn_selection.rs`, `L/mobs/finalize.rs`, `G/spawner.rs`, `G/trial_spawner.rs` | natural_spawn, spawn_rules, finalize_spawn, spawner, trial_spawner, mob_ai |
 | 3 | World save and load (163) | `L/save.rs`, `G/saving.rs`, `G/persist.rs` (entities), `L/entity_nbt.rs`, `K/block_entity_nbt.rs`, `W/region.rs`, `crates/sunrise-core/src/nbt.rs` | save_roundtrip, world_reopen, world, datafix |
 | 4 | World generation (153) | `W/worldgen.rs`, `W/worldgen/` (`generator*.rs`, `feature_graph.rs`, `structure/`, `placement/`), `L/vanillagen.rs` | chunk_generation, worldgen, server_world_gen, world_spawn, feature_graph, feature_placement, decoration and the other worldgen harnesses |
 | 5 | Multiplayer client, packets in (145) | `G/network/remote/mod.rs` (`Game::apply_packet`), `G/network/remote/packets_*.rs` (packet handlers), `G/network/remote/tick.rs` (`Game::tick_remote`), `G/remote_*.rs`, `L/net.rs` | dedicated_server, server_entities, lan_e2e (all) |
 | 6 | Agent control, sunrise-ctl (145) | `L/control.rs`, `L/bin/sunrise-ctl/`, `G/control.rs`, `G/agent.rs`, `G/events.rs`, `G/ui_control.rs` | `python3 tools/agent_control_e2e.py`; `cargo test -p sunrise-client-lib --bin sunrise-ctl` |
 | 7 | CI and release (134) | `.github/workflows/` (`ci.yml`, `parity.yml`, `release.yml`), `tools/ci/`, `tools/parity.py`, `tools/pr_ready.py` | `python3 -m unittest discover -s tests`; actionlint (`.github/actionlint.yaml`) |
-| 8 | LAN host: connections, play state, tracking (133) | `L/lan/` (`conn.rs`, `hub.rs` + `hub/`, `chunks.rs`, `entity.rs`, `tracking.rs`, `guest.rs`, `playerdata.rs`), `G/lan.rs` | lan, lan_e2e (all), `cargo test -p sunrise-client --test lan_bot` |
+| 8 | LAN host: connections, play state, tracking (133) | `crates/sunrise-sim/src/lan/` (`conn.rs`, `hub.rs` + `hub/`, `chunks.rs`, `entity.rs`, `tracking.rs`, `guest.rs`, `playerdata.rs`), `G/network/lan.rs` | lan, lan_e2e (all), `cargo test -p sunrise-client-lib --test lan_bot` |
 | 9 | Renderer core (132) | `R/gfx.rs` (`Renderer::new`, `Renderer::render`), `R/gfx/` (cull, occlusion, translucency, upload, timing, lod) | client_graphics, culling_rays, translucency; `sunrise-client --benchmark standard` |
 | 10 | Launcher (124) | [sunrise-org/sunrise-launcher](https://github.com/sunrise-org/sunrise-launcher): `src/` (`main.rs`, `backend.rs`, `cli.rs`, `mcp.rs`, `servers_page.rs`) | `cargo test` in that repository |
 | 11 | Mob types and species (117) | `L/mobs.rs`, `L/mobs/species.rs`, `L/mobs/data.rs`, `L/mobs/living.rs`, `L/mobs/drops.rs`, `L/mobs/gear.rs` | mob_attributes, entity_attribute, entity_death_loot, mob_ai |
@@ -65,7 +77,7 @@ Check this seam with `cargo test -p sunrise-world --lib component_value::` and
 | 16 | Options and settings screens (93) | `R/options_ui.rs`, `G/options.rs`, `R/settings.rs`, `R/options_file.rs`, `R/graphics_ui.rs`, `R/graphics.rs` | options, toggle_keys |
 | 17 | HUD, chat, tab list (93) | `R/hud.rs`, `R/hud_layout.rs`, `R/hud_overlays.rs`, `R/chat.rs`, `G/chat.rs`, `R/tab_list.rs`, `L/locator_bar.rs`, `G/locator_bar.rs`; Sunrise's overlays around them: `R/hud_kit/` + `G/hud_room.rs` ([ui-kit.md](ui-kit.md)) | hud, tab_list, locator_bar, chat_screen, secure_chat |
 | 18 | Command execution (88) | `G/commands.rs`, `G/commands/*.rs`, `L/scoreboard_cmd.rs`, `L/data_cmd.rs`, `K/scoreboard.rs`, `G/functions.rs` | command_exec (corpus `tools/command_exec_corpus.py`), scoreboard, server_ops_feedback, lan_e2e commands |
-| 19 | Chunk streaming, light, tickets (85) | `R/streaming.rs`, `R/world.rs`, `R/chunk.rs`, `R/chunk_map.rs`, `R/light.rs`, `L/ticket_levels.rs`, `L/tick_chunk_membership.rs`, `G/world_loading.rs`, `G/world_entry.rs` | light, chunk_status, random_tick_sections; `cargo test -p sunrise-client --test streaming_meshes` |
+| 19 | Chunk streaming, light, tickets (85) | `R/streaming.rs`, `R/world.rs`, `R/chunk.rs`, `R/chunk_map.rs`, `R/light.rs`, `L/ticket_levels.rs`, `L/tick_chunk_membership.rs`, `G/world_loading.rs`, `G/world_entry.rs` | light, chunk_status, random_tick_sections; `cargo test -p sunrise-client-lib --test streaming_meshes` |
 | 20 | Mob models and animation (78) | `L/mobs/render.rs`, `L/mobs/anim.rs`, `L/mobs/body_anim.rs`, `L/mobs/keyframes.rs`, `R/entity.wgsl` | entity_model |
 | 21 | Block behaviour, server side (78) | `W/level/` (`mod.rs`, `tick.rs`, `hooks.rs`, `data.rs`, `redstone.rs`, `place.rs`), `G/block_entity_ticks.rs` (the ordered loop, mod dispatch, the ticking-state table; its eligibility and ticker-name helpers in `crates/sunrise-gameplay/src/block_entity_ticks.rs`), `G/moving_pistons.rs` | block_update, redstone, random_tick, simple_block, piston_movement, block_entity_tickers |
 | 22 | Player movement and collision (75) | `L/motion.rs` + `L/motion/`, `R/collisions.rs`, `W/entity_move.rs`, `W/player_travel.rs`, `W/collision.rs` | collision, entity_move, player_travel, living_motion, climbing, swimming; `python3 tools/test_native_scene_motion.py` |
@@ -75,7 +87,7 @@ Check this seam with `cargo test -p sunrise-world --lib component_value::` and
 | 26 | Crafting and the recipe book (59) | `L/crafting.rs`, `L/recipe_book.rs`, `L/recipe_book_screen.rs`, `G/recipe_book.rs`, `G/machines.rs`, `G/machines/crafter.rs` | recipe, recipe_book, recipe_book_view, place_recipe, ghost_recipe, crafter |
 | 27 | Vehicles and mounts (54) | `G/boats.rs`, `G/boat_passengers.rs`, `G/minecarts.rs`, `G/mounts.rs`, `G/mount_menu.rs`, `G/llamas.rs`, `G/passengers.rs` | server_entities, lan_e2e boats minecarts riding mounts |
 | 28 | Villagers, trading, raids (50) | `L/mobs/villager*.rs`, `L/merchant.rs`, `G/trading.rs`, `G/villagers.rs`, `L/raid.rs`, `G/raids.rs`, `L/gossip.rs` | trading, raid, mob_ai |
-| 29 | Title, worlds, startup (49) | `L/title.rs` + `L/title/`, `G/startup_menu.rs`, `G/loading_window.rs` (the first renderer, `start_game`), `G/resource_load.rs` (the startup resource load) | world_options; `cargo test -p sunrise-client --lib title` |
+| 29 | Title, worlds, startup (49) | `L/title.rs` + `L/title/`, `G/startup_menu.rs`, `G/loading_window.rs` (the first renderer, `start_game`), `G/resource_load.rs` (the startup resource load) | world_options; `cargo test -p sunrise-client-lib --lib title` |
 | 30 | Dedicated server, sunrise-server (48) | `G/dedicated.rs`, `G/dedicated/status.rs`, `crates/sunrise-server/`, `crates/sunrise-server-files/` | dedicated_server, server_files, user_cache, online_mode, server_ops_feedback |
 | 31 | Particles and client effects (46) | `R/particles.rs`, `G/render_tick.rs`, `G/level_particles.rs`, `L/animate_tick.rs` | particle_providers, block_particles, entity_particles, emitter_particles, marker_particles |
 | 32 | Bosses and the End (45) | `G/dragon.rs`, `G/wither.rs`, `G/end.rs` | server_dragon, forced_end, end_podium, end_gateway |

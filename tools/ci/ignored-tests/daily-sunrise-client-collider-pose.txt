@@ -1,4 +1,4 @@
 # Moving colliders with a pose: a pivot, tilts and a move and a turn in one tick, on a real game.
-sunrise-client game::native_colliders_tests::a_body_standing_on_a_collider_turning_about_a_far_pivot_is_carried_along_the_arc lib daily resources
-sunrise-client game::native_colliders_tests::a_tilting_collider_with_a_step_height_zero_body_does_not_embed_it lib daily resources
-sunrise-client game::native_colliders_tests::teleport_to_and_set_collider_pose_in_one_tick_sweep_and_carry_in_either_order_at_high_speed lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_body_standing_on_a_collider_turning_about_a_far_pivot_is_carried_along_the_arc lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_tilting_collider_with_a_step_height_zero_body_does_not_embed_it lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::teleport_to_and_set_collider_pose_in_one_tick_sweep_and_carry_in_either_order_at_high_speed lib daily resources

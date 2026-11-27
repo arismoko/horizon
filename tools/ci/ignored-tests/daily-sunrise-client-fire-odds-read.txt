@@ -1,2 +1,2 @@
 # LevelRef::fire_odds (#5492): a block Part's fire_odds answer and vanilla's table over the test resources.
-sunrise-client game::native_fire_odds_tests::the_fire_odds_read_takes_the_parts_answer_then_vanillas_table lib daily resources
+sunrise-client cut_layout::game::native_fire_odds_tests::the_fire_odds_read_takes_the_parts_answer_then_vanillas_table lib daily resources

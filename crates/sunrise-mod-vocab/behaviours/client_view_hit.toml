@@ -1,5 +1,5 @@
 version = 1
 doc = "ClientViewClientHost::view_hit reports the first loaded block or entity under the view with its distance, using the same walk as raycast."
 tests = [
-    "crates/sunrise-client/src/game/modding/mod_raycast_tests.rs::mod_raycasts_hit_loaded_blocks_only_with_far_terrain_on_or_off",
+    "crates/sunrise-client/src/cut_layout/game/modding/mod_raycast_tests.rs::mod_raycasts_hit_loaded_blocks_only_with_far_terrain_on_or_off",
 ]

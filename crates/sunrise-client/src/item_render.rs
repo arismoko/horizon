@@ -63,7 +63,7 @@ use sunrise_assets::{
     model::Direction,
     resolve::{MISSING_MODEL, ModelLibrary},
 };
-use sunrise_core::nbt::Tag;
+pub use sunrise_sim::item_models::{stack_view, tag_json};
 
 /// One quad as submitted for drawing: pose-space corners, atlas UVs, the
 /// transformed unit normal, ARGB colour (tint, `-1` white) and its glint.
@@ -1255,7 +1255,7 @@ impl FileSprites {
 
 /// The baked item models and everything resolution needs.
 pub struct ItemRenderer {
-    pub models: ItemModels,
+    pub models: Arc<ItemModels>,
     library: Arc<ModelLibrary>,
     sprites: FileSprites,
     baked: Mutex<HashMap<String, Arc<BakedItemModel>>>,
@@ -1275,7 +1275,7 @@ pub struct ItemRenderer {
     /// `colormap/grass.png` as ARGB.
     grass: Vec<i32>,
     /// `minecraft:item` registry ids (`Item.getId`).
-    item_ids: HashMap<String, i32>,
+    item_ids: Arc<HashMap<String, i32>>,
     /// The enabled packs' OptiFine CIT rules and their swapped bakes; `None`
     /// without rules.
     pub cit: Option<cit::CitModels>,
@@ -1341,6 +1341,40 @@ fn glint_padding(filtering: i32, bit: i32) -> usize {
 }
 
 impl ItemRenderer {
+    #[cfg(any(test, feature = "test-resource-cache"))]
+    pub fn has_registered_providers() -> bool {
+        FACTORIES.get().is_some()
+            || ItemProviderTables::has_registered()
+            || crate::skull_models::all().next().is_some()
+    }
+
+    /// Cheap clone sharing `Arc<ModelLibrary>` and prototypes with fresh per-game caches.
+    #[cfg(any(test, feature = "test-resource-cache"))]
+    pub fn clone_for_tests(&self) -> Option<Self> {
+        if self.cit.is_some() {
+            return None;
+        }
+        Some(Self {
+            models: Arc::clone(&self.models),
+            library: Arc::clone(&self.library),
+            sprites: FileSprites::new(self.sprites.root.clone()),
+            baked: Mutex::default(),
+            extents: Mutex::default(),
+            special_generation: Arc::new(()),
+            gui_drawn: Mutex::default(),
+            gui_item_atlas: Mutex::default(),
+            max_texture_size: AtomicU32::new(self.max_texture_size.load(Ordering::Relaxed)),
+            parts: self.parts.clone(),
+            skull_textures: self.skull_textures.clone(),
+            grass: self.grass.clone(),
+            item_ids: Arc::clone(&self.item_ids),
+            cit: None,
+            glint_atlas: Mutex::default(),
+            block_glint_atlas: Mutex::default(),
+            shield_glint_atlas: Mutex::default(),
+        })
+    }
+
     /// Prepare item/block/shield glint atlases after the device exists, defaulting `mipmapLevels`
     /// to vanilla's `4`.
     pub fn prepare_glint_atlas(&self, maximum: u32, filtering: (i32, i32)) -> crate::Result<()> {
@@ -1506,27 +1540,16 @@ impl ItemRenderer {
         } else {
             Vec::new()
         };
-        let item_ids = sunrise_protocol::registry::Builtin::find(root.prepared())
-            .and_then(|p| sunrise_protocol::registry::Builtin::load(&p).ok())
-            .and_then(|b| {
-                let ids = b.get("minecraft:item")?;
-                let mut out = HashMap::new();
-                for i in 0.. {
-                    let Some(name) = ids.name(i) else { break };
-                    out.insert(name.to_owned(), i);
-                }
-                Some(out)
-            })
-            .unwrap_or_default();
+        let item_ids = Arc::new(sunrise_sim::item_models::load_item_ids(root.prepared()));
         let mut renderer = Self {
             glint_atlas: Mutex::default(),
             block_glint_atlas: Mutex::default(),
             shield_glint_atlas: Mutex::default(),
             item_ids,
-            models: ItemModels {
+            models: Arc::new(ItemModels {
                 definitions: BTreeMap::new(),
                 prototypes,
-            },
+            }),
             library,
             sprites: FileSprites::new(root.source().clone()),
             baked: Mutex::default(),
@@ -1541,9 +1564,12 @@ impl ItemRenderer {
             cit,
         };
         if drawn {
-            renderer.models.definitions = load_definitions(root.source(), |text| {
+            let definitions = load_definitions(root.source(), |text| {
                 renderer.decode_definition(text, &providers)
             });
+            Arc::get_mut(&mut renderer.models)
+                .expect("unique ItemModels during ItemRenderer::load_tables")
+                .definitions = definitions;
         }
         Ok(renderer)
     }
@@ -1817,12 +1843,13 @@ impl ItemRenderer {
     ) {
         special::submit(self, model, argument, has_foil, pose, sprites, host, sink);
     }
+    /// Shared `minecraft:item` registry id table (`Item.getId`).
+    pub fn item_ids(&self) -> &Arc<HashMap<String, i32>> {
+        &self.item_ids
+    }
     /// `Item.getId`, unavailable when the registry report or item is missing.
     pub fn item_registry_id(&self, item: &str) -> Option<u32> {
-        self.item_ids
-            .get(item)
-            .copied()
-            .and_then(|id| id.try_into().ok())
+        sunrise_sim::item_models::item_registry_id(&self.item_ids, item)
     }
     pub(crate) fn part(&self, key: &str) -> Option<&ModelPart> {
         self.parts.get(key)
@@ -1848,92 +1875,6 @@ fn corners(baked: &BakedItemModel) -> Vec<Vec3> {
 /// A `sunrise-assets` (row-major, JOML-exact) matrix as glam's.
 pub fn glam_matrix(m: &sunrise_assets::math::Mat4) -> Mat4 {
     Mat4::from_cols_array_2d(&m.rows()).transpose()
-}
-
-// ---------------------------------------------------------------------------
-// Stacks
-// ---------------------------------------------------------------------------
-
-/// An NBT value as the JSON its component codec reads.
-pub fn tag_json(tag: &Tag) -> Value {
-    match tag {
-        Tag::End => Value::Null,
-        Tag::Byte(v) => Value::from(*v),
-        Tag::Short(v) => Value::from(*v),
-        Tag::Int(v) => Value::from(*v),
-        Tag::Long(v) => Value::from(*v),
-        Tag::Float(bits) => serde_json::Number::from_f64(f64::from(f32::from_bits(*bits)))
-            .map_or(Value::Null, Value::Number),
-        Tag::Double(bits) => {
-            serde_json::Number::from_f64(f64::from_bits(*bits)).map_or(Value::Null, Value::Number)
-        }
-        Tag::ByteArray(a) => Value::Array(a.iter().map(|b| Value::from(*b as i8)).collect()),
-        Tag::String(s) => Value::String(s.to_string_lossy()),
-        Tag::List(l) => Value::Array(l.iter().map(tag_json).collect()),
-        Tag::Compound(c) => Value::Object(
-            c.iter()
-                .map(|(k, v)| (k.to_string_lossy(), tag_json(v)))
-                .collect(),
-        ),
-        Tag::IntArray(a) => Value::Array(a.iter().map(|v| Value::from(*v)).collect()),
-        Tag::LongArray(a) => Value::Array(a.iter().map(|v| Value::from(*v)).collect()),
-    }
-}
-/// Custom model flags use Codec.BOOL even though NBT stores them as numbers.
-/// Keep the other custom-model fields, and generic NBT JSON, numeric.
-fn custom_model_data_json(tag: &Tag) -> Value {
-    let mut value = tag_json(tag);
-    let flags: Option<Vec<Value>> = match tag.get("flags") {
-        Some(Tag::List(flags)) => flags
-            .iter()
-            .map(|flag| crate::item_data::component_bool(flag).map(Value::Bool))
-            .collect(),
-        Some(Tag::ByteArray(flags)) => flags
-            .iter()
-            .map(|flag| crate::item_data::component_bool(&Tag::Byte(*flag as i8)).map(Value::Bool))
-            .collect(),
-        Some(Tag::IntArray(flags)) => flags
-            .iter()
-            .map(|flag| crate::item_data::component_bool(&Tag::Int(*flag)).map(Value::Bool))
-            .collect(),
-        Some(Tag::LongArray(flags)) => flags
-            .iter()
-            .map(|flag| crate::item_data::component_bool(&Tag::Long(*flag)).map(Value::Bool))
-            .collect(),
-        _ => None,
-    };
-    if let (Some(flags), Some(object)) = (flags, value.as_object_mut()) {
-        object.insert("flags".into(), Value::Array(flags));
-    }
-    value
-}
-/// The resolver's view of a client stack: its item, count and component patch.
-pub fn stack_view(stack: &crate::items::ItemStack) -> StackView {
-    let mut view = StackView::new(&stack.item, stack.count as i32);
-    view.bundle_selected = stack.data().map_or(-1, |d| d.bundle_selected.0);
-    if let Some(Tag::Compound(c)) = crate::item_data::components_tag(stack.damage, stack.data()) {
-        for (k, v) in &c {
-            let key = k.to_string_lossy();
-            match key.strip_prefix('!') {
-                Some(removed) => view.patch.insert(removed.to_owned(), None),
-                None => {
-                    // The component codec turns NBT numeric booleans into JSON booleans.
-                    // Generic NBT conversion must keep unrelated bytes numeric.
-                    let value = if key == "minecraft:enchantment_glint_override" {
-                        crate::item_data::component_bool(v)
-                            .map(Value::Bool)
-                            .unwrap_or_else(|| tag_json(v))
-                    } else if key == "minecraft:custom_model_data" {
-                        custom_model_data_json(v)
-                    } else {
-                        tag_json(v)
-                    };
-                    view.patch.insert(key, Some(value))
-                }
-            };
-        }
-    }
-    view
 }
 
 // ---------------------------------------------------------------------------
@@ -2472,65 +2413,6 @@ mod tests {
     }
 
     #[test]
-    fn custom_model_flags_select_their_model_after_stack_nbt_decoding() {
-        let mut actual = Vec::new();
-        for flags in [
-            Tag::List(vec![Tag::Byte(1), Tag::Byte(0)]),
-            Tag::ByteArray(vec![1, 0]),
-        ] {
-            let mut stack = crate::items::ItemStack::new("minecraft:diamond", 1);
-            let component = Tag::compound([
-                ("flags", flags),
-                ("floats", Tag::List(vec![Tag::Float(1.25f32.to_bits())])),
-                ("colors", Tag::List(vec![Tag::Int(0x12_34_56)])),
-                ("strings", Tag::List(vec![Tag::String("keep".into())])),
-            ]);
-            (stack.damage, stack.extra) = crate::item_data::decode_components(Some(
-                &Tag::compound([("minecraft:custom_model_data", component)]),
-            ));
-            let view = stack_view(&stack);
-            for index in 0..3 {
-                let mut models = ItemModels::default();
-                Arc::make_mut(&mut models.prototypes).insert(
-                    "minecraft:diamond".into(),
-                    BTreeMap::from([(
-                        "minecraft:item_model".into(),
-                        serde_json::json!("minecraft:diamond"),
-                    )]),
-                );
-                models.definitions.insert("minecraft:diamond".into(), ClientItem::decode(&serde_json::json!({
-                    "model": {"type": "minecraft:condition", "property": "minecraft:custom_model_data", "index": index,
-                        "on_true": {"type": "minecraft:model", "model": "sunrise:item/yes"},
-                        "on_false": {"type": "minecraft:model", "model": "sunrise:item/no"}}
-                })).unwrap());
-                let resolved = models.resolve(
-                    &view,
-                    &Context {
-                        display: DisplayContext::Gui,
-                        owner: None,
-                        level: None,
-                        seed: 0,
-                    },
-                    &sunrise_assets::item_model::NoEnv,
-                );
-                assert_eq!(resolved.layers.len(), 1);
-                actual.push(
-                    resolved.layers[0].content
-                        == LayerContent::Model {
-                            model: "sunrise:item/yes".into(),
-                        },
-                );
-            }
-            // Non-boolean fields must retain their codec's numeric/string values.
-            let component = view.patch["minecraft:custom_model_data"].as_ref().unwrap();
-            assert_eq!(component["floats"], serde_json::json!([1.25]));
-            assert_eq!(component["colors"], serde_json::json!([0x12_34_56]));
-            assert_eq!(component["strings"], serde_json::json!(["keep"]));
-        }
-        assert_eq!(actual, [true, false, false, true, false, false]);
-    }
-
-    #[test]
     fn posed_item_bounds_include_each_cluster_transform() {
         let state = ItemRenderState {
             display: DisplayContext::Ground,
@@ -2800,90 +2682,6 @@ mod tests {
             .map(|c| rendered_amount(*c))
             .collect();
         assert_eq!(bands, [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]);
-    }
-    #[test]
-    fn nbt_components_read_as_json() {
-        let tag = Tag::compound([
-            ("a", Tag::Int(3)),
-            ("b", Tag::List(vec![Tag::String("x".into())])),
-            ("c", Tag::Float(1.5f32.to_bits())),
-            ("d", Tag::Byte(1)),
-        ]);
-        assert_eq!(
-            tag_json(&tag),
-            serde_json::json!({"a": 3, "b": ["x"], "c": 1.5, "d": 1})
-        );
-    }
-    #[test]
-    fn stack_glint_override_reaches_the_resolved_item_layers() {
-        use sunrise_assets::item_model::NoEnv;
-        let mut models = ItemModels::default();
-        models.definitions.insert(
-            "sunrise:fixture".into(),
-            ClientItem::from_json(
-                r#"{"model":{"type":"minecraft:model","model":"sunrise:item/fixture"}}"#,
-            )
-            .unwrap(),
-        );
-        for default in [false, true] {
-            Arc::make_mut(&mut models.prototypes).insert(
-                "minecraft:diamond".into(),
-                BTreeMap::from([
-                    (
-                        "minecraft:item_model".into(),
-                        serde_json::json!("sunrise:fixture"),
-                    ),
-                    (
-                        "minecraft:enchantment_glint_override".into(),
-                        Value::Bool(default),
-                    ),
-                ]),
-            );
-            for (tag, flag) in [
-                (Tag::Byte(1), true),
-                (Tag::Byte(0), false),
-                (Tag::Byte(-1), true),
-                (Tag::Short(256), true),
-                (Tag::Int(1), true),
-                (Tag::Long(1 << 40), true),
-                (Tag::Float(0.5_f32.to_bits()), true),
-                (Tag::Float((-0.0_f32).to_bits()), false),
-                (Tag::Double(0.5_f64.to_bits()), true),
-                (Tag::Double((-0.0_f64).to_bits()), false),
-                (Tag::Float(f32::NAN.to_bits()), true),
-                (Tag::Double(f64::INFINITY.to_bits()), true),
-            ] {
-                let mut stack = crate::items::ItemStack::new("minecraft:diamond", 1);
-                (stack.damage, stack.extra) = crate::item_data::decode_components(Some(
-                    &Tag::compound([("minecraft:enchantment_glint_override", tag)]),
-                ));
-                assert_eq!(stack.has_foil(Some(default)), flag);
-                let view = stack_view(&stack);
-                assert_eq!(
-                    view.patch["minecraft:enchantment_glint_override"],
-                    Some(Value::Bool(flag))
-                );
-                let resolved = models.resolve(
-                    &view,
-                    &Context {
-                        display: DisplayContext::Gui,
-                        owner: None,
-                        level: None,
-                        seed: 0,
-                    },
-                    &NoEnv,
-                );
-                assert_eq!(resolved.layers.len(), 1);
-                assert_eq!(
-                    resolved.layers[0].foil,
-                    if flag {
-                        FoilType::Standard
-                    } else {
-                        FoilType::None
-                    }
-                );
-            }
-        }
     }
 
     #[test]

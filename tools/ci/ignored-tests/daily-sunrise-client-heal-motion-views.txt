@@ -1,1 +1,1 @@
-sunrise-client game::native_heal_motion_view_tests::a_heal_or_movement_listener_reads_the_entity_live_through_its_view lib daily child-process
+sunrise-gameplay game::server_side::native_heal_motion_view_tests::a_heal_or_movement_listener_reads_the_entity_live_through_its_view lib daily child-process

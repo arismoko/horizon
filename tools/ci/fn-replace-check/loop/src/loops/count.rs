@@ -26,7 +26,7 @@ impl BlockEntityTickSlot for Count {
     fn before(&mut self, tick: &mut BlockEntityTick<'_, '_>) -> LoopFlow {
         self.visited += 1;
         if self.visited % 1000 == 1 {
-            let cooldown = tick.game.hoppers.get(&tick.pos).map(|state| state.cooldown);
+            let cooldown = tick.game.server.hoppers.get(&tick.pos).map(|state| state.cooldown);
             fnr_loop::note(&format!(
                 "count before #{}: {:?} at {:?} in {:?}, time {}, cooldown {cooldown:?}",
                 self.visited,

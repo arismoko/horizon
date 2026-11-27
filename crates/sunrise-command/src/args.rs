@@ -2,13 +2,13 @@
 //! the vanilla error messages and completion suggestions.
 use super::{CmdResult, CommandError, Context, Reader, SuggestionsBuilder};
 use std::{borrow::Cow, fmt, ops::Deref, sync::Arc};
-use sunrise_client_core::text::Text;
+use sunrise_game_data::text::Text;
 
-pub use sunrise_client_core::registries::{
-    CustomCompletionAction, Registries, RegistryIds, modify_custom_completions,
-};
 use sunrise_core::java_float_parse::{parse_java_double, parse_java_float};
 pub use sunrise_core::{game_mode::GameMode, text::parse_java_integer as java_parse_int};
+pub use sunrise_game_data::registries::{
+    CustomCompletionAction, Registries, RegistryIds, modify_custom_completions,
+};
 
 /// How much of the command line a registered custom argument takes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,8 +50,7 @@ pub const MAX_SUGGESTION_TEXT: usize = 32767;
 /// modified UTF-8 (vanilla NBT `TAG_String` u16 length limit).
 pub const MAX_SUGGESTION_TOOLTIP: usize = 65535;
 
-/// The most candidates a reply keeps for one argument (`ServerSuggestionProvider.limitSuggestionCount`),
-/// counted after the engine drops what it cannot offer.
+/// The most candidates the server keeps in a sorted reply (`ServerCommandSuggestionsProvider.limitSuggestionCount`).
 pub const MAX_PROVIDER_SUGGESTIONS: usize = 1000;
 
 /// A mod's registered argument type, as the dispatcher parses and completes it.
@@ -636,7 +635,7 @@ fn read_identifier_token<'a>(reader: &mut Reader<'a>) -> CmdResult<(&'a str, (&'
         reader.skip();
     }
     let raw = &reader.string[start..reader.cursor];
-    match sunrise_client_core::identifier::parse_identifier_parts(raw) {
+    match sunrise_game_data::identifier::parse_identifier_parts(raw) {
         Some(parts) => Ok((raw, parts)),
         None => {
             reader.cursor = start;
@@ -644,7 +643,7 @@ fn read_identifier_token<'a>(reader: &mut Reader<'a>) -> CmdResult<(&'a str, (&'
         }
     }
 }
-pub use sunrise_client_core::identifier::parse_identifier;
+pub use sunrise_game_data::identifier::parse_identifier;
 pub fn normalize(id: &str) -> String {
     normalized(id).into_owned()
 }
@@ -688,33 +687,15 @@ fn parsed_arguments(context: &Context, input: &str, start: usize) -> Vec<ParsedA
         .collect()
 }
 
-/// The bytes a text occupies in Java modified UTF-8: a tooltip's NBT string limit counts those.
-fn modified_utf8_len(text: &str) -> usize {
-    text.encode_utf16()
-        .map(sunrise_core::modified_utf8::unit_len)
-        .sum()
-}
-
-/// A mod's completions for custom argument `id` (typed so far: `prefix`, which starts at
-/// `builder.start`) as the builder's suggestions. Each keeps its own byte range inside the
-/// prefix, tooltip and numeric sort value. One whose range is out of bounds or splits a
-/// character, that equals the text it replaces, repeats an earlier text and tooltip pair, or is
-/// past the packet's text bounds (`ClientboundCommandSuggestionsPacket`: 32,767 UTF-16 code units
-/// of text, 65,535 bytes of modified UTF-8 of tooltip) is dropped alone and reported; the others
-/// stay. The reply keeps at most [`MAX_PROVIDER_SUGGESTIONS`] of them. Nothing here panics.
+/// Collect valid replacements in their original ranges for the dispatcher to merge.
 fn add_custom_suggestions(
     builder: &mut SuggestionsBuilder,
     id: &str,
     prefix: &str,
     candidates: Vec<crate::Suggestion>,
 ) {
-    let count = candidates.len();
     let mut seen = std::collections::HashSet::new();
-    let mut kept = 0;
     for candidate in candidates {
-        if kept == MAX_PROVIDER_SUGGESTIONS {
-            break;
-        }
         let (start, end) = candidate.range;
         if start > end
             || end > prefix.len()
@@ -739,32 +720,12 @@ fn add_custom_suggestions(
         {
             continue;
         }
-        // Suggestions use STRING_UTF8 (UTF-16 length); tooltips are literal NBT strings, whose
-        // modified UTF-8 byte length is an unsigned u16.
-        let tooltip = candidate.tooltip.as_deref().map_or(0, modified_utf8_len);
-        if candidate.text.encode_utf16().count() > MAX_SUGGESTION_TEXT
-            || tooltip > MAX_SUGGESTION_TOOLTIP
-        {
-            eprintln!(
-                "custom command argument `{id}` suggestion `{}` is past the protocol's text \
-                 limit; dropped",
-                candidate.text
-            );
-            continue;
-        }
         builder.out.push(crate::Suggestion {
             range: (builder.start + start, builder.start + end),
             text: candidate.text,
             tooltip: candidate.tooltip,
             int_value: candidate.int_value,
         });
-        kept += 1;
-    }
-    if count > MAX_PROVIDER_SUGGESTIONS {
-        eprintln!(
-            "custom command argument `{id}` answered {count} suggestions; at most \
-             {MAX_PROVIDER_SUGGESTIONS} are kept"
-        );
     }
 }
 /// SharedSuggestionProvider.filterResources (no prefix).
@@ -1666,7 +1627,7 @@ impl ArgType {
                     return Err(CommandError::tr_at(key, &[&m], reader));
                 }
                 let text = &reader.string[start..reader.cursor];
-                match sunrise_client_core::component::parse_snbt(text) {
+                match sunrise_game_data::component::parse_snbt(text) {
                     Ok((v, _)) => Arg::Str(v.to_string()),
                     Err(_) => Arg::Str(text.to_owned()),
                 }
@@ -1714,7 +1675,7 @@ impl ArgType {
                 }
                 let id = &reader.string[start..reader.cursor];
                 // ObjectiveCriteria.byName: statistics resolve to their canonical name.
-                match sunrise_client_core::scoreboard::criteria_by_name(id, reg) {
+                match sunrise_game_data::scoreboard::criteria_by_name(id, reg) {
                     Ok(Some(canonical)) => Arg::Str(canonical),
                     Ok(None) => {
                         reader.cursor = start;
@@ -1736,7 +1697,7 @@ impl ArgType {
             }
             ArgType::ScoreboardSlot => {
                 let name = reader.read_unquoted_string();
-                if !sunrise_client_core::scoreboard::display_slot_valid(name) {
+                if !sunrise_game_data::scoreboard::display_slot_valid(name) {
                     return Err(CommandError::tr_at(
                         "argument.scoreboardDisplaySlot.invalid",
                         &[&name],
@@ -1764,7 +1725,7 @@ impl ArgType {
             }
             ArgType::TeamColor => {
                 let name = reader.read_unquoted_string();
-                if sunrise_client_core::scoreboard::team_color_rgb(name).is_none() {
+                if sunrise_game_data::scoreboard::team_color_rgb(name).is_none() {
                     return Err(CommandError::tr_at(
                         "argument.color.invalid",
                         &[&name],
@@ -1807,7 +1768,7 @@ impl ArgType {
                 let id = read_identifier(reader)?;
                 let known = reg.ids("minecraft:particle_type");
                 let exists = if known.is_empty() {
-                    sunrise_client_core::particle_type::ParticleType::from_name(&id).is_some()
+                    sunrise_game_data::particle_type::ParticleType::from_name(&id).is_some()
                 } else {
                     known.contains(&id)
                 };
@@ -2043,16 +2004,16 @@ impl ArgType {
             }
             ArgType::Team => builder.suggest_matching(reg.teams.iter().map(String::as_str)),
             ArgType::Criteria => {
-                let mut ids: Vec<String> = sunrise_client_core::scoreboard::CUSTOM_CRITERIA
+                let mut ids: Vec<String> = sunrise_game_data::scoreboard::CUSTOM_CRITERIA
                     .iter()
                     .map(|s| (*s).to_owned())
                     .collect();
-                for c in sunrise_client_core::scoreboard::team_colors() {
+                for c in sunrise_game_data::scoreboard::team_colors() {
                     ids.push(format!("teamkill.{c}"));
                     ids.push(format!("killedByTeam.{c}"));
                 }
                 let stat =
-                    |ty: &str, key: &str| sunrise_client_core::scoreboard::stat_criteria(ty, key);
+                    |ty: &str, key: &str| sunrise_game_data::scoreboard::stat_criteria(ty, key);
                 ids.extend(reg.blocks.keys().map(|b| stat("mined", b)));
                 for ty in ["crafted", "used", "broken", "picked_up", "dropped"] {
                     ids.extend(reg.items.iter().map(|i| stat(ty, i)));
@@ -2061,14 +2022,14 @@ impl ArgType {
                     ids.extend(reg.entity_types.iter().map(|e| stat(ty, e)));
                 }
                 ids.extend(
-                    sunrise_client_core::scoreboard::CUSTOM_STATS
+                    sunrise_game_data::scoreboard::CUSTOM_STATS
                         .iter()
                         .map(|c| stat("custom", &format!("minecraft:{c}"))),
                 );
                 builder.suggest_matching(ids.iter().map(String::as_str));
             }
             ArgType::ScoreboardSlot => {
-                let slots = sunrise_client_core::scoreboard::display_slots();
+                let slots = sunrise_game_data::scoreboard::display_slots();
                 builder.suggest_matching(slots.iter().map(String::as_str));
             }
             ArgType::Operation => builder.suggest_matching(OPERATIONS),
@@ -2076,7 +2037,7 @@ impl ArgType {
             ArgType::Particle => {
                 let known = reg.ids("minecraft:particle_type");
                 if known.is_empty() {
-                    let names: Vec<String> = sunrise_client_core::particle_type::ParticleType::ALL
+                    let names: Vec<String> = sunrise_game_data::particle_type::ParticleType::ALL
                         .iter()
                         .map(|t| format!("minecraft:{}", t.name()))
                         .collect();
@@ -2115,7 +2076,7 @@ impl ArgType {
                 suggest_resources(builder, reg.ids(registry.as_str()), "")
             }
             ArgType::TeamColor => {
-                builder.suggest_matching(sunrise_client_core::scoreboard::team_colors())
+                builder.suggest_matching(sunrise_game_data::scoreboard::team_colors())
             }
             ArgType::Anchor => builder.suggest_matching(["eyes", "feet"]),
             ArgType::Component | ArgType::Style | ArgType::NbtTag => super::snbt::suggest(builder),

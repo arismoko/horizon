@@ -1,1 +1,1 @@
-sunrise-client game::native_level_placement_tests::a_transaction_refuses_only_a_completing_wither_placement lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_placement_tests::a_transaction_refuses_only_a_completing_wither_placement lib daily resources

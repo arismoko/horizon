@@ -1,2 +1,2 @@
-sunrise-client game::native_small_reads_tests::a_server_reads_a_mobs_jump_cooldown lib daily resources
-sunrise-client game::native_small_reads_tests::client_tracked_entities_read_their_synced_pose lib daily resources
+sunrise-client cut_layout::game::client_side::native_small_reads_tests::a_server_reads_a_mobs_jump_cooldown lib daily resources
+sunrise-client cut_layout::game::client_side::native_small_reads_tests::client_tracked_entities_read_their_synced_pose lib daily resources

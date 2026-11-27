@@ -5,11 +5,9 @@
 //! entity shadows, the effect fogs' settings and durability bar colours. Lock-free: the draw paths
 //! and the mesher's workers read the dye, sheep and redstone tables per face.
 use crate::resource_source::ResourceSource;
-use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 use std::sync::{Arc, RwLock};
 
-use crate::block_entity_render::DYES;
-use crate::signs::DYE_TEXT;
+pub use sunrise_level::dyes::{DYE_TEXT, DYES, diffuse, redstone, sheep_wool, text};
 
 /// The fog settings vanilla hardcodes, as the packs set them (vanilla's by default).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -102,12 +100,6 @@ impl PackColors {
     }
 }
 
-/// 0 is unset, else `1 << 32 | rgb`.
-static DIFFUSE: [AtomicU64; 16] = [const { AtomicU64::new(0) }; 16];
-static TEXT: [AtomicU64; 16] = [const { AtomicU64::new(0) }; 16];
-static SHEEP: [AtomicU64; 16] = [const { AtomicU64::new(0) }; 16];
-static REDSTONE: [AtomicU64; 16] = [const { AtomicU64::new(0) }; 16];
-
 /// The colours of the pack overlay at `root`, from the installed pack formats; their dye, sheep
 /// and redstone colours go to the draw paths' tables ([`set`]).
 pub fn read(root: &ResourceSource) -> PackColors {
@@ -134,51 +126,10 @@ pub fn item_bar_color(item: &str, damage: f32) -> Option<u32> {
 
 /// Takes the colours of the packs just loaded (vanilla's where they set none).
 pub fn set(colors: &PackColors) {
-    let store = |table: &[AtomicU64; 16], i: usize, color: Option<u32>| {
-        table[i].store(
-            color.map_or(0, |c| 1 << 32 | u64::from(c & 0xFF_FFFF)),
-            Relaxed,
-        );
-    };
-    for i in 0..16 {
-        store(&DIFFUSE, i, colors.dye_diffuse[i]);
-        store(&TEXT, i, colors.dye_text[i]);
-        store(&SHEEP, i, colors.sheep[i]);
-        store(&REDSTONE, i, colors.redstone[i]);
-    }
-}
-
-fn get(table: &[AtomicU64; 16], i: usize) -> Option<u32> {
-    let v = table[i & 15].load(Relaxed);
-    (v != 0).then_some(v as u32)
-}
-
-/// `DyeColor.getTextureDiffuseColor` (RGB) as the packs draw it.
-pub fn diffuse(dye: usize) -> u32 {
-    get(&DIFFUSE, dye).unwrap_or(DYES[dye & 15].1)
-}
-
-/// `DyeColor.getTextColor` (RGB) as the packs draw it.
-pub fn text(dye: usize) -> u32 {
-    get(&TEXT, dye).unwrap_or(DYE_TEXT[dye & 15].1)
-}
-
-/// A pack's `RedStoneWireBlock.COLORS` entry for this power (RGB), when it sets one.
-pub fn redstone(power: u8) -> Option<u32> {
-    get(&REDSTONE, usize::from(power))
-}
-
-/// `ColorLerper.Type.SHEEP` wool colour: a pack's `sheep.<name>`, else white 0xE6E6E6 and the
-/// others 75% of vanilla's dye (a pack's `dye.*.diffuse` doesn't reach wool).
-pub fn sheep_wool(dye: u8) -> u32 {
-    let i = usize::from(dye & 15);
-    if let Some(color) = get(&SHEEP, i) {
-        return color;
-    }
-    if i == 0 {
-        return 0xE6E6E6;
-    }
-    let src = DYES[i].1;
-    let f = |c: u32| ((c as f32 * 0.75).floor() as u32).min(255);
-    f(src >> 16 & 255) << 16 | f(src >> 8 & 255) << 8 | f(src & 255)
+    sunrise_level::dyes::set_overrides(
+        &colors.dye_diffuse,
+        &colors.dye_text,
+        &colors.sheep,
+        &colors.redstone,
+    );
 }

@@ -1,3 +1,3 @@
 # A cast fishing bobber is an entity selectors and entities_in find (#6100).
-sunrise-client game::fishing::fishing_find_tests::a_cast_bobber_is_found_by_selectors_and_entities_in lib daily resources
-sunrise-client game::fishing::fishing_find_tests::a_bobber_is_a_candidate_of_its_casters_level_only lib daily child-process
+sunrise-client cut_layout::game::server_side::fishing::fishing_find_tests::a_cast_bobber_is_found_by_selectors_and_entities_in lib daily resources
+sunrise-client cut_layout::game::server_side::fishing::fishing_find_tests::a_bobber_is_a_candidate_of_its_casters_level_only lib daily child-process

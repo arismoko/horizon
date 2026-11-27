@@ -20,7 +20,7 @@ pub trait Hooks {
 
 `screen_mouse_moved_pre(screen, delta, modifiers, canceled)` is vanilla's `Screen.mouseMoved`: it fires for every real nonzero pointer movement over the open screen, whether or not a button is held, before `screen_mouse_dragged_pre` of the same move. screen.mouse is the new GUI position; delta is movement in GUI pixels. Cancel keeps the new cursor position and skips the rest of the move (the drag hook and drag handlers). A controller's pointer and a screen holding the pointer grab fire nothing; with no listener nothing is built."#]
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_screen_mouse_moved_pre",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_screen_mouse_moved_pre",
         receiver = "read",
         dispatch = "flat",
         side = "client",

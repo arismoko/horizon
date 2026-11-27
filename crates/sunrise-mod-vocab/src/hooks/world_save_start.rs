@@ -13,7 +13,7 @@ pub trait Hooks {
     /// listener panic discards that listener's journaled writes and disables this callback for
     /// the session. Not asked on a client of a remote server.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_world_save_start",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_world_save_start",
         dispatch = "flat",
         side = "server",
         contract = "listen",

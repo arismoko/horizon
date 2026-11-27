@@ -1,1 +1,1 @@
-sunrise-client game::remote::smoke_source_tests::client_placement_predicts_signal_fire_from_a_block_part lib daily resources
+sunrise-client cut_layout::game::remote::smoke_source_tests::client_placement_predicts_signal_fire_from_a_block_part lib daily resources

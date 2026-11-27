@@ -8,6 +8,69 @@
 //! encrypts the connection (ClientHandshakePacketListenerImpl.handleHello).
 use crate::auth::AuthSession;
 mod client_inbox;
+
+#[cfg(test)]
+mod client_payload_test_support {
+    use crate::raw_payloads::connection::record_overhead;
+    use crate::raw_payloads::{Side, Transport};
+    use mod_api::{
+        Hooks, IPayloadContext, IPayloadHandler, ModEntry, PayloadBytes, PayloadId, Registrar,
+    };
+    use std::sync::Arc;
+    pub(super) const CHANNEL: &str = "raw_hub_probe:message";
+    struct Probe;
+    impl IPayloadHandler for Probe {
+        fn handle(
+            &self,
+            _: PayloadBytes,
+            _: &mut dyn IPayloadContext,
+        ) -> Result<(), mod_api::PayloadHandleError> {
+            Ok(())
+        }
+    }
+    #[mod_api::__subscriptions]
+    impl Hooks for Probe {
+        fn register(&self, registrar: &mut dyn Registrar, _: &mod_api::RegistrationContext) {
+            registrar
+                .payload_handlers()
+                .registrar("1")
+                .play_to_server(PayloadId(CHANNEL.into()), Arc::new(Probe));
+        }
+    }
+    pub(super) fn with_peer<R>(run: impl FnOnce(Arc<Transport>) -> R) -> R {
+        mod_platform::testing::with_mods(
+            vec![ModEntry::new("raw_hub_probe", Box::new(Probe))].into(),
+            || {
+                mod_platform::__private::part_tests::install_parts_fixture(
+                    mod_api::__private::mods(),
+                )
+                .unwrap();
+                let transport = Transport::capture(Side::Server, record_overhead(&[])).unwrap();
+                assert!(
+                    transport.local.owns(CHANNEL),
+                    "fixture declaration was not installed"
+                );
+                transport
+                    .accept(transport.local.manifest.entries())
+                    .unwrap();
+                transport.finish_configuration().unwrap();
+                run(transport)
+            },
+        )
+    }
+    pub(super) fn with_client<R>(run: impl FnOnce(Arc<Transport>) -> R) -> R {
+        mod_platform::testing::with_mods(
+            vec![ModEntry::new("raw_hub_probe", Box::new(Probe))].into(),
+            || {
+                mod_platform::__private::part_tests::install_parts_fixture(
+                    mod_api::__private::mods(),
+                )
+                .unwrap();
+                run(Transport::capture(Side::Client, record_overhead(&[])).unwrap())
+            },
+        )
+    }
+}
 pub use client_inbox::{ClientTask, ClientTasks};
 #[cfg(test)]
 #[path = "net/bundle_tests.rs"]
@@ -24,9 +87,8 @@ pub use play_bundle::{BundleMember, BundleStep, CompletedBundle};
 #[cfg(test)]
 #[path = "net/mod_packet_tests.rs"]
 mod mod_packet_tests;
-pub(crate) mod queued_writer;
-use queued_writer::{PrepareRefusal, QueuedWriter, SendFailure};
-pub use queued_writer::{PreparedPacket, PreparedPayload};
+use crate::raw_payloads::queued_writer::{PrepareRefusal, QueuedWriter, SendFailure};
+pub use crate::raw_payloads::queued_writer::{PreparedPacket, PreparedPayload};
 #[cfg(test)]
 use std::sync::mpsc::channel;
 use std::{
@@ -1985,6 +2047,14 @@ fn receive_play(
     let mut io = new_listener();
     let mut bundle = PlayBundle::default();
     loop {
+        #[cfg(feature = "test-support")]
+        if !bundle.assembling() {
+            // Report only packets whose ingress work (including a complete bundle) has been published.
+            let counters = &reader.counters;
+            counters
+                .play_ingress_received
+                .store(counters.received.load(Ordering::Relaxed), Ordering::Release);
+        }
         let (id, payload) = reader.recv().map_err(|e| connection_lost(e, lang))?;
         let decode_names = ClientboundDecodeNames {
             registries: registries.as_ref(),
@@ -2655,19 +2725,7 @@ fn json_text_with<'a>(v: &serde_json::Value, lookup: impl Fn(&str) -> Option<&'a
     walk(v, &lookup)
 }
 
-/// The language a session resolves server-sent components with: the selected
-/// one as `lang` loaded it (`en_us` under it, packs included, without mod
-/// run-time overrides so clearing a mod falls back to the packs' values). A
-/// process with no language set (a dedicated server's log) reads en_us.json.
-pub fn load_language(resources: &std::path::Path) -> Language {
-    if let Some(lang) = crate::lang::current() {
-        return lang.pack_map();
-    }
-    // No language screen ran (a dedicated server's log): en_us, with
-    // Sunrise's own strings included — the net thread resolves keys with
-    // this map (`Reason::keyed`).
-    sunrise_client_core::lang::Language::load(&[&resources.to_path_buf()], "en_us").pack_map()
-}
+pub use sunrise_sim::lang_load::load_language;
 
 /// Ask a server for its status (ServerStatusPinger): MOTD, players and the
 /// round trip time in milliseconds.
@@ -2911,7 +2969,7 @@ mod tests {
         use sunrise_protocol::payload_negotiation::{CHANNEL, Control};
         for server_asks in [false, true] {
             let (root, data) = empty_item_data(&format!("mod-client-{server_asks}"));
-            let sent = crate::raw_payloads::test_support::with_client(|transport| {
+            let sent = client_payload_test_support::with_client(|transport| {
                 assert!(transport.local.has_mod_declarations());
                 let (client, server) = sunrise_protocol::connection::Pipe::pair();
                 let (mut reader, writer) = Connection::local(client).split();
@@ -2991,7 +3049,7 @@ mod tests {
                     manifest
                         .entries()
                         .iter()
-                        .any(|e| e.id() == crate::raw_payloads::test_support::CHANNEL),
+                        .any(|e| e.id() == client_payload_test_support::CHANNEL),
                     "the Offer lists the mod's channel"
                 );
             } else {
@@ -3471,8 +3529,7 @@ mod tests {
             );
         }
 
-        // Connection opened with an active override captures the pack-only map, uses the live
-        // overlay while present, and restores the pack value once cleared.
+        // A session opened during an override still captures the pack-only fallback.
         {
             let _isolated = lang::isolate_publication(ClientLanguage::of(
                 "en_us",

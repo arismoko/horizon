@@ -5,75 +5,7 @@
 use std::{collections::HashMap, sync::LazyLock};
 use winit::{event::MouseButton, keyboard::KeyCode};
 
-/// (name, default key, category) in Options.keyMappings order.
-pub const MAPPINGS: &[(&str, &str, &str)] = &[
-    ("key.attack", "key.mouse.left", "gameplay"),
-    ("key.use", "key.mouse.right", "gameplay"),
-    ("key.forward", "key.keyboard.w", "movement"),
-    ("key.left", "key.keyboard.a", "movement"),
-    ("key.back", "key.keyboard.s", "movement"),
-    ("key.right", "key.keyboard.d", "movement"),
-    ("key.jump", "key.keyboard.space", "movement"),
-    ("key.sneak", "key.keyboard.left.shift", "movement"),
-    ("key.sprint", "key.keyboard.left.control", "movement"),
-    ("key.drop", "key.keyboard.q", "inventory"),
-    ("key.inventory", "key.keyboard.e", "inventory"),
-    ("key.chat", "key.keyboard.t", "multiplayer"),
-    ("key.playerlist", "key.keyboard.tab", "multiplayer"),
-    ("key.pickItem", "key.mouse.middle", "gameplay"),
-    ("key.command", "key.keyboard.slash", "multiplayer"),
-    ("key.friends", "key.keyboard.o", "multiplayer"),
-    ("key.socialInteractions", "key.keyboard.p", "multiplayer"),
-    ("key.toggleGui", "key.keyboard.f1", "misc"),
-    (
-        "key.toggleSpectatorShaderEffects",
-        "key.keyboard.f4",
-        "misc",
-    ),
-    ("key.screenshot", "key.keyboard.f2", "misc"),
-    ("key.togglePerspective", "key.keyboard.f5", "misc"),
-    ("key.smoothCamera", "key.keyboard.unknown", "misc"),
-    ("key.fullscreen", "key.keyboard.f11", "misc"),
-    ("key.spectatorOutlines", "key.keyboard.unknown", "spectator"),
-    ("key.spectatorHotbar", "key.mouse.middle", "spectator"),
-    ("key.swapOffhand", "key.keyboard.f", "inventory"),
-    ("key.saveToolbarActivator", "key.keyboard.c", "creative"),
-    ("key.loadToolbarActivator", "key.keyboard.x", "creative"),
-    ("key.advancements", "key.keyboard.l", "misc"),
-    ("key.quickActions", "key.keyboard.g", "misc"),
-    ("key.debug.overlay", "key.keyboard.f3", "debug"),
-    ("key.debug.modifier", "key.keyboard.f3", "debug"),
-    ("key.hotbar.1", "key.keyboard.1", "inventory"),
-    ("key.hotbar.2", "key.keyboard.2", "inventory"),
-    ("key.hotbar.3", "key.keyboard.3", "inventory"),
-    ("key.hotbar.4", "key.keyboard.4", "inventory"),
-    ("key.hotbar.5", "key.keyboard.5", "inventory"),
-    ("key.hotbar.6", "key.keyboard.6", "inventory"),
-    ("key.hotbar.7", "key.keyboard.7", "inventory"),
-    ("key.hotbar.8", "key.keyboard.8", "inventory"),
-    ("key.hotbar.9", "key.keyboard.9", "inventory"),
-    ("key.debug.reloadChunk", "key.keyboard.a", "debug"),
-    ("key.debug.showHitboxes", "key.keyboard.b", "debug"),
-    ("key.debug.clearChat", "key.keyboard.d", "debug"),
-    ("key.debug.crash", "key.keyboard.c", "debug"),
-    ("key.debug.showChunkBorders", "key.keyboard.g", "debug"),
-    ("key.debug.showAdvancedTooltips", "key.keyboard.h", "debug"),
-    ("key.debug.copyRecreateCommand", "key.keyboard.i", "debug"),
-    ("key.debug.spectate", "key.keyboard.n", "debug"),
-    ("key.debug.switchGameMode", "key.keyboard.f4", "debug"),
-    ("key.debug.debugOptions", "key.keyboard.f6", "debug"),
-    ("key.debug.focusPause", "key.keyboard.p", "debug"),
-    ("key.debug.dumpDynamicTextures", "key.keyboard.s", "debug"),
-    ("key.debug.reloadResourcePacks", "key.keyboard.t", "debug"),
-    ("key.debug.profiling", "key.keyboard.l", "debug"),
-    ("key.debug.copyLocation", "key.keyboard.c", "debug"),
-    ("key.debug.dumpVersion", "key.keyboard.v", "debug"),
-    ("key.debug.profilingChart", "key.keyboard.1", "debug"),
-    ("key.debug.fpsCharts", "key.keyboard.2", "debug"),
-    ("key.debug.networkCharts", "key.keyboard.3", "debug"),
-    ("key.debug.lightmapTexture", "key.keyboard.4", "debug"),
-    ("key.debug.improvedTransparency", "key.keyboard.x", "debug"),
-];
+pub use sunrise_game_data::key_mappings::MAPPINGS;
 /// Mappings Options builds as `ToggleKeyMapping` (hold or toggle by option).
 pub fn is_toggle(name: &str) -> bool {
     matches!(name, "key.sneak" | "key.sprint" | "key.use" | "key.attack")
@@ -304,7 +236,7 @@ fn named_mouse_button(name: &str) -> Option<MouseButton> {
         _ => return None,
     })
 }
-pub use sunrise_client_core::key_display::{
+pub use sunrise_game_data::key_display::{
     clear_action_bindings, clear_action_resolver, display_name, replace_action_bindings,
     reset_action_bindings, set_action_binding, set_action_resolver,
 };
@@ -321,7 +253,7 @@ pub fn learn_layout(event: &winit::event::KeyEvent) {
     let Some(name) = key_name(code) else {
         return;
     };
-    let learn = sunrise_client_core::key_display::learn_layout;
+    let learn = sunrise_game_data::key_display::learn_layout;
     match event.key_without_modifiers() {
         Key::Character(text) => learn(name, &text),
         Key::Dead(Some(c)) => learn(name, c.encode_utf8(&mut [0; 4])),

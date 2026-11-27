@@ -1,9 +1,7 @@
 //! Which player a mob sees in an open world, and how the blocks that look for players see a guest.
-use sunrise_client::mobs::{Mob, MobEvent, PlayerView, Species, Who};
 use sunrise_core::geometry::{Aabb, Vec3};
-
-/// The guests mobs can see this tick, by connection.
-pub type GuestViews = Vec<(u32, PlayerView)>;
+pub use sunrise_gameplay_common::lan::mob_players::{GuestViews, acts_on_player};
+use sunrise_sim::mobs::{Mob, PlayerView, Species, Who};
 
 /// The player a mob sees this tick: `None` for the host, else a guest.
 /// A mob's target is one player (`Mob.getTarget` is an entity): while it has
@@ -59,7 +57,7 @@ pub fn player_for(
     }
     // A mob on a player's lead follows and measures its rope against the
     // player who holds it, not whoever is nearest or in survival mode.
-    if m.extra.leash == Some(sunrise_client::mobs::leash::Holder::Player)
+    if m.extra.leash == Some(sunrise_sim::mobs::leash::Holder::Player)
         && let Some(holder) = m.extra.leash_player
     {
         if host.is_some_and(|v| v.uuid == holder) {
@@ -110,54 +108,6 @@ pub fn choose(
         .and_then(|(conn, _)| conn)
 }
 
-/// The events of a mob's tick that act on the player it sees.
-#[inline]
-pub fn acts_on_player(e: &MobEvent) -> bool {
-    matches!(
-        e,
-        MobEvent::AttackPlayer(..)
-            | MobEvent::CubeHurtPlayer { .. }
-            | MobEvent::AttackPlayerWithEffect { .. }
-            | MobEvent::WeaponAttack(sunrise_client::mobs::WeaponHit {
-                target: Who::Player,
-                ..
-            })
-            | MobEvent::Sting {
-                target: Who::Player,
-                ..
-            }
-            | MobEvent::DamagePlayer { .. }
-            | MobEvent::SonicBoom {
-                target: Who::Player,
-                ..
-            }
-            | MobEvent::Push {
-                target: Who::Player,
-                ..
-            }
-            | MobEvent::Knockback {
-                target: Who::Player,
-                ..
-            }
-            | MobEvent::StabDismount {
-                target: Who::Player,
-            }
-            | MobEvent::StabMemory {
-                target: Who::Player,
-                ..
-            }
-            | MobEvent::Ignite(Who::Player, _)
-            | MobEvent::ZombieIgnite(Who::Player, _)
-            | MobEvent::IronGolemHit {
-                target: Who::Player,
-                ..
-            }
-            | MobEvent::EffectPlayer { .. }
-            | MobEvent::AxolotlSupportPlayer { .. }
-            | MobEvent::ParrotToShoulder { .. }
-    )
-}
-
 /// A guest's `player_view`, taken with their state swapped in, as the mobs see
 /// them. Their last attacker and last victim stay: a tamed wolf defends and
 /// helps whoever owns it (`OwnerHurtByTargetGoal`, `OwnerHurtTargetGoal`), and
@@ -165,7 +115,7 @@ pub fn acts_on_player(e: &MobEvent) -> bool {
 pub fn guest_view(mut v: PlayerView, uuid: u128, moved: [f64; 3]) -> PlayerView {
     v.hero = false;
     v.velocity = Vec3::new(moved[0], moved[1], moved[2]);
-    v.uuid = sunrise_client::lan::playerdata::uuid_ints(uuid);
+    v.uuid = sunrise_sim::lan::playerdata::uuid_ints(uuid);
     v.allies = Default::default();
     v.remote = true;
     v
@@ -182,14 +132,14 @@ pub struct Present {
     pub spectator: bool,
     pub alive: bool,
     /// Trial Omen, else Bad Omen, among the guest's effects.
-    pub omen: Option<sunrise_client::mobs::trial_spawner::Omen>,
+    pub omen: Option<sunrise_sim::mobs::trial_spawner::Omen>,
 }
 
 /// `TrialSpawner.findPlayerWithOminousEffect`: Trial Omen first, then Bad Omen.
 pub fn omen_of(
-    effects: &sunrise_client::effects::PlayerEffects,
-) -> Option<sunrise_client::mobs::trial_spawner::Omen> {
-    use sunrise_client::mobs::trial_spawner::Omen;
+    effects: &sunrise_level::effects::PlayerEffects,
+) -> Option<sunrise_sim::mobs::trial_spawner::Omen> {
+    use sunrise_sim::mobs::trial_spawner::Omen;
     if effects.get("trial_omen").is_some() {
         Some(Omen::Trial)
     } else {
@@ -198,6 +148,6 @@ pub fn omen_of(
 }
 
 /// A guest's bounding box, by its pose (`Avatar.POSES`).
-pub fn guest_bounds(g: &sunrise_client::lan::guest::Guest) -> Aabb {
+pub fn guest_bounds(g: &sunrise_sim::lan::guest::Guest) -> Aabb {
     g.bounds()
 }

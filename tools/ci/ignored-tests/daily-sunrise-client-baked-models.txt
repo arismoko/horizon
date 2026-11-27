@@ -1,2 +1,2 @@
 # Baked model keys and views (#861) need prepared resources and a resource reload.
-sunrise-client game::baked_model_keys_tests::a_client_mod_reads_a_block_states_baked_models_once_per_load lib daily resources
+sunrise-client cut_layout::game::baked_model_keys_tests::a_client_mod_reads_a_block_states_baked_models_once_per_load lib daily resources

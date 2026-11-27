@@ -17,7 +17,7 @@ pub trait Hooks {
     /// have no same-vehicle restriction and do not ask it. No server reach or
     /// interaction checks change.
     #[hook(
-        target = "sunrise_client::game::native_hooks::client_pick::Game<'_>::native_can_rider_interact",
+        target = "sunrise_client_gameplay::game::native_hooks::client_pick::native_can_rider_interact",
         receiver = "associated",
         dispatch = "api_carrier",
         side = "client",

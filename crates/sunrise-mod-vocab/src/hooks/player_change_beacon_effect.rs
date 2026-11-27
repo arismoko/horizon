@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player changed a beacon's selected effects, after they were stored. Each selected
     /// effect is an `Option<EffectKey>`; None means no effect. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_change_beacon_effect",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_change_beacon_effect",
         dispatch = "flat",
         side = "server",
         contract = "listen",

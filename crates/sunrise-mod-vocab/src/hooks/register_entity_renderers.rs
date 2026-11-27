@@ -91,6 +91,7 @@ renderer, and stays active for later draws. A renderer that panics rolls back wh
 disables only that renderer for the rest of the session (including across reloads), with an error log and
 an in-game error toast naming the mod; until the session ends its type draws as it would without one."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_entity_renderers::native_register_entity_renderers",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

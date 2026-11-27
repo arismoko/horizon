@@ -4,7 +4,7 @@
 Runs VanillaCommandExecOracle through tools/test_command_exec_parity.py --reference-only
 (cached by tools/parity_shim.py), writes cloud_water.json and meta.json into
 .local/witness/<version>/cloud_water/, and unless --record/--record-only is given runs
-game::potions::cloud_water_tests::a_cloud_in_water_resets_its_fall_distance_and_a_dry_one_keeps_it
+game::client_side::potions::cloud_water_tests::a_cloud_in_water_resets_its_fall_distance_and_a_dry_one_keeps_it
 through lab.parity_fixtures() with SUNRISE_CLOUD_WATER_WITNESS.
 
   test_cloud_water_parity.py [--prepare] [--record|--record-only] [--resources DIR] [--work-dir DIR]
@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools import command_exec_corpus as corpus_module, lab, test_rust_parity as base
 
-TEST = 'game::potions::cloud_water_tests::a_cloud_in_water_resets_its_fall_distance_and_a_dry_one_keeps_it'
+TEST = 'game::client_side::potions::cloud_water_tests::a_cloud_in_water_resets_its_fall_distance_and_a_dry_one_keeps_it'
 GROUP_NAME = 'area effect cloud water fall distance'
 ORACLE = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaCommandExecOracle.java'
 RECORDED_OPS = (

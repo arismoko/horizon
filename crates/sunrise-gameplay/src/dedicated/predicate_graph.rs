@@ -14,7 +14,7 @@
 //! not parse, and the holders of loot tables, advancements and item modifiers are not checked.
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
-use sunrise_client_core::identifier::parse_identifier;
+use sunrise_game_data::identifier::parse_identifier;
 
 const REGISTRY: &str = "minecraft:predicate";
 

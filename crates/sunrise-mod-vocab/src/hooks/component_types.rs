@@ -6,7 +6,7 @@ pub trait Hooks {
     /// `"mymod:charge".into()`. Invalid and duplicate IDs, including IDs already used by
     /// built-in components, are refused before the component registry freezes.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_component_types",
+        target = "sunrise_gameplay_common::game::native_hooks::base::native_component_types",
         receiver = "associated",
         dispatch = "flat",
         side = "both",

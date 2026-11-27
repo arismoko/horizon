@@ -1,1 +1,1 @@
-sunrise-client game::native_rotate::tests::a_part_mirrors_its_block_as_a_template_places_it lib daily resources
+sunrise-client cut_layout::game::native_rotate::tests::a_part_mirrors_its_block_as_a_template_places_it lib daily resources

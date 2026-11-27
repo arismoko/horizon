@@ -1,4 +1,4 @@
-sunrise-client game::demo_intro::tests::demo_packets_open_the_parentless_intro_and_narrate_only_exact_hints lib daily resources
-sunrise-client game::remote::tests::menu_packets_tests::a_mount_chest_beyond_the_slot_range_ends_the_connection lib daily resources
-sunrise-client game::remote::tests::menu_packets_tests::rejected_mounts_preserve_the_previous_client_menu_without_sending_close lib daily resources
-sunrise-client game::remote::tests::menu_packets_tests::remote_mount_is_installed_before_screen_init_and_keeps_all_columns lib daily resources
+sunrise-client cut_layout::game::client_side::demo_intro::tests::demo_packets_open_the_parentless_intro_and_narrate_only_exact_hints lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::menu_packets_tests::a_mount_chest_beyond_the_slot_range_ends_the_connection lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::menu_packets_tests::rejected_mounts_preserve_the_previous_client_menu_without_sending_close lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::menu_packets_tests::remote_mount_is_installed_before_screen_init_and_keeps_all_columns lib daily resources

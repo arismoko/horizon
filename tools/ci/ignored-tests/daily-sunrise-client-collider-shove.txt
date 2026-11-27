@@ -1,4 +1,4 @@
-sunrise-client game::piston_push::carrying::shoving::tests::a_collider_shove_stops_at_a_wall_without_impact_damage lib daily child-process
-sunrise-client game::piston_push::carrying::shoving::tests::a_collider_shoves_a_body_crossed_only_mid_sweep lib daily child-process
-sunrise-client game::piston_push::carrying::shoving::tests::a_later_shove_collides_with_a_holder_already_displaced lib daily child-process
-sunrise-client game::piston_push::carrying::shoving::tests::a_predicted_collider_shove_passes_the_server_move_check lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::a_collider_shove_stops_at_a_wall_without_impact_damage lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::a_collider_shoves_a_body_crossed_only_mid_sweep lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::a_later_shove_collides_with_a_holder_already_displaced lib daily child-process
+sunrise-client cut_layout::game::piston_push::carrying::shoving::tests::a_predicted_collider_shove_passes_the_server_move_check lib daily child-process

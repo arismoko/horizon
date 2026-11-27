@@ -1,5 +1,5 @@
 # A textured quad of a texture that is not live, or of a plain render type, draws nothing.
-sunrise-client game::native_block_entity_draw::tests::a_textured_quad_of_a_texture_that_is_not_live_or_a_plain_render_type_draws_nothing lib daily resources
+sunrise-client-gameplay game::client_side::native_block_entity_draw::tests::a_textured_quad_of_a_texture_that_is_not_live_or_a_plain_render_type_draws_nothing lib daily resources
 # A region write shows on the next frame with the same geometry.
 sunrise-client-render gfx::entity_pixel_test::dynamic_quads::a_region_update_shows_on_the_next_frame_with_no_new_geometry lib daily slow
 # Under a shader pack, a textured quad is drawn by the pack's entity program with its texture bound.

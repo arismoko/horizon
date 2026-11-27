@@ -102,12 +102,12 @@ impl<'a> Lookup<'a> {
     }
     /// The sprite at `layer` of all the layers.
     pub fn sprite(&self, layer: u32) -> SpriteRef {
-        sprite_at(&self.context.render, self.split, layer)
+        sprite_at(&self.context.mesh.render, self.split, layer)
     }
 
     /// A texture by name in this lookup.
     pub fn texture(&self, name: &str) -> Option<SpriteRef> {
-        texture_at(&self.context.render, self.split, name)
+        texture_at(&self.context.mesh.render, self.split, name)
     }
 }
 
@@ -140,18 +140,19 @@ impl Lookup<'_> {
     /// What block `name` (`minecraft:oak_log[axis=x]`; properties left out take the default) draws on each side;
     /// none for a block the game does not know.
     pub fn block(&self, name: &str) -> Option<BlockSprites> {
-        let state = parse_state(self.context.assets.registry, name)?;
+        let state = parse_state(self.context.chunk.assets.registry, name)?;
         Some(self.state(state))
     }
 
     /// What `state` draws on each side. A fluid has its still texture on all six; a block drawn only as a block
     /// entity (a chest, a sign) or not at all (air) has empty sides, and its particle sprite if any.
     pub fn state(&self, state: BlockStateId) -> BlockSprites {
-        let render = &self.context.render;
+        let render = &self.context.mesh.render;
         let catalog = &render.model_catalog;
         let mut sides: [Vec<FaceSprite>; 6] = Default::default();
         let block = self
             .context
+            .chunk
             .assets
             .registry
             .state(state)
@@ -244,7 +245,7 @@ impl Lookup<'_> {
                 rect: [a0, b0, a1, b1].map(snap),
                 inset: snap((depth - plane).abs()),
                 uv: uv.map(snap),
-                tint: self.context.tables.tint_source(state, q.tint_index),
+                tint: self.context.mesh.tables.tint_source(state, q.tint_index),
                 translucent: face.translucent,
             },
         ))
@@ -310,16 +311,21 @@ mod tests {
     #[ignore = "daily"]
     fn real_blocks_name_their_sprites() -> crate::Result<()> {
         use crate::{
-            assets::Assets, biome::Biomes, blocks::BlockFacts, light::LightTables,
+            assets::Assets,
+            biome::Biomes,
+            blocks::BlockFacts,
+            light::LightTables,
             mesher::MeshTables,
+            streaming::{ChunkWorkerContext, MeshWorkerContext},
         };
         use std::sync::Arc;
         let root = std::path::PathBuf::from(
             std::env::var_os("SUNRISE_TEST_RESOURCES").expect("SUNRISE_TEST_RESOURCES"),
         );
         let assets = Arc::new(Assets::load(&root)?);
-        let render = Arc::new(assets.reload(
+        let render = Arc::new(crate::assets::RenderAssets::load(
             &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
         )?);
         let facts = BlockFacts::load(&root, assets.registry)?;
         let tables = Arc::new(MeshTables::new(
@@ -330,17 +336,21 @@ mod tests {
             None,
         )?);
         let context = WorkerContext {
-            light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
-            tables,
-            assets: assets.clone(),
-            render,
-            biomes: Arc::new(Biomes::load(
-                &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
-            )?),
-            hidden_states: Arc::from([]),
-            part_tables: Default::default(),
+            chunk: ChunkWorkerContext {
+                light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
+                assets: assets.clone(),
+                biomes: Arc::new(Biomes::load(
+                    &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+                )?),
+            },
+            mesh: MeshWorkerContext {
+                tables,
+                render,
+                hidden_states: Arc::from([]),
+                part_tables: Default::default(),
+            },
         };
-        let names = texture_names(&context.render.sprite_layers);
+        let names = texture_names(&context.mesh.render.sprite_layers);
         let lookup = Lookup::new(&context, 2048, &names);
         let whole = [0.0, 0.0, 1.0, 1.0];
         let upright = [0.0, 0.0, 1.0, 0.0, 0.0, 1.0];

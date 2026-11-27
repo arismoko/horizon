@@ -1,2 +1,2 @@
-sunrise-client game::native_hooks::book_screen::lifecycle_tests::a_bound_recipe_book_screen_refuses_bad_layouts_at_open lib daily resources
-sunrise-client game::native_hooks::book_screen::lifecycle_tests::a_reopened_window_uses_only_its_new_screen_instance lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::book_screen::lifecycle_tests::a_bound_recipe_book_screen_refuses_bad_layouts_at_open lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::book_screen::lifecycle_tests::a_reopened_window_uses_only_its_new_screen_instance lib daily resources

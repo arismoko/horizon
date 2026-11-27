@@ -1,2 +1,2 @@
-sunrise-client game::native_hooks::play_break_sound_tests::a_cancelling_part_silences_level_event_2001_and_keeps_the_debris lib daily resources
-sunrise-client game::native_hooks::play_break_sound_tests::the_server_thread_never_asks_a_part lib daily resources
+sunrise-client cut_layout::game::native_hooks::play_break_sound_tests::a_cancelling_part_silences_level_event_2001_and_keeps_the_debris lib daily resources
+sunrise-client cut_layout::game::native_hooks::play_break_sound_tests::the_server_thread_never_asks_a_part lib daily resources

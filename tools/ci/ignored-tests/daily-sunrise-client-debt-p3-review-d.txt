@@ -1,7 +1,7 @@
 # #4773 round-1 review tests: entity save, idle close light, recipe-book backing, native content refusal.
-sunrise-client game::consume_effect_dispatch_tests::a_foreign_listener_panicking_under_a_feedback_command_does_not_disable_the_consume_callback lib daily child-process
-sunrise-client game::mods::tests::a_built_native_package_with_a_missing_remainder_is_refused_whole lib daily child-process
-sunrise-client game::native_book_apply::tests::a_recipe_sources_listener_that_breaks_the_backing_refuses_the_placement lib daily resources
-sunrise-client game::native_falling::tests::a_save_with_an_unreadable_old_entity_record_reports_the_incomplete_column lib daily child-process
-sunrise-client game::runtime_levels_tests::an_idle_close_with_outstanding_light_saves_the_column_unlit lib daily resources
+sunrise-client cut_layout::game::consume_effect_dispatch_tests::a_foreign_listener_panicking_under_a_feedback_command_does_not_disable_the_consume_callback lib daily child-process
+sunrise-gameplay game::mods::tests::a_built_native_package_with_a_missing_remainder_is_refused_whole lib daily child-process
+sunrise-client cut_layout::game::server_side::native_book_apply::tests::a_recipe_sources_listener_that_breaks_the_backing_refuses_the_placement lib daily resources
+sunrise-gameplay game::server_side::native_falling::tests::a_save_with_an_unreadable_old_entity_record_reports_the_incomplete_column lib daily child-process
+sunrise-client cut_layout::game::server_side::runtime_levels_tests::an_idle_close_with_outstanding_light_saves_the_column_unlit lib daily resources
 sunrise-native-build patch::refusal_tests::the_checks_lower_crate_cfg_is_the_pinned_compilers_for_the_sdks_features lib daily child-process

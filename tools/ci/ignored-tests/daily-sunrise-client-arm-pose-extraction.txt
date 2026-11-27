@@ -1,1 +1,1 @@
-sunrise-client game::client_reload::tests::custom_arm_pose_tests::held_arm_pose_reads_the_active_swing_on_every_draw lib daily resources
+sunrise-client cut_layout::game::client_side::client_reload::tests::custom_arm_pose_tests::held_arm_pose_reads_the_active_swing_on_every_draw lib daily resources

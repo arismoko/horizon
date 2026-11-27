@@ -8,6 +8,7 @@ pub trait Hooks {
     /// Whether an unknown ID refuses a load or skips a file is determined by the
     /// loader, not the namespace.
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_load_conditions::native_register_load_conditions",
         receiver = "associated",
         dispatch = "flat",
         side = "server",

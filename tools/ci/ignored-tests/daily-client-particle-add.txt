@@ -1,2 +1,2 @@
 # #5382: the client_particle_add slot test boots a client game on the prepared 26.3 data.
-sunrise-client game::native_render_hooks_tests::particle_add_slot_follows_the_listening_mod lib daily resources
+sunrise-client-gameplay game::client_side::native_render_hooks_tests::particle_add_slot_follows_the_listening_mod lib daily resources

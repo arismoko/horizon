@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A mob became tamed after its owner and persistent state were set.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_tame",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_tame",
         dispatch = "flat",
         side = "server",
         contract = "listen",

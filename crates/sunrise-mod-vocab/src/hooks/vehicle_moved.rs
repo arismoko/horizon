@@ -13,7 +13,7 @@ pub trait Hooks {
     /// (horse, pig...) or a vehicle carrying only a mob. Server-side, in the
     /// level the vehicle is in.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_vehicle_moved",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_vehicle_moved",
         dispatch = "flat",
         side = "server",
         contract = "listen",

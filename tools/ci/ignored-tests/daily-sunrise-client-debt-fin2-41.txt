@@ -1,1 +1,1 @@
-sunrise-client game::native_damage_tests::borrowed_bee_posts_at_both_server_ai_hurts lib daily child-process
+sunrise-client cut_layout::game::server_side::native_damage_tests::borrowed_bee_posts_at_both_server_ai_hurts lib daily child-process

@@ -42,14 +42,16 @@ fn main() -> sunrise_client::Result<()> {
     let assets = Assets::load(root)?;
     let _ = std::fs::remove_file(root.join("sunrise-sprites.cache"));
     let start = Instant::now();
-    let cold = digest(&assets.reload(
+    let cold = digest(&sunrise_client::assets::RenderAssets::load(
         &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
     )?);
     let cold_ms = start.elapsed().as_secs_f64() * 1000.;
     let size = std::fs::metadata(root.join("sunrise-sprites.cache"))?.len();
     let start = Instant::now();
-    let warm = digest(&assets.reload(
+    let warm = digest(&sunrise_client::assets::RenderAssets::load(
         &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
     )?);
     let warm_ms = start.elapsed().as_secs_f64() * 1000.;
     println!(

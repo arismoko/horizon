@@ -67,15 +67,15 @@ def main():
     args = parser.parse_args()
     lock, jars, libraries = base.verify_artifacts()
     source_paths = [lab.ROOT / path for path in (
-        'crates/sunrise-client/src/game.rs',
-        'crates/sunrise-client/src/game/entities/melee.rs',
-        'crates/sunrise-client/src/game/items/special_attacks.rs',
-        'crates/sunrise-client/src/game/entities/armor_stands.rs',
-        'crates/sunrise-client/src/game/entities/boats/mod.rs',
-        'crates/sunrise-client/src/game/entities/minecarts.rs',
-        'crates/sunrise-client/src/game/mobs/dragon.rs',
-        'crates/sunrise-client/src/game/items/special_attack_fixture.rs',
-        'crates/sunrise-client/src/game/interface/dispense_fixture.rs',
+        'crates/sunrise-gameplay-common/src/game.rs',
+        'crates/sunrise-gameplay/src/game/entities/melee.rs',
+        'crates/sunrise-gameplay/src/game/items/special_attacks.rs',
+        'crates/sunrise-gameplay/src/game/entities/armor_stands.rs',
+        'crates/sunrise-gameplay/src/game/entities/boats/mod.rs',
+        'crates/sunrise-gameplay-common/src/game/entities/minecarts.rs',
+        'crates/sunrise-gameplay/src/game/mobs/dragon.rs',
+        'crates/sunrise-gameplay/src/game/items/special_attack_fixture.rs',
+        'crates/sunrise-gameplay/src/game/interface/dispense_fixture.rs',
         'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaDispenserOracle.java',
         'tools/test_special_attack_parity.py')]
     source_hashes = base.source_hashes(source_paths)
@@ -105,7 +105,7 @@ def main():
                         'dev.sunriselab.parity.VanillaDispenserOracle', str(args.resources.resolve()),
                         str(input_path), str(work / 'native.txt')], cwd=scratch, check=True)
         subprocess.run(
-            [str(binary), 'game::special_attack_fixture::tests::special_attack_cases_without_world_startup',
+            [str(binary), 'game::server_side::special_attack_fixture::tests::special_attack_cases_without_world_startup',
              '--exact', '--ignored', '--test-threads=1'], cwd=scratch,
             env=lab.game_env(SUNRISE_TEST_RESOURCES=str(args.resources.resolve()),
                              SUNRISE_SPECIAL_ATTACK_CASES=f'{input_path},{work / "rust.txt"}'),

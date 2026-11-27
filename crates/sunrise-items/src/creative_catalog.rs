@@ -64,6 +64,40 @@ fn stack<'de, D: serde::Deserializer<'de>>(de: D) -> Result<ItemStack, D::Error>
         .ok_or_else(|| D::Error::custom("creative generator stacks must contain one item"))
 }
 
+/// `CreativeModeTabs`' key for an exported tab id (`itemGroup.*`); the
+/// export's `title` is the English fallback.
+pub fn item_group_key(id: &str) -> Option<&'static str> {
+    Some(match id.trim_start_matches("minecraft:") {
+        "building_blocks" => "itemGroup.buildingBlocks",
+        "colored_blocks" => "itemGroup.coloredBlocks",
+        "natural_blocks" => "itemGroup.natural",
+        "functional_blocks" => "itemGroup.functional",
+        "redstone_blocks" => "itemGroup.redstone",
+        "hotbar" => "itemGroup.hotbar",
+        "search" => "itemGroup.search",
+        "tools_and_utilities" => "itemGroup.tools",
+        "combat" => "itemGroup.combat",
+        "food_and_drinks" => "itemGroup.foodAndDrink",
+        "ingredients" => "itemGroup.ingredients",
+        "spawn_eggs" => "itemGroup.spawnEggs",
+        "op_blocks" => "itemGroup.op",
+        "inventory" => "itemGroup.inventory",
+        _ => return None,
+    })
+}
+/// A mod tab's own `itemGroup.<mod>.<name>` key, for its id `<mod>:<name>`.
+pub fn mod_item_group_key(id: &str) -> String {
+    format!("itemGroup.{}", id.replace(':', "."))
+}
+
+pub fn parse_search_metadata_stack(row: &serde_json::Value) -> Result<ItemStack, String> {
+    let snbt = row["stack"]
+        .as_str()
+        .ok_or("missing search metadata stack")?;
+    let stack = parse_stack(snbt)?.ok_or("empty search metadata stack")?;
+    Ok(stack)
+}
+
 #[derive(Deserialize)]
 struct Row {
     visibility: Visibility,
@@ -148,10 +182,25 @@ fn enabled(required: Option<&Vec<String>>, features: &[String]) -> bool {
     required.is_none_or(|required| required.iter().all(|flag| features.contains(flag)))
 }
 
+/// Shared item feature-flag table extracted from [`Catalog`] so servers can check
+/// `ItemStack.isItemEnabled` without holding the client's creative screen.
+#[derive(Clone, Default)]
+pub struct ItemFeatureRequirements(Arc<HashMap<String, Vec<String>>>);
+
+impl ItemFeatureRequirements {
+    pub fn item_enabled(&self, stack: &ItemStack, features: &[String]) -> bool {
+        enabled(self.0.get(&*stack.item), features)
+    }
+}
+
 impl Catalog {
     /// `ItemStack.isItemEnabled`: the item's required feature flags from the prepared registry.
     pub fn item_enabled(&self, stack: &ItemStack, features: &[String]) -> bool {
         enabled(self.item_features.get(&*stack.item), features)
+    }
+
+    pub fn item_features(&self) -> ItemFeatureRequirements {
+        ItemFeatureRequirements(Arc::new(self.item_features.clone()))
     }
 
     pub fn parse(json: &serde_json::Value) -> Result<Self, String> {

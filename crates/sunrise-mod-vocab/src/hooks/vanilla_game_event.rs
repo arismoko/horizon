@@ -10,9 +10,8 @@ pub trait Hooks {
     /// block a player broke or placed, the block a mob stepped on; None where
     /// vanilla passes none (`Context.of(entity)`).
     /// Canceling keeps the sculk sensors, wardens and allays from hearing it.
-    /// A dispenser fluid transfer with no open transaction in its level publishes before
-    /// overflow insertion or preparation. With a caller-owned transaction in that level,
-    /// publication waits for the outermost commit. Server-side.
+    /// A stock dispenser publishes fluid pickup before routing the remainder.
+    /// Inside a transaction, including `fluid_util::dispense_container`, publication waits for the outermost commit. Server-side.
     #[hook(
         dispatch = "flat",
         side = "server",

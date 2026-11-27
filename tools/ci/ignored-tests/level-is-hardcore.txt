@@ -1,2 +1,2 @@
 # LevelRef::is_hardcore, LevelData.isHardcore (#5021).
-sunrise-client game::remote::tests::client_vanilla_reads_tests::a_client_reads_hardcore_from_the_login_for_the_level_it_is_in lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::a_client_reads_hardcore_from_the_login_for_the_level_it_is_in lib daily resources

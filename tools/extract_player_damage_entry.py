@@ -3,7 +3,7 @@
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-path = root / "crates/sunrise-client/src/game.rs"
+path = root / "crates/sunrise-gameplay-common/src/game.rs"
 text = path.read_text()
 start = text.index("    /// Run equipment continuations with the acting player")
 end = text.index("    /// `Player.hurtArmor`", start)

@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A furnace finished smelting `item` into `result` at `pos`. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_furnace_smelt",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_furnace_smelt",
         dispatch = "flat",
         side = "server",
         contract = "listen",

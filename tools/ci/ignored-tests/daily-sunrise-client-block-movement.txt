@@ -1,3 +1,3 @@
-sunrise-client game::native_block_tables_tests::client_block_state_collision_classifies_fixed_contextual_and_positional lib daily resources
-sunrise-client game::native_block_tables_tests::client_block_state_path_type_matches_vanilla lib daily resources
-sunrise-client game::native_block_tables_tests::client_block_state_speed_jump_and_landing_match_vanilla lib daily resources
+sunrise-client-gameplay game::client_side::native_block_tables_tests::client_block_state_collision_classifies_fixed_contextual_and_positional lib daily resources
+sunrise-client-gameplay game::client_side::native_block_tables_tests::client_block_state_path_type_matches_vanilla lib daily resources
+sunrise-client-gameplay game::client_side::native_block_tables_tests::client_block_state_speed_jump_and_landing_match_vanilla lib daily resources

@@ -11,7 +11,7 @@ pub trait Hooks {
         context = "loop",
         cancellable = false,
         version = 3,
-        target = "sunrise_client_lib::motion::native_living_jump_power",
+        target = "sunrise_sim::motion::native_living_jump_power",
         neoforge = "none (vanilla LivingEntity.getJumpPower; not LivingEvent.LivingJumpEvent)"
     )]
     fn living_jump_power(entity: u32, kind: &str, living: &LivingView<'_>, power: &mut f32);
@@ -22,7 +22,7 @@ pub trait Hooks {
         context = "loop",
         cancellable = false,
         version = 3,
-        target = "sunrise_client_lib::motion::native_living_speed",
+        target = "sunrise_sim::motion::native_living_speed",
         neoforge = "none (vanilla LivingEntity.getSpeed; NeoForge adds no event or extension for it)"
     )]
     fn living_speed(entity: u32, kind: &str, living: &LivingView<'_>, speed: &mut f32);
@@ -33,7 +33,7 @@ pub trait Hooks {
         context = "loop",
         cancellable = false,
         version = 3,
-        target = "sunrise_client_lib::motion::native_living_flying_speed",
+        target = "sunrise_sim::motion::native_living_flying_speed",
         neoforge = "none (vanilla LivingEntity.getFlyingSpeed; NeoForge adds no event or extension for it)"
     )]
     fn living_flying_speed(entity: u32, kind: &str, living: &LivingView<'_>, speed: &mut f32);

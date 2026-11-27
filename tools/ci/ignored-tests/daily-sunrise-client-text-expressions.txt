@@ -1,3 +1,3 @@
 # The daily tests of sunrise-client: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
 # where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
-sunrise-client game::text_expression_tests::a_packs_text_draws_its_expression_uniforms lib daily child-process
+sunrise-client-gameplay game::client_side::text_expression_tests::a_packs_text_draws_its_expression_uniforms lib daily child-process

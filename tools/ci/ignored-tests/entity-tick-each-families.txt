@@ -1,6 +1,6 @@
 # Entity tick hooks for players, displays and client projectiles need resources.
-sunrise-client game::lan_actions::player_entity_tick_tests::a_canceled_player_skips_its_server_player_tick_while_the_others_run_it lib daily resources
-sunrise-client game::lan_actions::player_entity_tick_tests::a_player_riding_a_pig_is_told_its_own_tick_as_the_pig_is lib daily resources
-sunrise-client game::ordered_tick::tests::displays_are_bracketed_one_by_one_in_join_order lib daily resources
-sunrise-client game::remote::tests::named_remote_players_are_told_one_by_one lib daily resources
-sunrise-client game::remote_projectiles::entity_tick_tests::named_remote_arrows_are_told_one_by_one lib daily resources
+sunrise-gameplay game::lan_actions::player_entity_tick_tests::a_canceled_player_skips_its_server_player_tick_while_the_others_run_it lib daily resources
+sunrise-gameplay game::lan_actions::player_entity_tick_tests::a_player_riding_a_pig_is_told_its_own_tick_as_the_pig_is lib daily resources
+sunrise-client cut_layout::game::server_side::ordered_tick::tests::displays_are_bracketed_one_by_one_in_join_order lib daily resources
+sunrise-client cut_layout::game::remote::tests::named_remote_players_are_told_one_by_one lib daily resources
+sunrise-client cut_layout::game::client_side::remote_projectiles::entity_tick_tests::named_remote_arrows_are_told_one_by_one lib daily resources

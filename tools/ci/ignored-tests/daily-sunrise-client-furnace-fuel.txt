@@ -1,4 +1,4 @@
 # The furnace tick and side hopper use the prepared vanilla resources.
-sunrise-client game::block_entity_ticks::furnace_changed_tests::a_nonpositive_fuel_does_not_mark_or_notify_before_a_real_ignition lib daily resources
-sunrise-client game::block_entity_ticks::furnace_changed_tests::a_world_pack_supplies_and_replaces_furnace_providers lib daily resources
-sunrise-client game::machines::furnace_fuel_transfer_tests::a_side_hopper_respects_the_furnace_fuel_patch_and_bucket_rule lib daily resources
+sunrise-client cut_layout::game::server_side::block_entity_ticks::furnace_changed_tests::a_nonpositive_fuel_does_not_mark_or_notify_before_a_real_ignition lib daily resources
+sunrise-client cut_layout::game::server_side::block_entity_ticks::furnace_changed_tests::a_world_pack_supplies_and_replaces_furnace_providers lib daily resources
+sunrise-client cut_layout::game::server_side::machines::furnace_fuel_transfer_tests::a_side_hopper_respects_the_furnace_fuel_patch_and_bucket_rule lib daily resources

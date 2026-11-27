@@ -1,4 +1,4 @@
-sunrise-client game::remote::tests::container_drop_tests::canceled_creative_drop_keeps_throttle_budget_for_next_take lib daily child-process
-sunrise-client game::remote::tests::container_drop_tests::creative_drop_guards_charge_only_sent_drops lib daily child-process
-sunrise-client game::remote::tests::container_drop_tests::creative_screen_throws_wait_for_loaded_player_tick lib daily child-process
-sunrise-client game::remote::tests::container_drop_tests::playing_menu_throw_uses_only_container_click_and_server_drops_once lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::tests::container_drop_tests::canceled_creative_drop_keeps_throttle_budget_for_next_take lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::tests::container_drop_tests::creative_drop_guards_charge_only_sent_drops lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::tests::container_drop_tests::creative_screen_throws_wait_for_loaded_player_tick lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::tests::container_drop_tests::playing_menu_throw_uses_only_container_click_and_server_drops_once lib daily child-process

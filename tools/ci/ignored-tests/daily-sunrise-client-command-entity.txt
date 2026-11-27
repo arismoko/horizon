@@ -1,4 +1,4 @@
 # The entity and rotation a native command executes as (CommandInvocation::entity, rotation, player(), #4631): mods registered per process.
-sunrise-client game::native_command_entity_tests::blocks_carts_and_functions_keep_their_entity lib daily child-process
-sunrise-client game::native_command_entity_tests::execute_as_at_rotated_and_facing_set_the_entity_and_rotation lib daily child-process
-sunrise-client game::native_command_entity_tests::execute_on_origin_reaches_a_fake_players_projectile lib daily child-process
+sunrise-gameplay game::server_side::native_command_entity_tests::blocks_carts_and_functions_keep_their_entity lib daily child-process
+sunrise-gameplay game::server_side::native_command_entity_tests::execute_as_at_rotated_and_facing_set_the_entity_and_rotation lib daily child-process
+sunrise-gameplay game::server_side::native_command_entity_tests::execute_on_origin_reaches_a_fake_players_projectile lib daily child-process

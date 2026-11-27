@@ -1,4 +1,4 @@
-sunrise-client game::entity_sizes::tests::a_resized_falling_anvil_hits_what_its_answer_covers lib daily child-process
-sunrise-client game::entity_sizes::tests::a_server_calf_asks_when_it_grows_up lib daily child-process
-sunrise-client game::entity_sizes::tests::server_entities_ask_and_their_boxes_take_the_answer lib daily child-process
-sunrise-client game::entity_sizes::tests::without_a_listener_the_server_asks_nothing lib daily child-process
+sunrise-gameplay game::server_side::entity_sizes::tests::a_resized_falling_anvil_hits_what_its_answer_covers lib daily child-process
+sunrise-gameplay game::server_side::entity_sizes::tests::a_server_calf_asks_when_it_grows_up lib daily child-process
+sunrise-gameplay game::server_side::entity_sizes::tests::server_entities_ask_and_their_boxes_take_the_answer lib daily child-process
+sunrise-gameplay game::server_side::entity_sizes::tests::without_a_listener_the_server_asks_nothing lib daily child-process

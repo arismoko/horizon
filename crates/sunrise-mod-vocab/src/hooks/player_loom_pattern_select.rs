@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player selected a loom pattern, after the loom menu accepted the button. `pattern` is
     /// the zero-based button index. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_loom_pattern_select",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_loom_pattern_select",
         dispatch = "flat",
         side = "server",
         contract = "listen",

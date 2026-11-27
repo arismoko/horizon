@@ -239,7 +239,7 @@ def main():
     resources = lab.RESOURCES
     oracle = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaTradingOracle.java'
     sources = [oracle, Path(__file__), lab.ROOT / 'crates/sunrise-client/examples/probe/trading_fixture.rs',
-               lab.ROOT / 'crates/sunrise-client/src/merchant.rs', lab.ROOT / 'crates/sunrise-client/src/menu.rs']
+               lab.ROOT / 'crates/sunrise-sim/src/merchant.rs', lab.ROOT / 'crates/sunrise-sim/src/menu.rs']
     tested = base.source_hashes([s for s in sources if s.exists()])
     inputs = build / 'inputs.txt'
     cases = corpus(wanted(resources))

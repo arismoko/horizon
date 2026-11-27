@@ -7,7 +7,7 @@ pub trait Hooks {
     /// Same receiving screens as `screen_mouse_button_pressed_pre`, including
     /// dialogs, confirmation prompts, books, lecterns and sign editors.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_screen_mouse_dragged_pre",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_screen_mouse_dragged_pre",
         receiver = "read",
         dispatch = "flat",
         side = "client",

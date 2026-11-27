@@ -11,7 +11,7 @@ The trend page is `index.html` on the [`perf-history`](https://github.com/sunris
 ## What is measured
 
 Each workload is fixed and seeded, built by the benchmark itself on a server `Game`
-(`crates/sunrise-client/src/game/runtime/hot_paths/`), in the release profile players get (ThinLTO). Every number
+(`crates/sunrise-gameplay/src/game/runtime/hot_paths/`), in the release profile players get (ThinLTO). Every number
 is divided by the workload's operations.
 
 | Workload | What runs | One operation |
@@ -83,7 +83,7 @@ python3 tools/hot_paths.py record hot-paths.json history && python3 tools/hot_pa
 
 ## Add a workload
 
-Add it to a file under `hot_paths/`, or a new one called from `Game::hot_paths`: build the level with
+Add it to a file under `hot_paths/`, or a new one called from `ServerGame::hot_paths`: build the level with
 `hot_level`, do the setup, then wrap the measured work in `recorder.measure(name, operations, || ...)` and return
 from the closure something that shows the work was done (it becomes the checksum). Keep setup out of the closure,
 keep it single-threaded and seeded, and check that the work really happened: the tick workloads fail when their

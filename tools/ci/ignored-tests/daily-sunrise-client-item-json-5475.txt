@@ -1,2 +1,2 @@
-sunrise-client game::native_give_stack_tests::item_json_roundtrips_plain_component_and_empty_stacks lib daily child-process # also needs prepared resources
-sunrise-client game::native_give_stack_tests::item_json_decode_errors_name_the_failing_field lib daily child-process # also needs prepared resources
+sunrise-client cut_layout::game::native_give_stack_tests::item_json_roundtrips_plain_component_and_empty_stacks lib daily child-process # also needs prepared resources
+sunrise-client cut_layout::game::native_give_stack_tests::item_json_decode_errors_name_the_failing_field lib daily child-process # also needs prepared resources

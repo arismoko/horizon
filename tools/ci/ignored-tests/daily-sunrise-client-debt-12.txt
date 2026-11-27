@@ -1,1 +1,1 @@
-sunrise-client game::native_item_places::tests::reading_and_writing_vehicle_slots_unpack_pending_loot lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::reading_and_writing_vehicle_slots_unpack_pending_loot lib daily resources

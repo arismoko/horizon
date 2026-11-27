@@ -1,2 +1,2 @@
 # An idle level settles abandoned transactions before leaving memory.
-sunrise-client game::runtime_levels_tests::an_idle_level_aborts_an_abandoned_chunk_unload_transaction_before_it_closes lib daily child-process
+sunrise-client cut_layout::game::server_side::runtime_levels_tests::an_idle_level_aborts_an_abandoned_chunk_unload_transaction_before_it_closes lib daily child-process

@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player filled an empty map, after the filled map and its saved data were created.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_map_filled",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_map_filled",
         dispatch = "flat",
         side = "server",
         contract = "listen",

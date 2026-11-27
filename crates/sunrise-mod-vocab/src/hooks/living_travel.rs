@@ -62,7 +62,7 @@ pub trait Hooks {
         cancellable = true,
         version = 5,
         neoforge = "none (fork addition, #2308)",
-        target = "sunrise_client_lib::travel_gate::native_living_travel"
+        target = "sunrise_sim::travel_gate::native_living_travel"
     )]
     fn living_travel(
         entity: u32,

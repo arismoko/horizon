@@ -1,1 +1,1 @@
-sunrise-client game::enchant_power_beam_tests::mods_add_scanned_offsets_and_decide_which_shelves_count lib daily child-process
+sunrise-client cut_layout::game::client_side::enchant_power_beam_tests::mods_add_scanned_offsets_and_decide_which_shelves_count lib daily child-process

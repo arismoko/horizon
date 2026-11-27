@@ -1,2 +1,2 @@
 # Daily tests of the piglin AI step the game ticks (#4824): each needs the prepared mob resources.
-sunrise-client game::piglin_conversion_tests::a_piglin_converting_as_its_admiring_ends_drops_its_stash_and_is_replaced_before_travel lib daily resources
+sunrise-client cut_layout::game::server_side::piglin_conversion_tests::a_piglin_converting_as_its_admiring_ends_drops_its_stash_and_is_replaced_before_travel lib daily resources

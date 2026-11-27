@@ -1,2 +1,2 @@
 # ItemsHost::entity_type_dimensions (#6127).
-sunrise-client game::native_item_places::tests::entity_type_dimensions_read_the_registered_size_without_spawning lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::entity_type_dimensions_read_the_registered_size_without_spawning lib daily resources

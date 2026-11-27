@@ -1,2 +1,2 @@
 # Loading mob types publishes the sulfur-cube item table, isolated to a child process.
-sunrise-client-lib mobs::entity_sounds::tests::entity_sounds_declared_interval_replaces_the_templates_at_load lib daily child-process
+sunrise-client-lib mobs_render::entity_sounds::tests::entity_sounds_declared_interval_replaces_the_templates_at_load lib daily child-process

@@ -1,2 +1,2 @@
-sunrise-client game::server_lifecycle::tests::a_world_save_start_panic_discards_only_its_listeners_journal lib daily child-process
-sunrise-client game::server_lifecycle::tests::world_save_start_rejects_nested_save_all_command lib daily child-process
+sunrise-client cut_layout::game::server_side::server_lifecycle::tests::a_world_save_start_panic_discards_only_its_listeners_journal lib daily child-process
+sunrise-client cut_layout::game::server_side::server_lifecycle::tests::world_save_start_rejects_nested_save_all_command lib daily child-process

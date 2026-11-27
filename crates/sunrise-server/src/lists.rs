@@ -254,7 +254,7 @@ fn add_offline(dir: &Path, name: &str) -> Result<(), String> {
 /// The profile a running server would store for `name`: the offline one, or in online mode the account the
 /// services know by that name.
 pub fn account(name: &str, online: bool) -> Result<NameAndId, String> {
-    sunrise_platform::server_files::profiles::resolve(name, online).ok_or_else(|| {
+    sunrise_platform::server_profiles_http::resolve(name, online).ok_or_else(|| {
         if online {
             format!("That player does not exist (no Minecraft account is named {name}, or the services didn't answer)")
         } else {

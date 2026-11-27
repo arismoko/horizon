@@ -1,8 +1,8 @@
 # Vanilla reads for mods (#4677), each on a game built from the prepared resources.
-sunrise-client game::item_use::tests::a_stacks_use_animation_carries_the_mods_answer_on_both_sides lib daily resources
-sunrise-client game::item_use::tests::a_use_animation_read_inside_the_part_is_not_asked_again lib daily resources
-sunrise-client game::options::resize_state_tests::window_size_reads_the_size_window_resize_reports lib daily resources
-sunrise-client game::remote::tests::client_vanilla_reads_tests::a_client_counts_its_copies_ticks_and_a_respawned_player_starts_at_zero lib daily resources
-sunrise-client game::remote::tests::client_vanilla_reads_tests::has_channel_follows_what_the_server_negotiated lib daily resources
-sunrise-client game::remote::tests::client_vanilla_reads_tests::the_client_count_follows_the_entity_tick_not_the_motion lib daily resources
-sunrise-client game::remote::tests::client_vanilla_reads_tests::the_contextual_bar_facts_read_the_jumpable_mount_and_the_tracked_waypoints lib daily resources
+sunrise-client cut_layout::game::server_side::item_use::tests::a_stacks_use_animation_carries_the_mods_answer_on_both_sides lib daily resources
+sunrise-client cut_layout::game::server_side::item_use::tests::a_use_animation_read_inside_the_part_is_not_asked_again lib daily resources
+sunrise-client cut_layout::game::client_side::options::resize_state_tests::window_size_reads_the_size_window_resize_reports lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::a_client_counts_its_copies_ticks_and_a_respawned_player_starts_at_zero lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::has_channel_follows_what_the_server_negotiated lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::the_client_count_follows_the_entity_tick_not_the_motion lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::the_contextual_bar_facts_read_the_jumpable_mount_and_the_tracked_waypoints lib daily resources

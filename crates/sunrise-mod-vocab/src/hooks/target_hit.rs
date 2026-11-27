@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A projectile hit the target block at `pos`, which now has `strength`
     /// output power. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_target_hit",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_target_hit",
         dispatch = "flat",
         side = "server",
         contract = "listen",

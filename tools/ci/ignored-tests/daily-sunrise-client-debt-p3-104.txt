@@ -1,1 +1,1 @@
-sunrise-client game::native_give_stack_tests::item_from_snbt_keeps_custom_data_larger_than_the_binary_quota lib daily child-process # also needs prepared resources
+sunrise-client cut_layout::game::native_give_stack_tests::item_from_snbt_keeps_custom_data_larger_than_the_binary_quota lib daily child-process # also needs prepared resources

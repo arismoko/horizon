@@ -1,1 +1,1 @@
-sunrise-client-lib mobs::equine_graze_tests::a_grazing_horse_clears_eating_haystack_after_51_ticks_while_a_llama_keeps_it lib daily resources
+sunrise-sim mobs::equine_graze_tests::a_grazing_horse_clears_eating_haystack_after_51_ticks_while_a_llama_keeps_it lib daily resources

@@ -1,4 +1,4 @@
-sunrise-client game::mod_menu_decisions_tests::a_quick_move_cannot_reach_a_player_slot_omitted_from_the_menu lib daily resources
-sunrise-client game::native_hooks::screen_position_tests::slotless_screen_draw_sees_full_width_updates_only_for_its_window lib daily resources
-sunrise-client game::native_menu_refs::tests::number_key_swaps_predict_with_the_undisplayed_hotbar lib daily resources
-sunrise-client game::native_menus::tests::blockless_menu_data_is_committed_to_only_its_live_generation lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::a_quick_move_cannot_reach_a_player_slot_omitted_from_the_menu lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::screen_position_tests::slotless_screen_draw_sees_full_width_updates_only_for_its_window lib daily resources
+sunrise-client-gameplay game::client_side::native_menu_refs::tests::number_key_swaps_predict_with_the_undisplayed_hotbar lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::blockless_menu_data_is_committed_to_only_its_live_generation lib daily resources

@@ -1,4 +1,4 @@
 # Built-in c: convention tags two-mod interoperability, 26.3 integrity, and NeoForge parity tests.
-sunrise-client game::native_tags::native_convention_tags_tests::all_builtin_convention_tags_bind_cleanly_against_26_3 lib daily resources
-sunrise-client game::native_tags::native_convention_tags_tests::two_mods_interoperate_through_c_convention_tags_and_all_ten_registries lib daily resources
+sunrise-gameplay game::server_side::native_convention_tags_tests::all_builtin_convention_tags_bind_cleanly_against_26_3 lib daily resources
+sunrise-gameplay game::server_side::native_convention_tags_tests::two_mods_interoperate_through_c_convention_tags_and_all_ten_registries lib daily resources
 sunrise-world tag_layers::convention::tests::convention_tags_match_neoforge_26_3_generated_data lib daily network

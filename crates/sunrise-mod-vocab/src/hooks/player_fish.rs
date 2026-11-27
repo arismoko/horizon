@@ -15,7 +15,7 @@ pub trait Hooks {
     /// and the item helpers reach them. Once for each cast, bite and reel-in,
     /// on a server.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_fish",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_fish",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

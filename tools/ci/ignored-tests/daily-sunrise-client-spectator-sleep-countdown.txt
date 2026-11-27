@@ -1,1 +1,1 @@
-sunrise-client game::lan_actions::tick::spectator_body_tick_tests::leftover_sleep_countdown_waits_at_the_unloaded_edge_then_resumes lib daily resources
+sunrise-client cut_layout::game::server_side::lan_actions_server::tick::spectator_body_tick_tests::leftover_sleep_countdown_waits_at_the_unloaded_edge_then_resumes lib daily resources

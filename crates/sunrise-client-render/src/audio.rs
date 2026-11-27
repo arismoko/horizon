@@ -467,23 +467,7 @@ fn attach(mixer: &Mutex<Mixer>, channel: ChannelId, samples: Samples, looping: b
 type Stream = cpal::Stream;
 #[cfg(not(feature = "audio"))]
 type Stream = std::convert::Infallible;
-/// A level sound retained for the network broadcaster, in playback order.
-#[derive(Clone, Debug)]
-pub struct CapturedSound {
-    pub event: String,
-    pub position: [f64; 3],
-    pub volume: f32,
-    pub pitch: f32,
-    pub source: usize,
-    pub entity: Option<u32>,
-    pub except_entity: Option<u32>,
-    /// The seed the sound's instance takes (`SoundInstance`'s random).
-    pub seed: i64,
-    /// How many particle requests this thread's particle captures had taken when this sound
-    /// was captured (`particles::requested_count`): a test reads the two captures as one
-    /// ordered stream.
-    pub particles_before: u64,
-}
+pub use sunrise_level::audio_capture::CapturedSound;
 
 pub struct Audio {
     _stream: Option<Stream>,

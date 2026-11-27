@@ -1,1 +1,1 @@
-sunrise-client game::persist::tests::refused_entity_unload::an_unload_keeps_a_column_whose_entity_record_was_refused lib daily resources
+sunrise-client cut_layout::game::server_side::persist::tests::refused_entity_unload::an_unload_keeps_a_column_whose_entity_record_was_refused lib daily resources

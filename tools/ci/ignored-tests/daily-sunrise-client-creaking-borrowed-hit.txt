@@ -1,1 +1,1 @@
-sunrise-client game::commands::world_cmds::registered_damage_tests::creaking_borrowed::borrowed_creaking_hurt_finishes_before_the_tick_continues lib daily child-process # prepared resources; each case primes tables in a fresh process
+sunrise-client cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::creaking_borrowed::borrowed_creaking_hurt_finishes_before_the_tick_continues lib daily child-process # prepared resources; each case primes tables in a fresh process

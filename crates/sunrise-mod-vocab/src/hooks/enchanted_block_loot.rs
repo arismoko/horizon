@@ -11,7 +11,7 @@ pub trait Hooks {
         contract = "listen",
         neoforge = "EnchantedBlockLootEvent",
         cancellable = false,
-        target = "sunrise_client::game::native_hooks::enchanted_block_loot::GameLevel<'_>::native_enchanted_block_loot"
+        target = "sunrise_gameplay_common::game::native_hooks::enchanted_block_loot::GameLevel<'_>::native_enchanted_block_loot"
     )]
     fn enchanted_block_loot(
         dimension: LevelDimension,

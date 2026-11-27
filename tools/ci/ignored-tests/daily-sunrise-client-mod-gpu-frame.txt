@@ -1,1 +1,1 @@
-sunrise-client game::native_custom_geometry::tests::mod_gpu_handles_work_while_the_renderer_is_out_of_the_game lib daily gpu
+sunrise-client-gameplay game::client_side::native_custom_geometry::tests::mod_gpu_handles_work_while_the_renderer_is_out_of_the_game lib daily gpu

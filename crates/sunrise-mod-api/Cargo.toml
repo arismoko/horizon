@@ -29,6 +29,7 @@ sunrise-mod-vocab = { path = "../sunrise-mod-vocab", features = ["testing"] }
 [features]
 # Scoped mod installation for other crates' tests (`mod_api::testing`).
 testing = ["sunrise-mod-vocab/testing"]
+engine-test-platform = ["testing"]
 # Test-only mixed hook, absent from normal API and wire layouts.
 
 [lints]

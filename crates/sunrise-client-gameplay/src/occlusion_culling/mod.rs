@@ -15,7 +15,7 @@ use sunrise_client::{
     gfx::Renderer,
     mesher::Vertex,
     spans,
-    streaming::{MeshUpload, Streaming},
+    streaming::{MeshStreamer, MeshUpload},
     voxel_occlusion::Culler as OcclusionCuller,
     world::World,
 };
@@ -195,7 +195,7 @@ impl FrameProofValidationCache {
         stamp: SnapshotKey,
         world: &World,
         renderer: Option<&Renderer>,
-        streaming: &Streaming,
+        streaming: &MeshStreamer,
         pending_uploads: &[MeshUpload],
         counts: &mut ProofValidationCounts,
     ) {
@@ -302,7 +302,7 @@ impl FrameProofValidationCache {
         key: SectionKey,
         world: &World,
         renderer: Option<&Renderer>,
-        streaming: &Streaming,
+        streaming: &MeshStreamer,
         pending_uploads: &[MeshUpload],
         counts: &mut ProofValidationCounts,
     ) -> bool {
@@ -1164,7 +1164,7 @@ impl AsyncOcclusionCuller {
         &self,
         world: &World,
         renderer: Option<&Renderer>,
-        streaming: &Streaming,
+        streaming: &MeshStreamer,
         pending_uploads: &[MeshUpload],
         proof: &OcclusionProof,
     ) -> bool {
@@ -1909,7 +1909,7 @@ fn proof_is_current(
     stamp: SnapshotKey,
     world: &World,
     renderer: Option<&Renderer>,
-    streaming: &Streaming,
+    streaming: &MeshStreamer,
     pending_uploads: &[MeshUpload],
     proof: &OcclusionProof,
     cache: &mut FrameProofValidationCache,
@@ -1964,7 +1964,7 @@ pub struct SyncOccluder<'a> {
     world: &'a World,
     facts: &'a BlockFacts,
     renderer: Option<&'a Renderer>,
-    streaming: &'a Streaming,
+    streaming: &'a MeshStreamer,
     pending_uploads: &'a [MeshUpload],
     bottom_y: i32,
     chunk_slots: [Option<(ChunkKey, Option<&'a Chunk>)>; 4],
@@ -1976,7 +1976,7 @@ impl<'a> SyncOccluder<'a> {
         world: &'a World,
         facts: &'a BlockFacts,
         renderer: Option<&'a Renderer>,
-        streaming: &'a Streaming,
+        streaming: &'a MeshStreamer,
         pending_uploads: &'a [MeshUpload],
     ) -> Self {
         Self {

@@ -1,2 +1,2 @@
-sunrise-client game::item_use::tests::default_first_person_arm_obeys_its_own_sleeve_option lib daily resources
-sunrise-client game::item_use::tests::render_hand_submits_both_skinned_arms_in_draw_order lib daily resources
+sunrise-client cut_layout::game::client_side::item_use_client::tests::default_first_person_arm_obeys_its_own_sleeve_option lib daily resources
+sunrise-client cut_layout::game::client_side::item_use_client::tests::render_hand_submits_both_skinned_arms_in_draw_order lib daily resources

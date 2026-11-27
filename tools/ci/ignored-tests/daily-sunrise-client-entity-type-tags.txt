@@ -1,4 +1,4 @@
-sunrise-client game::functions::tests::mob_entity_membership_follows_world_pack_reload lib daily resources
-sunrise-client game::mounts::off_level_tests::underwater_dismount_uses_the_levels_current_mount_tag lib daily resources
-sunrise-client game::remote::tables::tests::default_and_patched_equippables_follow_the_servers_entity_tags lib daily resources
-sunrise-client-lib mobs::animal_brain::axolotl_parity_tests::axolotl_senses_content_prey_tagged_by_registry_id lib daily resources
+sunrise-client cut_layout::game::server_side::functions::tests::mob_entity_membership_follows_world_pack_reload lib daily resources
+sunrise-client cut_layout::game::server_side::mounts::off_level_tests::underwater_dismount_uses_the_levels_current_mount_tag lib daily resources
+sunrise-client cut_layout::game::remote::tables::tests::default_and_patched_equippables_follow_the_servers_entity_tags lib daily resources
+sunrise-sim mobs::animal_brain::axolotl_parity_tests::axolotl_senses_content_prey_tagged_by_registry_id lib daily resources

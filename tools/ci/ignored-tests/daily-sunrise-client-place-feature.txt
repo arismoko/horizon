@@ -1,7 +1,6 @@
 # A feature placed by a native mod (LevelRef::place_feature).
-sunrise-client game::native_place_feature_tests::a_tree_is_placed_as_the_command_places_it lib daily resources
-sunrise-client game::native_place_feature_tests::a_feature_with_no_room_places_nothing lib daily resources
-sunrise-client game::native_place_feature_tests::an_unknown_feature_is_refused_by_name lib daily resources
-sunrise-client game::native_place_feature_tests::unloaded_chunks_are_refused_by_name lib daily resources
-sunrise-client game::native_place_feature_tests::stale_and_other_levels_are_refused_by_name lib daily resources
-sunrise-client game::native_place_feature_tests::a_client_cannot_place_features lib daily resources
+sunrise-client cut_layout::game::native_place_feature_tests::a_tree_is_placed_as_the_command_places_it lib daily resources
+sunrise-client cut_layout::game::native_place_feature_tests::a_feature_with_no_room_places_nothing lib daily resources
+sunrise-client cut_layout::game::native_place_feature_tests::an_unknown_feature_is_refused_by_name lib daily resources
+sunrise-client cut_layout::game::native_place_feature_tests::unloaded_chunks_are_refused_by_name lib daily resources
+sunrise-client cut_layout::game::native_place_feature_tests::stale_and_other_levels_are_refused_by_name lib daily resources

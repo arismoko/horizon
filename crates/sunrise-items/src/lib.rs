@@ -34,4 +34,4 @@ pub mod random_sequences;
 pub mod recipe_filters;
 pub mod recipe_sources;
 pub mod use_animation;
-pub use sunrise_client_core::Result;
+pub use sunrise_game_data::Result;

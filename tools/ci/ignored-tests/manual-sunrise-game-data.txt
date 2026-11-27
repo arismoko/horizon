@@ -1,0 +1,2 @@
+# sunrise-game-data's ignored tests that never run in the daily shards, and who runs them (README.md: `manual`).
+sunrise-game-data lang::tests::every_lang_file_of_a_pack_reads by-hand manual # needs a downloaded pack in SUNRISE_LANG_PACK_DIR

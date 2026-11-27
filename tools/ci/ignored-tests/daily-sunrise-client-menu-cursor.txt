@@ -1,1 +1,1 @@
-sunrise-client game::native_menus::tests::cursor_overflow_listeners_see_and_write_only_the_openers_inventory lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::cursor_overflow_listeners_see_and_write_only_the_openers_inventory lib daily resources

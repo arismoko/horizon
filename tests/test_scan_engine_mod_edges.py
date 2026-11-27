@@ -143,6 +143,47 @@ class ScanTest(unittest.TestCase):
         self.assertIn("sunrise-mod-api", tables)
         self.assertEqual("hand-written\n", page.read_text())
 
+    def test_split_gameplay_crates_are_inventoried_in_move_set(self):
+        split_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(split_dir.cleanup)
+        root = Path(split_dir.name).resolve()
+        files = {
+            "crates/sunrise-gameplay-common/Cargo.toml": "[package]\nname = \"sunrise-gameplay-common\"\n\n[dependencies]\nsunrise-mod-api = { path = \"x\" }\n",
+            "crates/sunrise-gameplay-common/src/lib.rs": "pub mod game;\n",
+            "crates/sunrise-gameplay-common/src/game.rs": "pub struct CommonGame<'a> { level: u8, items: &'a [u8] }\nimpl CommonGame<'_> { fn private_helper(&self) {} }\n",
+            "crates/sunrise-gameplay/Cargo.toml": "[package]\nname = \"sunrise-gameplay\"\n\n[dependencies]\nsunrise-mod-api = { path = \"x\" }\n",
+            "crates/sunrise-gameplay/src/lib.rs": "pub mod game;\n",
+            "crates/sunrise-gameplay/src/game/modding/drops.rs": (
+                "impl crate::game::ServerGame<'_> {\n"
+                "    pub(in crate::game) fn native_drops(&mut self) {\n"
+                "        self.private_helper();\n"
+                "        mod_api::__private::install(Default::default());\n"
+                "    }\n"
+                "}\n"
+            ),
+            "crates/sunrise-mod-api/Cargo.toml": "[package]\nname = \"sunrise-mod-api\"\n",
+            "crates/sunrise-mod-api/src/lib.rs": "pub struct Flow;\n",
+            "tools/layers.json": json.dumps({"crates": {
+                "sunrise-gameplay-common": "engine",
+                "sunrise-gameplay": "engine",
+                "sunrise-mod-api": "platform",
+            }, "allowed": []}),
+        }
+        for path, text in files.items():
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_text(text)
+        packages = [
+            package("sunrise-gameplay-common", root / "crates/sunrise-gameplay-common", [("sunrise-mod-api", None)]),
+            package("sunrise-gameplay", root / "crates/sunrise-gameplay", [("sunrise-mod-api", None)]),
+            package("sunrise-mod-api", root / "crates/sunrise-mod-api", [], "mod_api"),
+        ]
+        with mock.patch.object(scan, "ROOT", root), mock.patch.object(scan, "metadata", lambda: packages), \
+                mock.patch.object(scan, "git_head", lambda: "0" * 40):
+            res = scan.scan()
+        drops = res["move_set"]["crates/sunrise-gameplay/src/game/modding/drops.rs"]
+        self.assertEqual((1, "loading"), (drops["inherent_impls"], drops["strand"]))
+        self.assertIn("fn:private_helper", drops["outbound"])
+
 
 class RustTextTest(unittest.TestCase):
     def test_use_trees_flatten_with_aliases_and_globs(self):

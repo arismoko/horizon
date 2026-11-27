@@ -32,16 +32,16 @@ priority = 10
 # A HEAD mixin on the loop's entry composes around the loop's copy.
 [[native.mixin]]
 id = "entry"
-target = "sunrise_client::game::block_entity_ticks::Game<'_>::tick_block_entities"
+target = "sunrise_gameplay::game::server_side::block_entity_ticks::ServerGame<'_>::tick_block_entities"
 kind = "HEAD"
 helper = "src/mixins/entry.rs"
-bindings = [{ name = "game", ty = "&mut Game<'_>", value = "&mut *self" }]
+bindings = [{ name = "game", ty = "&mut ServerGame<'_>", value = "&mut *self" }]
 
 # A call-site row inside the loop body, run for each chunk the loop reaches: the loop's generic
 # function is copied for the slots' type, and this row is applied to that copy.
 [[native.mixin]]
 id = "inside"
-target = "sunrise_client::game::block_entity_ticks::Game<'_>::tick_block_entities_with"
+target = "sunrise_gameplay::game::server_side::block_entity_ticks::ServerGame<'_>::tick_block_entities_with"
 kind = "MODIFY_EXPRESSION_VALUE"
 selector = "ticking(pos.0, pos.2)"
 require = 1

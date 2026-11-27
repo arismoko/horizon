@@ -3,7 +3,10 @@
 fn client_draw() {
     use std::sync::Arc;
     use sunrise_client::gfx::entity_skin::SkinFrame;
-    use sunrise_client::mobs::{Mob, MobData, MobTypes, Part, Polygon, render, skin};
+    use sunrise_client::mobs::{Mob, MobTypes, Part, Polygon, render, skin};
+    use sunrise_client::mobs_render::{
+        ClientMobData, ClientMobModels, ClientMobRender, ClientMobVisuals,
+    };
     use sunrise_core::geometry::Vec3;
 
     let root = std::path::PathBuf::from(std::env::var_os("SUNRISE_FNR_LOWER_DRAW").unwrap());
@@ -13,11 +16,13 @@ fn client_draw() {
         "entities": {},
     }))
     .unwrap();
-    let mut kind = MobTypes::load_for_server(&root, &attributes)
-        .unwrap()
-        .types
-        .remove("minecraft:wolf")
-        .unwrap();
+    let kind = Arc::new(
+        MobTypes::load_for_server(&root, &attributes)
+            .unwrap()
+            .types
+            .remove("minecraft:wolf")
+            .unwrap(),
+    );
     let names = ["body", "head", "left_arm", "right_arm", "right_leg"];
     let corners = [
         [0.0, 0.0, 0.0],
@@ -52,37 +57,46 @@ fn client_draw() {
         children,
         layer: Some("minecraft:wolf#main".into()),
     };
-    kind.model = Arc::new(model.clone());
-    let mut control = Mob::new(1, Arc::new(kind.clone()), Vec3::ZERO, 0.0);
+    let mut control_models = ClientMobModels::default();
+    control_models.insert(
+        "minecraft:wolf".into(),
+        ClientMobVisuals {
+            shadow: None,
+            model: Arc::new(model.clone()),
+            layers: Default::default(),
+            texture: String::new(),
+        },
+    );
+    let mut control = Mob::new(1, kind.clone(), Vec3::ZERO, 0.0);
     control.hurt_time = 4;
     control.extra.flag2 = true;
     model.layer = Some("minecraft:player#main".into());
-    kind.model = Arc::new(model);
-    let mut selected = Mob::new(1, Arc::new(kind), Vec3::ZERO, 0.0);
+    let mut selected_models = ClientMobModels::default();
+    selected_models.insert(
+        "minecraft:wolf".into(),
+        ClientMobVisuals {
+            shadow: None,
+            model: Arc::new(model),
+            layers: Default::default(),
+            texture: String::new(),
+        },
+    );
+    let mut selected = Mob::new(1, kind, Vec3::ZERO, 0.0);
     selected.hurt_time = control.hurt_time;
     selected.extra.flag2 = control.extra.flag2;
-    let data = MobData {
-        states: Vec::new(),
-        placements: Default::default(),
-        heightmaps: Default::default(),
-        animations: Default::default(),
-        biome_tags: Default::default(),
-        villager_hats: Default::default(),
-        frame_models: Default::default(),
-        cem: Default::default(),
-        random_textures: Default::default(),
-        emissive: Default::default(),
-        blinks: Default::default(),
-        pois: Default::default(),
-        species_placements: Default::default(),
-        resolved: Default::default(),
-        mod_spawns: Default::default(),
-        vanilla_spawn_placements: None,
+    let data = ClientMobData::default();
+    let control_render = ClientMobRender {
+        models: &control_models,
+        data: &data,
+    };
+    let selected_render = ClientMobRender {
+        models: &selected_models,
+        data: &data,
     };
     let uv = |_: &str| Some([0.125, 0.25, 0.75, 0.875]);
     let light = 0x70a0;
     let camera = glam::DVec3::ZERO;
-    let skinned = |mob: &Mob| {
+    let skinned = |mob: &Mob, render_data: &ClientMobRender<'_>| {
         let mut frame = SkinFrame::default();
         let mut models = skin::SkinModels::default();
         let mut vertices = Vec::new();
@@ -92,20 +106,20 @@ fn client_draw() {
             camera,
             &uv,
             light,
-            &data,
+            render_data,
             &mut render::FrameDraw::default(),
             &mut vertices,
             &mut skin::Skin::new(&mut models, &mut frame),
         );
         (vertices, frame.vertices)
     };
-    let (plain_cpu, plain_gpu) = skinned(&control);
+    let (plain_cpu, plain_gpu) = skinned(&control, &control_render);
     assert!(
         plain_cpu.is_empty(),
         "the unselected model should remain GPU-posed"
     );
     assert_eq!(plain_gpu, 20);
-    let (bent, bent_gpu) = skinned(&selected);
+    let (bent, bent_gpu) = skinned(&selected, &selected_render);
     assert_eq!(bent_gpu, 0, "the taken model must leave the GPU");
     assert_eq!(
         bent.len(),
@@ -120,7 +134,7 @@ fn client_draw() {
         camera,
         &uv,
         light,
-        &data,
+        &control_render,
         &[],
         &mut render::FrameDraw::default(),
         &mut plain,
@@ -150,7 +164,8 @@ fn client_draw() {
     }
     // In right-arm coordinates the shoulder is at the quad's origin and the elbow is
     // six pixels down. Predict both emitted segments from this hinge and the original quad.
-    let shoulder = render::part_transform(&selected, 0.5, camera, &data, "right_arm").unwrap();
+    let shoulder =
+        render::part_transform(&selected, 0.5, camera, &selected_render, "right_arm").unwrap();
     let half = glam::Mat4::from_scale(glam::Vec3::new(1.0, 0.5, 1.0));
     let elbow = shoulder * glam::Mat4::from_translation(glam::Vec3::Y * (6.0 / 16.0));
     for (segment, transform) in [

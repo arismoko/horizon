@@ -1,6 +1,6 @@
 version = 1
 doc = "`ScreensClientHost::screen_slot` and `set_screen_slot` take any menu slot, `0..(container_len + player_slots)`: the container slots, then the menu's player slots in menu order (the main inventory's rows, then the hotbar). A hidden player slot is no target (`Slot.isActive` false) and every slot comes back when the screen reopens; an index at or past the end answers `ScreenSlotRefusal::NoSuchSlot`."
 tests = [
-  "crates/sunrise-client/src/game/native_hooks/shared/book_screen/lifecycle_tests.rs::hidden_player_slots_are_no_target_and_come_back_on_reopen",
-  "crates/sunrise-client/src/game/native_hooks/shared/screen_position_tests.rs::player_slots_follow_the_container_slots_in_menu_order",
+  "crates/sunrise-client/src/cut_layout/game/native_hooks/shared/book_screen/lifecycle_tests_client.rs::hidden_player_slots_are_no_target_and_come_back_on_reopen",
+  "crates/sunrise-client/src/cut_layout/game/native_hooks/shared/screen_position_tests_client.rs::player_slots_follow_the_container_slots_in_menu_order",
 ]

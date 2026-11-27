@@ -32,7 +32,7 @@ Update the source, then regenerate the reference when its contract changes:
 | [Server reference](server-reference.md) | Help text, `config::TEMPLATE`, and `api::ROUTES` in `crates/sunrise-server` and `crates/sunrise-server-launch` | `SUNRISE_WRITE_DOCS=1 cargo test -p sunrise-server reference` |
 | [sunrise-ctl commands](../sunrise-ctl-commands.md) | The command table in `crates/sunrise-client/src/bin/sunrise-ctl/commands.rs` | `sunrise-ctl help --markdown > docs/sunrise-ctl-commands.md` |
 | [Launcher commands](https://github.com/sunrise-org/sunrise-launcher/blob/main/docs/launcher-commands.md) | `src/cli.rs` in [sunrise-launcher](https://github.com/sunrise-org/sunrise-launcher) | `SUNRISE_WRITE_DOCS=1 cargo test the_launcher_reference` in that repository |
-| [Launch reference](launch-reference.md) | `crates/sunrise-client/src/game/runtime/launch_api.rs` | `SUNRISE_WRITE_DOCS=1 cargo test -p sunrise-client --lib launch_api` |
+| [Launch reference](launch-reference.md) | `crates/sunrise-gameplay-common/src/game/runtime/launch_api.rs` | `SUNRISE_WRITE_DOCS=1 cargo test -p sunrise-gameplay-common --lib launch_api` |
 
 ## Each surface's page
 

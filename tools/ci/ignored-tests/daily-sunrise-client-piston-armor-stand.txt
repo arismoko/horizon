@@ -1,1 +1,1 @@
-sunrise-client game::piston_push::order_tests::a_piston_pushes_a_resident_armor_stand_with_zero_health lib daily resources
+sunrise-client cut_layout::game::server_side::piston_push_server::order_tests::a_piston_pushes_a_resident_armor_stand_with_zero_health lib daily resources

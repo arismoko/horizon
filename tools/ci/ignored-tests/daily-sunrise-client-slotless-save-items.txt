@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::block_entity_save_additional_tests::tests::save_edits_slotless_items_but_keeps_declared_slots_after_a_skipped_tick lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_save_additional_tests::tests::save_edits_slotless_items_but_keeps_declared_slots_after_a_skipped_tick lib daily child-process

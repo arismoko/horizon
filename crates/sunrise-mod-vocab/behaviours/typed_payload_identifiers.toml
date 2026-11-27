@@ -3,5 +3,5 @@ doc = "An owned Identifier can be used in a typed payload. It retains the ordina
 tests = [
   "crates/sunrise-mod-vocab/src/payload/codec_tests.rs::identifier_payloads_keep_the_ordinary_wire_layout_and_string_framing",
   "crates/sunrise-mod-vocab/src/payload/codec_tests.rs::identifier_payloads_charge_for_both_the_text_and_its_shared_storage",
-  "crates/sunrise-client/src/raw_payloads/typed_schema_tests.rs::identifier_bodies_negotiate_the_retained_schema_not_the_string_schema",
+  "crates/sunrise-sim/src/raw_payloads/typed_schema_tests.rs::identifier_bodies_negotiate_the_retained_schema_not_the_string_schema",
 ]

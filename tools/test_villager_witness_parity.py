@@ -27,17 +27,17 @@ def main(argv=None):
     classes.mkdir(parents=True, exist_ok=True)
     oracle = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaVillagerWitnessOracle.java'
     sources = [Path(__file__), oracle,
-               lab.ROOT / 'crates/sunrise-client/src/mobs/villager.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/villager_brain.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/villager_brain/memories.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/villager_brain/schedules.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/villager_brain/tasks.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/villager_brain/reputation.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/villager_brain/reputation_witness_tests.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/mobs/villagers.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/mobs/tests/villager_witness_tests.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/network/lan/mod.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/entities/kill_die_vibration_tests.rs']
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/villager.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/villager_brain.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/villager_brain/memories.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/villager_brain/schedules.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/villager_brain/tasks.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/villager_brain/reputation.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/villager_brain/reputation_witness_tests.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/mobs/villagers.rs',
+               lab.ROOT / 'crates/sunrise-client/src/cut_layout/game/mobs/tests/villager_witness_tests.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/network/lan/mod.rs',
+               lab.ROOT / 'crates/sunrise-client/src/cut_layout/game/entities/kill_die_vibration_tests.rs']
     hashes = base.source_hashes(sources)
     clean = dict(os.environ)
     for key in ('SUNRISE_HOME', 'SUNRISE_LAUNCHER_HOME', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME'):
@@ -63,8 +63,8 @@ def main(argv=None):
     executed = {}
     for package, group, count in [
         ('sunrise-client-lib', 'mobs::villager_brain::reputation_witness_tests', 1),
-        ('sunrise-client', 'game::villagers::witness_tests', 4),
-        ('sunrise-client', 'game::lan::merchant_packet_tests', 1),
+        ('sunrise-client', 'game::server_side::villagers::witness_tests', 4),
+        ('sunrise-client', 'game::server_side::lan::merchant_packet_tests', 1),
     ]:
         if package not in artifacts:
             source = (lab.ROOT / 'crates/sunrise-client/src' / ('client_lib.rs' if package == 'sunrise-client-lib' else 'lib.rs')).resolve()

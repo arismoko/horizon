@@ -1,3 +1,3 @@
-sunrise-client game::spill::loot_context_tests::location_check_reads_the_level_at_the_roll_origin lib daily resources
-sunrise-client game::spill::loot_context_tests::location_check_reads_the_offset_block_entitys_full_data lib daily resources
-sunrise-client game::spill::loot_context_tests::match_block_reads_the_block_entitys_full_data lib daily resources
+sunrise-gameplay game::server_side::spill::loot_context_tests::location_check_reads_the_level_at_the_roll_origin lib daily resources
+sunrise-gameplay game::server_side::spill::loot_context_tests::location_check_reads_the_offset_block_entitys_full_data lib daily resources
+sunrise-gameplay game::server_side::spill::loot_context_tests::match_block_reads_the_block_entitys_full_data lib daily resources

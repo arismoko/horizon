@@ -8,7 +8,7 @@ pub trait Hooks {
     /// already committed, and a listener that wrote its own key from here would notify itself
     /// without end. Make a follow-up write from the callback that made the first one.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_setting_changed",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_setting_changed",
         dispatch = "flat",
         side = "both",
         receiver = "read",

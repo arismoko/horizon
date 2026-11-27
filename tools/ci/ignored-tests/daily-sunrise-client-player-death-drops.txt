@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::death_source_tests::a_killed_guest_with_no_combat_entry_reports_its_drops lib daily resources
+sunrise-client cut_layout::game::native_hooks::death_source_tests::a_killed_guest_with_no_combat_entry_reports_its_drops lib daily resources

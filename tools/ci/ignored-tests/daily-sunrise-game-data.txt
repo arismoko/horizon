@@ -1,0 +1,4 @@
+# The daily tests of sunrise-game-data: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
+# where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
+sunrise-game-data component::tests::mixed_recursive_temporaries_are_released_on_256_kib lib daily slow
+sunrise-game-data lang::tests::every_sentence_key_in_en_us_is_one_the_code_names lib daily slow

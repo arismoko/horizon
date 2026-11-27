@@ -1,1 +1,1 @@
-sunrise-client game::native_player_destroyed_block_tests::the_breaking_client_hears_its_predicted_break_with_a_client_host lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_destroyed_block_tests::the_breaking_client_hears_its_predicted_break_with_a_client_host lib daily resources

@@ -105,10 +105,10 @@ def main():
     args = parser.parse_args()
     lock, jars, _ = base.verify_artifacts()
     source_paths = [lab.ROOT / path for path in (
-        'crates/sunrise-client/src/game/entities/boats/mod.rs',
-        'crates/sunrise-client/src/game/network/remote_vehicles.rs',
-        'crates/sunrise-client/src/game/network/lan_vehicles.rs',
-        'crates/sunrise-client/src/game/entities/boat_authority_fixture.rs',
+        'crates/sunrise-gameplay/src/game/entities/boats/mod.rs',
+        'crates/sunrise-client-gameplay/src/game/network/remote_vehicles.rs',
+        'crates/sunrise-gameplay/src/game/network/lan_vehicles.rs',
+        'crates/sunrise-gameplay/src/game/entities/boat_authority_fixture.rs',
         'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaBoatAuthorityOracle.java',
         'tools/test_boat_authority_parity.py')]
     source_hashes = base.source_hashes(source_paths)

@@ -1,1 +1,1 @@
-sunrise-client game::stacked_on_other_tests::families::the_menu_path_asks_rules_for_the_handled_replacement lib daily resources
+sunrise-gameplay game::stacked_on_other_tests::families::the_menu_path_asks_rules_for_the_handled_replacement lib daily resources

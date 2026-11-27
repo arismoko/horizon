@@ -1,6 +1,6 @@
 # Scoped resident block-entity ticker views and transactions.
-sunrise-client game::native_hooks::block_entity_tick::tests::a_registered_type_without_a_tick_part_is_not_woken_or_changed lib daily child-process
-sunrise-client game::native_hooks::block_entity_tick::tests::a_scope_transaction_aborts_subject_and_dropped_item_edits_together lib daily resources
-sunrise-client game::native_hooks::block_entity_tick::tests::read_only_and_noop_loans_do_not_journal_or_dirty lib daily resources
-sunrise-client game::native_hooks::block_entity_tick::tests::retaking_the_view_checks_the_instance_and_state lib daily resources
-sunrise-client game::native_hooks::block_entity_tick::tests::ticker_and_handle_setters_require_explicit_set_changed lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::a_registered_type_without_a_tick_part_is_not_woken_or_changed lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::a_scope_transaction_aborts_subject_and_dropped_item_edits_together lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::read_only_and_noop_loans_do_not_journal_or_dirty lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::retaking_the_view_checks_the_instance_and_state lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::ticker_and_handle_setters_require_explicit_set_changed lib daily child-process

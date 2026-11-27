@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::registered_potions_tests::host_read_matches_the_prepared_potion_registry lib daily resources
+sunrise-client cut_layout::game::native_hooks::registered_potions_tests::host_read_matches_the_prepared_potion_registry lib daily resources

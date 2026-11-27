@@ -16,7 +16,7 @@ pub trait Hooks {
     /// knows; what a listener writes there changes no packet, no server
     /// decision and nothing drawn.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_critical_hit",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_critical_hit",
         dispatch = "flat",
         side = "both",
         contract = "listen",

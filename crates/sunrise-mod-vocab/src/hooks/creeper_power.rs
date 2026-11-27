@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// Lightning charged a creeper.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_creeper_power",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_creeper_power",
         dispatch = "flat",
         side = "server",
         contract = "listen",

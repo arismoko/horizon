@@ -6,6 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "Sunrise's Minecraft Java Edition 26.3 network protocol (version 777)"
 
+[features]
+test-receive-progress = []
+
 [dependencies]
 sunrise-mod-runtime = { path = "../sunrise-mod-runtime" }
 sunrise-core = { path = "../sunrise-core" }

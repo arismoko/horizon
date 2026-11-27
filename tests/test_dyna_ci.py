@@ -11,7 +11,7 @@ import tempfile
 import time
 import unittest
 
-from tests.os_support import POSIX_BASH, needs_runner_shell
+from tests.os_support import BASH, POSIX_BASH, needs_runner_shell
 from tests.test_ci_concurrency import expression_value
 from tools.ci import vendored_yaml
 
@@ -543,6 +543,56 @@ class DynaRoutingTests(unittest.TestCase):
             step_named(mutated, "The source stages with this commit's build data").update(change)
             with self.subTest(change=change), self.assertRaises(AssertionError):
                 self.assert_positive_stage_export(mutated)
+
+    @needs_runner_shell
+    def test_the_c_source_test_signs_with_homebrews_openssl_on_macos(self):
+        # macOS's LibreSSL has no `pkeyutl -rawin`, which sign_release.sh uses (daily run 45879175792).
+        steps = workflow("prebuilt-game-build.yml")["jobs"]["build"]["steps"]
+        names = [step.get("name") for step in steps]
+        signing = "A native mod with a C source builds through the mod tool"
+        step = step_named({"steps": steps}, "OpenSSL 3 for tools/ci/sign_release.sh")
+        self.assertEqual(names.count(step["name"]), 1)
+        self.assertLess(names.index(step["name"]), names.index(signing))
+        self.assertEqual(step["if"], "inputs.c_source_test && matrix.name == 'macos'")
+        self.assertEqual(step["env"], {"HOMEBREW_NO_AUTO_UPDATE": "1"})
+        self.assertIn("EPHEMERAL=yes bash tools/ci/sign_release.sh", step_named({"steps": steps}, signing)["run"])
+
+        for installed in (True, False):
+            with self.subTest(installed=installed), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                prefix = root / "cellar" / "openssl@3"
+                (prefix / "bin").mkdir(parents=True)
+                stubs = root / "stubs"
+                stubs.mkdir()
+                calls = root / "calls"
+                # Scripts are written with LF endings whatever the platform.
+                (stubs / "brew").write_bytes((
+                    '#!/bin/sh\n'
+                    'echo "brew $*" >> "$CALLS"\n'
+                    'case "$1" in\n'
+                    '  list) [ "$INSTALLED" = 1 ] ;;\n'
+                    '  --prefix) echo "$PREFIX" ;;\n'
+                    '  install) ;;\n'
+                    '  *) exit 2 ;;\n'
+                    'esac\n').encode())
+                (prefix / "bin" / "openssl").write_bytes(
+                    b'#!/bin/sh\necho "openssl $*" >> "$CALLS"\necho "OpenSSL 3.stub"\n')
+                for stub in (stubs / "brew", prefix / "bin" / "openssl"):
+                    stub.chmod(0o755)
+                github_env = root / "github-env"
+                env = dict(os.environ, PATH=f"{stubs}{os.pathsep}{os.environ['PATH']}", CALLS=calls.as_posix(),
+                           INSTALLED=str(int(installed)), PREFIX=prefix.as_posix(), GITHUB_ENV=github_env.as_posix(),
+                           **step["env"])
+                result = subprocess.run([BASH, "-e", "-c", step["run"]], cwd=root, env=env,
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("OpenSSL 3.stub", result.stdout)
+                expected = ["brew list openssl@3"]
+                if not installed:
+                    expected.append("brew install openssl@3")
+                expected += ["brew --prefix openssl@3", "openssl version"]
+                self.assertEqual(calls.read_text().splitlines(), expected)
+                self.assertEqual(github_env.read_text(), f"OPENSSL={prefix.as_posix()}/bin/openssl\n")
 
     def test_optional_map_upload_is_nonblocking_and_reports_its_failure(self):
         verify = workflow("dyna-ci.yml")["jobs"]["verify-static"]

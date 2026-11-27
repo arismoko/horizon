@@ -21,7 +21,9 @@ use sunrise_client::{
     light::LightTables,
     mesher::{MeshTables, Mesher, Region, SectionMesh, borrow},
     models,
-    streaming::{ChunkGenerator, Proto, Streaming, WorkerContext},
+    streaming::{
+        ChunkGenerator, ChunkWorkerContext, MeshStreamer, MeshWorkerContext, Proto, WorkerContext,
+    },
     world::World,
 };
 use sunrise_core::biome::BiomeZoom;
@@ -60,33 +62,37 @@ fn columns_loaded_past_the_render_distance_mesh_when_they_come_in_range() {
     };
     let assets = Arc::new(Assets::load(&root).unwrap());
     let render = Arc::new(
-        assets
-            .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
+        sunrise_client::assets::RenderAssets::load(
+            &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
+        )
+        .unwrap(),
     );
     let facts = BlockFacts::load(&root, assets.registry).unwrap();
     let visibility = models::load_visibility(&root, assets.registry).unwrap();
     let context = Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-        biomes: Arc::new(
-            Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
-        ),
-        assets,
-        render: render.clone(),
-        hidden_states: Arc::from([]),
-        part_tables: Default::default(),
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
+            biomes: Arc::new(
+                Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
+                    root.to_path_buf(),
+                ))
+                .unwrap(),
+            ),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
+            render: render.clone(),
+            hidden_states: Arc::from([]),
+            part_tables: Default::default(),
+        },
     });
-    let mut streaming = Streaming::new(Arc::new(Saved), context, 3);
+    let mut streaming = MeshStreamer::new(Arc::new(Saved), context, 3);
     streaming.radius = 4;
     let mut world = World::new(BlockStateId(0), 0);
     let mut meshed = HashSet::new();
-    let settle_at = |streaming: &mut Streaming,
+    let settle_at = |streaming: &mut MeshStreamer,
                      world: &mut World,
                      center: (i32, i32),
                      meshed: &mut HashSet<(i32, i32, i32)>| {
@@ -171,27 +177,31 @@ fn relit_columns_keep_every_mesh_current() {
     };
     let assets = Arc::new(Assets::load(&root).unwrap());
     let render = Arc::new(
-        assets
-            .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
+        sunrise_client::assets::RenderAssets::load(
+            &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
+        )
+        .unwrap(),
     );
     let facts = BlockFacts::load(&root, assets.registry).unwrap();
     let visibility = models::load_visibility(&root, assets.registry).unwrap();
     let context = Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-        biomes: Arc::new(
-            Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
-        ),
-        assets: assets.clone(),
-        render: render.clone(),
-        hidden_states: Arc::from([]),
-        part_tables: Default::default(),
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
+            biomes: Arc::new(
+                Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
+                    root.to_path_buf(),
+                ))
+                .unwrap(),
+            ),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
+            render: render.clone(),
+            hidden_states: Arc::from([]),
+            part_tables: Default::default(),
+        },
     });
     let state = |name: &str| assets.registry.default_state(name).unwrap().0;
     let (stone, glowstone, torch) = (
@@ -202,7 +212,7 @@ fn relit_columns_keep_every_mesh_current() {
     // Columns from a server, one of them not sent yet. They keep the light
     // the server sent (#824, as vanilla's `enableChunkLight`), so its
     // neighbours are lit too.
-    let mut streaming = Streaming::new(Arc::new(Saved), context.clone(), 3);
+    let mut streaming = MeshStreamer::new(Arc::new(Saved), context.clone(), 3);
     streaming.radius = 4;
     streaming.remote = true;
     let mut world = World::new(BlockStateId(0), 0);
@@ -214,7 +224,7 @@ fn relit_columns_keep_every_mesh_current() {
         }
     }
     let mut meshes: HashMap<(i32, i32, i32), SectionMesh> = HashMap::new();
-    let mut settle = |streaming: &mut Streaming, world: &mut World| {
+    let mut settle = |streaming: &mut MeshStreamer, world: &mut World| {
         let deadline = Instant::now() + Duration::from_secs(60);
         let mut quiet = 0;
         while quiet < 40 {
@@ -266,13 +276,13 @@ fn relit_columns_keep_every_mesh_current() {
             translucent_layers: &[],
             layer_overrides: &[],
             leaf_culling: LeafCullingMode::Off,
-            assets: &context.assets,
-            render: &context.render,
-            tables: &context.tables,
-            hidden_states: &context.hidden_states,
-            part_tables: &context.part_tables,
-            biomes: &context.biomes,
-            visibility: context.tables.visibility.clone(),
+            assets: &context.chunk.assets,
+            render: &context.mesh.render,
+            tables: &context.mesh.tables,
+            hidden_states: &context.mesh.hidden_states,
+            part_tables: &context.mesh.part_tables,
+            biomes: &context.chunk.biomes,
+            visibility: context.mesh.tables.visibility.clone(),
         };
         // The workers sort solid quads by side, as uploads expect.
         let mut fresh = mesher.mesh(&borrow(&region), sy);
@@ -309,34 +319,38 @@ fn every_extra_area_loads_however_the_areas_change() {
     };
     let assets = Arc::new(Assets::load(&root).unwrap());
     let render = Arc::new(
-        assets
-            .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.clone(),
-            ))
-            .unwrap(),
+        sunrise_client::assets::RenderAssets::load(
+            &sunrise_assets::resource_source::ResourceRoot::directory(root.clone()),
+            &assets,
+        )
+        .unwrap(),
     );
     let facts = BlockFacts::load(&root, assets.registry).unwrap();
     let visibility = models::load_visibility(&root, assets.registry).unwrap();
     let context = Arc::new(WorkerContext {
-        hidden_states: Default::default(),
-        part_tables: Default::default(),
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-        biomes: Arc::new(
-            Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.clone(),
-            ))
-            .unwrap(),
-        ),
-        assets,
-        render,
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
+            biomes: Arc::new(
+                Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
+                    root.clone(),
+                ))
+                .unwrap(),
+            ),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            hidden_states: Default::default(),
+            part_tables: Default::default(),
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
+            render,
+        },
     });
-    let mut streaming = Streaming::new(Arc::new(Saved), context, 3);
+    let mut streaming = MeshStreamer::new(Arc::new(Saved), context, 3);
     // A server's thread: nothing is meshed.
     streaming.mesh = false;
     streaming.radius = 2;
     let mut world = World::new(BlockStateId(0), 0);
-    let settle = |streaming: &mut Streaming, world: &mut World| {
+    let settle = |streaming: &mut MeshStreamer, world: &mut World| {
         let deadline = Instant::now() + Duration::from_secs(60);
         let mut quiet = 0;
         while quiet < 40 {
@@ -386,23 +400,27 @@ fn meshes_waiting_for_upload_hold_back_new_mesh_jobs() {
     };
     let assets = Arc::new(Assets::load(&root).unwrap());
     let source = sunrise_assets::resource_source::ResourceRoot::directory(root.clone());
-    let render = Arc::new(assets.reload(&source).unwrap());
+    let render = Arc::new(sunrise_client::assets::RenderAssets::load(&source, &assets).unwrap());
     let facts = BlockFacts::load(&root, assets.registry).unwrap();
     let visibility = models::load_visibility(&root, assets.registry).unwrap();
     let context = Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-        biomes: Arc::new(Biomes::load(&source).unwrap()),
-        assets,
-        render,
-        hidden_states: Arc::from([]),
-        part_tables: Default::default(),
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
+            biomes: Arc::new(Biomes::load(&source).unwrap()),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
+            render,
+            hidden_states: Arc::from([]),
+            part_tables: Default::default(),
+        },
     });
     let workers = 3;
-    let mut streaming = Streaming::new(Arc::new(Saved), context, workers);
+    let mut streaming = MeshStreamer::new(Arc::new(Saved), context, workers);
     streaming.radius = 2;
     let mut world = World::new(BlockStateId(0), 0);
-    let settle = |streaming: &mut Streaming, world: &mut World| {
+    let settle = |streaming: &mut MeshStreamer, world: &mut World| {
         let mut meshed = HashSet::new();
         let deadline = Instant::now() + Duration::from_secs(60);
         let mut quiet = 0;

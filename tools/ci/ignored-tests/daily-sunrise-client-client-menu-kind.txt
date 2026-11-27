@@ -1,1 +1,1 @@
-sunrise-client game::remote::tests::client_menu_tests::client_menu_kind_names_the_server_menu_type lib daily child-process # Uses prepared resources in an isolated process.
+sunrise-client cut_layout::game::remote::tests::client_menu_tests::client_menu_kind_names_the_server_menu_type lib daily child-process # Uses prepared resources in an isolated process.

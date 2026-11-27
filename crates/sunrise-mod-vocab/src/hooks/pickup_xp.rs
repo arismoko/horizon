@@ -20,7 +20,7 @@ pub trait Hooks {
     /// Server-side. Diverges from upstream: renamed from `experience_orb_pickup`, to
     /// NeoForge's `PlayerXpEvent.PickupXp`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_pickup_xp",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_pickup_xp",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

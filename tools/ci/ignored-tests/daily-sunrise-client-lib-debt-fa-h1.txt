@@ -1,2 +1,2 @@
-sunrise-client-lib menu::equip_movement::tests::four_slot_menu_transfer_asks_each_armor_slot_until_accepted lib daily resources
-sunrise-client-lib menu::equip_movement::tests::menus_without_actor_or_equipment_candidates_do_not_ask_can_equip lib daily resources
+sunrise-sim menu::equip_movement::tests::four_slot_menu_transfer_asks_each_armor_slot_until_accepted lib daily resources
+sunrise-sim menu::equip_movement::tests::menus_without_actor_or_equipment_candidates_do_not_ask_can_equip lib daily resources

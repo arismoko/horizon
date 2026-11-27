@@ -11,7 +11,7 @@ from tests.rust_items import rust_fn
 class NativeItemStackTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("rustc"), "requires Rust")
     def test_stack_and_decorations_are_forwarded_and_scaled(self):
-        actual = rust_fn("native_item_stack", owner="Game")
+        actual = rust_fn("native_item_stack", owner="sunrise-client-gameplay")
         fixture = r"""
 struct ItemStack { item: String, count: u32, damage: u32 }
 struct Items;
@@ -24,8 +24,9 @@ impl HudBatch {
         self.scaled = Some((start, x, y, sx, sy));
     }
 }
-struct Game { res: Resources }
-impl Game {
+struct CommonGame { res: Resources }
+struct ClientGame { common: CommonGame }
+impl ClientGame {
     fn draw_item_model(&self, batch: &mut HudBatch, stack: &ItemStack, x: f32, y: f32, _seed: i32) {
         assert_eq!((stack.count, stack.damage, x, y), (42, 13, 2.0, 3.0));
         batch.vertices.push(1);
@@ -39,7 +40,7 @@ impl Game {
 }
 #[test]
 fn stack_and_unknown_item() {
-    let game = Game { res: Resources };
+    let game = ClientGame { common: CommonGame { res: Resources } };
     let mut batch = HudBatch { vertices: vec![0], scaled: None };
     let mut stack = ItemStack { item: "unknown".into(), count: 42, damage: 13 };
     assert!(!game.native_item_stack(&mut batch, &stack, [2.0, 3.0], 32.0));

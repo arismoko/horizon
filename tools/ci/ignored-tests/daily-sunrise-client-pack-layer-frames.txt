@@ -1,4 +1,4 @@
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
 # A shaders/ pack's layer.* rules through the game's frames and the async pack loader (#341).
-sunrise-client game::pack_layer_frame_tests::layer_rules_move_states_between_the_packs_shadow_programs lib daily child-process
-sunrise-client game::pack_layer_frame_tests::layer_rules_move_states_between_the_packs_terrain_programs lib daily child-process
+sunrise-client cut_layout::game::pack_layer_frame_tests::layer_rules_move_states_between_the_packs_shadow_programs lib daily child-process
+sunrise-client cut_layout::game::pack_layer_frame_tests::layer_rules_move_states_between_the_packs_terrain_programs lib daily child-process

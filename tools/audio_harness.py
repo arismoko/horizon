@@ -28,7 +28,7 @@ COMMON_SOURCES = [
     lab.ROOT / 'Cargo.lock',
     lab.ROOT / 'crates/sunrise-client/Cargo.toml',
     lab.ROOT / 'crates/sunrise-client-render/Cargo.toml',
-    lab.ROOT / 'crates/sunrise-client-render/src/sound_events.rs',
+    lab.ROOT / 'crates/sunrise-level/src/sound_events.rs',
     lab.ROOT / 'crates/sunrise-client-render/src/sound_engine.rs',
 ]
 

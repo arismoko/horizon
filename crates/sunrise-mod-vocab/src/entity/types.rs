@@ -1099,6 +1099,10 @@ impl NoBackend for PierceLevelError {
     fn no_backend() -> Self {
         Self::Stale
     }
+
+    fn wrong_side() -> Self {
+        Self::WrongSide
+    }
 }
 
 /// Why a player's collision exclusions were not set (`EntityRef::set_collision_exclusions`,
@@ -1518,6 +1522,10 @@ impl NoBackend for RespawnRefusal {
     fn no_backend() -> Self {
         Self::Stale
     }
+
+    fn wrong_side() -> Self {
+        Self::Client
+    }
 }
 
 /// Where a player would respawn now, as [`PlayerRef::respawn_target`] finds it: the transition
@@ -1594,6 +1602,10 @@ impl From<StackWriteError> for MenuItemsRefusal {
 impl NoBackend for MenuItemsRefusal {
     fn no_backend() -> Self {
         Self::Unavailable
+    }
+
+    fn wrong_side() -> Self {
+        Self::Client
     }
 }
 

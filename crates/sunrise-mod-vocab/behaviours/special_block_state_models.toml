@@ -9,5 +9,5 @@ materials, the copy's colour, no tint and no hidden faces, and blends as `entity
 except the end portal's and gateway's starfield. `UnknownModel` is left for a state that draws nothing or one the \
 block-state index lacks."""
 tests = [
-  "crates/sunrise-client/src/game/modding/native_custom_geometry.rs::a_special_block_state_draws_its_renderer_and_a_faded_copy_blends",
+  "crates/sunrise-client-gameplay/src/game/modding/native_custom_geometry.rs::a_special_block_state_draws_its_renderer_and_a_faded_copy_blends",
 ]

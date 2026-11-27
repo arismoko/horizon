@@ -1,2 +1,2 @@
 # An unlit block entity's item draws the same in the dark as at full light (#1179); needs prepared resources.
-sunrise-client game::native_block_entity_draw::tests::an_unlit_item_draws_the_same_in_the_dark_as_at_full_light lib daily resources
+sunrise-client-gameplay game::client_side::native_block_entity_draw::tests::an_unlit_item_draws_the_same_in_the_dark_as_at_full_light lib daily resources

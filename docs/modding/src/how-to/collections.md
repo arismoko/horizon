@@ -1,6 +1,6 @@
 # Group your mods into a collection
 
-A collection groups several of your registered mods in the registry under one name and icon, so players find and
+A collection groups several of your published mods in the registry under one name and icon, so players find and
 install them together. Each member stays its own project, with its own page, releases and updates. A collection has no
 file or version of its own.
 
@@ -20,9 +20,10 @@ the rest of your mods. In that folder, run:
 cargo sunrise-mod collection
 ```
 
-The first run writes `collection.toml` with a `[[member]]` for every project registered from the repository, and
-stops. Fill in `name` and `summary`, add any members registered from your other repositories, and put the icon
-beside it:
+The first run writes `collection.toml` with a `[[member]]` for each project from this repository with a
+non-revoked release in the signed registry index, then stops. Fill in `name` and `summary`, add any published
+members from your other repositories, and put the icon beside it. If the scaffold contains `member = []`,
+replace that line with the `[[member]]` entries rather than keeping both:
 
 - `collection.toml`:
 
@@ -42,10 +43,11 @@ beside it:
   default = false
   ```
 
-  `name` and `summary` must not be blank, and `description` is optional. Each `[[member]]` names a registered
-  project by its project ID: `registry/repositories/<repository ID>.toml` on
-  [sunrise-org/sunrise-mods](https://github.com/sunrise-org/sunrise-mods/tree/main/registry/repositories) lists the
-  `project` of each package. Members appear in the order you list them. `default` says whether a member starts ticked,
+  `name` and `summary` must not be blank, and `description` is optional. Each `[[member]]` names a project with a
+  non-revoked release in the signed registry index. Use the permanent project ID from the folder name in
+  `registry/projects/<project ID>/project.toml` on
+  [sunrise-org/sunrise-mods](https://github.com/sunrise-org/sunrise-mods/tree/main/registry/projects), not the
+  in-game mod ID. Members appear in the order you list them. `default` says whether a member starts ticked,
   and is `true` when you leave it out. You need at least two different members, and at least one of them selected by
   default. Any other key is refused.
 - `icon.png`: a square PNG of at most 512×512 pixels and 256 KiB, the same rules as a mod's icon.

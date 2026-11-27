@@ -184,9 +184,10 @@ fn replay(window: Arc<Window>) -> Result<(), Box<dyn std::error::Error>> {
     let root = o.root.clone().unwrap_or_else(|| settings.resources.clone());
     let loading = Instant::now();
     let assets = Assets::load(&root)?;
-    let render = assets.reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-        root.to_path_buf(),
-    ))?;
+    let render = sunrise_client_render::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )?;
     if AtlasCheck::of(&render) != settings.atlas {
         return Err(format!(
             "the block sprites at {} are not the ones the capture was made with (resource packs \

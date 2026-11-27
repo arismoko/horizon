@@ -692,12 +692,12 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
 
     fn fill_selectors(builder: &mut SuggestionsBuilder, reg: &Registries) {
         for (s, tip) in SELECTOR_KINDS {
-            builder.suggest_tooltip(s, sunrise_client_core::lang::get(tip));
+            builder.suggest_tooltip(s, sunrise_game_data::lang::get(tip));
         }
         for token in &reg.selector_tokens {
             builder.suggest_tooltip(
                 format!("@{}", token.name),
-                sunrise_client_core::lang::get(&token.tooltip),
+                sunrise_game_data::lang::get(&token.tooltip),
             );
         }
     }
@@ -796,7 +796,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             if self.can_use(o) && o.starts_with(&lower) {
                 b.suggest_tooltip(
                     format!("{o}="),
-                    sunrise_client_core::lang::get(&format!(
+                    sunrise_game_data::lang::get(&format!(
                         "argument.entity.options.{o}.description"
                     )),
                 );

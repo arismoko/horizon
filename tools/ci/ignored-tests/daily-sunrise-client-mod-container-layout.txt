@@ -1,1 +1,1 @@
-sunrise-client game::mod_menu_decisions_tests::container_layout::six_slot_menu_shift_click_uses_hotbar_zero_before_any_container_write lib daily child-process
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::container_layout::six_slot_menu_shift_click_uses_hotbar_zero_before_any_container_write lib daily child-process

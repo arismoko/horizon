@@ -1,2 +1,2 @@
 # BlockEntityDrawContext::block_entity: carried vanilla and mod block entities drawn to pixels (#5886).
-sunrise-client game::native_block_entity_draw::tests::carried_block_entities_draw_visible_pixels lib daily child-process
+sunrise-client cut_layout::game::client_side::native_block_entity_draw::tests::carried_block_entities_draw_visible_pixels lib daily child-process

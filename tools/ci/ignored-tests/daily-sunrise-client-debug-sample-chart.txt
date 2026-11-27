@@ -1,2 +1,2 @@
-sunrise-client game::native_hotbar_slot::hotbar_slot_tests::a_received_tick_sample_draws_the_full_and_method_bars lib daily child-process # Uses prepared resources.
-sunrise-client game::remote::raw_ingress::tests::a_bundled_long_debug_sample_applies_only_the_prefix_before_packet_error lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hotbar_slot::hotbar_slot_tests::a_received_tick_sample_draws_the_full_and_method_bars lib daily child-process # Uses prepared resources.
+sunrise-client cut_layout::game::client_side::remote_client::ingress_state::tests::a_bundled_long_debug_sample_applies_only_the_prefix_before_packet_error lib daily child-process

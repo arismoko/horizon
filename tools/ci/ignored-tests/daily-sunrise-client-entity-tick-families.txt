@@ -1,6 +1,6 @@
-sunrise-client game::entity_tick_families_tests::a_canceled_pre_skips_the_tick_and_the_post_of_each_family lib daily resources
-sunrise-client game::entity_tick_families_tests::a_painting_is_told_its_tick lib daily resources
-sunrise-client game::entity_tick_families_tests::a_thrown_trident_is_told_its_tick lib daily resources
-sunrise-client game::entity_tick_families_tests::an_armor_stand_is_told_its_tick lib daily resources
-sunrise-client game::entity_tick_families_tests::discarding_the_first_in_its_post_spares_the_other_frames_paintings_and_tridents lib daily resources
-sunrise-client game::entity_tick_families_tests::item_and_glow_item_frames_are_told_their_tick lib daily resources
+sunrise-gameplay game::entity_tick_families_tests::a_canceled_pre_skips_the_tick_and_the_post_of_each_family lib daily resources
+sunrise-gameplay game::entity_tick_families_tests::a_painting_is_told_its_tick lib daily resources
+sunrise-gameplay game::entity_tick_families_tests::a_thrown_trident_is_told_its_tick lib daily resources
+sunrise-gameplay game::entity_tick_families_tests::an_armor_stand_is_told_its_tick lib daily resources
+sunrise-gameplay game::entity_tick_families_tests::discarding_the_first_in_its_post_spares_the_other_frames_paintings_and_tridents lib daily resources
+sunrise-gameplay game::entity_tick_families_tests::item_and_glow_item_frames_are_told_their_tick lib daily resources

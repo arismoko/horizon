@@ -1,1 +1,1 @@
-sunrise-client game::trial_spawner::omen_tests::ominous_item_target_uses_the_reloaded_player_table lib daily resources
+sunrise-gameplay game::server_side::trial_spawner::omen_tests::ominous_item_target_uses_the_reloaded_player_table lib daily resources

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate crates/sunrise-client/src/lan/tracking.rs: every entity type's
+"""Generate crates/sunrise-sim/src/lan/tracking.rs: every entity type's
 tracking settings (EntityType.Builder clientTrackingRange, updateInterval and
 trackDeltas, which ChunkMap.TrackedEntity and ServerEntity use to decide who
 sees an entity and how often its movement is sent), read from the decompiled
@@ -105,7 +105,7 @@ pub fn settings(kind: &str) -> (u8, u32, bool) {
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sources", type=Path, default=lab.GAME / "sources/client")
-    parser.add_argument("--out", type=Path, default=ROOT / "crates/sunrise-client/src/lan/tracking.rs")
+    parser.add_argument("--out", type=Path, default=ROOT / "crates/sunrise-sim/src/lan/tracking.rs")
     args = parser.parse_args()
     rows = parse(args.sources)
     if len(rows) < 100:

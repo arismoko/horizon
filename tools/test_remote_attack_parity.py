@@ -71,7 +71,7 @@ def main():
         'ATTACK_KNOCKBACK values, sprinting and riptide spins. setSprinting is recorded rather than run. The packets '
         'and the server\'s view of the hit are server_knockback\'s; the path through Game to this decision is '
         'lan_e2e\'s.',
-        sources=[lab.ROOT / 'crates/sunrise-client/src/attack_strength.rs',
+        sources=[lab.ROOT / 'crates/sunrise-sim/src/attack_strength.rs',
                  lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/ParityData.java'],
         expected_lines=sum(1 for _ in cases()))
 

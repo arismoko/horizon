@@ -52,9 +52,9 @@ the game runs and the narrator is "Not Available".
 | `ScreenNarrationCollector` (what changed since the last run), `Screen`'s timing (`afterMouseMove`, `afterKeyboardAction`, the suppression after `init`), `findNarratableWidget` | `crates/sunrise-narrator/src/screen.rs` |
 | What a frame's screen and widgets narrate (`ScreenInfo`, `Narratable`, `What`), recorded while drawing | `crates/sunrise-client-render/src/widgets.rs` |
 | The driver: reads the last drawn frame, runs `updateNarrationState` and says what is due | `crates/sunrise-client/src/screen_narrator.rs` |
-| Game glue: start and stop, the options, Ctrl+B, the toast, the input events the driver hears | `crates/sunrise-client/src/game/interface/narrator.rs` |
-| Screens whose narration is their own (chat, level loading, books, confirm screens) | `crates/sunrise-client/src/game/interface/screen_info.rs` |
-| Chat and system messages | `game.rs`, `game/network/remote/mod.rs` and the other callers of `sunrise_narrator::say_*`, where vanilla narrates |
+| Game glue: start and stop, the options, Ctrl+B, the toast, the input events the driver hears | `crates/sunrise-client-gameplay/src/game/interface/narrator.rs` |
+| Screens whose narration is their own (chat, level loading, books, confirm screens) | `crates/sunrise-client-gameplay/src/screen_info.rs` |
+| Chat and system messages | `crates/sunrise-client-gameplay/src/game.rs`, `crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs` and the other callers of `sunrise_narrator::say_*`, where vanilla narrates |
 
 ## How screens record their narration
 
@@ -104,7 +104,7 @@ ui::button(batch, atlas, x + 160.0, y, 150.0, 20.0, &no, true, hover_no);
 
 Hovering "No" then reads "Title. Message" when the screen opens and, after
 the mouse moves, "No button. Screen element 2 out of 2. Left click to
-activate". Driver tests (`cargo test -p sunrise-client --lib screen_narrator`)
+activate". Driver tests (`cargo test -p sunrise-client-lib --lib screen_narrator`)
 show the expected sentences as translation keys.
 
 ## Scripted runs

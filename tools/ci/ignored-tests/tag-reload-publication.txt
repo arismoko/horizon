@@ -1,1 +1,1 @@
-sunrise-client game::remote_tags::tests::reload_publishes_retained_and_bound_empty_tags_to_loot_and_clients lib daily resources
+sunrise-client cut_layout::game::server_side::remote_tags_server::tests::reload_publishes_retained_and_bound_empty_tags_to_loot_and_clients lib daily resources

@@ -1,1 +1,1 @@
-sunrise-client game::payload_transport::main_panic_tests::a_panicking_main_payload_refunds_its_journal_and_preserves_unrelated_delivery lib daily resources
+sunrise-client-gameplay game::payload_transport::main_panic_tests::a_panicking_main_payload_refunds_its_journal_and_preserves_unrelated_delivery lib daily resources

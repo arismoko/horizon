@@ -1,5 +1,5 @@
-sunrise-client game::machines::native_items::storage_attempt_tests::a_committed_pot_write_in_another_level_survives_the_parent_abort lib daily child-process
-sunrise-client game::machines::native_items::storage_attempt_tests::aborting_a_pot_insert_restores_its_named_loot_sequence lib daily child-process
-sunrise-client game::machines::native_items::storage_attempt_tests::block_capabilities_contain_panics_under_the_provider_owner lib daily child-process
-sunrise-client game::machines::native_items::storage_attempt_tests::item_capability_presence_does_not_open_loot_or_load_chunks lib daily child-process
-sunrise-client game::remote::placement_prediction_tests::placement_and_prediction_choose_from_their_local_item_providers lib daily child-process
+sunrise-client cut_layout::game::server_side::machines::native_items::storage_attempt_tests::a_committed_pot_write_in_another_level_survives_the_parent_abort lib daily child-process
+sunrise-client cut_layout::game::server_side::machines::native_items::storage_attempt_tests::aborting_a_pot_insert_restores_its_named_loot_sequence lib daily child-process
+sunrise-client cut_layout::game::server_side::machines::native_items::storage_attempt_tests::block_capabilities_contain_panics_under_the_provider_owner lib daily child-process
+sunrise-client cut_layout::game::server_side::machines::native_items::storage_attempt_tests::item_capability_presence_does_not_open_loot_or_load_chunks lib daily child-process
+sunrise-client cut_layout::game::remote::placement_prediction_tests::placement_and_prediction_choose_from_their_local_item_providers lib daily child-process

@@ -1,7 +1,7 @@
-sunrise-client game::disabled_block_tests::tests::disabled_blocks_survive_piston_pushes_without_authorizing_placement lib daily resources
-sunrise-client game::disabled_block_tests::tests::disabled_hydration_holds_farmland_until_the_owner_returns lib daily resources
-sunrise-client game::disabled_block_tests::tests::disabled_sand_survives_falling_entity_landing lib daily resources
-sunrise-client game::disabled_block_tests::tests::inert_dispense_keeps_a_legacy_over_max_stack_without_events lib daily resources
-sunrise-client game::disabled_block_tests::tests::inert_tool_keeps_block_but_global_listener_sees_vanilla_candidate lib daily resources
-sunrise-client game::disabled_block_tests::tests::reenabled_owner_resumes_held_scheduled_tick lib daily resources
-sunrise-client game::disabled_block_tests::tests::rejected_dispense_reply_preserves_the_disabled_owners_fallback lib daily resources
+sunrise-client cut_layout::game::server_side::disabled_block_tests::tests::disabled_blocks_survive_piston_pushes_without_authorizing_placement lib daily resources
+sunrise-client cut_layout::game::server_side::disabled_block_tests::tests::disabled_hydration_holds_farmland_until_the_owner_returns lib daily resources
+sunrise-client cut_layout::game::server_side::disabled_block_tests::tests::disabled_sand_survives_falling_entity_landing lib daily resources
+sunrise-client cut_layout::game::client_side::disabled_block_tests_client::tests::inert_dispense_keeps_a_legacy_over_max_stack_without_events lib daily resources
+sunrise-client cut_layout::game::server_side::disabled_block_tests::tests::inert_tool_keeps_block_but_global_listener_sees_vanilla_candidate lib daily resources
+sunrise-client cut_layout::game::server_side::disabled_block_tests::tests::reenabled_owner_resumes_held_scheduled_tick lib daily resources
+sunrise-client cut_layout::game::client_side::disabled_block_tests_client::tests::rejected_dispense_reply_preserves_the_disabled_owners_fallback lib daily resources

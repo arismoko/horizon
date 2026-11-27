@@ -1,5 +1,5 @@
-sunrise-client game::lan_crafting::lending_tests::menu_links_keep_past_sixty_four_and_preserve_order_without_duplicates_or_self lib daily resources
-sunrise-client game::lan_crafting::lending_tests::recipe_checks_and_placement_use_late_sources_and_skip_invalid_answers lib daily resources
-sunrise-client game::native_book_apply::tests::committed_book_settings_are_coalesced_before_a_listener_rewrites_them lib daily resources
-sunrise-client game::native_book_apply::tests::mod_book_router_places_without_ack_and_ghosts_selected_variant lib daily resources
-sunrise-client game::native_hooks::book_screen::lifecycle_tests::non_sunrise_brand_connection_negotiates_and_brand_only_connection_cannot_place lib daily resources
+sunrise-client cut_layout::game::server_side::lan_crafting::lending_tests::menu_links_keep_past_sixty_four_and_preserve_order_without_duplicates_or_self lib daily resources
+sunrise-client cut_layout::game::server_side::lan_crafting::lending_tests::recipe_checks_and_placement_use_late_sources_and_skip_invalid_answers lib daily resources
+sunrise-client cut_layout::game::server_side::native_book_apply::tests::committed_book_settings_are_coalesced_before_a_listener_rewrites_them lib daily resources
+sunrise-client cut_layout::game::server_side::native_book_apply::tests::mod_book_router_places_without_ack_and_ghosts_selected_variant lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::book_screen::lifecycle_tests::non_sunrise_brand_connection_negotiates_and_brand_only_connection_cannot_place lib daily resources

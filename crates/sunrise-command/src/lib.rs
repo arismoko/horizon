@@ -4,7 +4,7 @@
 //! usage text and the vanilla error messages. Argument types live in
 //! [`args`]; the vanilla command tree in [`vanilla`].
 #![forbid(unsafe_code)]
-pub use sunrise_client_core::suggestion::{Range, Suggestion};
+pub use sunrise_game_data::suggestion::{Range, Suggestion};
 pub mod args;
 pub mod block;
 pub mod codec;
@@ -32,7 +32,7 @@ use std::{
     collections::HashMap,
     sync::atomic::{AtomicU64, Ordering},
 };
-use sunrise_client_core::text::Text;
+use sunrise_game_data::text::Text;
 
 /// Brigadier `StringReader.isAllowedInUnquotedString` on an ASCII byte.
 pub fn is_unquoted(b: u8) -> bool {
@@ -713,6 +713,19 @@ fn compare_suggestions(a: &Suggestion, b: &Suggestion) -> std::cmp::Ordering {
         _ => compare_ignore_case(&a.text, &b.text),
     }
 }
+
+/// Whether a suggestion's text and literal NBT tooltip fit the completion packet.
+pub fn suggestion_fits_packet(suggestion: &Suggestion) -> bool {
+    suggestion.text.encode_utf16().count() <= MAX_SUGGESTION_TEXT
+        && suggestion.tooltip.as_deref().is_none_or(|tooltip| {
+            tooltip
+                .encode_utf16()
+                .map(sunrise_core::modified_utf8::unit_len)
+                .sum::<usize>()
+                <= MAX_SUGGESTION_TOOLTIP
+        })
+}
+
 /// Suggestions.create: merged, expanded to a common range and sorted case-insensitively.
 pub fn merge_suggestions(input: &str, list: Vec<Suggestion>) -> (Range, Vec<Suggestion>) {
     if list.is_empty() {
@@ -731,13 +744,6 @@ pub fn merge_suggestions(input: &str, list: Vec<Suggestion>) -> (Range, Vec<Sugg
             s.text,
             &input[s.range.1..end]
         );
-        // Padding grows the text past what the suggestion itself holds: a long prefix, and a
-        // suggestion starting later, expand to the whole merged range. Each one was within the
-        // packet's limit alone, so the expanded text is measured again and the ones that no
-        // longer fit are left out, keeping the others.
-        if text.encode_utf16().count() > MAX_SUGGESTION_TEXT {
-            continue;
-        }
         let expanded = Suggestion {
             range: (start, end),
             text,
@@ -751,10 +757,6 @@ pub fn merge_suggestions(input: &str, list: Vec<Suggestion>) -> (Range, Vec<Sugg
         if seen.insert((expanded.text.clone(), expanded.tooltip.clone())) {
             out.push(expanded);
         }
-    }
-    if out.is_empty() {
-        // Every completion was too long to send: nothing to show, and no range to show it in.
-        return ((0, 0), out);
     }
     let ints = out.iter().filter(|s| s.int_value.is_some()).count();
     if ints == 0 || ints == out.len() {
@@ -793,7 +795,7 @@ impl Suggests {
                 for id in &reg.summonable {
                     if args::resource_matches(&contents, id) {
                         let (ns, path) = id.split_once(':').unwrap_or(("minecraft", id));
-                        let name = sunrise_client_core::lang::get(&format!(
+                        let name = sunrise_game_data::lang::get(&format!(
                             "entity.{ns}.{}",
                             path.replace('/', ".")
                         ));
@@ -1279,13 +1281,14 @@ impl Dispatcher {
     }
     /// CommandDispatcher.getCompletionSuggestions at `cursor`: brigadier
     /// lists every child, whatever its requirement.
+    /// Entries that cannot fit a completion packet are omitted.
     pub fn suggestions(
         &self,
         parse: &ParseResults,
         cursor: usize,
         reg: &Registries,
     ) -> (Range, Vec<Suggestion>) {
-        let (range, list, _) = self.suggestions_within(parse, cursor, reg, u8::MAX);
+        let (range, list, _) = self.suggestions_within(parse, cursor, reg, u8::MAX, true);
         // CommandDispatcher.getCompletionSuggestions: a merged empty list is
         // `Suggestions.empty()` — `StringRange.at(0)`. The token range the chat
         // merge needs is only kept by the `client_suggestions` entries.
@@ -1300,7 +1303,7 @@ impl Dispatcher {
         cursor: usize,
         reg: &Registries,
     ) -> (Range, Vec<Suggestion>) {
-        let (range, list, _) = self.suggestions_within(parse, cursor, reg, reg.permission);
+        let (range, list, _) = self.suggestions_within(parse, cursor, reg, reg.permission, false);
         (range, list)
     }
     /// [`Self::client_suggestions`], and whether a node at the cursor asks
@@ -1312,7 +1315,7 @@ impl Dispatcher {
         cursor: usize,
         reg: &Registries,
     ) -> (Range, Vec<Suggestion>, bool) {
-        self.suggestions_within(parse, cursor, reg, reg.permission)
+        self.suggestions_within(parse, cursor, reg, reg.permission, false)
     }
     fn suggestions_within(
         &self,
@@ -1320,6 +1323,7 @@ impl Dispatcher {
         cursor: usize,
         reg: &Registries,
         permission: u8,
+        enforce_packet_limits: bool,
     ) -> (Range, Vec<Suggestion>, bool) {
         let (parent, start, context) = parse.context.suggestion_context(cursor);
         let start = start.min(cursor);
@@ -1346,7 +1350,14 @@ impl Dispatcher {
             }
             all.extend(builder.out);
         }
-        let (range, list) = merge_suggestions(truncated, all);
+        if enforce_packet_limits {
+            all.retain(suggestion_fits_packet);
+        }
+        let (range, mut list) = merge_suggestions(truncated, all);
+        if enforce_packet_limits {
+            // Expanding to the shared replacement range can take text over the packet limit.
+            list.retain(suggestion_fits_packet);
+        }
         // The reply's range is the builder's, covering the token being typed, even when nothing
         // is suggested locally: a node that asks the server (`ask_server`, and the mods' own
         // `tab_complete` answers for the free `id`) brings its completions with the server's

@@ -15,7 +15,7 @@ from tools import lab, oracle_harness, test_rust_parity as base
 
 NAME = 'steerable-boarding'
 ORACLE = 'VanillaSteerableBoardingOracle'
-TEST = 'game::mounts::steerable_boarding_tests::interact_with_a_pig_or_strider'
+TEST = 'game::server_side::mounts::steerable_boarding_tests::interact_with_a_pig_or_strider'
 CASES = {f'{kind}/{case}' for kind in ('pig', 'strider')
          for case in ('empty', 'occupied', 'secondary', 'occupied_feed', 'occupied_saddle',
                       'player_occupied', 'player_occupied_saddle')}
@@ -34,7 +34,7 @@ def main():
     lock, jars, libraries = base.verify_artifacts()
     source = lab.ROOT / f'mods/sunrise/src/test/java/dev/sunriselab/parity/{ORACLE}.java'
     sources = [Path(__file__).resolve(), source, lab.ROOT / 'Cargo.lock',
-               lab.ROOT / 'crates/sunrise-client/src/game/mobs/tests/steerable_boarding_tests.rs']
+               lab.ROOT / 'crates/sunrise-client/src/cut_layout/game/mobs/tests/steerable_boarding_tests.rs']
     hashes = base.source_hashes(sources)
     cp = os.pathsep.join(map(str, (jars['server'], *libraries)))
     oracle_harness.run_logged(['javac', '--release', lock['minecraft']['java_major'], '-proc:none',

@@ -1,1 +1,1 @@
-sunrise-client game::sculk_fixture::tests::fixture_death_outside_catalyst_range_drops_experience lib daily resources
+sunrise-client cut_layout::game::server_side::sculk_fixture::tests::fixture_death_outside_catalyst_range_drops_experience lib daily resources

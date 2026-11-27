@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::base::screen_widgets_tests::mounted_button_sprites_keep_their_pixels_and_accessibility lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::mounted_button_sprites_keep_their_pixels_and_accessibility lib daily child-process

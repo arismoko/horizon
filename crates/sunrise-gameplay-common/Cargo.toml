@@ -1,0 +1,61 @@
+[package]
+name = "sunrise-gameplay-common"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Portable gameplay rules and data shared across both logical sides"
+
+[dependencies]
+tempfile = { version = "3", optional = true }
+cap-fs-ext = "3.4.6"
+cap-std = "3.4.6"
+sunrise-hooks = { path = "../sunrise-hooks" }
+chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"] }
+glam = "0.30"
+indexmap = "2"
+png = "0.18"
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10.9"
+sunrise-assets = { path = "../sunrise-assets" }
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["index-read", "runtime-process"] }
+sunrise-perf-format = { path = "../sunrise-perf-format" }
+sunrise-threads = { path = "../sunrise-threads" }
+log = "0.4"
+mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab" }
+serde_json = "1.0.151"
+sunrise-game-data = { path = "../sunrise-game-data" }
+sunrise-command = { path = "../sunrise-command" }
+sunrise-core = { path = "../sunrise-core" }
+sunrise-items = { path = "../sunrise-items" }
+sunrise-mod-runtime = { path = "../sunrise-mod-runtime" }
+sunrise-protocol = { path = "../sunrise-protocol" }
+sunrise-world = { path = "../sunrise-world" }
+sunrise-sim = { path = "../sunrise-sim" }
+sunrise-level = { path = "../sunrise-level" }
+
+[dev-dependencies]
+tempfile = "3"
+mod_platform = { package = "sunrise-mod-api", path = "../sunrise-mod-api", features = ["engine-test-platform"] }
+sunrise-hooks = { path = "../sunrise-hooks", features = ["test-support"] }
+# `runtime_files` tests pack a mod folder.
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["folder"] }
+sunrise-game-data = { path = "../sunrise-game-data", features = ["test-language-publication", "test-effect-registry"] }
+sunrise-mod-runtime = { path = "../sunrise-mod-runtime", features = ["test-work-count"] }
+sunrise-threads = { path = "../sunrise-threads", features = ["test-allocation-count", "test-game-dir"] }
+mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab", features = ["testing"] }
+sunrise-items = { path = "../sunrise-items", features = ["test-support"] }
+sunrise-world = { path = "../sunrise-world", features = ["test-support"] }
+
+[lints]
+workspace = true
+
+[build-dependencies]
+sunrise-mod-api-gen = { path = "../sunrise-mod-api-gen" }
+
+[features]
+alloc-count = ["sunrise-threads/alloc-count"]
+parity-fixtures = []
+system-allocator = ["sunrise-threads/system-allocator"]
+test-owner-requests = []
+test-support = ["dep:tempfile", "sunrise-hooks/test-support", "sunrise-game-data/test-language-publication", "sunrise-game-data/test-effect-registry", "sunrise-mod-runtime/test-work-count", "sunrise-threads/test-allocation-count", "sunrise-threads/test-game-dir", "mod_api/testing", "sunrise-items/test-support", "sunrise-world/test-support"]

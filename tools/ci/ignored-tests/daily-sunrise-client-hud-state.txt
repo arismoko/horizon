@@ -1,1 +1,1 @@
-sunrise-client game::native_client_session::tests::title_and_boss_bar_reads_follow_what_the_server_sent lib daily resources
+sunrise-client-gameplay game::client_side::native_client_session::tests::title_and_boss_bar_reads_follow_what_the_server_sent lib daily resources

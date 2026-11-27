@@ -121,7 +121,7 @@ def main():
     oracle = lab.ROOT / "mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaGuiSpriteScalingOracle.java"
     probe = lab.ROOT / "crates/sunrise-client-render/examples/gui_sprite_scaling_probe.rs"
     tested_paths = [Path(__file__), oracle, probe, lab.ROOT / "crates/sunrise-client-render/src/ui.rs",
-                    lab.ROOT / "crates/sunrise-client-render/src/java_text.rs",
+                    lab.ROOT / "crates/sunrise-level/src/java_text.rs",
                     lab.ROOT / "crates/sunrise-client-render/src/packs.rs", lab.ROOT / "Cargo.lock"]
     tested_sources = base.source_hashes(tested_paths)
     tested_fixtures = base.source_hashes([inputs])

@@ -1,11 +1,20 @@
 //! Project SDK staging's source catalogs into the surface without rewriting the tree.
+use crate::SourceLayout;
 use mod_surface::{EngineContract, EngineItem};
 use std::path::Path;
 
 /// Reads the published loops and, for a full audit, the advisory internals of a source tree.
 pub fn collect(root: &Path, with_internals: bool) -> Result<Vec<EngineItem>, String> {
+    collect_with_layout(root, SourceLayout::read(root)?, with_internals)
+}
+
+pub fn collect_with_layout(
+    root: &Path,
+    layout: SourceLayout,
+    with_internals: bool,
+) -> Result<Vec<EngineItem>, String> {
     let mut items = Vec::new();
-    for published in crate::loops::collect(root)? {
+    for published in crate::loops::collect_with_layout(root, layout)? {
         items.push(EngineItem::new(
             format!("loop:{}", published.name),
             EngineContract::Loop {
@@ -19,7 +28,7 @@ pub fn collect(root: &Path, with_internals: bool) -> Result<Vec<EngineItem>, Str
     if !with_internals {
         return Ok(items);
     }
-    for internal in crate::internals::rule_catalog(root)? {
+    for internal in crate::internals::rule_catalog_with_layout(root, layout)? {
         let mut id = format!("internal:{}:{}", internal.kind, internal.path);
         if !internal.cfg.is_empty() {
             id.push_str(&format!(" [{}]", internal.cfg));

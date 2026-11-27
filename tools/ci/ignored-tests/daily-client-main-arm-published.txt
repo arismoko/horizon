@@ -1,5 +1,5 @@
 # #4475: an entity's main arm on both sides and whether the server is published load fixtures
 # that replace process-wide tables, so each runs in its own child process; opening to LAN binds a socket.
-sunrise-client game::native_entity_state::tests::a_client_reads_the_main_arm_the_server_sent lib daily child-process
-sunrise-client game::native_entity_state::tests::a_server_reads_the_reported_main_hand_and_the_left_handed_flag lib daily child-process
-sunrise-client game::native_server_distances::tests::the_server_is_published_while_open_to_lan lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_state::tests::a_client_reads_the_main_arm_the_server_sent lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_state::tests::a_server_reads_the_reported_main_hand_and_the_left_handed_flag lib daily child-process
+sunrise-client cut_layout::game::server_side::native_server_distances::tests::the_server_is_published_while_open_to_lan lib daily child-process

@@ -28,7 +28,7 @@ pub trait Hooks {
         event_per_listener = true,
         scope = "block_entity",
         key = "id",
-        target = "sunrise_client::game::native_hooks::block_entity_load_additional::GameLevel<'_>::native_block_entity_load_additional",
+        target = "sunrise_gameplay_common::game::native_hooks::block_entity_load_additional::native_block_entity_load_additional",
         neoforge = "none (vanilla BlockEntity.loadAdditional; NeoForge adds no event for this moment)",
         version = 3
     )]

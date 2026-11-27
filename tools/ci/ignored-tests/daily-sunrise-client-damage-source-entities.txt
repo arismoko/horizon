@@ -1,8 +1,8 @@
-sunrise-client game::commands::world_cmds::registered_damage_tests::live_damage_and_blast_creaking_reactions_and_timed_player_credit lib daily resources
-sunrise-client game::commands::world_cmds::registered_damage_tests::live_damage_and_blast_ghast_reflected_fireball lib daily resources
-sunrise-client game::commands::world_cmds::registered_damage_tests::live_damage_and_blast_warden_reactions_follow_source_entities_and_cooldown lib daily resources
-sunrise-client game::native_damage_tests::a_mob_blast_keeps_its_direct_entity_and_centre lib daily resources
-sunrise-client game::native_damage_tests::a_player_blast_names_its_direct_entity_and_centre lib daily resources
-sunrise-client game::native_damage_tests::an_ownerless_wither_skull_has_no_causing_entity lib daily resources
-sunrise-client game::native_damage_tests::damage_by_a_non_mob_cause_keeps_the_causing_entity lib daily resources
-sunrise-client game::native_damage_tests::lingering_and_splash_potions_name_themselves_as_the_direct_entity lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::live_damage_and_blast_creaking_reactions_and_timed_player_credit lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::live_damage_and_blast_ghast_reflected_fireball lib daily resources
+sunrise-client cut_layout::game::server_side::commands_server::world_cmds::registered_damage_tests::live_damage_and_blast_warden_reactions_follow_source_entities_and_cooldown lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::a_mob_blast_keeps_its_direct_entity_and_centre lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::a_player_blast_names_its_direct_entity_and_centre lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::an_ownerless_wither_skull_has_no_causing_entity lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::damage_by_a_non_mob_cause_keeps_the_causing_entity lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::lingering_and_splash_potions_name_themselves_as_the_direct_entity lib daily resources

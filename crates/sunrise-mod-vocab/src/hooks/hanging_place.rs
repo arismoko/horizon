@@ -13,7 +13,7 @@ pub trait Hooks {
     /// guests of a server; `/summon`, a dispenser and the game's own player
     /// are not heard, nor is a lead tied to a mob or a boat.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_hanging_place",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_hanging_place",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

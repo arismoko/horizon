@@ -1,13 +1,13 @@
 # Game-mode split parity fixtures (local controller mode vs PlayerInfo vs unified abilities).
-sunrise-client game::remote::abilities::gamemode_split_tests::change_game_mode_updates_only_local_mode_and_abilities_26_3 lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::genpvp_packet_sequence_matches_26_3_oracle_step_by_step lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::hud_camera_mounts_match_26_3_oracle lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::live_player_info_updates_toggle_no_physics_while_local_spectator_26_3 lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::login_and_respawn_set_previous_mode_and_fresh_abilities_26_3 lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::player_info_hook_fires_after_motion_clear_and_for_tab_only_profiles lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::resolved_player_info_retains_identity_across_remove_and_readd_26_3 lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::respawn_keep_data_spectator_info_clears_pending_y_26_3 lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::retained_player_login_preserves_custom_ability_speeds_26_3 lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::split_local_and_player_info_physics_matrix_26_3 lib daily child-process
-sunrise-client game::remote::abilities::gamemode_split_tests::split_mode_hud_rendering_reach_miss_inventory_and_input_rules lib daily child-process
-sunrise-client game::remote::rider_tick_tests::mounted_local_spectator_forces_flight_and_sends_abilities lib daily resources
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::change_game_mode_updates_only_local_mode_and_abilities_26_3 lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::genpvp_packet_sequence_matches_26_3_oracle_step_by_step lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::hud_camera_mounts_match_26_3_oracle lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::live_player_info_updates_toggle_no_physics_while_local_spectator_26_3 lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::login_and_respawn_set_previous_mode_and_fresh_abilities_26_3 lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::player_info_hook_fires_after_motion_clear_and_for_tab_only_profiles lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::resolved_player_info_retains_identity_across_remove_and_readd_26_3 lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::respawn_keep_data_spectator_info_clears_pending_y_26_3 lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::retained_player_login_preserves_custom_ability_speeds_26_3 lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::split_local_and_player_info_physics_matrix_26_3 lib daily child-process
+sunrise-client cut_layout::game::remote::abilities::gamemode_split_tests::split_mode_hud_rendering_reach_miss_inventory_and_input_rules lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::rider_tick_tests::mounted_local_spectator_forces_flight_and_sends_abilities lib daily resources

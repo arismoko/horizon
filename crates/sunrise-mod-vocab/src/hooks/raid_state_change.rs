@@ -5,7 +5,7 @@ pub trait Hooks {
     /// `loss` or `stopped`). `raid` identifies its owning level, including a
     /// parked level. A terminal raid already removed from storage cannot be read.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_raid_state_change",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_raid_state_change",
         dispatch = "flat",
         side = "server",
         contract = "listen",

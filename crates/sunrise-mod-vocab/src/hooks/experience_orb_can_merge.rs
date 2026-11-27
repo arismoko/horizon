@@ -11,7 +11,7 @@ pub trait Hooks {
     /// raises `into`'s value with `ExperienceOrbRef::set_value` in `experience_orb_merge`.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_experience_orb_can_merge",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_experience_orb_can_merge",
         dispatch = "flat",
         side = "server",
         contract = "listen",

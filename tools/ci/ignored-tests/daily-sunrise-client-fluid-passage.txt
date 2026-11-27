@@ -1,5 +1,5 @@
 # Daily row for #5087: a server mod closes horizontal passage at one position and water does not flow there, while a level with no listener flows as before.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::fluid_passage_tests::a_mod_closes_a_side_to_flowing_water lib daily resources
+sunrise-gameplay game::server_side::fluid_passage_tests::a_mod_closes_a_side_to_flowing_water lib daily resources
 sunrise-world level::fluids::tests::a_closed_side_is_not_flowed_into lib daily resources
 sunrise-world level::fluids::tests::an_open_answer_does_not_open_a_wall lib daily resources

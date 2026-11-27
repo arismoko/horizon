@@ -1,6 +1,6 @@
 # Isolated full-resource display entity daily checks (each runs in a fresh child process).
-sunrise-client game::text_displays::display_parity_tests::block_display_backface_culling_translucent_pass_and_light_emission_26_3 lib daily child-process
-sunrise-client game::text_displays::display_parity_tests::display_name_tags_and_fire_block_light_match_vanilla_26_3 lib daily child-process
-sunrise-client game::text_displays::display_parity_tests::no_culling_text_displays_are_not_frustum_culled_26_3 lib daily child-process
-sunrise-client game::text_displays::display_parity_tests::section_compiled_and_visible_gates_displays_and_mobs_26_3 lib daily child-process
-sunrise-client game::text_displays::display_parity_tests::set_camera_on_display_and_unbobbed_culling_match_vanilla_26_3 lib daily child-process
+sunrise-client cut_layout::game::client_side::text_displays::display_parity_tests::block_display_backface_culling_translucent_pass_and_light_emission_26_3 lib daily child-process
+sunrise-client cut_layout::game::client_side::text_displays::display_parity_tests::display_name_tags_and_fire_block_light_match_vanilla_26_3 lib daily child-process
+sunrise-client cut_layout::game::client_side::text_displays::display_parity_tests::no_culling_text_displays_are_not_frustum_culled_26_3 lib daily child-process
+sunrise-client cut_layout::game::client_side::text_displays::display_parity_tests::section_compiled_and_visible_gates_displays_and_mobs_26_3 lib daily child-process
+sunrise-client cut_layout::game::client_side::text_displays::display_parity_tests::set_camera_on_display_and_unbobbed_culling_match_vanilla_26_3 lib daily child-process

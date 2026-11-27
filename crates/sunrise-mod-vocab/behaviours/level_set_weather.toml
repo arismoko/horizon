@@ -2,6 +2,6 @@ version = 1
 handle = "handle:LevelRef::set_weather"
 doc = "LevelRef::set_weather writes the server's signed clear, rain and thunder timers and flags for any open server level, parked ones included, after one weather_change veto for the whole proposal; it returns false for a stale level or a veto, and a veto never undoes a listener's earlier host writes."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_weather.rs::weather_parameters_are_shared_and_strengths_are_local",
-    "crates/sunrise-client/src/game/modding/native_level_weather.rs::weather_veto_does_not_undo_listener_work",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_weather.rs::weather_parameters_are_shared_and_strengths_are_local",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_weather.rs::weather_veto_does_not_undo_listener_work",
 ]

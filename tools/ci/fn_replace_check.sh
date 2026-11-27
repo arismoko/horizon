@@ -58,6 +58,23 @@ for mod in ${FNR_MODS:-alpha beta}; do
   cp -r "${FNR_MOD_ROOT:-$root/tools/ci/fn-replace-check}/$mod" "$mods/fnr_$mod"
   sed -i "s/^sunrise = \"HEAD\"$/sunrise = \"$revision\"/; s/^mixins = \"MIXINS\"$/mixins = \"$mixins\"/" "$mods/fnr_$mod/sunrise-mod.toml"
 done
+if [[ "$side" == server && -f "$mods/fnr_lower/sunrise-mod.toml" ]] &&
+   [[ $(cat "$source/crates/sunrise-mod-api-gen/source-layout" 2>/dev/null || true) == split ]]; then
+  python3 - "$mods/fnr_lower/sunrise-mod.toml" <<'PYLOWER'
+from pathlib import Path
+import re, sys, tomllib
+
+path = Path(sys.argv[1])
+sections = re.split(r"(?m)(?=^\[\[native\.mixin\]\]$)", path.read_text(encoding="utf-8"))
+client = ("sunrise_mod_render::", "sunrise_client_lib::", "sunrise_client_render::")
+keep = [sections[0]]
+for section in sections[1:]:
+    row, = tomllib.loads(section)["native"]["mixin"]
+    if not row["target"].startswith(client):
+        keep.append(section)
+path.write_text("".join(keep), encoding="utf-8")
+PYLOWER
+fi
 # The game library (libsunrise_mod_host.so / .dylib, or sunrise_mod_host.dll on Windows): its SHA-256 in the SDK's
 # runtime archive for this side, which the unpacked copy must still match once the mods are built.
 game_hash=$(python3 - "$release" "$side" <<'PYGAME'

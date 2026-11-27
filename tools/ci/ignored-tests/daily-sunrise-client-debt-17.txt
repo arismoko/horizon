@@ -1,2 +1,2 @@
-sunrise-client game::native_entity_refs::dragon_query::tests::nearest_ray_rejects_closer_hits_and_keeps_first_tie lib daily resources
-sunrise-client game::native_entity_refs::dragon_query::tests::spatial_visit_stops_before_later_matches lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_refs::dragon_query::tests::nearest_ray_rejects_closer_hits_and_keeps_first_tie lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_refs::dragon_query::tests::spatial_visit_stops_before_later_matches lib daily resources

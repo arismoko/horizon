@@ -1,1 +1,1 @@
-sunrise-client game::stations::brewing_tick_tests::a_world_pack_provider_sets_the_brew_time lib daily resources
+sunrise-client cut_layout::game::client_side::stations::brewing_tick_tests::a_world_pack_provider_sets_the_brew_time lib daily resources

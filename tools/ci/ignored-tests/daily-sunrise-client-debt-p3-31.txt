@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::tests::declared_stock_storage_honors_shapes_and_rates lib daily child-process
+sunrise-client cut_layout::game::native_hooks::tests::declared_stock_storage_honors_shapes_and_rates lib daily child-process

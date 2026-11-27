@@ -10,7 +10,7 @@ pub trait Hooks {
         context = "loop",
         neoforge = "LivingFallEvent",
         version = 2,
-        target = "sunrise_client_lib::landing::native_living_fall"
+        target = "sunrise_sim::landing::native_living_fall"
     )]
     fn living_fall(
         entity: u32,

@@ -1,9 +1,9 @@
 //! `VillageSiege`: one night in ten, zombies spawn near a village a player stands in.
 use crate::custom_spawner::{CustomSpawnerLevel, section, sections_to_village};
 use std::collections::HashSet;
-use sunrise_client::mobs::raider;
-use sunrise_client_core::gamerules::vanilla::{SPAWN_MOBS, SPAWN_MONSTERS};
 use sunrise_core::{geometry::Vec3, random::RandomSource};
+use sunrise_game_data::gamerules::vanilla::{SPAWN_MOBS, SPAWN_MONSTERS};
+use sunrise_sim::mobs::raider;
 
 /// What `VillageSiege` calls on `ServerLevel` besides the custom spawner services.
 pub trait SiegeLevel: CustomSpawnerLevel {
@@ -162,15 +162,14 @@ mod tests {
     use super::*;
     use crate::custom_spawner::{SpawnerParts, SpawnerPlayer};
     use std::sync::Arc;
-    use sunrise_client::{
-        blocks::BlockFacts,
-        chunk::Chunk,
+    use sunrise_core::random::{LegacyRandom, LevelRandom};
+    use sunrise_game_data::gamerules::RuleIndex;
+    use sunrise_items::blocks::BlockFacts;
+    use sunrise_level::{chunk::Chunk, world::World};
+    use sunrise_sim::{
         join_seq::JoinList,
         mobs::{Mob, Species, spawn_rules},
-        world::World,
     };
-    use sunrise_client_core::gamerules::RuleIndex;
-    use sunrise_core::random::{LegacyRandom, LevelRandom};
     use sunrise_world::registry::BlockStateId;
 
     struct Fake {

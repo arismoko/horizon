@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests.git_fixture import isolated_git_env
 from tools.ci import nightly_set as ns
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -290,7 +291,7 @@ class SetTests(unittest.TestCase):
 
 def sh(repo, *args, env=None):
     return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True,
-                          env={**os.environ, **(env or {})}).stdout.strip()
+                          env=isolated_git_env(**(env or {}))).stdout.strip()
 
 
 class AssemblyTests(unittest.TestCase):
@@ -363,8 +364,8 @@ class StateTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.origin, self.repo = Path(self.tmp.name, "origin.git"), Path(self.tmp.name, "work")
-        subprocess.run(["git", "init", "-q", "--bare", str(self.origin)], check=True)
-        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+        sh(self.tmp.name, "init", "-q", "--bare", str(self.origin))
+        sh(self.tmp.name, "init", "-q", str(self.repo))
         sh(self.repo, "remote", "add", "origin", str(self.origin))
 
     def tearDown(self):
@@ -380,7 +381,7 @@ class StateTests(unittest.TestCase):
     def test_a_run_that_pushed_first_is_kept(self):
         ns.update_state(lambda st, b: ({"prs": [1]}, b, "one"), "t", cwd=str(self.repo))
         other = Path(self.tmp.name, "other")
-        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        sh(self.tmp.name, "init", "-q", str(other))
         sh(other, "remote", "add", "origin", str(self.origin))
         seen = []
 

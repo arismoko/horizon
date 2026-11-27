@@ -1,2 +1,2 @@
-sunrise-client game::slot_take_tests::a_click_sends_the_other_slots_written_by_contents_changed lib daily resources
-sunrise-client game::slot_take_tests::a_damage_only_repair_reaches_the_open_menu_and_inventory lib daily resources
+sunrise-client cut_layout::game::server_side::slot_take_tests::a_click_sends_the_other_slots_written_by_contents_changed lib daily resources
+sunrise-client cut_layout::game::server_side::slot_take_tests::a_damage_only_repair_reaches_the_open_menu_and_inventory lib daily resources

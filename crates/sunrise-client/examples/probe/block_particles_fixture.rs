@@ -12,9 +12,10 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = crate::args().collect();
     let root = Path::new(&args[1]);
     let assets = Assets::load(root)?;
-    let render = assets.reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-        root.to_path_buf(),
-    ))?;
+    let render = sunrise_client::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )?;
     let facts = BlockFacts::load(root, assets.registry)?;
     let tables = MeshTables::new(
         &assets,

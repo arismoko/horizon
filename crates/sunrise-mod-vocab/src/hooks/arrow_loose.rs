@@ -6,7 +6,7 @@ pub trait Hooks {
     /// a crossbow starts at `1` and other non-negative values do not change its
     /// shot. A bow uses the edited held-tick charge. `has_ammo` is always true.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_arrow_loose",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_arrow_loose",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

@@ -1,6 +1,6 @@
-sunrise-client game::native_hooks::camera_type::camera_type_tests::a_failed_camera_listener_is_disabled_and_later_listeners_still_run lib daily child-process
-sunrise-client game::native_hooks::camera_type::camera_type_tests::a_pinned_camera_position_over_an_unsent_chunk_leaves_streaming_and_readiness_on_the_player lib daily child-process
-sunrise-client game::native_hooks::camera_type::camera_type_tests::frame_camera_position_keeps_explicit_axes_when_realigning lib daily child-process
-sunrise-client game::native_hooks::camera_type::camera_type_tests::shared_camera_pose_requests_apply_before_frame_consumers lib daily child-process
-sunrise-client game::remote::minecarts::tests::interpolating_local_rider_skips_angles_but_lends_placed_position lib daily child-process
-sunrise-client game::screenshot_sequence::tests::sequence_checks_the_extracted_camera_and_paused_worlds_still_apply_view_transforms lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::camera_type::camera_type_tests::a_failed_camera_listener_is_disabled_and_later_listeners_still_run lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::camera_type::camera_type_tests::a_pinned_camera_position_over_an_unsent_chunk_leaves_streaming_and_readiness_on_the_player lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::camera_type::camera_type_tests::frame_camera_position_keeps_explicit_axes_when_realigning lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::camera_type::camera_type_tests::shared_camera_pose_requests_apply_before_frame_consumers lib daily child-process
+sunrise-client-gameplay game::client_side::remote_client::minecarts::tests::interpolating_local_rider_skips_angles_but_lends_placed_position lib daily child-process
+sunrise-client-gameplay game::client_side::screenshot_sequence::tests::sequence_checks_the_extracted_camera_and_paused_worlds_still_apply_view_transforms lib daily child-process

@@ -1,4 +1,4 @@
-sunrise-client game::chat::link_and_path_tests::a_mod_asks_to_open_a_web_link lib daily resources
-sunrise-client game::chat::link_and_path_tests::a_mod_link_must_be_http_or_https lib daily resources
-sunrise-client game::chat::link_and_path_tests::link_and_path_are_unavailable_without_a_window lib daily resources
-sunrise-client game::chat::link_and_path_tests::open_path_refuses_a_missing_path lib daily resources
+sunrise-client-gameplay game::client_side::chat::link_and_path_tests::a_mod_asks_to_open_a_web_link lib daily resources
+sunrise-client-gameplay game::client_side::chat::link_and_path_tests::a_mod_link_must_be_http_or_https lib daily resources
+sunrise-client-gameplay game::client_side::chat::link_and_path_tests::link_and_path_are_unavailable_without_a_window lib daily resources
+sunrise-client-gameplay game::client_side::chat::link_and_path_tests::open_path_refuses_a_missing_path lib daily resources

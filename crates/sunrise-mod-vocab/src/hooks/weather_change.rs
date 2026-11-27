@@ -21,7 +21,7 @@ pub trait Hooks {
     /// eligible listeners still run.
     /// A veto or failure does not undo Host writes.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_weather_change",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_weather_change",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

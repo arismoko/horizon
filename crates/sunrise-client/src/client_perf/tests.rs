@@ -256,7 +256,7 @@ fn the_first_second_of_a_capture_counts_only_frames_after_it_began() {
 
 #[test]
 fn a_trace_of_two_seconds_writes_a_timeline_capture_at_its_file() {
-    let _timeline = crate::server_perf::timeline::test_lock();
+    let _timeline = crate::perf_types::timeline_test_lock();
     let scratch = Scratch::new("trace");
     let reports = scratch.0.join("reports");
     fs::create_dir_all(&reports).unwrap();
@@ -829,7 +829,7 @@ mod sampled {
     #[test]
     #[ignore = "daily"]
     fn the_render_thread_samples_count_the_frames_the_run_made() {
-        let _turn = server_perf::SAMPLED_TESTS
+        let _turn = crate::perf_types::SAMPLED_TESTS
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let scratch = Scratch::new("samples");
@@ -885,7 +885,7 @@ mod sampled {
     #[test]
     #[ignore = "daily"]
     fn each_side_samples_its_own_thread_and_side_client_selects_the_render_thread() {
-        let _turn = server_perf::SAMPLED_TESTS
+        let _turn = crate::perf_types::SAMPLED_TESTS
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         use sunrise_perf::request::QueryRequest;

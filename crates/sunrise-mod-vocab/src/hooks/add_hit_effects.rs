@@ -11,7 +11,7 @@ pub trait Hooks {
         out = "cancel",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::block_particle_effects::Game<'_>::native_add_hit_effects",
+        target = "sunrise_client_gameplay::game::native_hooks::block_particle_effects::ClientGame<'_>::native_add_hit_effects",
         neoforge = "IClientBlockExtensions.addHitEffects"
     )]
     fn add_hit_effects(

@@ -1,1 +1,1 @@
-sunrise-client game::native_small_reads_tests::armor_stand_pose_and_flags_read_the_stand lib daily resources
+sunrise-client cut_layout::game::client_side::native_small_reads_tests::armor_stand_pose_and_flags_read_the_stand lib daily resources

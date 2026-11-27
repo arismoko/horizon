@@ -1,2 +1,2 @@
 # Vanilla value kinds in mod datapack registries (#5368 part 2), daily tests (README.md). Rows: PACKAGE TEST TARGET daily REASON.
-sunrise-client game::native_datapack_values::tests::datapack_vanilla_values_agree_with_worldgen_and_invalidate_on_reload lib daily resources
+sunrise-client cut_layout::game::native_datapack_values_tests::datapack_vanilla_values_agree_with_worldgen_and_invalidate_on_reload lib daily resources

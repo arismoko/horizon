@@ -7,7 +7,7 @@ pub trait Hooks {
     /// decision. `recipe` is its ID and `all` is the Shift-click form. The player is not
     /// swapped in. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_recipe_book_click",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_recipe_book_click",
         dispatch = "flat",
         side = "server",
         contract = "listen",

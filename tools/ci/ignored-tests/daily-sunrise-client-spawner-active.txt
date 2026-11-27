@@ -1,2 +1,2 @@
 # spawner_active: a mod decides whether a monster spawner is active this tick (#6040).
-sunrise-client game::spawner::tests::a_mod_decides_whether_a_spawner_is_active lib daily resources
+sunrise-client cut_layout::game::server_side::spawner::tests::a_mod_decides_whether_a_spawner_is_active lib daily resources

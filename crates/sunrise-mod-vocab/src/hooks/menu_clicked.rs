@@ -29,7 +29,7 @@ pub trait Hooks {
     /// Remaining parts continue, but the failed click's default never runs. The server resyncs
     /// the still-live menu and keeps committed edits.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_menu_clicked",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_menu_clicked",
         dispatch = "api_carrier",
         side = "server",
         contract = "cancel",

@@ -1,2 +1,2 @@
 # The client's prediction of using a vault (#3144).
-sunrise-client game::remote::placement_prediction_tests::an_active_vault_ends_a_held_item_s_click_on_the_client lib daily resources
+sunrise-client cut_layout::game::server_side::remote_server::placement_prediction_tests::an_active_vault_ends_a_held_item_s_click_on_the_client lib daily resources

@@ -1,2 +1,2 @@
 # A mod's gradient fills through DrawContext and a scoped GuiCanvas in the game's dispatch.
-sunrise-client game::gui_gradient_tests::a_mods_gradients_draw_top_to_bottom_in_the_clip_and_pose_and_empty_ones_draw_nothing lib daily child-process
+sunrise-client cut_layout::game::gui_gradient_tests::a_mods_gradients_draw_top_to_bottom_in_the_clip_and_pose_and_empty_ones_draw_nothing lib daily child-process

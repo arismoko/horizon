@@ -1,2 +1,2 @@
 # Mod text on the F3 frame rate line (#5554): needs a Game with prepared resources.
-sunrise-client game::debug_keys::tests::mods_add_their_text_to_the_frame_rate_line lib daily resources
+sunrise-client-gameplay game::client_side::debug_keys::tests::mods_add_their_text_to_the_frame_rate_line lib daily resources

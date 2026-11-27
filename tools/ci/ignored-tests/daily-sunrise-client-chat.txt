@@ -1,5 +1,5 @@
-sunrise-client game::remote::chat_audit_tests::delayed_chat_uses_only_show_secure_chat_from_receipt lib daily child-process
-sunrise-client game::remote::chat_audit_tests::delayed_player_chat_checks_block_filter_and_visibility_on_accept lib daily child-process
-sunrise-client game::remote::chat_audit_tests::delete_chat_removes_a_queued_fully_filtered_message_without_ack lib daily child-process
-sunrise-client game::remote::chat_audit_tests::disguised_chat_has_a_system_tag_but_is_player_chat lib daily child-process
-sunrise-client game::remote::chat_audit_tests::validation_error_acks_on_accept_and_checks_the_current_block_list lib daily child-process
+sunrise-client cut_layout::game::remote::chat_audit_tests::delayed_chat_uses_only_show_secure_chat_from_receipt lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::chat_audit_tests::delayed_player_chat_checks_block_filter_and_visibility_on_accept lib daily child-process
+sunrise-client cut_layout::game::remote::chat_audit_tests::delete_chat_removes_a_queued_fully_filtered_message_without_ack lib daily child-process
+sunrise-client cut_layout::game::remote::chat_audit_tests::disguised_chat_has_a_system_tag_but_is_player_chat lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::chat_audit_tests::validation_error_acks_on_accept_and_checks_the_current_block_list lib daily child-process

@@ -17,7 +17,7 @@ pub trait Hooks {
         out = "answer",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::remove_block::GameLevel<'_>::native_remove_block",
+        target = "sunrise_gameplay_common::game::native_hooks::remove_block::GameLevel<'_>::native_remove_block",
         neoforge = "none (vanilla Level.removeBlock; no NeoForge event covers this call)"
     )]
     fn remove_block(
