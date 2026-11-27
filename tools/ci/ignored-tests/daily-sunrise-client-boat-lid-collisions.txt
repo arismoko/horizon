@@ -1,2 +1,2 @@
-sunrise-client game::piston_push::restitution_tests::a_shulker_box_lid_stops_a_driven_boat_at_another_boat lib daily child-process
-sunrise-client game::piston_push::restitution_tests::an_observing_boat_keeps_the_lid_push_through_its_last_lerp_step lib daily child-process
+sunrise-client cut_layout::game::piston_push::restitution_tests::a_shulker_box_lid_stops_a_driven_boat_at_another_boat lib daily child-process
+sunrise-client cut_layout::game::piston_push::restitution_tests::an_observing_boat_keeps_the_lid_push_through_its_last_lerp_step lib daily child-process

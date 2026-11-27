@@ -1,2 +1,2 @@
 # A primed TNT minecart adds one smoke particle a client tick, as MinecartTNT.tick (#6011).
-sunrise-client game::remote_objects::tests::a_primed_tnt_minecart_adds_one_smoke_particle_a_tick lib daily resources
+sunrise-client-gameplay game::client_side::remote_objects::tests::a_primed_tnt_minecart_adds_one_smoke_particle_a_tick lib daily resources

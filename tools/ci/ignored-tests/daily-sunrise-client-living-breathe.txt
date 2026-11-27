@@ -1,5 +1,5 @@
-sunrise-client game::creatures::borrowed_panic_tests::a_mob_breathes_with_what_its_listener_answers_and_wrote lib daily resources
-sunrise-client game::creatures::borrowed_panic_tests::a_mob_whose_air_the_listener_changed_keeps_it_and_loses_the_transactional_writes lib daily resources
-sunrise-client game::creatures::borrowed_panic_tests::retained_breathing_tail lib daily resources
-sunrise-client game::lan_actions::guest_body::tests::a_guest_breathes_with_what_its_listener_answers_and_wrote lib daily child-process
-sunrise-client game::lan_actions::guest_body::tests::a_guest_whose_air_the_listener_changed_keeps_it_and_loses_the_transactional_writes lib daily child-process
+sunrise-client cut_layout::game::creatures::borrowed_panic_tests::a_mob_breathes_with_what_its_listener_answers_and_wrote lib daily resources
+sunrise-client cut_layout::game::creatures::borrowed_panic_tests::a_mob_whose_air_the_listener_changed_keeps_it_and_loses_the_transactional_writes lib daily resources
+sunrise-client cut_layout::game::server_side::creatures_server::borrowed_panic_tests::retained_breathing_tail lib daily resources
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::a_guest_breathes_with_what_its_listener_answers_and_wrote lib daily child-process
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::a_guest_whose_air_the_listener_changed_keeps_it_and_loses_the_transactional_writes lib daily child-process

@@ -1,3 +1,3 @@
-sunrise-client game::native_hooks::placement_context_tests::substituted_placement_uses_the_held_item_preclear_and_selected_placed_by lib daily resources
-sunrise-client game::remote::placement_prediction_tests::predicts_the_selected_beds_component_adjusted_head lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::placement_context_tests::substituted_placement_uses_the_held_item_preclear_and_selected_placed_by lib daily resources
+sunrise-client cut_layout::game::remote::placement_prediction_tests::predicts_the_selected_beds_component_adjusted_head lib daily resources
 sunrise-world level::tests::the_level_chooses_the_state_a_block_is_placed_in lib daily resources

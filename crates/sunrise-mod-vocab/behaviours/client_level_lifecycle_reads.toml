@@ -1,3 +1,3 @@
 version = 1
 doc = "In client_level_load and client_level_unload, `method:prelude::EntitiesHost::level` resolves the entering or retiring level named in the event. `handle:LevelRef::datapack_entries` and `handle:LevelRef::datapack_read` use that level's synchronized registry snapshot even across a configuration replacement. The retiring handle is stale after Unload."
-tests = ["crates/sunrise-client/src/game/network/remote/client_level_lifecycle_tests.rs::client_level_notices_pair_across_replacement_reconfiguration_leave_and_quit"]
+tests = ["crates/sunrise-client/src/cut_layout/game/network/remote/client_level_lifecycle_tests_client.rs::client_level_notices_pair_across_replacement_reconfiguration_leave_and_quit"]

@@ -8,7 +8,7 @@ pub trait Hooks {
         side = "server",
         contract = "listen",
         neoforge = "none (NeoForge has no such event)",
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_sponge_absorb"
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_sponge_absorb"
     )]
     fn sponge_absorb(dimension: LevelDimension, pos: BlockPos);
 }

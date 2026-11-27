@@ -1,2 +1,2 @@
-sunrise-client game::creatures::last_hurt_mob_tests::last_hurt_mob_follows_the_attacking_entity lib daily resources
-sunrise-client game::native_goal_ticks::live_read_tests::a_players_last_hurt_mob_resolves_the_mob_lent_to_its_tick lib daily child-process
+sunrise-client cut_layout::game::server_side::creatures_server::last_hurt_mob_tests::last_hurt_mob_follows_the_attacking_entity lib daily resources
+sunrise-client cut_layout::game::server_side::native_goal_ticks::live_read_tests::a_players_last_hurt_mob_resolves_the_mob_lent_to_its_tick lib daily child-process

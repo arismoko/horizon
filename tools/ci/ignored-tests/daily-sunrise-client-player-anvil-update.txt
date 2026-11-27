@@ -1,2 +1,2 @@
 # Daily row for #5610: a mod's anvil menu runs the anvil_update listeners.
-sunrise-client game::stations::tests::a_mods_anvil_menu_runs_the_anvil_update_listeners lib daily resources
+sunrise-gameplay game::server_side::stations_server::anvil_update_tests::a_mods_anvil_menu_runs_the_anvil_update_listeners lib daily resources

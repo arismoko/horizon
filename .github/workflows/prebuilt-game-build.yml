@@ -256,6 +256,17 @@ jobs:
       - name: A native mod builds through the shipped route
         if: matrix.name == 'macos' && env.CROSS != 'on'
         run: python tools/ci/native_build_route.py --sdk prebuilt --tool target/release/cargo-sunrise-mod --work "$RUNNER_TEMP/native-route"
+      # macOS's system openssl is LibreSSL, whose `pkeyutl` has no -rawin (daily run 45879175792), which sign_release.sh
+      # needs for the throwaway key below: it reads the OpenSSL it signs with from OPENSSL.
+      - name: OpenSSL 3 for tools/ci/sign_release.sh
+        if: inputs.c_source_test && matrix.name == 'macos'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: |
+          brew list openssl@3 > /dev/null 2>&1 || brew install openssl@3
+          openssl="$(brew --prefix openssl@3)/bin/openssl"
+          "$openssl" version
+          echo "OPENSSL=$openssl" >> "$GITHUB_ENV"
       # The mod tool builds a native mod whose build script compiles a C file with `cc`, against this leg's own SDK laid out
       # as a signed release folder (the Linux legs' run of the same test is book-quickstart.yml's). `cc` must find the
       # compiler of the leg's target: MinGW's GCC for windows-gnu, the system's clang on macOS.

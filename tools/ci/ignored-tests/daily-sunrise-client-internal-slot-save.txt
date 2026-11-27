@@ -1,2 +1,2 @@
-sunrise-client game::block_entity_part_state_tests::an_item_write_commits_in_its_own_level_despite_an_unrelated_transaction lib daily child-process
-sunrise-client game::block_entity_part_state_tests::item_slot_writes_save_but_menu_data_is_transient lib daily child-process
+sunrise-client cut_layout::game::server_side::block_entity_part_state_tests::an_item_write_commits_in_its_own_level_despite_an_unrelated_transaction lib daily child-process
+sunrise-client cut_layout::game::server_side::block_entity_part_state_tests::item_slot_writes_save_but_menu_data_is_transient lib daily child-process

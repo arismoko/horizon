@@ -1,2 +1,2 @@
 # Daily row for #5495: EntityRef::pick_result reads getPickResult through a handle.
-sunrise-client game::pick_entity::tests::an_entitys_pick_result_reads_through_its_handle lib daily child-process
+sunrise-client cut_layout::game::server_side::pick_entity_server::tests::an_entitys_pick_result_reads_through_its_handle lib daily child-process

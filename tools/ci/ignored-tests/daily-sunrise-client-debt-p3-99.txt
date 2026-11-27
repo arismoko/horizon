@@ -1,3 +1,3 @@
-sunrise-client game::native_net::packet_hold::tests::held_mod_packets_keep_real_writer_credit_until_drop lib daily child-process
-sunrise-client game::native_net::packet_hold::tests::held_pressure_refuses_send_play_and_cross_passage_without_moving lib daily child-process
+sunrise-client cut_layout::game::client_side::native_net::packet_hold::tests::held_mod_packets_keep_real_writer_credit_until_drop lib daily child-process
+sunrise-client cut_layout::game::client_side::native_net::packet_hold::tests::held_pressure_refuses_send_play_and_cross_passage_without_moving lib daily child-process
 sunrise-client-lib net::tests::exhausted_held_play_credit_still_serves_replies_and_reconfiguration_ack lib daily child-process

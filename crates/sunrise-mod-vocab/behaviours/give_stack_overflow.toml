@@ -1,5 +1,5 @@
 version = 1
 doc = "PlayerRef::give_stack throws overflow from the receiving player's eyes in their own level, even when called from another level. The drop has no pickup delay and only that player may pick it up. An open transaction defers the drop until the outermost commit. If their level is unavailable, the overflow is returned instead."
 tests = [
-  "crates/sunrise-client/src/game/modding/native_player_level_tests.rs::a_give_to_a_player_in_another_level_drops_overflow_there",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_player_level_tests.rs::a_give_to_a_player_in_another_level_drops_overflow_there",
 ]

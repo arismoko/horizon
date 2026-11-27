@@ -13,6 +13,7 @@ pub trait Hooks {
     /// the reload. A panicking registration callback contributes no ordered or
     /// retained listeners or dependencies; unrelated callbacks still run.
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::add_server_reload_listeners::native_add_server_reload_listeners",
         receiver = "associated",
         context = "reload",
         dispatch = "flat",

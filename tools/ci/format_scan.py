@@ -12,15 +12,24 @@ exit status is 1 if any of them failed. The launcher is a separate workspace wit
 import os
 import subprocess
 import sys
+import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+if __package__:
+    from .rust_changes import tokens
+    from .surface_report import source_layout
+else:
+    from rust_changes import tokens
+    from surface_report import source_layout
+
 ROOT = Path(__file__).resolve().parents[2]
 # Every `.rs` file under these folders, checked one file at a time (no child modules followed).
-TREES = ("crates/sunrise-mod-api/src", "crates/sunrise-mod-vocab/src", "crates/sunrise-client/src/game",
-         "crates/sunrise-client/src/health",
-         "crates/sunrise-client/src/mobs/goals",
-         "crates/sunrise-client/src/save/carrier")
+TREES = ("crates/sunrise-mod-api/src", "crates/sunrise-mod-vocab/src",
+         "crates/sunrise-client/src/game", "crates/sunrise-client/src/cut_layout",
+         "crates/sunrise-sim/src/health", "crates/sunrise-sim/src/mobs/goals",
+         "crates/sunrise-sim/src/save/carrier")
+GAMEPLAY_OWNERS = ("sunrise-gameplay-common", "sunrise-gameplay", "sunrise-client-gameplay")
 # Files no `mod` line reaches.
 DISCOVERED = ("crates/sunrise-mod-api-gen/dispatch-tests/src/fixtures/*.rs",
               "crates/sunrise-mod-api-gen/dispatch-tests/src/fixtures/*/*.rs")
@@ -31,9 +40,56 @@ RUSTFMT = ["rustfmt", "--edition", "2024", "--check", "--config", "skip_children
 CHUNK = 200 if os.name == "nt" else 500
 
 
+def literal_fragments(root: Path, files: set[Path]) -> set[Path]:
+    pending = list(files)
+    found = set()
+    while pending:
+        source = pending.pop()
+        text = source.read_text(encoding="utf-8")
+        if "include" not in text:
+            continue
+        lexed = list(tokens(text))
+        for index, token in enumerate(lexed):
+            if token != ("ident", "include"):
+                continue
+            tail = lexed[index + 1:index + 5]
+            if len(tail) != 4 or tail[0] != ("punct", "!") or tail[2][0] != "str":
+                continue
+            if (tail[1], tail[3]) not in {
+                (("punct", "("), ("punct", ")")),
+                (("punct", "["), ("punct", "]")),
+                (("punct", "{"), ("punct", "}")),
+            }:
+                continue
+            fragment = (source.parent / tail[2][1]).resolve()
+            if (fragment.is_relative_to(root) and fragment.suffix == ".rs" and fragment.is_file()
+                    and fragment not in files and fragment not in found):
+                found.add(fragment)
+                pending.append(fragment)
+    return found
+
+
+def split_sources(root: Path) -> set[Path]:
+    files = set()
+    for owner in GAMEPLAY_OWNERS:
+        package = root / "crates" / owner
+        manifest = tomllib.loads((package / "Cargo.toml").read_text(encoding="utf-8"))
+        library = (package / manifest.get("lib", {}).get("path", "src/lib.rs")).resolve()
+        if not library.is_relative_to(root) or not library.is_file():
+            raise ValueError(f"{owner}: gameplay library source is missing or outside the workspace")
+        files.update(library.parent.rglob("*.rs"))
+    return files
+
+
 def commands(root: Path) -> list[list[str]]:
     files = sorted(path.relative_to(root).as_posix() for tree in TREES for path in (root / tree).rglob("*.rs"))
     files += sorted(path.relative_to(root).as_posix() for pattern in DISCOVERED for path in root.glob(pattern))
+    if source_layout(root) == "split":
+        root = root.resolve()
+        checked = {root / path for path in files}
+        owners = split_sources(root)
+        extra = (owners | literal_fragments(root, owners | checked)) - checked
+        files += sorted(path.relative_to(root).as_posix() for path in extra)
     return [["cargo", "fmt", "--all", "--", "--check"]] + [
         RUSTFMT + files[start:start + CHUNK] for start in range(0, len(files), CHUNK)]
 

@@ -97,8 +97,17 @@ SURFACE_NOTES = "crates/sunrise-mod-vocab/changes/"
 SURFACE_FILES = ("Cargo.toml", "tools/ci/surface_report.py", "tools/ci/surface.toml",
                  "tools/ci/surface-schema-3-reset.json")
 SURFACE_TOOL = "sunrise-stage"
-GAME_FILE = "crates/sunrise-client/src/game.rs"
-GAME_FOLDER = "crates/sunrise-client/src/game/"
+GAME_FILES = (
+    "crates/sunrise-client/src/game.rs",
+    "crates/sunrise-gameplay-common/src/game.rs",
+)
+GAME_FOLDERS = (
+    "crates/sunrise-client/src/game/",
+    "crates/sunrise-client/src/cut_layout/game/",
+    "crates/sunrise-gameplay-common/src/game/",
+    "crates/sunrise-gameplay/src/game/",
+    "crates/sunrise-client-gameplay/src/game/",
+)
 LOOP_MARK = "sunrise_loop"
 
 def is_doc(path):
@@ -120,13 +129,17 @@ def touched_crates(paths, packages):
         if is_doc(path):
             continue
         if path.startswith(MOD_API_INPUTS):
-            crates.update({"sunrise-client", "sunrise-client-render", "sunrise-mod-api-gen"})
+            crates.update({
+                "sunrise-client", "sunrise-client-render", "sunrise-mod-api-gen",
+                "sunrise-gameplay-common", "sunrise-gameplay", "sunrise-client-gameplay",
+            })
             continue
         if "sunrise-client-lib" in packages and path.startswith("crates/sunrise-client/"):
             relative = path.removeprefix("crates/sunrise-client/")
             gameplay = relative in {"Cargo.toml", "build.rs", "windows-segment-heap.manifest",
-                                    "src/lib.rs", "src/main.rs", "src/entry.rs", "src/game.rs"} \
-                or relative.startswith(("src/game/", "tests/it/"))
+                                    "src/lib.rs", "src/main.rs", "src/entry.rs", "src/game.rs",
+                                    "src/game_facade.rs", "src/test_game_dir.rs"} \
+                or relative.startswith(("src/game/", "src/cut_layout/", "tests/it/"))
             crates.add("sunrise-client" if gameplay else "sunrise-client-lib")
             continue
         owners = [name for name, directory in packages.items() if path.startswith(directory.rstrip("/") + "/")]
@@ -173,7 +186,9 @@ def suggested_label(paths, exporter_paths=frozenset()):
 # CI runs parity only in the daily on main's head.
 PARITY_SCOPE = re.compile(
     r"^(tools/test_[a-z0-9_]+_parity\.py|tools/(parity[a-z_]*|lab)\.py|tools/parity_hosts\.json|mods/sunrise/src/test/"
-    r"|crates/[^/]+/examples/|crates/sunrise-client/src/game/[a-z_]*(fixture|harness)\.rs"
+    r"|crates/[^/]+/examples/"
+    r"|crates/(?:sunrise-client/src/(?:cut_layout/)?game|sunrise-gameplay-common/src/game"
+    r"|sunrise-gameplay/src/game|sunrise-client-gameplay/src/game)/(?:.*/)?[a-z_]*(fixture|harness)\.rs"
     r"|\.github/workflows/parity[a-z-]*\.yml)")
 
 
@@ -296,7 +311,7 @@ def surface_touched(changed, crates_of, dependencies, merge_base):
     ):
         return True
     games = sorted(path for path in changed
-                   if path.endswith(".rs") and (path == GAME_FILE or path.startswith(GAME_FOLDER)))
+                   if path.endswith(".rs") and (path in GAME_FILES or path.startswith(GAME_FOLDERS)))
     return bool(games) and holds_loop(games, merge_base)
 
 
@@ -411,7 +426,8 @@ def mod_features(crates):
 
 # What sunrise-client's full content-root tests load (mod_content_tests.rs). They take minutes on prepared data, so
 # they are #[ignore]d and run here only when one of these changes.
-CONTENT_ROOT = ("crates/sunrise-client/src/mod_content", "crates/sunrise-client-render/src/assets.rs", "crates/sunrise-items/",
+CONTENT_ROOT = ("crates/sunrise-sim/src/mod_content", "crates/sunrise-client/src/mod_content",
+                "crates/sunrise-client-render/src/assets.rs", "crates/sunrise-items/",
                 "crates/sunrise-mod-package/", "crates/sunrise-assets/")
 CONTENT_ROOT_TESTS = "cargo test --locked -p sunrise-client-lib --lib mod_content::tests:: -- --ignored"
 
@@ -465,6 +481,8 @@ def plan(args, base, changed, crates_of, libraries, dependencies, merge_base=Non
         Step("Export lists", "python3 tools/hotspots/check_lists.py", where="here"),
         # tools/hotspots/check_stand_ins.py: test stand-ins keep up with the hooks and traits they mirror.
         Step("Test stand-ins", "python3 tools/hotspots/check_stand_ins.py", where="here"),
+        # tools/ci/check_gameplay_layers.py: manifest dependency boundary across the three gameplay crates.
+        Step("Gameplay layers", "python3 tools/ci/check_gameplay_layers.py", where="here"),
         # Always, as in CI: some read the crates, the roadmap or the workflows. One file per worker here, with
         # unittest's own summary (#5043); CI and --serial-python run them in one process.
         Step("Python tests", "python3 -m unittest discover -s tests" if getattr(args, "serial_python", False)

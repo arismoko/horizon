@@ -1,2 +1,2 @@
 # Whether a block needs a correct tool, for native mods (BlockStates::requires_correct_tool).
-sunrise-client game::native_requires_tool_tests::requires_correct_tool_is_the_states_own_fact lib daily resources
+sunrise-client cut_layout::game::native_requires_tool_tests::requires_correct_tool_is_the_states_own_fact lib daily resources

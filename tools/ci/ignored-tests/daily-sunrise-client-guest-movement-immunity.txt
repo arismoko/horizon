@@ -1,1 +1,1 @@
-sunrise-client game::native_bots::tests::guest_movement_preview_uses_the_guests_damage_immunity lib daily child-process
+sunrise-gameplay game::server_side::native_bots::tests::guest_movement_preview_uses_the_guests_damage_immunity lib daily child-process

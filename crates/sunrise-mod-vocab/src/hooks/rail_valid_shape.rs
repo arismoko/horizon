@@ -16,7 +16,7 @@ pub trait Hooks {
         out = "valid",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::rails::GameLevel<'_>::native_rail_valid_shape",
+        target = "sunrise_gameplay_common::game::native_hooks::rails::GameLevel<'_>::native_rail_valid_shape",
         neoforge = "IBaseRailBlockExtension.isValidRailShape"
     )]
     fn rail_valid_shape(

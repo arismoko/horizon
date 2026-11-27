@@ -1,7 +1,7 @@
 # sunrise-client-render's ignored tests that never run in the daily shards, and who runs them (README.md: `manual`).
-sunrise-client-render authored_defaults_render_and_runtime_values_override_including_zero by-hand manual # requires a host GPU; run with --ignored --nocapture
-sunrise-client-render component_qualified_outputs_write_their_own_channels by-hand manual # requires a host GPU; run with --ignored --nocapture
-sunrise-client-render reads_of_atomic_members_see_the_atomic_updates by-hand manual # requires a host GPU; run with --ignored --nocapture
-sunrise-client-render sunrise_sectors_match_reference_on_real_gpu by-hand manual # requires a host GPU; run with --ignored --nocapture
-sunrise-client-render texture_matrix_is_the_identity_in_the_vertex_stage_and_zero_in_the_fragment_stage by-hand manual # requires a host GPU; run with --ignored --nocapture
+sunrise-client-render uniform_initial_render::authored_defaults_render_and_runtime_values_override_including_zero by-hand manual # requires a host GPU; run with --ignored --nocapture
+sunrise-client-render fragment_output_components::component_qualified_outputs_write_their_own_channels by-hand manual # requires a host GPU; run with --ignored --nocapture
+sunrise-client-render atomic_member_values::reads_of_atomic_members_see_the_atomic_updates by-hand manual # requires a host GPU; run with --ignored --nocapture
+sunrise-client-render sunrise_shader::sunrise_sectors_match_reference_on_real_gpu by-hand manual # requires a host GPU; run with --ignored --nocapture
+sunrise-client-render texture_matrix::texture_matrix_is_the_identity_in_the_vertex_stage_and_zero_in_the_fragment_stage by-hand manual # requires a host GPU; run with --ignored --nocapture
 sunrise-client-render world_view_slot_delivers_only_drawable_requests by-hand manual # requires a Vulkan/Metal/DX12 adapter; cargo test -p sunrise-client-render --test world_view_slots -- --ignored

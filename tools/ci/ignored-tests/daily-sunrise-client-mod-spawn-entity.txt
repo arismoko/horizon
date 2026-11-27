@@ -1,5 +1,5 @@
-sunrise-client game::general::tick_tests::spawn_entity_inserts_a_general_row_with_its_owner lib daily resources
-sunrise-client game::general::tick_tests::spawn_entity_returns_its_own_row_when_a_join_spawns_another lib daily resources
-sunrise-client game::native_level_spawning::tests::a_spawned_mob_starts_with_its_velocity_and_rotation lib daily resources
-sunrise-client game::native_level_spawning::tests::a_thrown_spawn_takes_its_velocity_item_and_owner lib daily resources
-sunrise-client game::transaction_entities_tests::a_thrown_spawn_joins_at_the_call_or_the_root_commit lib daily child-process
+sunrise-client cut_layout::game::general::tick_tests::spawn_entity_inserts_a_general_row_with_its_owner lib daily resources
+sunrise-client cut_layout::game::general::tick_tests::spawn_entity_returns_its_own_row_when_a_join_spawns_another lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_spawning::tests::a_spawned_mob_starts_with_its_velocity_and_rotation lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_spawning::tests::a_thrown_spawn_takes_its_velocity_item_and_owner lib daily resources
+sunrise-gameplay game::server_side::transaction_entities_tests::a_thrown_spawn_joins_at_the_call_or_the_root_commit lib daily child-process

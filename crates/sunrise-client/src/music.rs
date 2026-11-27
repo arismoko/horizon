@@ -24,11 +24,7 @@ fn music_volume_attribute() -> &'static Attribute {
 }
 
 /// Static `SOUND_EVENT` registry, not the resource pack's playable sound pools.
-pub(crate) fn registered_sound(builtin: &Builtin, name: &str) -> bool {
-    builtin
-        .get("minecraft:sound_event")
-        .is_some_and(|ids| ids.ids.contains_key(name))
-}
+pub(crate) use crate::mod_content::biomes::registered_sound;
 
 /// The Music page's groups: each built-in situation's own tracks first, then
 /// every other `music.` event's tracks that no earlier group listed, under

@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_invulnerable::tests::a_client_reads_its_players_and_a_kept_mobs_damage_timers lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_invulnerable::tests::a_client_reads_its_players_and_a_kept_mobs_damage_timers lib daily resources

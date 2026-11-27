@@ -1,2 +1,2 @@
 # Marking sections for remeshing (#5646): the Host queues only loaded sections; loads a Game in a child process.
-sunrise-client game::native_section_dirty::tests::host_marks_only_loaded_sections_dirty lib daily child-process
+sunrise-client-gameplay game::client_side::native_section_dirty::tests::host_marks_only_loaded_sections_dirty lib daily child-process

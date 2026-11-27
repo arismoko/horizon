@@ -1,99 +1,99 @@
-ClientPacketListener.<init>	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::join_server	the chat is cleared on join (hud_disconnected leaves it out), while a reconfiguration keeps it: Event::Reconfiguring flushes it and ChatComponent.storeState's state survives
+ClientPacketListener.<init>	port	crates/sunrise-client-gameplay/src/game/interface/developer_launch_client.rs::ClientGame::join_server	the chat is cleared on join (hud_disconnected leaves it out), while a reconfiguration keeps it: Event::Reconfiguring flushes it and ChatComponent.storeState's state survives
 ClientPacketListener.clearCacheSlots	skip:java		weak-reference cache slots; Sunrise has no such cache
-ClientPacketListener.handleAddEntity	inline	crates/sunrise-client/src/game/network/remote/packets_object.rs::Game::apply_add_entity_packet	AddEntity arm: admit before replacing a tracked entity, then spawn and apply motion
-ClientPacketListener.createEntityFromPacket	inline	crates/sunrise-client/src/game/network/remote/packets_object.rs::Game::apply_add_entity_packet	only creates a player if its PlayerInfo exists, whether listed or not
-ClientPacketListener.handleSetEntityData	port	crates/sunrise-client/src/game/network/remote/packets_entity.rs::Game::apply_set_entity_data_packet	gap: minor: only the data indexes Sunrise reads are applied (flags, names, sleep, crouch, mob fields)
-ClientPacketListener.handleEntityPositionSync	port	crates/sunrise-client/src/game/network/remote/motion.rs::Game::move_entity	absolute move with the packet rotation and on-ground flag
-ClientPacketListener.handleTeleportEntity	inline	crates/sunrise-client/src/game/network/remote/packets_object.rs::Game::apply_teleport_entity_packet	TeleportEntity arm works out the relative position, then move_entity; gap: minor: a teleport of the player's former vehicle is not applied to the player
-ClientPacketListener.handleTickingState	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	TickingState arm: clock rate and frozen flag
-ClientPacketListener.handleTickingStep	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	TickingStep arm: frozen ticks to run
-ClientPacketListener.handleMoveEntity	port	crates/sunrise-client/src/game/network/remote/motion.rs::Game::move_entity	relative move and rotation from the Pos, PosRot and Rot packets
-ClientPacketListener.handleMinecartAlongTrack	port	crates/sunrise-client/src/game/network/remote/minecarts.rs::Game::remote_move_minecart	the server's steps join the cart's own queue while it runs NewMinecartBehavior
-ClientPacketListener.handleRemoveEntities	port	crates/sunrise-client/src/game/network/remote_removal.rs::Game::remove_entity	gap: minor: a removed vehicle carrying the player is not remembered for a later teleport
-ClientPacketListener.setValuesFromPositionPacket	port	crates/sunrise-client/src/game/network/remote/sync.rs::Game::remote_teleport	gap: minor: the entity case (TeleportEntity) is in Game::apply_teleport_entity_packet, not here
-ClientPacketListener.handleRotatePlayer	port	crates/sunrise-client/src/game/network/remote/abilities.rs::Game::remote_rotation	the PlayerRotation arm of Game::apply_packet calls it: relative or absolute yaw and pitch, pitch clamped, then the ServerboundMovePlayerPacket.Rot reply with both flags false
-ClientPacketListener.handleChunkBlocksUpdate	port	crates/sunrise-client/src/game/network/remote/packets_world.rs::Game::apply_section_blocks_update_packet	SectionBlocksUpdate arm: each change through the block update
-ClientPacketListener.handleChunksBiomes	port	crates/sunrise-client/src/game/network/remote_chunks.rs::Game::remote_chunks_biomes	each loaded column replaces its biomes, then its sections and its neighbours' are drawn again
-ClientPacketListener.enableChunkLight	inline	crates/sunrise-client-render/src/streaming.rs::Streaming::insert_remote	publishes the initial air-only section status from packet decode; every section of the 3x3 columns is marked dirty; later block-edit status updates are tracked by #3495
-ClientPacketListener.handleForgetLevelChunk	port	crates/sunrise-client/src/game/network/remote/packets_world.rs::Game::apply_forget_level_chunk_packet	ForgetLevelChunk arm: Streaming::forget, block entities and renderer columns dropped
-ClientPacketListener.queueLightRemoval	inline	crates/sunrise-client-render/src/light_border.rs::World::retain_border	forget removes the column and clears only light sections no loaded neighbour supports
-ClientPacketListener.handleBlockUpdate	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::server_block
-ClientPacketListener.handleConfigurationStart	port	crates/sunrise-client/src/game/network/remote/raw_ingress.rs::Game::poll_remote_events	the Reconfiguring arm flushes the held-back chat, acknowledges it, closes dialogs and drops the level, keeping the chat; gap: player: no reconfiguring screen is drawn
-ClientPacketListener.handleSystemChat	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_system_chat_packet	SystemChat arm: overlay to the action bar, otherwise the chat
-ClientPacketListener.handlePlayerChat	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_player_chat_packet	PlayerChat arm: the global index (a mismatch disconnects), an unknown sender and the sender's validator; markMessageAsProcessed is Game::mark_message_processed (its own row), which keeps the last-seen tracker
-ClientPacketListener.handleDisguisedChat	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_disguised_chat_packet	DisguisedChat arm
-ClientPacketListener.handleDeleteChat	port	crates/sunrise-client/src/game/network/remote/chat.rs::Game::handle_delete_chat
-ClientPacketListener.handleAnimate	port	crates/sunrise-client/src/game/network/remote/interaction_actions.rs::Game::remote_animate	action 0 stops sleeping, 1 and 2 attach crit and enchanted hit emitters to the tracked entity
-ClientPacketListener.handleHurtAnimation	port	crates/sunrise-client/src/game/network/remote/packets_object.rs::Game::apply_hurt_animation_packet	HurtAnimation arm: own player's hurt tilt, or a mob's hurt time
-ClientPacketListener.handleSetSpawn	port	crates/sunrise-client/src/game/network/remote/packets_world.rs::Game::apply_set_default_spawn_position_packet	stores the border-adjusted spawn position and packet dimension
-ClientPacketListener.handleAddTransientBlockPacket	port	crates/sunrise-client/src/game/blocks/transient_blocks.rs::Game::add_transient_block	the block is queued, shown for its time to live and dropped once its section is drawn again
-ClientPacketListener.findTotem	port	crates/sunrise-client/src/game/items/totem.rs::Game::find_totem	the first hand's item with death_protection, else a new totem, then LocalPlayer.displayItemActivation
-ClientPacketListener.handleSetExperience	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_set_experience_packet	SetExperience arm
+ClientPacketListener.handleAddEntity	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_object_client.rs::Game::apply_add_entity_packet	AddEntity arm: admit before replacing a tracked entity, then spawn and apply motion
+ClientPacketListener.createEntityFromPacket	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_object_client.rs::Game::apply_add_entity_packet	only creates a player if its PlayerInfo exists, whether listed or not
+ClientPacketListener.handleSetEntityData	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_entity_client.rs::Game::apply_set_entity_data_packet	gap: minor: only the data indexes Sunrise reads are applied (flags, names, sleep, crouch, mob fields)
+ClientPacketListener.handleEntityPositionSync	port	crates/sunrise-client-gameplay/src/game/network/remote/motion_client.rs::Game::move_entity	absolute move with the packet rotation and on-ground flag
+ClientPacketListener.handleTeleportEntity	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_object_client.rs::Game::apply_teleport_entity_packet	TeleportEntity arm works out the relative position, then move_entity; gap: minor: a teleport of the player's former vehicle is not applied to the player
+ClientPacketListener.handleTickingState	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	TickingState arm: clock rate and frozen flag
+ClientPacketListener.handleTickingStep	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	TickingStep arm: frozen ticks to run
+ClientPacketListener.handleMoveEntity	port	crates/sunrise-client-gameplay/src/game/network/remote/motion_client.rs::Game::move_entity	relative move and rotation from the Pos, PosRot and Rot packets
+ClientPacketListener.handleMinecartAlongTrack	port	crates/sunrise-client-gameplay/src/game/network/remote/minecarts_client.rs::Game::remote_move_minecart	the server's steps join the cart's own queue while it runs NewMinecartBehavior
+ClientPacketListener.handleRemoveEntities	port	crates/sunrise-client-gameplay/src/game/network/remote_removal.rs::Game::remove_entity	gap: minor: a removed vehicle carrying the player is not remembered for a later teleport
+ClientPacketListener.setValuesFromPositionPacket	port	crates/sunrise-client-gameplay/src/game/network/remote/sync_client.rs::Game::remote_teleport	gap: minor: the entity case (TeleportEntity) is in Game::apply_teleport_entity_packet, not here
+ClientPacketListener.handleRotatePlayer	port	crates/sunrise-client-gameplay/src/game/network/remote/abilities_client.rs::Game::remote_rotation	the PlayerRotation arm of Game::apply_packet calls it: relative or absolute yaw and pitch, pitch clamped, then the ServerboundMovePlayerPacket.Rot reply with both flags false
+ClientPacketListener.handleChunkBlocksUpdate	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_world_client.rs::Game::apply_section_blocks_update_packet	SectionBlocksUpdate arm: each change through the block update
+ClientPacketListener.handleChunksBiomes	port	crates/sunrise-client-gameplay/src/game/network/remote_chunks.rs::Game::remote_chunks_biomes	each loaded column replaces its biomes, then its sections and its neighbours' are drawn again
+ClientPacketListener.enableChunkLight	inline	crates/sunrise-level/src/chunk_streamer.rs::ChunkState::insert_remote	publishes the initial air-only section status from packet decode; every section of the 3x3 columns is marked dirty; later block-edit status updates are tracked by #3495
+ClientPacketListener.handleForgetLevelChunk	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_world_client.rs::Game::apply_forget_level_chunk_packet	ForgetLevelChunk arm: Streaming::forget, block entities and renderer columns dropped
+ClientPacketListener.queueLightRemoval	inline	crates/sunrise-level/src/light_border.rs::World::retain_border	forget removes the column and clears only light sections no loaded neighbour supports
+ClientPacketListener.handleBlockUpdate	port	crates/sunrise-client-gameplay/src/game/network/remote/break_prediction_client.rs::ClientGame::server_block
+ClientPacketListener.handleConfigurationStart	port	crates/sunrise-client-gameplay/src/game/network/remote/raw_ingress_client.rs::Game::poll_remote_events	the Reconfiguring arm flushes the held-back chat, acknowledges it, closes dialogs and drops the level, keeping the chat; gap: player: no reconfiguring screen is drawn
+ClientPacketListener.handleSystemChat	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_system_chat_packet	SystemChat arm: overlay to the action bar, otherwise the chat
+ClientPacketListener.handlePlayerChat	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_player_chat_packet	PlayerChat arm: the global index (a mismatch disconnects), an unknown sender and the sender's validator; markMessageAsProcessed is Game::mark_message_processed (its own row), which keeps the last-seen tracker
+ClientPacketListener.handleDisguisedChat	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_disguised_chat_packet	DisguisedChat arm
+ClientPacketListener.handleDeleteChat	port	crates/sunrise-client-gameplay/src/game/network/remote/chat_client.rs::Game::handle_delete_chat
+ClientPacketListener.handleAnimate	port	crates/sunrise-client-gameplay/src/game/network/remote/interaction_actions_client.rs::Game::remote_animate	action 0 stops sleeping, 1 and 2 attach crit and enchanted hit emitters to the tracked entity
+ClientPacketListener.handleHurtAnimation	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_object_client.rs::Game::apply_hurt_animation_packet	HurtAnimation arm: own player's hurt tilt, or a mob's hurt time
+ClientPacketListener.handleSetSpawn	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_world_client.rs::Game::apply_set_default_spawn_position_packet	stores the border-adjusted spawn position and packet dimension
+ClientPacketListener.handleAddTransientBlockPacket	port	crates/sunrise-client-gameplay/src/game/blocks/transient_blocks.rs::Game::add_transient_block	the block is queued, shown for its time to live and dropped once its section is drawn again
+ClientPacketListener.findTotem	port	crates/sunrise-client-gameplay/src/game/items/totem.rs::Game::find_totem	the first hand's item with death_protection, else a new totem, then LocalPlayer.displayItemActivation
+ClientPacketListener.handleSetExperience	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_set_experience_packet	SetExperience arm
 ClientPacketListener.determineLevelLoadingReason	port	crates/sunrise-client-render/src/level_loading.rs::reason_for_respawn	the reason of a Respawn packet: death, a Nether or an End crossing
-ClientPacketListener.handleExplosion	port	crates/sunrise-client/src/game/network/lan_particles.rs::Game::remote_explode	plays sound, queues burst and debris, then applies a finite impulse with an atomic finite velocity write
-ClientPacketListener.handleOpenScreen	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::remote_open_screen
-ClientPacketListener.handleSetCursorItem	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_set_cursor_item_packet	SetCursorItem arm; gap: minor: sets the carried stack even while the creative screen is open
-ClientPacketListener.handleSetPlayerInventory	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_set_player_inventory_packet	SetPlayerInventory arm: slots 0-35, armour 36-39, off hand 40, body 41, saddle 42
-ClientPacketListener.handleContainerContent	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_container_set_content_packet	ContainerSetContent arm: each slot, then the carried stack
-ClientPacketListener.handleBlockEntityData	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::remote_block_entity_data
-ClientPacketListener.handleContainerSetData	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_container_set_data_packet	ContainerSetData arms (lectern, furnace, crafter, brewing); station containers go to remote_stations.rs::Game::remote_station_data
-ClientPacketListener.handleContainerClose	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	ContainerClose arm: restores the inventory menu and closes the active screen without sending a close
-ClientPacketListener.handleBlockEvent	port	crates/sunrise-client/src/game/network/remote/packets_world.rs::Game::apply_block_event_packet	BlockEvent arm: client block event, then the block entity event
-ClientPacketListener.handleGameEvent	port	crates/sunrise-client/src/game/network/remote/packets_world.rs::Game::apply_game_event_packet	GameEvent arm (weather, mode, credits, demo popup and hints, respawn, arrow hit, sting, limited crafting, chunks load start)
-ClientPacketListener.openDemoIntroScreen	port	crates/sunrise-client/src/game/interface/demo_intro.rs::Game::apply_demo_event	GameEvent demo intro creates a parentless popup with the current key bindings
-ClientPacketListener.startWaitingForNewLevel	inline	crates/sunrise-client/src/game/network/remote/session.rs::Game::enter_remote_dimension	the tracker starts and the LevelLoadingScreen draws until the player's section is shown
-ClientPacketListener.handleMapItemData	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::remote_map_item_data
-ClientPacketListener.handleUpdateAdvancementsPacket	port	crates/sunrise-client/src/game/interface/advancements/mod.rs::Game::remote_advancements	UpdateAdvancements arm passes the added icons
+ClientPacketListener.handleExplosion	port	crates/sunrise-client-gameplay/src/game/network/lan_particles_client.rs::Game::remote_explode	plays sound, queues burst and debris, then applies a finite impulse with an atomic finite velocity write
+ClientPacketListener.handleOpenScreen	port	crates/sunrise-client-gameplay/src/game/network/remote/menu_interactions_client.rs::ClientGame::remote_open_screen
+ClientPacketListener.handleSetCursorItem	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_set_cursor_item_packet	SetCursorItem arm; gap: minor: sets the carried stack even while the creative screen is open
+ClientPacketListener.handleSetPlayerInventory	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_set_player_inventory_packet	SetPlayerInventory arm: slots 0-35, armour 36-39, off hand 40, body 41, saddle 42
+ClientPacketListener.handleContainerContent	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_container_set_content_packet	ContainerSetContent arm: each slot, then the carried stack
+ClientPacketListener.handleBlockEntityData	port	crates/sunrise-client-gameplay/src/game/network/remote/block_entity_data_client.rs::ClientGame::remote_block_entity_data
+ClientPacketListener.handleContainerSetData	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_container_set_data_packet	ContainerSetData arms (lectern, furnace, crafter, brewing); station containers go to remote_stations.rs::Game::remote_station_data
+ClientPacketListener.handleContainerClose	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	ContainerClose arm: restores the inventory menu and closes the active screen without sending a close
+ClientPacketListener.handleBlockEvent	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_world_client.rs::Game::apply_block_event_packet	BlockEvent arm: client block event, then the block entity event
+ClientPacketListener.handleGameEvent	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_world_client.rs::Game::apply_game_event_packet	GameEvent arm (weather, mode, credits, demo popup and hints, respawn, arrow hit, sting, limited crafting, chunks load start)
+ClientPacketListener.openDemoIntroScreen	port	crates/sunrise-client-gameplay/src/game/interface/demo_intro.rs::Game::apply_demo_event	GameEvent demo intro creates a parentless popup with the current key bindings
+ClientPacketListener.startWaitingForNewLevel	inline	crates/sunrise-client-gameplay/src/game/network/remote/session_client.rs::Game::enter_remote_dimension	the tracker starts and the LevelLoadingScreen draws until the player's section is shown
+ClientPacketListener.handleMapItemData	port	crates/sunrise-client-gameplay/src/game/blocks/maps/mod_client.rs::Game::remote_map_item_data
+ClientPacketListener.handleUpdateAdvancementsPacket	port	crates/sunrise-client-gameplay/src/game/interface/advancements/mod_client.rs::Game::remote_advancements	UpdateAdvancements arm passes the added icons
 ClientPacketListener.handleSelectAdvancementsTab	missing		minor: the server's advancement tab choice is ignored
-ClientPacketListener.handleCommands	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_commands_packet	Commands arm: command tree from the packet, merged with Sunrise's own
-ClientPacketListener.handleStopSoundEvent	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	StopSound arm: audio stop_sounds
+ClientPacketListener.handleCommands	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_commands_packet	Commands arm: command tree from the packet, merged with Sunrise's own
+ClientPacketListener.handleStopSoundEvent	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	StopSound arm: audio stop_sounds
 ClientPacketListener.handleUpdateRecipes	skip:data		Sunrise reads recipes from its own tables; the server's list is not read
-ClientPacketListener.handleLookAt	port	crates/sunrise-client/src/game/network/remote/interaction_actions.rs::Game::remote_look_at	the anchor's point, or the entity's, turns the player's view
-ClientPacketListener.handleTagQueryPacket	port	crates/sunrise-client/src/game/interface/debug_keys.rs::Game::answer_tag_query	reached from the TagQuery arm of Game::apply_packet
-ClientPacketListener.handleAwardStats	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_award_stats_packet	AwardStats arm: known stat keys into the stats values
-ClientPacketListener.handleRecipeBookAdd	port	crates/sunrise-client/src/game/items/recipe_book.rs::Game::remote_recipe_book_add
-ClientPacketListener.handleRecipeBookRemove	port	crates/sunrise-client/src/game/items/recipe_book.rs::Game::remote_recipe_book_remove
-ClientPacketListener.handleRecipeBookSettings	port	crates/sunrise-client/src/game/items/recipe_book.rs::Game::remote_recipe_book_settings
-ClientPacketListener.refreshRecipeBook	inline	crates/sunrise-client/src/game/items/recipe_book.rs::Game::remote_recipe_book_add	the collections rebuild lazily through the client version bump
+ClientPacketListener.handleLookAt	port	crates/sunrise-client-gameplay/src/game/network/remote/interaction_actions_client.rs::Game::remote_look_at	the anchor's point, or the entity's, turns the player's view
+ClientPacketListener.handleTagQueryPacket	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::Game::answer_tag_query	reached from the TagQuery arm of Game::apply_packet
+ClientPacketListener.handleAwardStats	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_award_stats_packet	AwardStats arm: known stat keys into the stats values
+ClientPacketListener.handleRecipeBookAdd	port	crates/sunrise-client-gameplay/src/game/items/recipe_book.rs::Game::remote_recipe_book_add
+ClientPacketListener.handleRecipeBookRemove	port	crates/sunrise-client-gameplay/src/game/items/recipe_book.rs::Game::remote_recipe_book_remove
+ClientPacketListener.handleRecipeBookSettings	port	crates/sunrise-client-gameplay/src/game/items/recipe_book.rs::Game::remote_recipe_book_settings
+ClientPacketListener.refreshRecipeBook	inline	crates/sunrise-client-gameplay/src/game/items/recipe_book.rs::Game::remote_recipe_book_add	the collections rebuild lazily through the client version bump
 ClientPacketListener.updateTags	skip:data		the server's tag payload is not read; tags come from Sunrise's own data (net.rs configure ignores UpdateTags)
 ClientPacketListener.handleUpdateTags	skip:data		the server's tag payload is not read; tags come from Sunrise's own data (net.rs configure ignores UpdateTags)
-ClientPacketListener.handleChangeDifficulty	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	ChangeDifficulty arm
-ClientPacketListener.handleSetCamera	port	crates/sunrise-client/src/game/network/remote_camera.rs::Game::remote_set_camera	the view follows the entity; the player's own id gives it back
-ClientPacketListener.handleInitializeBorder	port	crates/sunrise-client/src/game/network/remote/packets_world.rs::Game::apply_initialize_border_packet	InitializeBorder arm: centre, size or lerp, absolute max, warnings
-ClientPacketListener.handleSetBorderCenter	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetBorderCenter arm
-ClientPacketListener.handleSetBorderLerpSize	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetBorderLerpSize arm
-ClientPacketListener.handleSetBorderSize	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetBorderSize arm
-ClientPacketListener.handleSetBorderWarningDistance	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetBorderWarningDistance arm
-ClientPacketListener.handleSetBorderWarningDelay	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetBorderWarningDelay arm
-ClientPacketListener.handleTitlesClear	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_clear_titles_packet	ClearTitles arm: clear, optionally reset the times
-ClientPacketListener.handleCustomChatCompletions	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	CustomChatCompletions arm: modify_custom_completions on the connection's set
-ClientPacketListener.setTitleText	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetTitleText arm
-ClientPacketListener.setSubtitleText	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetSubtitleText arm
-ClientPacketListener.setTitlesAnimation	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetTitlesAnimation arm
-ClientPacketListener.handleTabListCustomisation	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_tab_list_packet	TabList arm: empty text clears the header or footer
-ClientPacketListener.handleRemoveMobEffect	port	crates/sunrise-client/src/game/network/remote/packets_entity.rs::Game::apply_remove_mob_effect_packet	RemoveMobEffect arm: the player's own effects, a mob's or another player's, or an armor stand's
-ClientPacketListener.handlePlayerInfoRemove	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_player_info_remove_packet	PlayerInfoRemove arm
-ClientPacketListener.handlePlayerInfoUpdate	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_player_info_update_packet	PlayerInfoUpdate arm: new entries, then listing, latency, name, hat, list order and game mode for tab players
-ClientPacketListener.applyPlayerInfoUpdate	inline	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_player_info_update_packet	gap: minor: the own player's game-mode update does not change the local mode; INITIALIZE_CHAT keeps each entry's chat session and drops that player's validator
-ClientPacketListener.initializeChatSession	port	crates/sunrise-client/src/game/network/remote/remote_state.rs::Remote::new_chat_validator	the session each INITIALIZE_CHAT entry carries is kept and checked against the services' profile-key keys when the player's chat is first read
-ClientPacketListener.enforcesSecureChat	inline	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_login_packet	the Login flag is kept as serverEnforcesSecureChat and the fallback message validator enforces it
-ClientPacketListener.handleGameRuleValues	port	crates/sunrise-client/src/game/network/lan_screen.rs::Game::remote_world_options_rules
-ClientPacketListener.handleSoundEntityEvent	port	crates/sunrise-client/src/game/network/remote/packets_world.rs::Game::apply_sound_entity_packet	SoundEntity arm binds the sound to the current entity object, preserving packet category and seed; unknown entities are ignored
-ClientPacketListener.handleAddObjective	port	crates/sunrise-client/src/game/network/remote/sync.rs::Game::remote_objective	add, remove and update of an objective
-ClientPacketListener.handleSetScore	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_set_score_packet	SetScore arm
-ClientPacketListener.handleResetScore	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	ResetScore arm
-ClientPacketListener.handleSetDisplayObjective	port	crates/sunrise-client/src/game/network/remote/packets_player.rs::Game::apply_set_display_objective_packet	SetDisplayObjective arm: display slot names
-ClientPacketListener.handleSetPlayerTeamPacket	port	crates/sunrise-client/src/game/network/remote/sync.rs::Game::remote_team
+ClientPacketListener.handleChangeDifficulty	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	ChangeDifficulty arm
+ClientPacketListener.handleSetCamera	port	crates/sunrise-client-gameplay/src/game/network/remote_camera.rs::Game::remote_set_camera	the view follows the entity; the player's own id gives it back
+ClientPacketListener.handleInitializeBorder	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_world_client.rs::Game::apply_initialize_border_packet	InitializeBorder arm: centre, size or lerp, absolute max, warnings
+ClientPacketListener.handleSetBorderCenter	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetBorderCenter arm
+ClientPacketListener.handleSetBorderLerpSize	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::ClientGame::apply_packet	SetBorderLerpSize arm
+ClientPacketListener.handleSetBorderSize	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetBorderSize arm
+ClientPacketListener.handleSetBorderWarningDistance	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetBorderWarningDistance arm
+ClientPacketListener.handleSetBorderWarningDelay	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetBorderWarningDelay arm
+ClientPacketListener.handleTitlesClear	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_clear_titles_packet	ClearTitles arm: clear, optionally reset the times
+ClientPacketListener.handleCustomChatCompletions	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	CustomChatCompletions arm: modify_custom_completions on the connection's set
+ClientPacketListener.setTitleText	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetTitleText arm
+ClientPacketListener.setSubtitleText	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetSubtitleText arm
+ClientPacketListener.setTitlesAnimation	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetTitlesAnimation arm
+ClientPacketListener.handleTabListCustomisation	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_tab_list_packet	TabList arm: empty text clears the header or footer
+ClientPacketListener.handleRemoveMobEffect	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_entity_client.rs::Game::apply_remove_mob_effect_packet	RemoveMobEffect arm: the player's own effects, a mob's or another player's, or an armor stand's
+ClientPacketListener.handlePlayerInfoRemove	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_player_info_remove_packet	PlayerInfoRemove arm
+ClientPacketListener.handlePlayerInfoUpdate	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_player_info_update_packet	PlayerInfoUpdate arm: new entries, then listing, latency, name, hat, list order and game mode for tab players
+ClientPacketListener.applyPlayerInfoUpdate	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_player_info_update_packet	gap: minor: the own player's game-mode update does not change the local mode; INITIALIZE_CHAT keeps each entry's chat session and drops that player's validator
+ClientPacketListener.initializeChatSession	port	crates/sunrise-client-gameplay/src/game/network/remote/remote_state_client.rs::Remote::new_chat_validator	the session each INITIALIZE_CHAT entry carries is kept and checked against the services' profile-key keys when the player's chat is first read
+ClientPacketListener.enforcesSecureChat	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_login_packet	the Login flag is kept as serverEnforcesSecureChat and the fallback message validator enforces it
+ClientPacketListener.handleGameRuleValues	port	crates/sunrise-client-gameplay/src/game/network/lan_screen.rs::Game::remote_world_options_rules
+ClientPacketListener.handleSoundEntityEvent	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_world_client.rs::Game::apply_sound_entity_packet	SoundEntity arm binds the sound to the current entity object, preserving packet category and seed; unknown entities are ignored
+ClientPacketListener.handleAddObjective	port	crates/sunrise-client-gameplay/src/game/network/remote/sync_client.rs::Game::remote_objective	add, remove and update of an objective
+ClientPacketListener.handleSetScore	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_set_score_packet	SetScore arm
+ClientPacketListener.handleResetScore	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	ResetScore arm
+ClientPacketListener.handleSetDisplayObjective	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_player_client.rs::Game::apply_set_display_objective_packet	SetDisplayObjective arm: display slot names
+ClientPacketListener.handleSetPlayerTeamPacket	port	crates/sunrise-client-gameplay/src/game/network/remote/sync_client.rs::Game::remote_team
 ClientPacketListener.tryAddParticle	skip:other		the try/catch that drops one particle that fails to add; Sunrise's particle ids are typed, so nothing is caught
-ClientPacketListener.handlePlaceRecipe	port	crates/sunrise-client/src/game/items/recipe_book.rs::Game::remote_ghost_recipe
-ClientPacketListener.handleLightUpdatePacket	port	crates/sunrise-client/src/game/network/remote_chunks.rs::Game::remote_light_update
-ClientPacketListener.handleMerchantOffers	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::remote_merchant_offers
-ClientPacketListener.handleSetChunkCacheRadius	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetChunkCacheRadius arm: streaming radius, columns out of range dropped
-ClientPacketListener.handleSetSimulationDistance	inline	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetSimulationDistance arm: ClientLevel.serverSimulationDistance
-ClientPacketListener.handleSetChunkCacheCenter	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	SetChunkCacheCenter arm
-ClientPacketListener.handleBlockChangedAck	port	crates/sunrise-client/src/game/network/remote/break_prediction.rs::Game::end_predictions
-ClientPacketListener.handleBundlePacket	port	crates/sunrise-client/src/game/network/remote/raw_ingress.rs::Game::handle_play_bundle	complete bundle applied in one main turn, in packet order
-ClientPacketListener.handleProjectilePowerPacket	port	crates/sunrise-client/src/game/network/remote/packets_object.rs::Game::apply_projectile_power_packet	ProjectilePower arm: a hurting projectile's acceleration power, by id
+ClientPacketListener.handlePlaceRecipe	port	crates/sunrise-client-gameplay/src/game/items/recipe_book.rs::Game::remote_ghost_recipe
+ClientPacketListener.handleLightUpdatePacket	port	crates/sunrise-client-gameplay/src/game/network/remote_chunks.rs::Game::remote_light_update
+ClientPacketListener.handleMerchantOffers	port	crates/sunrise-client-gameplay/src/game/network/remote/menu_interactions_client.rs::ClientGame::remote_merchant_offers
+ClientPacketListener.handleSetChunkCacheRadius	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetChunkCacheRadius arm: streaming radius, columns out of range dropped
+ClientPacketListener.handleSetSimulationDistance	inline	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetSimulationDistance arm: ClientLevel.serverSimulationDistance
+ClientPacketListener.handleSetChunkCacheCenter	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	SetChunkCacheCenter arm
+ClientPacketListener.handleBlockChangedAck	port	crates/sunrise-client-gameplay/src/game/network/remote/break_prediction_client.rs::Game::end_predictions
+ClientPacketListener.handleBundlePacket	port	crates/sunrise-client-gameplay/src/game/network/remote/raw_ingress_client.rs::Game::handle_play_bundle	complete bundle applied in one main turn, in packet order
+ClientPacketListener.handleProjectilePowerPacket	port	crates/sunrise-client-gameplay/src/game/network/remote/packets_object_client.rs::Game::apply_projectile_power_packet	ProjectilePower arm: a hurting projectile's acceleration power, by id
 ClientPacketListener.handleChunkBatchFinished	inline	crates/sunrise-client/src/net.rs::PlayIo::handle	ChunkBatchFinished arm: answered with the measured rate
 ClientPacketListener.handleTestInstanceBlockStatus	skip:debug		status for the test instance block editor (developer blocks); Sunrise has no editor
 ClientPacketListener.handleDebugChunkValue	skip:debug		debug overlay values from the server
@@ -101,43 +101,43 @@ ClientPacketListener.handleDebugBlockValue	skip:debug		debug overlay values from
 ClientPacketListener.handleDebugEntityValue	skip:debug		debug overlay values from the server
 ClientPacketListener.handleDebugEvent	skip:debug		debug overlay events from the server
 ClientPacketListener.handleGameTestHighlightPos	skip:debug		game test block highlight (developer tool)
-ClientPacketListener.isAcceptingMessages	inline	crates/sunrise-client/src/game/network/remote/mod.rs::Game::send_chat	gap: minor: only the chat abilities are checked; no connection-open check
+ClientPacketListener.isAcceptingMessages	inline	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::ClientGame::send_chat	gap: minor: only the chat abilities are checked; no connection-open check
 ClientPacketListener.getPlayerInfo	skip:java		a map lookup by UUID; Sunrise keeps the player list in remote.tab_players and remote.players
 ClientPacketListener.getPlayerInfoIgnoreCase	missing		unsure: a case-insensitive name lookup for profiles (LocalPlayerResolver); Sunrise has none
-ClientPacketListener.markMessageAsProcessed	port	crates/sunrise-client/src/game/network/remote_chat.rs::Game::mark_message_processed	when the chat takes the message, past any Chat Delay
-ClientPacketListener.sendChatAcknowledgement	port	crates/sunrise-client/src/game/network/remote_chat.rs::Game::send_chat_acknowledgement	the tracker's offset, and a ServerboundChatAck when it is above zero; after a configuration transition too
-ClientPacketListener.sendCommand	port	crates/sunrise-client/src/game/network/remote_chat.rs::Game::send_command	message arguments signed with a chat session; the unsigned packet otherwise
-ClientPacketListener.verifyCommand	port	crates/sunrise-client/src/game/network/remote_chat.rs::verify_command	over the tree the server sent
+ClientPacketListener.markMessageAsProcessed	port	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::Game::mark_message_processed	when the chat takes the message, past any Chat Delay
+ClientPacketListener.sendChatAcknowledgement	port	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::Game::send_chat_acknowledgement	the tracker's offset, and a ServerboundChatAck when it is above zero; after a configuration transition too
+ClientPacketListener.sendCommand	port	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::Game::send_command	message arguments signed with a chat session; the unsigned packet otherwise
+ClientPacketListener.verifyCommand	port	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::verify_command	over the tree the server sent
 ClientPacketListener.isValidCommand	port	crates/sunrise-command/src/lib.rs::ParseResults::is_valid
-ClientPacketListener.openSendConfirmationWindow	port	crates/sunrise-client/src/game/network/remote_chat.rs::Game::send_unattended_command	no returns to the book or dialog the click left; the screen is drawn over the chat behind, not in its place
-ClientPacketListener.openCommandSendConfirmationWindow	port	crates/sunrise-client/src/game/network/remote_chat.rs::Game::answer_command_prompt	Run Command sends it
-ClientPacketListener.openSignedCommandSendConfirmationWindow	port	crates/sunrise-client/src/game/network/remote_chat.rs::Game::answer_command_prompt	into the chat box, or the clipboard over a screen; a kept chat draft is not put before it
-ClientPacketListener.broadcastClientInformation	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::tick_remote_level	gap: minor: only view distance and chat visibility are sent, and only when they change
-ClientPacketListener.notifyPlayerLoaded	port	crates/sunrise-client/src/game/network/remote/tick.rs::Game::tick_client_load	sends PlayerLoaded when the load tracker is ready
-ClientPacketListener.setKeyPair	port	crates/sunrise-client/src/game/network/remote_chat.rs::Game::update_chat_session	only for the account's own profile id; a new session when the pair changes
+ClientPacketListener.openSendConfirmationWindow	port	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::Game::send_unattended_command	no returns to the book or dialog the click left; the screen is drawn over the chat behind, not in its place
+ClientPacketListener.openCommandSendConfirmationWindow	port	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::Game::answer_command_prompt	Run Command sends it
+ClientPacketListener.openSignedCommandSendConfirmationWindow	port	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::Game::answer_command_prompt	into the chat box, or the clipboard over a screen; a kept chat draft is not put before it
+ClientPacketListener.broadcastClientInformation	port	crates/sunrise-client-gameplay/src/game/network/remote/client_level_tick_client.rs::ClientGame::tick_remote_level	gap: minor: only view distance and chat visibility are sent, and only when they change
+ClientPacketListener.notifyPlayerLoaded	port	crates/sunrise-client-gameplay/src/game/network/remote/tick_client.rs::Game::tick_client_load	sends PlayerLoaded when the load tracker is ready
+ClientPacketListener.setKeyPair	port	crates/sunrise-client-gameplay/src/game/network/remote_chat.rs::Game::update_chat_session	only for the account's own profile id; a new session when the pair changes
 ClientRegistryLayer.createRegistryAccess	skip:data		registry layers come from Sunrise's own tables
-ClientSuggestionProvider.getOnlinePlayerNames	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::remote_online_names	sorted names of the server's player list
-ClientSuggestionProvider.getCustomTabSuggestions	port	crates/sunrise-client-core/src/registries.rs::Registries::custom_tab_suggestions	the player names and the server's custom completions, each once
-ClientSuggestionProvider.getSelectedEntities	port	crates/sunrise-client/src/game/entities/pick_entity.rs::Game::crosshair_entity_uuid	the UUID of the entity under the crosshair, before any block; the command suggestions add it
+ClientSuggestionProvider.getOnlinePlayerNames	port	crates/sunrise-client-gameplay/src/game/network/remote/session_state.rs::Game::remote_online_names	sorted names of the server's player list
+ClientSuggestionProvider.getCustomTabSuggestions	port	crates/sunrise-game-data/src/registries.rs::Registries::custom_tab_suggestions	the player names and the server's custom completions, each once
+ClientSuggestionProvider.getSelectedEntities	port	crates/sunrise-client-gameplay/src/game/entities/pick_entity.rs::Game::crosshair_entity_uuid	the UUID of the entity under the crosshair, before any block; the command suggestions add it
 ClientSuggestionProvider.suggestRegistryElements	port	crates/sunrise-command/src/args.rs::suggest_resources	registry ids come from Sunrise's registry tables
 ClientSuggestionProvider.getRelevantCoordinates	port	crates/sunrise-command/src/args.rs::suggest_coordinates	the block under the crosshair for block positions
 ClientSuggestionProvider.getAbsoluteCoordinates	port	crates/sunrise-command/src/args.rs::suggest_coordinates	a block hit offers the exact hit point for Vec3 and Vec2 arguments (registries.target_point, two decimals); with an entity in front of the block the ~ defaults stay
-ClientSuggestionProvider.modifyCustomCompletions	port	crates/sunrise-client-core/src/registries.rs::modify_custom_completions	ADD, REMOVE or SET on the set the connection keeps
+ClientSuggestionProvider.modifyCustomCompletions	port	crates/sunrise-game-data/src/registries.rs::modify_custom_completions	ADD, REMOVE or SET on the set the connection keeps
 KnownPacksManager.trySelectingPacks	skip:data		Sunrise answers SelectKnownPacks with no packs, so the server sends full registries (net.rs configure)
 LegacyServerPinger.channelActive	skip:other		legacy pre-1.7 server-list ping, not used by this client
 LegacyServerPinger.channelRead0	skip:other		legacy pre-1.7 server-list ping, not used by this client
 LevelLoadTracker.startClientLoad	port	crates/sunrise-client-render/src/level_loading.rs::LevelLoadTracker::start_client_load	state WaitingForServer until the loading start game event, 30 000 ms out, with the screen's reason; the player and level vanilla keeps in that state are passed to tick_client_load instead
 LevelLoadTracker.isLevelReady	port	crates/sunrise-client-render/src/level_loading.rs::LevelLoadTracker::is_level_ready	ready once the ready time plus the close delay (500 ms for a new world, 0 for a respawn) has passed
-LevelLoadTracker.getPlayerCompiledSectionCallback	inline	crates/sunrise-client/src/game/network/remote/tick.rs::Game::tick_client_load	the renderer checks that the player's section is compiled and visible; only headless mode waits for the surrounding columns to be lit and the fade to elapse
+LevelLoadTracker.getPlayerCompiledSectionCallback	inline	crates/sunrise-client-gameplay/src/game/network/remote/tick_client.rs::Game::tick_client_load	the renderer checks that the player's section is compiled and visible; only headless mode waits for the surrounding columns to be lit and the fade to elapse
 LevelLoadTracker.WaitingForPlayerChunk.isReady	port	crates/sunrise-client-render/src/level_loading.rs::LevelLoadTracker::tick_client_load	the 30 s timeout and the spectator, dead and outside-build-height exemptions
 LevelLoadTracker.WaitingForServer.loadingPacketsReceived	port	crates/sunrise-client-render/src/level_loading.rs::LevelLoadTracker::loading_packets_received	GameEvent 13 (LEVEL_CHUNKS_LOAD_START) moves the wait on to the player's chunk
-MultiPlayerGameMode.startPrediction	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::next_sequence	gap: minor: only the sequence number; each caller builds and sends its own packet
-MultiPlayerGameMode.ensureHasSentCarriedItem	inline	crates/sunrise-client/src/game/network/remote/sync.rs::Game::remote_send_state	the SetCarriedItem check, made on every send
-MultiPlayerGameMode.performUseItemOn	port	crates/sunrise-client/src/game/network/remote/use.rs::Game::remote_use_block	gap: minor: no world-border check, and UseItemOn always sends world_border false
-MultiPlayerGameMode.createPlayer	port	crates/sunrise-client/src/game/network/remote/sync.rs::Game::remote_teleport	gap: minor: the player is created on the first position packet, not at login
-MultiPlayerGameMode.handleCreativeModeItemAdd	inline	crates/sunrise-client/src/game/network/remote/sync.rs::Game::remote_send_state	gap: minor: the creative inventory is sent as a per-tick diff, with no feature-flag check
-MultiPlayerGameMode.handleCreativeModeItemDrop	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::remote_creative_drop	gap: minor: no check that another container screen is open
-MultiPlayerGameMode.getDestroyStage	port	crates/sunrise-client/src/first_person.rs::Destroying::stage
+MultiPlayerGameMode.startPrediction	port	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::next_sequence	gap: minor: only the sequence number; each caller builds and sends its own packet
+MultiPlayerGameMode.ensureHasSentCarriedItem	inline	crates/sunrise-client-gameplay/src/game/network/remote/sync_client.rs::Game::remote_send_state	the SetCarriedItem check, made on every send
+MultiPlayerGameMode.performUseItemOn	port	crates/sunrise-client-gameplay/src/game/network/remote/use_client.rs::Game::remote_use_block	gap: minor: no world-border check, and UseItemOn always sends world_border false
+MultiPlayerGameMode.createPlayer	port	crates/sunrise-client-gameplay/src/game/network/remote/sync_client.rs::Game::remote_teleport	gap: minor: the player is created on the first position packet, not at login
+MultiPlayerGameMode.handleCreativeModeItemAdd	inline	crates/sunrise-client-gameplay/src/game/network/remote/sync_client.rs::Game::remote_send_state	gap: minor: the creative inventory is sent as a per-tick diff, with no feature-flag check
+MultiPlayerGameMode.handleCreativeModeItemDrop	port	crates/sunrise-client-gameplay/src/game/network/remote/menu_interactions_client.rs::ClientGame::remote_creative_drop	gap: minor: no check that another container screen is open
+MultiPlayerGameMode.getDestroyStage	port	crates/sunrise-sim/src/first_person_sim.rs::Destroying::stage
 RegistryDataCollector.appendContents	skip:data		registry data for the configuration handshake; Sunrise reads its own tables
 RegistryDataCollector.appendTags	skip:data		registry tags for the configuration handshake; Sunrise reads its own tables
 RegistryDataCollector.loadNewElementsAndTags	skip:data		registry loading for the configuration handshake; Sunrise reads its own tables

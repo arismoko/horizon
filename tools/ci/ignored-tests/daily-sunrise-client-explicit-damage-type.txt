@@ -1,4 +1,4 @@
-sunrise-client game::commands::world_cmds::registered_damage_tests::damage_command_keeps_explicit_explosion_with_an_attacker lib daily resources
-sunrise-client game::commands::world_cmds::registered_damage_tests::damage_command_uses_the_worlds_fall_tags lib daily resources
-sunrise-client game::commands::world_cmds::registered_damage_tests::every_world_damage_type_round_trips_with_or_without_an_attacker lib daily resources
-sunrise-client game::native_entity_invulnerable::tests::registered_vanilla_damage_keeps_its_hook_and_death_message lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::damage_command_keeps_explicit_explosion_with_an_attacker lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::damage_command_uses_the_worlds_fall_tags lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::registered_damage_tests::every_world_damage_type_round_trips_with_or_without_an_attacker lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_invulnerable::tests::registered_vanilla_damage_keeps_its_hook_and_death_message lib daily resources

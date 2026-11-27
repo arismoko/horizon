@@ -18,7 +18,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         version = 3,
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_neighbor_changed",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_neighbor_changed",
         neoforge = "none (vanilla Block.neighborChanged; NeoForge adds no event or extension for it); BlockEvent.NeighborNotifyEvent is the neighbour broadcast, a different point"
     )]
     fn neighbor_changed(

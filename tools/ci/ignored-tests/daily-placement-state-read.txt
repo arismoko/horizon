@@ -1,5 +1,5 @@
 # #3153: the server placement-state read, on a game with a registered block Part.
-sunrise-client game::native_placement_state_tests::another_blocks_state_is_returned_only_from_the_level_in_play lib daily child-process
-sunrise-client game::native_placement_state_tests::placement_read_leaves_queued_spill_untouched lib daily resources
-sunrise-client game::native_placement_state_tests::placement_refusals_are_typed lib daily resources
-sunrise-client game::native_placement_state_tests::vanilla_candidates_use_the_resolved_context_without_placing lib daily resources
+sunrise-client cut_layout::game::server_side::native_placement_state_tests::another_blocks_state_is_returned_only_from_the_level_in_play lib daily child-process
+sunrise-client cut_layout::game::server_side::native_placement_state_tests::placement_read_leaves_queued_spill_untouched lib daily resources
+sunrise-client cut_layout::game::server_side::native_placement_state_tests::placement_refusals_are_typed lib daily resources
+sunrise-client cut_layout::game::server_side::native_placement_state_tests::vanilla_candidates_use_the_resolved_context_without_placing lib daily resources

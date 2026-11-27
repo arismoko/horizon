@@ -1,1 +1,1 @@
-sunrise-client game::remote::raw_ingress::tests::malformed_trim_material_registry_disconnects_before_join lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::ingress_state::tests::malformed_trim_material_registry_disconnects_before_join lib daily resources

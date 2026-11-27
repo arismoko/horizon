@@ -63,19 +63,19 @@ class AreaTests(unittest.TestCase):
     def test_paths(self):
         cases = {
             "crates/sunrise-world/src/worldgen/structure/mod.rs": "worldgen",
-            "crates/sunrise-client/src/mobs/ai.rs": "mobs",
-            "crates/sunrise-client/src/game/mobs/wither.rs": "mobs",
+            "crates/sunrise-sim/src/mobs/ai.rs": "mobs",
+            "crates/sunrise-gameplay/src/game/mobs/wither.rs": "mobs",
             "crates/sunrise-client-render/src/gfx/cull.rs": "rendering",
             "crates/sunrise-client-render/src/terrain.wgsl": "rendering",
-            "crates/sunrise-client/src/game/interface/dedicated/status.rs": "server",
+            "crates/sunrise-gameplay/src/game/interface/dedicated/status.rs": "server",
             "crates/sunrise-server-files/src/lib.rs": "server",
-            "crates/sunrise-client/src/lan/hub.rs": "multiplayer",
-            "crates/sunrise-client/src/game/network/remote_vehicles.rs": "multiplayer",
+            "crates/sunrise-sim/src/lan/hub.rs": "multiplayer",
+            "crates/sunrise-client-gameplay/src/game/network/remote_vehicles.rs": "multiplayer",
             "crates/sunrise-protocol/src/packets/play.rs": "multiplayer",
             "crates/sunrise-mod-package/src/lib.rs": "mods",
-            "crates/sunrise-client/src/game/native_hooks/mod.rs": "mods",
+            "crates/sunrise-gameplay-common/src/game/native_hooks/mod.rs": "mods",
             "crates/sunrise-world/src/datafix/v3.rs": "saves",
-            "crates/sunrise-client/src/game/administration/commands/admin.rs": "commands",
+            "crates/sunrise-gameplay/src/game/administration/commands/admin.rs": "commands",
             "crates/sunrise-command/src/args.rs": "commands",
             "crates/sunrise-client-render/src/sound_engine.rs": "audio",
             "crates/sunrise-client-render/src/streaming.rs": "chunks",
@@ -89,7 +89,7 @@ class AreaTests(unittest.TestCase):
             self.assertEqual(pl.area_of(path), area, path)
 
     def test_no_area(self):
-        for path in ("tools/parity.py", "crates/sunrise-client/src/game.rs", "Cargo.lock", "docs/README.md",
+        for path in ("tools/parity.py", "crates/sunrise-gameplay-common/src/game.rs", "Cargo.lock", "docs/README.md",
                      "mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaMobOracle.java",
                      "crates/sunrise-client/examples/mob_ai_probe.rs"):
             self.assertIsNone(pl.area_of(path), path)

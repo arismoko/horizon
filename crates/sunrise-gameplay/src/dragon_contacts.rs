@@ -1,9 +1,9 @@
 //! `EnderDragon.knockBack` and `hurt` for living mobs.
 //! The dragon lives outside the normal mob array; its contacts must still reach them.
 // Contact rules compared with the installed vanilla Java 26.3 EnderDragon.
-use sunrise_client::health::DamageLevel;
-use sunrise_client::mobs::{Damage, DamageKind, Mob, Who};
 use sunrise_core::geometry::{Aabb, Vec3};
+use sunrise_sim::health::DamageLevel;
+use sunrise_sim::mobs::{Damage, DamageKind, Mob, Who};
 
 pub struct Frame {
     pub dragon_id: u32,
@@ -74,7 +74,7 @@ mod tests {
     fn setup() -> (Mob, Frame) {
         let mut m = Mob::new(
             22,
-            sunrise_client::mobs::sensor_scan_tests::kind(),
+            sunrise_sim::mobs::sensor_scan_tests::kind(),
             Vec3::new(1.0, 0.0, 0.0),
             0.0,
         );
@@ -93,7 +93,7 @@ mod tests {
     }
     #[test]
     fn flying_wing_hurts_and_names_the_dragon() {
-        let mut test_level = sunrise_client::health::TestLevel::new(0);
+        let mut test_level = sunrise_sim::health::TestLevel::new(0);
         let level = &mut test_level.level();
         let (mut m, f) = setup();
         contact(level, &mut m, &f, true);
@@ -102,7 +102,7 @@ mod tests {
     }
     #[test]
     fn perched_wing_pushes_without_damage() {
-        let mut test_level = sunrise_client::health::TestLevel::new(0);
+        let mut test_level = sunrise_sim::health::TestLevel::new(0);
         let level = &mut test_level.level();
         let (mut m, mut f) = setup();
         f.sitting = true;
@@ -112,7 +112,7 @@ mod tests {
     }
     #[test]
     fn team_protection_keeps_push_but_blocks_damage() {
-        let mut test_level = sunrise_client::health::TestLevel::new(0);
+        let mut test_level = sunrise_sim::health::TestLevel::new(0);
         let level = &mut test_level.level();
         let (mut m, f) = setup();
         contact(level, &mut m, &f, false);
@@ -121,7 +121,7 @@ mod tests {
     }
     #[test]
     fn hurt_dragon_does_not_contact_mobs() {
-        let mut test_level = sunrise_client::health::TestLevel::new(0);
+        let mut test_level = sunrise_sim::health::TestLevel::new(0);
         let level = &mut test_level.level();
         let (mut m, mut f) = setup();
         f.recently_hurt = true;
@@ -131,7 +131,7 @@ mod tests {
     }
     #[test]
     fn head_hurts_even_when_perched() {
-        let mut test_level = sunrise_client::health::TestLevel::new(0);
+        let mut test_level = sunrise_sim::health::TestLevel::new(0);
         let level = &mut test_level.level();
         let (mut m, mut f) = setup();
         f.sitting = true;
@@ -142,7 +142,7 @@ mod tests {
     }
     #[test]
     fn recent_mob_attack_suppresses_wing_damage() {
-        let mut test_level = sunrise_client::health::TestLevel::new(0);
+        let mut test_level = sunrise_sim::health::TestLevel::new(0);
         let level = &mut test_level.level();
         let (mut m, f) = setup();
         m.ai.last_hurt_by_time = 99;
@@ -158,7 +158,7 @@ mod parity {
     #[test]
     #[ignore = "writes the vanilla parity transcript"]
     fn contact_transcript() {
-        let mut test_level = sunrise_client::health::TestLevel::new(0);
+        let mut test_level = sunrise_sim::health::TestLevel::new(0);
         let level = &mut test_level.level();
         let mut rows = Vec::new();
         for name in [
@@ -170,9 +170,9 @@ mod parity {
             "hurt_dragon",
             "recent_victim",
         ] {
-            let mut kind = (*sunrise_client::mobs::sensor_scan_tests::kind()).clone();
+            let mut kind = (*sunrise_sim::mobs::sensor_scan_tests::kind()).clone();
             kind.id = "minecraft:enderman".into();
-            kind.species = sunrise_client::mobs::Species::Enderman;
+            kind.species = sunrise_sim::mobs::Species::Enderman;
             kind.max_health = 40.0;
             kind.width = 0.6;
             kind.height = 2.9;

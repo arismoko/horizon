@@ -1,4 +1,4 @@
-sunrise-client game::functions::tests::datapack_disable_vanilla_survives_a_reopen lib daily game-boot
-sunrise-client game::functions::tests::datapack_enable_next_to_a_flagged_feature_pack_is_refused lib daily game-boot
-sunrise-client game::functions::tests::datapack_enable_next_to_vanilla_and_the_existing_pack_is_checked_for_vanilla lib daily game-boot
-sunrise-client game::functions::tests::datapack_list_scans_the_folder_again_so_a_copied_pack_enables lib daily game-boot
+sunrise-gameplay game::server_side::functions::tests::datapack_disable_vanilla_survives_a_reopen lib daily game-boot
+sunrise-gameplay game::server_side::functions::tests::datapack_enable_next_to_a_flagged_feature_pack_is_refused lib daily game-boot
+sunrise-gameplay game::server_side::functions::tests::datapack_enable_next_to_vanilla_and_the_existing_pack_is_checked_for_vanilla lib daily game-boot
+sunrise-gameplay game::server_side::functions::tests::datapack_list_scans_the_folder_again_so_a_copied_pack_enables lib daily game-boot

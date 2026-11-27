@@ -1,2 +1,2 @@
-sunrise-client game::startup_menu::tests::startup_client_pack_recovery_preserves_pending_world_pack_edits lib daily child-process
-sunrise-client game::startup_menu::tests::startup_pack_recovery_only_clears_the_failed_selection_revision lib daily child-process
+sunrise-client cut_layout::game::client_side::startup_menu::tests::startup_client_pack_recovery_preserves_pending_world_pack_edits lib daily child-process
+sunrise-client cut_layout::game::client_side::startup_menu::tests::startup_pack_recovery_only_clears_the_failed_selection_revision lib daily child-process

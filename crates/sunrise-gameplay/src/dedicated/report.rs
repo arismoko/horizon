@@ -1,7 +1,8 @@
 //! The dedicated server's performance report, the part that holds no `Game`: the console words, the recording's clock and the report's own overhead.
 use crate::tick_profile;
 use std::time::{Duration, Instant};
-use sunrise_client::{spans, streaming::job_stats};
+use sunrise_level::chunk_streamer::job_stats;
+use sunrise_level::spans;
 
 /// The longest window a report records.
 pub const MAX_SECONDS: u32 = 600;

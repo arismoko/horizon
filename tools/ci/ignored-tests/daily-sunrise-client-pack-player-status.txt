@@ -1,6 +1,5 @@
 # The daily tests of sunrise-client: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
 # where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
-sunrise-client game::shader_packs::player_status_tests::pack_status_follows_the_player lib daily resources
-sunrise-client game::shader_packs::player_status_tests::pack_status_leaves_queued_effects_alone lib daily resources
-sunrise-client game::shader_packs::player_status_tests::pack_status_on_a_server_follows_what_it_sent lib daily resources
-sunrise-client game::shader_packs::player_status_tests::pack_status_starts_over_with_a_new_local_player lib daily resources
+sunrise-client cut_layout::game::server_side::shader_packs_server::player_status_tests::pack_status_follows_the_player lib daily resources
+sunrise-client cut_layout::game::client_side::shader_packs::player_status_tests::pack_status_on_a_server_follows_what_it_sent lib daily resources
+sunrise-client cut_layout::game::client_side::shader_packs::player_status_tests::pack_status_starts_over_with_a_new_local_player lib daily resources

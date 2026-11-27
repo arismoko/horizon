@@ -17,7 +17,7 @@ pub trait Hooks {
         out = "slime",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::block_sticky::GameLevel<'_>::native_is_slime_block",
+        target = "sunrise_gameplay_common::game::native_hooks::block_sticky::GameLevel<'_>::native_is_slime_block",
         neoforge = "IBlockExtension.isSlimeBlock"
     )]
     fn is_slime_block(dimension: LevelDimension, state: BlockState, slime: &mut bool);
@@ -38,7 +38,7 @@ pub trait Hooks {
         out = "sticky",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::block_sticky::GameLevel<'_>::native_is_sticky_block",
+        target = "sunrise_gameplay_common::game::native_hooks::block_sticky::GameLevel<'_>::native_is_sticky_block",
         neoforge = "IBlockExtension.isStickyBlock"
     )]
     fn is_sticky_block(dimension: LevelDimension, state: BlockState, sticky: &mut bool);
@@ -60,7 +60,7 @@ pub trait Hooks {
         out = "sticks",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::block_sticky::GameLevel<'_>::native_can_stick_to",
+        target = "sunrise_gameplay_common::game::native_hooks::block_sticky::GameLevel<'_>::native_can_stick_to",
         neoforge = "IBlockExtension.canStickTo"
     )]
     fn can_stick_to(

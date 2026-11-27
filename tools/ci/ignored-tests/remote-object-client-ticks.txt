@@ -1,2 +1,2 @@
-sunrise-client game::remote::tests::hanging_entity_age_tests::a_client_item_frame_ages_with_running_ticks lib daily resources
-sunrise-client game::remote::tests::hanging_entity_age_tests::a_client_painting_ages_with_running_ticks lib daily resources
+sunrise-client cut_layout::game::remote::tests::hanging_entity_age_tests::a_client_item_frame_ages_with_running_ticks lib daily resources
+sunrise-client cut_layout::game::remote::tests::hanging_entity_age_tests::a_client_painting_ages_with_running_ticks lib daily resources

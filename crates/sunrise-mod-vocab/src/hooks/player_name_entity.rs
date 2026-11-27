@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player named a mob with a name tag, after its name and persistence changed and the tag
     /// was consumed. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_name_entity",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_name_entity",
         dispatch = "flat",
         side = "server",
         contract = "listen",

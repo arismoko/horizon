@@ -1,2 +1,2 @@
-sunrise-client game::lan_actions::guest_body::tests::fall_reset::a_mods_protector_from_outside_the_hands_saves_the_guest lib daily child-process
-sunrise-client game::native_shield_totem_tests::a_mods_protector_from_outside_the_hands_saves_the_mob lib daily resources
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::fall_reset::a_mods_protector_from_outside_the_hands_saves_the_guest lib daily child-process
+sunrise-client cut_layout::game::server_side::native_shield_totem_tests::a_mods_protector_from_outside_the_hands_saves_the_mob lib daily resources

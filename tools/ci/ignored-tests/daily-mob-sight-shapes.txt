@@ -1,1 +1,1 @@
-sunrise-client-lib mobs::world::scaffolding_sight_tests::visual_sight_uses_the_fence_outline_and_skips_powder_snow lib daily resources
+sunrise-sim mobs::world::scaffolding_sight_tests::visual_sight_uses_the_fence_outline_and_skips_powder_snow lib daily resources

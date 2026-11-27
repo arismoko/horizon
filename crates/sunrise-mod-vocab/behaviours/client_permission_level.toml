@@ -4,5 +4,5 @@ On a client, `PlayerRef::permission_level` of the local player answers the level
 entity events 24 to 28 (`LocalPlayer.setPermissions`), so a mod can tell whether a command it would send is \
 allowed. It answers None for any other player there."""
 tests = [
-  "crates/sunrise-client/src/game/modding/native_client_session.rs::the_local_players_permission_level_follows_the_servers_events",
+  "crates/sunrise-client-gameplay/src/game/modding/native_client_session.rs::the_local_players_permission_level_follows_the_servers_events",
 ]

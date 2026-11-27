@@ -1,2 +1,2 @@
-sunrise-client game::lan::no_gravity_sync_tests::an_items_and_a_mobs_no_gravity_reaches_the_tracker lib daily resources
-sunrise-client game::remote::no_gravity_data_tests::a_client_follows_an_items_and_a_mobs_no_gravity lib daily resources
+sunrise-client cut_layout::game::server_side::lan::no_gravity_sync_tests::an_items_and_a_mobs_no_gravity_reaches_the_tracker lib daily resources
+sunrise-client cut_layout::game::remote::no_gravity_data_tests::a_client_follows_an_items_and_a_mobs_no_gravity lib daily resources

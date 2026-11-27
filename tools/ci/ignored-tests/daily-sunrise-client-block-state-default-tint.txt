@@ -1,2 +1,2 @@
 # A block state model bakes its default tint into the colour (#3280) needs prepared resources.
-sunrise-client game::native_custom_geometry::tests::a_tinted_block_state_carries_its_default_tint_in_the_baked_colour lib daily child-process
+sunrise-client-gameplay game::client_side::native_custom_geometry::tests::a_tinted_block_state_carries_its_default_tint_in_the_baked_colour lib daily child-process

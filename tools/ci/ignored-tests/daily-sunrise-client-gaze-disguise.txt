@@ -1,3 +1,3 @@
 # gaze_disguise: a mod answers whether a worn head item disguises the player's gaze from an enderman or a creaking (#5948).
-sunrise-client game::creatures::enderman_anger_tests::a_mod_says_whether_a_worn_head_item_masks_the_stare lib daily resources
-sunrise-client-lib mobs::creaking::gaze_disguise_tests::a_mods_gaze_disguise_answer_rules_the_enderman_and_the_creaking lib daily resources
+sunrise-client cut_layout::game::creatures::enderman_anger_tests::a_mod_says_whether_a_worn_head_item_masks_the_stare lib daily resources
+sunrise-sim mobs::creaking::gaze_disguise_tests::a_mods_gaze_disguise_answer_rules_the_enderman_and_the_creaking lib daily resources

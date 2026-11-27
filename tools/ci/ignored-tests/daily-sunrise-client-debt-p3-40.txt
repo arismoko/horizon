@@ -1,3 +1,3 @@
-sunrise-client game::entity_sections::tests::borrowed_no_physics_moves_with_a_passive_listener_keep_their_order lib daily resources
-sunrise-client game::entity_sections::tests::borrowed_tick_tells_nested_passenger_and_vehicle_writes_before_resuming lib daily resources
-sunrise-client game::entity_sections::tests::ticked_live_preserves_order_removals_and_reindexed_rows lib daily resources
+sunrise-client cut_layout::game::entity_sections::tests::borrowed_no_physics_moves_with_a_passive_listener_keep_their_order lib daily resources
+sunrise-client cut_layout::game::entity_sections::tests::borrowed_tick_tells_nested_passenger_and_vehicle_writes_before_resuming lib daily resources
+sunrise-client cut_layout::game::entity_sections::tests::ticked_live_preserves_order_removals_and_reindexed_rows lib daily resources

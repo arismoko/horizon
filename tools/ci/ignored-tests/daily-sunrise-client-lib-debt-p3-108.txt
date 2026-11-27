@@ -1,1 +1,1 @@
-sunrise-client-lib mod_content::tests::item_references_resolve_against_other_packages_registered_content lib daily resources
+sunrise-sim mod_content::tests::item_references_resolve_against_other_packages_registered_content lib daily resources

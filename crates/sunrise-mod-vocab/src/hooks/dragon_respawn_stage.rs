@@ -8,7 +8,7 @@ pub trait Hooks {
     /// new dragon flies. A respawn aborted by a destroyed portal crystal reaches no stage
     /// (`end_crystal_destroyed` hears it). NeoForge has no such event.
     #[hook(
-        target = "sunrise_client::game::native_hooks::dragon_fight::Game<'_>::native_dragon_respawn_stage",
+        target = "sunrise_gameplay::game::native_hooks::dragon_fight::ServerGame<'_>::native_dragon_respawn_stage",
         dispatch = "flat",
         side = "server",
         contract = "listen",

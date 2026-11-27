@@ -1,2 +1,2 @@
-sunrise-client game::dedicated::tests::a_missing_level_file_keeps_the_existing_world_generator lib daily resources
-sunrise-client game::world_loading::tests::recovered_world_uses_the_pack_flat_generator_before_its_first_save lib daily resources
+sunrise-client cut_layout::game::server_side::dedicated::tests::a_missing_level_file_keeps_the_existing_world_generator lib daily resources
+sunrise-client cut_layout::game::server_side::world_loading::tests::recovered_world_uses_the_pack_flat_generator_before_its_first_save lib daily resources

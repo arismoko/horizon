@@ -8,7 +8,7 @@ use sunrise_protocol::packets::configuration as cfg;
 /// resources' `data/`), so it names that one when the server offers it, and
 /// the server leaves that pack's entries' data out (`fill_known_entries`).
 pub(super) fn select_known_packs(offered: Vec<cfg::KnownPack>) -> Vec<cfg::KnownPack> {
-    let (namespace, id, version) = sunrise_client_core::core_pack::CORE_PACK;
+    let (namespace, id, version) = sunrise_game_data::core_pack::CORE_PACK;
     offered
         .into_iter()
         .filter(|p| p.namespace == namespace && p.id == id && p.version == version)
@@ -63,7 +63,7 @@ pub(super) fn fill_known_entries(r: &mut cfg::RegistryData, resources: &Path) {
             .ok()
             .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
         if let Some(json) = json {
-            entry.data = Some(sunrise_client_core::json_nbt::json_to_nbt(&json));
+            entry.data = Some(sunrise_game_data::json_nbt::json_to_nbt(&json));
         }
     }
 }

@@ -17,7 +17,7 @@ pub trait Hooks {
     /// `PlayerRef::set_sleep_timer`. NeoForge has no such event: its `SleepFinishedTimeEvent`
     /// cancels only the clock move.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_sleep_skip_night",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_sleep_skip_night",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

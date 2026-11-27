@@ -10,7 +10,7 @@ pub trait Hooks {
     /// failed startup or when the tick loop exits with an error or panic: those
     /// paths jump directly to `stopServer` teardown and `server_stopped`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_server_stopping",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_server_stopping",
         dispatch = "flat",
         side = "server",
         contract = "listen",

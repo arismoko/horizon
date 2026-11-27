@@ -1,1 +1,1 @@
-sunrise-client game::server_reload::tests::datapack_publication_tests::goat_horn_use_plays_the_data_pack_instrument lib daily game-boot
+sunrise-client cut_layout::game::server_side::server_reload::tests::datapack_publication_tests::goat_horn_use_plays_the_data_pack_instrument lib daily game-boot

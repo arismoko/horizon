@@ -1,5 +1,5 @@
 # Daily rows for #1999: closing the options grabs the pointer only when no title or pause menu is shown, with the prepared resources.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::options_close_tests::closing_options_opened_from_the_title_leaves_the_pointer_free lib daily resources
-sunrise-client game::options_close_tests::closing_pause_menu_options_leaves_the_pointer_free lib daily resources
-sunrise-client game::options_close_tests::closing_title_options_into_a_world_entered_behind_them_grabs lib daily resources
+sunrise-client cut_layout::game::client_side::options_close_tests::closing_options_opened_from_the_title_leaves_the_pointer_free lib daily resources
+sunrise-client cut_layout::game::client_side::options_close_tests::closing_pause_menu_options_leaves_the_pointer_free lib daily resources
+sunrise-client cut_layout::game::client_side::options_close_tests::closing_title_options_into_a_world_entered_behind_them_grabs lib daily resources

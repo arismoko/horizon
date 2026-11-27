@@ -119,7 +119,7 @@ def main():
     resources = lab.RESOURCES
     oracle = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaFinalizeSpawnOracle.java'
     sources = [oracle, Path(__file__), lab.ROOT / 'crates/sunrise-client/examples/probe/finalize_spawn_fixture.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/finalize.rs']
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/finalize.rs']
     tested = base.source_hashes([s for s in sources if s.exists()])
     inputs = build / 'inputs.txt'
     cases = corpus()

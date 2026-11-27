@@ -8,7 +8,7 @@ pub trait Hooks {
     /// [`ClientReloadHost`] for published asset/data queries; world handles and
     /// transactions are not present on this context.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_client_resources_reloaded",
+        target = "sunrise_client_gameplay::game::native_hooks::base::native_client_resources_reloaded",
         receiver = "associated",
         context = "client_reload",
         dispatch = "flat",

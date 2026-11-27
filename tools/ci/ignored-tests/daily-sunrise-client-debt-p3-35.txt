@@ -1,1 +1,1 @@
-sunrise-client game::remote::raw_ingress::tests::invalid_biome_registry_disconnects_before_join_or_reconfigured_play lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::ingress_state::tests::invalid_biome_registry_disconnects_before_join_or_reconfigured_play lib daily resources

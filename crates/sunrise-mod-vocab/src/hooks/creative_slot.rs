@@ -15,7 +15,7 @@ pub trait Hooks {
     /// creative player gets other ways (middle-click pick block, `/give`).
     /// Server-side, for every player of the world.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_creative_slot",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_creative_slot",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

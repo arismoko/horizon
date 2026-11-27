@@ -62,7 +62,7 @@ UnquotedStringParseRule.parse	port	crates/sunrise-core/src/nbt_snbt.rs::Parser::
 net/minecraft/util/random/Weighted#codec	skip:java		codec; WeightedList::decode_inner reads data and weight per entry
 WeightedList.map	port	crates/sunrise-assets/src/blockstate/choice.rs::Choice::map	keeps weights and maps values; used for variant model lists
 WeightedList.entryToNonEmptyListCodec	port	crates/sunrise-world/src/worldgen/weighted.rs::WeightedList::build	rejects a list whose total weight is zero
-WeightedList.contains	inline	crates/sunrise-client/src/mobs/spawn_selection.rs::valid_position_for_type	a group's entry must still be in the mobs list at a new position: the list is looked up there and scanned for the same spawner (canSpawnMobAt)
+WeightedList.contains	inline	crates/sunrise-sim/src/mobs/spawn_selection.rs::valid_position_for_type	a group's entry must still be in the mobs list at a new position: the list is looked up there and scanned for the same spawner (canSpawnMobAt)
 WeightedList.equals	skip:java		equality of a Java collection
 WeightedList.hashCode	skip:java		hash of a Java collection
 WeightedList.Builder.add	skip:java		builder; WeightedList::new takes (value, weight) pairs
@@ -137,14 +137,14 @@ WorldUpgrader.verifyChunkPosAndEraseCache	port	crates/sunrise-world/src/datafix/
 WorldUpgrader.verifyChunkPos	port	crates/sunrise-world/src/datafix/world_upgrader.rs::verify_chunk_pos	warns when the stored xPos/zPos differ from the chunk's own position and reports no change
 WorldUpgrader.work	port	crates/sunrise-world/src/datafix/files.rs::upgrade_world	gap: minor: no Optimize World pass and no progress; upgrade_world runs the file fixes then the data upgrade
 WorldUpgrader.upgradeLevels	inline	crates/sunrise-world/src/datafix/files.rs::upgrade_world	per-dimension loop folded into upgrade_world
-LongJumpUtil.isClearTransition	port	crates/sunrise-client/src/mobs/breeze.rs::clear_transition	boxed steps of nine tenths the smaller side from one point to the next must all be clear, for the breeze's long jump
-Cushion.isAnchorBuried	inline	crates/sunrise-client/src/cushion.rs::can_place	the resting-slab test; can_place returns false when the slab is covered
-FishingHook.calculateOpenWater	port	crates/sunrise-client/src/game/items/fishing.rs::Game::calculate_open_water
-AbstractContainerMenu.getRedstoneSignalFromBlockEntity	port	crates/sunrise-client/src/game/blocks/machines/mod.rs::container_signal	block entity containers for the comparator; 0 when there is none
+LongJumpUtil.isClearTransition	port	crates/sunrise-sim/src/mobs/breeze.rs::clear_transition	boxed steps of nine tenths the smaller side from one point to the next must all be clear, for the breeze's long jump
+Cushion.isAnchorBuried	inline	crates/sunrise-sim/src/cushion.rs::can_place	the resting-slab test; can_place returns false when the slab is covered
+FishingHook.calculateOpenWater	port	crates/sunrise-gameplay/src/game/items/fishing.rs::Game::calculate_open_water
+AbstractContainerMenu.getRedstoneSignalFromBlockEntity	port	crates/sunrise-gameplay-common/src/game/blocks/machine_containers.rs::container_signal	block entity containers for the comparator; 0 when there is none
 CreativeModeTabs.validate	skip:data		bootstrap check of creative tab positions
 BundleContents.Mutable.removeOne	port	crates/sunrise-items/src/bundle.rs::Contents::remove_one	selected stack or the first; nothing is selected afterwards
 LevelAccessor.neighborShapeChanged	port	crates/sunrise-world/src/level/update.rs::Sim::neighbor_shape_changed	minor: unsure: updateLimit - 1 is applied by the callers (set_block_limit), not here; redstone.rs passes its limit straight through
 LevelHeightAccessor.isInsideBuildHeight	port	crates/sunrise-world/src/level/query.rs::Sim::is_inside_build_height	takes the y; the BlockPos overload is the caller's pos.y
 Block.shouldRenderFace	port	crates/sunrise-world/src/block_render.rs::FaceVisibility::should_render_face	gap: minor: uses precomputed face flags and the cutout flag, not vanilla's EmptyBlockGetter path
 MultifaceBlock.availableFaces	port	crates/sunrise-world/src/level/sculk.rs::Sim::available_faces
-BeehiveBlockEntity.tickOccupants	port	crates/sunrise-client/src/beehive.rs::Beehive::server_tick	ticks each bee and releases the finished ones in order
+BeehiveBlockEntity.tickOccupants	port	crates/sunrise-sim/src/beehive.rs::Beehive::server_tick	ticks each bee and releases the finished ones in order

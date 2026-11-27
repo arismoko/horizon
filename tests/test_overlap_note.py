@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.git_fixture import isolated_git_env
 from tools.ci import overlap_note as ov
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -134,7 +135,7 @@ class PresentTests(unittest.TestCase):
     def test_reports_held_commits_without_fetching_the_others(self):
         def run(cwd, *args):
             return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=cwd, check=True,
-                                  capture_output=True, text=True).stdout.strip()
+                                  env=isolated_git_env(), capture_output=True, text=True).stdout.strip()
 
         with tempfile.TemporaryDirectory() as tmp:
             server, clone = os.path.join(tmp, "server"), os.path.join(tmp, "clone")

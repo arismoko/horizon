@@ -2,5 +2,5 @@ version = 1
 handle = "handle:LevelRef::weather"
 doc = "LevelRef::weather reads the named level's own rain strength and its thunder strength scaled by rain at partial tick 1, even when that level is swapped out or ticked while idle; it never reads the shared weather flags."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_world.rs::weather_read_resolves_levels_and_refuses_stale_or_unavailable_handles",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_world.rs::weather_read_resolves_levels_and_refuses_stale_or_unavailable_handles",
 ]

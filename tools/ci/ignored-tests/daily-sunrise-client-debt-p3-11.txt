@@ -1,8 +1,8 @@
-sunrise-client game::mod_menu_decisions_tests::a_click_replaces_another_players_container_in_its_own_level lib daily resources
-sunrise-client game::mod_menu_decisions_tests::block_and_ender_menu_providers_replace_the_live_window_only_on_commit lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::a_click_panic_keeps_a_committed_owned_slot_edit_without_running_default lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::a_click_that_changes_the_opening_hand_cannot_run_the_default_pickup lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::a_close_requested_in_a_click_transaction_preserves_both_cursors_on_abort lib daily resources
-sunrise-client game::native_menus::tests::aborted_staged_menu_opens_never_wrap_onto_or_access_the_live_window lib daily resources
-sunrise-client game::native_menus::tests::cross_dimension_mod_menu_open_in_transaction_isolates_veto_writes lib daily resources
-sunrise-client game::native_menus::tests::staged_same_level_open_spills_the_old_chest_before_its_veto_replaces_it lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::a_click_replaces_another_players_container_in_its_own_level lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::block_and_ender_menu_providers_replace_the_live_window_only_on_commit lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::a_click_panic_keeps_a_committed_owned_slot_edit_without_running_default lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::a_click_that_changes_the_opening_hand_cannot_run_the_default_pickup lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::a_close_requested_in_a_click_transaction_preserves_both_cursors_on_abort lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::aborted_staged_menu_opens_never_wrap_onto_or_access_the_live_window lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::cross_dimension_mod_menu_open_in_transaction_isolates_veto_writes lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::staged_same_level_open_spills_the_old_chest_before_its_veto_replaces_it lib daily resources

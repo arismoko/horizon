@@ -1,7 +1,7 @@
 use sunrise_core::geometry::Vec3;
 
-pub fn is_horse(species: sunrise_client::mobs::Species) -> bool {
-    use sunrise_client::mobs::Species::*;
+pub fn is_horse(species: sunrise_sim::mobs::Species) -> bool {
+    use sunrise_sim::mobs::Species::*;
     matches!(
         species,
         Horse

@@ -1,2 +1,2 @@
 # A client mod's action-bar line (ClientViewClientHost::set_overlay_message, #4626): through the client host on a client game.
-sunrise-client game::titles::tests::a_mods_overlay_line_replaces_the_action_bar_and_restarts_its_timer lib daily child-process
+sunrise-client cut_layout::game::client_side::titles::tests::a_mods_overlay_line_replaces_the_action_bar_and_restarts_its_timer lib daily child-process

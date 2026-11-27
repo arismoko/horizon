@@ -18,30 +18,30 @@ ClientboundStoreCookiePacket.write	port	crates/sunrise-protocol/src/buf.rs::writ
 ClientboundTransferPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! Transfer {host Str, port VarInt}
 ServerboundResourcePackPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! ResourcePackResponse {id Uuid, action VarInt}
 CustomPacketPayload.codec	skip:java		StreamCodec factory; packet! macro and Codec trait cover it
-DiscardedPayload.codec	port	crates/sunrise-client/src/lan/conn.rs::checked_play	a play or configuration payload over 32767 bytes is refused; an accepted unknown payload stays raw
+DiscardedPayload.codec	port	crates/sunrise-sim/src/lan/conn.rs::checked_play	a play or configuration payload over 32767 bytes is refused; an accepted unknown payload stays raw
 ServerboundCookieResponsePacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! CookieResponse {key Ident, payload Option<Bytes>}
-ClientboundAddEntityPacket.<init>	port	crates/sunrise-client/src/lan/entity.rs::ServerEntity::pairing	builds the spawn packet from the entity state
+ClientboundAddEntityPacket.<init>	port	crates/sunrise-sim/src/lan/entity.rs::ServerEntity::pairing	builds the spawn packet from the entity state
 ClientboundAddEntityPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! AddEntity (play.rs) in the vanilla field order
-ClientboundAddTransientBlockPacket.write	inline	crates/sunrise-client/src/game/blocks/transient_blocks.rs::Game::add_transient_block	written once when the block is placed and again on the tick it goes back to air; the client applies each with no state send, and the LAN host does not send the packet
+ClientboundAddTransientBlockPacket.write	inline	crates/sunrise-client-gameplay/src/game/blocks/transient_blocks.rs::Game::add_transient_block	written once when the block is placed and again on the tick it goes back to air; the client applies each with no state send, and the LAN host does not send the packet
 ClientboundAnimatePacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! Animate {id VarInt, action UByte}
 ClientboundBlockDestructionPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! BlockDestruction {id, pos, progress}
-ClientboundBlockEntityDataPacket.create	port	crates/sunrise-client/src/lan/hub/block_changes.rs::Hub::broadcast_block_changes	the changed block entities of the tick's block updates go out as the packet, a decorated pot's tag coming from its chunk's saved data
+ClientboundBlockEntityDataPacket.create	port	crates/sunrise-sim/src/lan/hub/block_changes.rs::Hub::broadcast_block_changes	the changed block entities of the tick's block updates go out as the packet, a decorated pot's tag coming from its chunk's saved data
 ClientboundBlockEventPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! BlockEvent {pos, b0, b1, block}
-ClientboundBossEventPacket.createUpdateProgressPacket	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateProgress goes out to every viewer of the bar (a guest by connection, the host's own overlay in place)
-ClientboundBossEventPacket.createUpdateNamePacket	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateName when the bar's name differs from what that viewer was sent
-ClientboundBossEventPacket.createUpdateStylePacket	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateStyle when the colour or the overlay differ
-ClientboundBossEventPacket.createUpdatePropertiesPacket	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateProperties when darken, boss music or fog differ
+ClientboundBossEventPacket.createUpdateProgressPacket	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateProgress goes out to every viewer of the bar (a guest by connection, the host's own overlay in place)
+ClientboundBossEventPacket.createUpdateNamePacket	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateName when the bar's name differs from what that viewer was sent
+ClientboundBossEventPacket.createUpdateStylePacket	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateStyle when the colour or the overlay differ
+ClientboundBossEventPacket.createUpdatePropertiesPacket	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateProperties when darken, boss music or fog differ
 ClientboundBossEventPacket.encodeProperties	port	crates/sunrise-protocol/src/packets/play/hud.rs::boss_flags	the three flag bits (darken, music, fog)
 ClientboundBossEventPacket.AddOperation.dispatch	port	crates/sunrise-client/src/boss_overlay.rs::BossOverlay::apply
 ClientboundChunksBiomesPacket.ChunkBiomeData.calculateChunkSize	inline	crates/sunrise-protocol/src/packets/play.rs::ChunkBiomeData::from_biomes	the buffer grows as each section's container is written, so no size is computed or prefixed on the wire
 ClientboundChunksBiomesPacket.ChunkBiomeData.extractChunkData	port	crates/sunrise-protocol/src/packets/play.rs::ChunkBiomeData::from_biomes	the column's sections' biome containers written one after another into the buffer
-ClientboundCommandSuggestionsPacket.toSuggestions	port	crates/sunrise-client/src/game/network/remote/commands.rs::Game::handle_command_suggestions	start, length and tooltip become the suggestion range
+ClientboundCommandSuggestionsPacket.toSuggestions	port	crates/sunrise-client-gameplay/src/game/network/remote/commands_client.rs::Game::handle_command_suggestions	start, length and tooltip become the suggestion range
 ClientboundCommandsPacket.validateEntries	missing		minor: an impossible command tree is not rejected; from_packet skips bad child indexes
-ClientboundCommandsPacket.enumerateNodes	port	crates/sunrise-client/src/lan/commands.rs::CommandTree::packet_with	breadth-first node ids on the LAN host
-ClientboundCommandsPacket.createEntries	port	crates/sunrise-client/src/lan/commands.rs::CommandTree::packet_with	builds the node list for the LAN host's Commands packet
-ClientboundCommandsPacket.createEntry	inline	crates/sunrise-client/src/lan/commands.rs::CommandTree::packet_with	flags, redirect and children are set in the final node map
+ClientboundCommandsPacket.enumerateNodes	port	crates/sunrise-sim/src/lan/commands.rs::CommandTree::packet_with	breadth-first node ids on the LAN host
+ClientboundCommandsPacket.createEntries	port	crates/sunrise-sim/src/lan/commands.rs::CommandTree::packet_with	builds the node list for the LAN host's Commands packet
+ClientboundCommandsPacket.createEntry	inline	crates/sunrise-sim/src/lan/commands.rs::CommandTree::packet_with	flags, redirect and children are set in the final node map
 ClientboundCommandsPacket.getRoot	port	crates/sunrise-command/src/network.rs::from_packet	the packet's root becomes the client's dispatcher root
-ClientboundCommandsPacket.ArgumentNodeStub.serializeCap	port	crates/sunrise-client/src/lan/commands.rs::properties	argument parser property bytes
+ClientboundCommandsPacket.ArgumentNodeStub.serializeCap	port	crates/sunrise-sim/src/lan/commands.rs::properties	argument parser property bytes
 ClientboundCommandsPacket.Entry.canBuild	inline	crates/sunrise-command/src/network.rs::from_packet	gap: minor: no build-order check; children and redirects resolve recursively
 ClientboundCommandsPacket.Entry.canResolve	inline	crates/sunrise-command/src/network.rs::from_packet	gap: minor: no build-order check; children and redirects resolve recursively
 ClientboundCommandsPacket.NodeResolver.resolve	port	crates/sunrise-command/src/network.rs::from_packet	builds the client's tree from the packet nodes
@@ -50,18 +50,18 @@ ClientboundCommandsPacket.ArgumentNodeStub.write	inline	crates/sunrise-protocol/
 ClientboundCommandsPacket.readNode	inline	crates/sunrise-protocol/src/packets/play/commands.rs::Commands::read	flags, children and redirect, then the literal or argument stub
 ClientboundContainerSetDataPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! ContainerSetData {container VarInt, id Short, value Short}
 ClientboundContainerSetSlotPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! ContainerSetSlot {container, state, slot, item Slot}
-ClientboundDamageEventPacket.getSource	inline	crates/sunrise-client/src/game/network/remote/packets_entity.rs::Game::apply_damage_event_packet	gap: minor: DamageSource is not rebuilt; the hurt sound comes from the host's sound packet
+ClientboundDamageEventPacket.getSource	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_entity_client.rs::Game::apply_damage_event_packet	gap: minor: DamageSource is not rebuilt; the hurt sound comes from the host's sound packet
 ClientboundDebugSamplePacket.write	skip:debug		F3 debug chart sample; Sunrise has no debug subscription
 ClientboundEntityEventPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! EntityEvent {id Int, event Byte}
-ClientboundEntityPositionSyncPacket.of	port	crates/sunrise-client/src/lan/entity.rs::ServerEntity::send_changes	builds the position sync for the LAN host
+ClientboundEntityPositionSyncPacket.of	port	crates/sunrise-sim/src/lan/entity.rs::ServerEntity::send_changes	builds the position sync for the LAN host
 ClientboundGameEventPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! GameEvent {event UByte, param Float}
 ClientboundHurtAnimationPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! HurtAnimation {id VarInt, yaw Float}
 ClientboundLevelChunkPacketData.calculateChunkSize	skip:java		buffer sizing; Vec grows as sections are written
 ClientboundLevelChunkPacketData.extractChunkData	port	crates/sunrise-protocol/src/chunk.rs::ChunkData::from_sections	gap: minor: no writer-index length check
-ClientboundLevelChunkPacketData.forEachBlockEntityTag	port	crates/sunrise-client/src/game/network/remote_chunks.rs::Game::remote_chunk	block entities of a chunk are applied when the chunk arrives
+ClientboundLevelChunkPacketData.forEachBlockEntityTag	port	crates/sunrise-client-gameplay/src/game/network/remote_chunks.rs::Game::remote_chunk	block entities of a chunk are applied when the chunk arrives
 ClientboundLevelEventPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! LevelEvent {kind Int, pos, data Int, global Bool}
-ClientboundLightUpdatePacketData.prepareSectionData	port	crates/sunrise-client/src/lan/chunks.rs::light_sections	uses stored layers and restores empty layers omitted by NBT
-ClientboundMapItemDataPacket.applyToMap	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::remote_map_item_data	decorations and colour patch applied to the map
+ClientboundLightUpdatePacketData.prepareSectionData	port	crates/sunrise-sim/src/lan/chunks.rs::light_sections	uses stored layers and restores empty layers omitted by NBT
+ClientboundMapItemDataPacket.applyToMap	port	crates/sunrise-client-gameplay/src/game/blocks/maps/mod_client.rs::Game::remote_map_item_data	decorations and colour patch applied to the map
 ClientboundMoveEntityPacket.Pos.read	port	crates/sunrise-protocol/src/packets/play.rs::read_inner	MoveEntityPos read
 ClientboundMoveEntityPacket.Pos.write	port	crates/sunrise-protocol/src/packets/play.rs::write_inner	MoveEntityPos write
 ClientboundMoveEntityPacket.PosRot.read	port	crates/sunrise-protocol/src/packets/play.rs::read_inner	MoveEntityPosRot read
@@ -69,24 +69,24 @@ ClientboundMoveEntityPacket.PosRot.write	port	crates/sunrise-protocol/src/packet
 ClientboundMoveEntityPacket.Rot.read	port	crates/sunrise-protocol/src/packets/play.rs::read_inner	MoveEntityRot read
 ClientboundMoveEntityPacket.Rot.write	port	crates/sunrise-protocol/src/packets/play.rs::write_inner	MoveEntityRot write
 ClientboundPlayerAbilitiesPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! PlayerAbilities {flags Byte, flying speed, walking speed}; flag bits packed by the sender
-ClientboundPlayerInfoUpdatePacket.createPlayerInitializing	port	crates/sunrise-client/src/lan/hub.rs::Hub::finish_player_join	sends every action (INFO_ACTIONS) to a newcomer
+ClientboundPlayerInfoUpdatePacket.createPlayerInitializing	port	crates/sunrise-sim/src/lan/hub.rs::Hub::finish_player_join	sends every action (INFO_ACTIONS) to a newcomer
 ClientboundPlayerInfoUpdatePacket.entryCodec	port	crates/sunrise-protocol/src/packets/play/players.rs::PlayerInfoUpdate::write	per-entry write in action order
 ClientboundPlayerInfoUpdatePacket.toString	skip:debug		debug string
 ClientboundPlayerInfoUpdatePacket.EntryBuilder.build	inline	crates/sunrise-protocol/src/packets/play/players.rs::PlayerInfoUpdate::read	entry fields read in action order
-ClientboundPlayerLookAtPacket.<init>	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::send_player_look_at	every target of /tp ... facing and /rotate ... facing gets the packet, a guest over its connection
+ClientboundPlayerLookAtPacket.<init>	port	crates/sunrise-gameplay/src/game/administration/commands/mod_server.rs::Game::send_player_look_at	every target of /tp ... facing and /rotate ... facing gets the packet, a guest over its connection
 ClientboundPlayerLookAtPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! PlayerLookAt {from, target, entity LookAtEntity {id, anchor}}
-ClientboundPlayerLookAtPacket.getPosition	inline	crates/sunrise-client/src/game/network/remote/interaction_actions.rs::Game::remote_look_at	the point is read off the packet, unless the named entity is tracked, then its feet or eyes
+ClientboundPlayerLookAtPacket.getPosition	inline	crates/sunrise-client-gameplay/src/game/network/remote/interaction_actions_client.rs::Game::remote_look_at	the point is read off the packet, unless the named entity is tracked, then its feet or eyes
 ClientboundRotateHeadPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! RotateHead {id VarInt, head_yaw Byte}
-ClientboundSectionBlocksUpdatePacket.<init>	port	crates/sunrise-client/src/lan/hub/block_changes.rs::Hub::broadcast_block_changes	builds the section's change list from the changed blocks
+ClientboundSectionBlocksUpdatePacket.<init>	port	crates/sunrise-sim/src/lan/hub/block_changes.rs::Hub::broadcast_block_changes	builds the section's change list from the changed blocks
 ClientboundSectionBlocksUpdatePacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! SectionBlocksUpdate (play.rs) with SectionPos and VarLong changes
-ClientboundSectionBlocksUpdatePacket.runUpdates	inline	crates/sunrise-client/src/game/network/remote/packets_world.rs::Game::apply_section_blocks_update_packet	applies each change at its section position
+ClientboundSectionBlocksUpdatePacket.runUpdates	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_world_client.rs::Game::apply_section_blocks_update_packet	applies each change at its section position
 ClientboundSetChunkCacheCenterPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! SetChunkCacheCenter {x VarInt, z VarInt}
 ClientboundSetEntityDataPacket.pack	port	crates/sunrise-protocol/src/entity_data.rs::EntityData::write	entries then 0xFF terminator
 ClientboundSetEntityDataPacket.unpack	port	crates/sunrise-protocol/src/entity_data.rs::EntityData::read	entries until 0xFF
 ClientboundSetExperiencePacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! SetExperience {progress Float, level, total VarInt}
 ClientboundSetHealthPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! SetHealth {health, food VarInt, saturation}
-ClientboundSetPlayerTeamPacket.createAddOrModifyPacket	port	crates/sunrise-client/src/lan/scoreboard.rs::View::changes	the method and parameters of a team the view gained or changed, sent before its players
-ClientboundSetPlayerTeamPacket.createPlayerPacket	inline	crates/sunrise-client/src/lan/scoreboard.rs::View::changes	the same builder sends a player's add and remove methods, every leave before any join
+ClientboundSetPlayerTeamPacket.createAddOrModifyPacket	port	crates/sunrise-sim/src/lan/scoreboard.rs::View::changes	the method and parameters of a team the view gained or changed, sent before its players
+ClientboundSetPlayerTeamPacket.createPlayerPacket	inline	crates/sunrise-sim/src/lan/scoreboard.rs::View::changes	the same builder sends a player's add and remove methods, every leave before any join
 ClientboundSetPlayerTeamPacket.shouldHavePlayerList	port	crates/sunrise-protocol/src/packets/play/hud.rs::SetPlayerTeam::read	the player list is read only for methods 0, 3 and 4
 ClientboundSetTitlesAnimationPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! TitlesAnimation {fade_in, stay, fade_out Int}
 ClientboundSoundEntityPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! SoundEntity with the sound holder
@@ -102,17 +102,17 @@ ServerboundPlayerActionPacket.write	port	crates/sunrise-protocol/src/buf.rs::wri
 ServerboundPlayerCommandPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! PlayerCommand {id, action, data VarInt}
 ServerboundSeenAdvancementsPacket.write	port	crates/sunrise-protocol/src/packets/play/advancements.rs::SeenAdvancements::write	the action, then the tab only for OPENED_TAB; the hub keeps and answers it (Hub::process_inbox)
 ServerboundSetCommandMinecartPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! SetCommandMinecart {entity VarInt, command Str, track_output Bool}; the cart's edit screen sends it (command_minecarts.rs::Game::set_command_minecart)
-ServerboundSetCommandMinecartPacket.getCommandBlock	inline	crates/sunrise-client/src/game/administration/command_minecarts.rs::Game::apply_cart_command	the packet's command and track-output flag go into the cart, with handleSetCommandMinecart's onUpdated and chat note, in one fn
+ServerboundSetCommandMinecartPacket.getCommandBlock	inline	crates/sunrise-gameplay/src/game/administration/command_minecarts_server.rs::Game::apply_cart_command	the packet's command and track-output flag go into the cart, with handleSetCommandMinecart's onUpdated and chat note, in one fn
 ServerboundSetJigsawBlockPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! SetJigsawBlock {pos Pos, name/target/pool Ident, final_state Str, joint Str, selection and placement priority VarInt}; the jigsaw screen sends it (jigsaw_edit.rs::JigsawEditor::set_packet)
-ServerboundSetStructureBlockPacket.<init>	port	crates/sunrise-client/src/game/administration/structure_edit.rs::StructureEditor::packet	the constructor takes the block and the update type: the edit boxes supply the typed fields, the block its mode, mirror, rotation and flags
+ServerboundSetStructureBlockPacket.<init>	port	crates/sunrise-client-gameplay/src/game/administration/structure_edit.rs::StructureEditor::packet	the constructor takes the block and the update type: the edit boxes supply the typed fields, the block its mode, mirror, rotation and flags
 ServerboundSetStructureBlockPacket.write	port	crates/sunrise-protocol/src/packets/play.rs::SetStructureBlock::write	pos, update type and mode, the name, each offset and size as a byte, mirror and rotation, data, integrity, seed, then the four flags in one byte
 VecDelta.Stepped.hasDeltaX	skip:other		no callers in vanilla
 VecDelta.Stepped.hasDeltaZ	skip:other		no callers in vanilla
 VecDelta.Stepped.tryEncode	missing		minor: the LAN host sends only linear deltas (send_changes); no stepped path is encoded
-VecDelta.Linear.decode	inline	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	MoveEntity arms: the delta applied to the tracked position (VecDelta::end)
-VecDelta.Stepped.decode	inline	crates/sunrise-client/src/game/network/remote/mod.rs::Game::apply_packet	MoveEntity arms: each step applied to the previous step's position, with its ticks
-VecDeltaCodec.isDeltaTooBig	inline	crates/sunrise-client/src/lan/entity.rs::ServerEntity::send_changes	the i16 range check on each delta
-VecDeltaCodec.tryEncode	inline	crates/sunrise-client/src/lan/entity.rs::ServerEntity::send_changes	gap: minor: linear positions only; stepped paths are not encoded
+VecDelta.Linear.decode	inline	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	MoveEntity arms: the delta applied to the tracked position (VecDelta::end)
+VecDelta.Stepped.decode	inline	crates/sunrise-client-gameplay/src/game/network/remote/mod_client.rs::Game::apply_packet	MoveEntity arms: each step applied to the previous step's position, with its ticks
+VecDeltaCodec.isDeltaTooBig	inline	crates/sunrise-sim/src/lan/entity.rs::ServerEntity::send_changes	the i16 range check on each delta
+VecDeltaCodec.tryEncode	inline	crates/sunrise-sim/src/lan/entity.rs::ServerEntity::send_changes	gap: minor: linear positions only; stepped paths are not encoded
 ClientIntent.byId	missing		minor: an unknown handshake intent is not rejected; the intent stays a raw number in handshake.rs
 ClientIntent.id	skip:other		constants STATUS, LOGIN and TRANSFER in handshake.rs
 ClientIntentionPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	packet! Intention {protocol, host, port, intent}
@@ -126,11 +126,11 @@ ServerboundHelloPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	logi
 ServerboundKeyPacket.write	port	crates/sunrise-protocol/src/buf.rs::write	login key packet! encrypted secret and challenge
 net/minecraft/network/syncher/EntityDataAccessor#equals	skip:java		typed accessor equality; Rust derives it
 SynchedEntityData.defineId	skip:other		entity data ids are fixed in code per entity type, not defined at class load
-SynchedEntityData.set	inline	crates/sunrise-client/src/lan/entity.rs::ServerEntity::send_changes	gap: minor: no per-value dirty flag; the metadata list is compared each tick
-SynchedEntityData.packDirty	port	crates/sunrise-client/src/lan/entity.rs::ServerEntity::send_changes	sends the changed metadata values
-SynchedEntityData.getNonDefaultValues	port	crates/sunrise-client/src/lan/entity.rs::ServerEntity::pairing	non-empty metadata goes out with the spawn
-SynchedEntityData.assignValues	inline	crates/sunrise-client/src/game/network/remote/packets_entity.rs::Game::apply_set_entity_data_packet	applies the values to the entity by index
-SynchedEntityData.assignValue	inline	crates/sunrise-client/src/game/network/remote/packets_entity.rs::Game::apply_set_entity_data_packet	gap: minor: no serializer type check
+SynchedEntityData.set	inline	crates/sunrise-sim/src/lan/entity.rs::ServerEntity::send_changes	gap: minor: no per-value dirty flag; the metadata list is compared each tick
+SynchedEntityData.packDirty	port	crates/sunrise-sim/src/lan/entity.rs::ServerEntity::send_changes	sends the changed metadata values
+SynchedEntityData.getNonDefaultValues	port	crates/sunrise-sim/src/lan/entity.rs::ServerEntity::pairing	non-empty metadata goes out with the spawn
+SynchedEntityData.assignValues	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_entity_client.rs::Game::apply_set_entity_data_packet	applies the values to the entity by index
+SynchedEntityData.assignValue	inline	crates/sunrise-client-gameplay/src/game/network/remote/packets_entity_client.rs::Game::apply_set_entity_data_packet	gap: minor: no serializer type check
 SynchedEntityData.Builder.define	skip:other		entity data ids and defaults are fixed per entity type in Sunrise
 SynchedEntityData.Builder.build	skip:other		entity data ids and defaults are fixed per entity type in Sunrise
 SynchedEntityData.DataValue.create	skip:java		copies a value; Rust owns the value
@@ -140,13 +140,13 @@ RealmsConnect.connect	skip:service		Realms
 RealmsConnect.abort	skip:service		Realms
 RealmsConnect.tick	skip:service		Realms
 RepeatedNarrator.narrate	skip:service		Realms only: the long-running task screen's progress, said through GameNarrator.saySystemNow at most once per repeat period; Sunrise has no Realms client
-ServerPlaceRecipe.tryPlaceRecipe	port	crates/sunrise-client/src/menu/place.rs::Menu::place_recipe	places when craftable, else clears the grid and shows the ghost
-ServerPlaceRecipe.clearGrid	port	crates/sunrise-client/src/menu/place.rs::Menu::clear_grid	returns the grid to the inventory
-ServerPlaceRecipe.clampToMaxStackSize	inline	crates/sunrise-client/src/menu/place.rs::Menu::place	gap: minor: clamps by the slot's stack, not by each candidate item
-ServerPlaceRecipe.calculateAmountToCraft	port	crates/sunrise-client/src/menu/place.rs::Menu::place	the amount placed from the grid's smallest stack
-ServerPlaceRecipe.moveItemToGrid	port	crates/sunrise-client/src/menu/place.rs::Menu::move_item_to_grid	moves one ingredient stack into a grid slot
-ServerPlaceRecipe.testClearGrid	port	crates/sunrise-client/src/menu/place.rs::Menu::test_clear_slots	checks the grid can be emptied into the inventory
-ServerPlaceRecipe.getAmountOfFreeSlotsInInventory	inline	crates/sunrise-client/src/menu/place.rs::Menu::test_clear_slots	free_in_inventory is counted there
+ServerPlaceRecipe.tryPlaceRecipe	port	crates/sunrise-sim/src/menu/place.rs::Menu::place_recipe	places when craftable, else clears the grid and shows the ghost
+ServerPlaceRecipe.clearGrid	port	crates/sunrise-sim/src/menu/place.rs::Menu::clear_grid	returns the grid to the inventory
+ServerPlaceRecipe.clampToMaxStackSize	inline	crates/sunrise-sim/src/menu/place.rs::Menu::place	gap: minor: clamps by the slot's stack, not by each candidate item
+ServerPlaceRecipe.calculateAmountToCraft	port	crates/sunrise-sim/src/menu/place.rs::Menu::place	the amount placed from the grid's smallest stack
+ServerPlaceRecipe.moveItemToGrid	port	crates/sunrise-sim/src/menu/place.rs::Menu::move_item_to_grid	moves one ingredient stack into a grid slot
+ServerPlaceRecipe.testClearGrid	port	crates/sunrise-sim/src/menu/place.rs::Menu::test_clear_slots	checks the grid can be emptied into the inventory
+ServerPlaceRecipe.getAmountOfFreeSlotsInInventory	inline	crates/sunrise-sim/src/menu/place.rs::Menu::test_clear_slots	free_in_inventory is counted there
 BlockItemId.create	skip:data		registry keys; Sunrise names items by string id
 DelegatingOps.convertTo	skip:java		codec ops wrapper
 DelegatingOps.mergeToList	skip:java		codec ops wrapper

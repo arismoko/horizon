@@ -16,7 +16,7 @@ def main():
     lock,jars,libraries=base.verify_artifacts()
     cp=os.pathsep.join(map(str,[jars['server'],*libraries])); classes=build/'classes';classes.mkdir(exist_ok=True)
     source=lab.ROOT/'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaStopSoundWireOracle.java'
-    sources=[source,lab.ROOT/'crates/sunrise-protocol/src/packets/play.rs',lab.ROOT/'crates/sunrise-client/src/game/network/remote/mod.rs']
+    sources=[source,lab.ROOT/'crates/sunrise-protocol/src/packets/play.rs',lab.ROOT/'crates/sunrise-gameplay-common/src/game/network/remote/mod.rs']
     tested=base.source_hashes(sources)
     run=lambda cmd,name:harness.run_logged(cmd,build,name)
     run(['javac','--release',lock['minecraft']['java_major'],'-proc:none','-cp',cp,'-d',classes,source],'compile-java')

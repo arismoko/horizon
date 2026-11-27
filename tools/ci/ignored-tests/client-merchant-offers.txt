@@ -1,1 +1,1 @@
-sunrise-client game::native_small_reads_tests::client_merchant_offers_follow_the_open_menu lib daily resources
+sunrise-client cut_layout::game::client_side::native_small_reads_tests::client_merchant_offers_follow_the_open_menu lib daily resources

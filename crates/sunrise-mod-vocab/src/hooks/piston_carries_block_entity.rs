@@ -40,7 +40,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         neoforge = "none (NeoForge has no counterpart; IBlockExtension.getRelocability is unrelated)",
-        target = "sunrise_client::game::native_hooks::piston_carries_block_entity::GameLevel<'_>::native_piston_carries_block_entity"
+        target = "sunrise_gameplay_common::game::native_hooks::piston_carries_block_entity::GameLevel<'_>::native_piston_carries_block_entity"
     )]
     fn piston_carries_block_entity(
         dimension: LevelDimension,

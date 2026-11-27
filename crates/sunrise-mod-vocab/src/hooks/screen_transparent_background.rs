@@ -23,7 +23,7 @@ the same atlas. The whole-screen `screen_render_pre` remains a separate moment."
         neoforge = "ScreenEvent.Render.Pre (transparent background)",
         cancellable = true,
         out = "canceled",
-        target = "sunrise_client::game::native_hooks::screen_transparent_background::Game<'_>::native_screen_transparent_background"
+        target = "sunrise_client_gameplay::game::native_hooks::screen_transparent_background::ClientGame<'_>::native_screen_transparent_background"
     )]
     fn screen_transparent_background(
         screen: &str,

@@ -1,2 +1,2 @@
 # controls_boat names only a boat the player rides first (#6003).
-sunrise-client game::remote_vehicles::tests::only_a_boat_is_the_driven_boat lib daily resources
+sunrise-client cut_layout::game::client_side::remote_vehicles::tests::only_a_boat_is_the_driven_boat lib daily resources

@@ -1,11 +1,10 @@
 //! The loaded world as the initial spawn searches query it.
-use sunrise_client::{
-    assets::Properties, collisions::SceneCollisions, world::World, world_spawn::SpawnLevel,
-};
 use sunrise_core::{
     geometry::{Direction, ShapeOp, Vec3, VoxelShape},
     position::BlockPos,
 };
+use sunrise_level::{assets::Properties, collisions::SceneCollisions, world::World};
+use sunrise_sim::world_spawn::SpawnLevel;
 use sunrise_world::{
     block_collision::BlockCollisionRegistry, collision_context::CollisionContext,
     heightmap::HeightmapType, worldgen::terrain::TerrainBlockStates,

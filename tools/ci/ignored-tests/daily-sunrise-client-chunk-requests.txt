@@ -1,4 +1,4 @@
-sunrise-client game::native_chunk_requests::tests::cancel_isolation_mod_disable_and_level_close_release_tickets lib daily resources
-sunrise-client game::native_chunk_requests::tests::request_chunk_is_non_blocking_level_33_and_respects_spare_time_budget lib daily resources
-sunrise-client game::native_chunk_requests::tests::request_chunk_reports_failed_on_generator_panic_mid_flight_and_at_admission lib daily child-process
-sunrise-client game::native_chunk_requests::tests::request_chunk_streams_ungenerated_chunk_to_full_on_active_and_parked_levels_then_unloads lib daily resources
+sunrise-gameplay game::server_side::native_chunk_requests::tests::cancel_isolation_mod_disable_and_level_close_release_tickets lib daily resources
+sunrise-gameplay game::server_side::native_chunk_requests::tests::request_chunk_is_non_blocking_level_33_and_respects_spare_time_budget lib daily resources
+sunrise-gameplay game::server_side::native_chunk_requests::tests::request_chunk_reports_failed_on_generator_panic_mid_flight_and_at_admission lib daily child-process
+sunrise-gameplay game::server_side::native_chunk_requests::tests::request_chunk_streams_ungenerated_chunk_to_full_on_active_and_parked_levels_then_unloads lib daily resources

@@ -245,7 +245,7 @@ def main():
     wire_log = build / 'tooltip-style-wire-test.log'
     with wire_log.open('w', encoding='utf-8') as log:
         result = subprocess.run(
-            ['cargo', 'test', '--locked', '-p', 'sunrise-client-lib', '--lib', '--', '--ignored', '--exact',
+            ['cargo', 'test', '--locked', '-p', 'sunrise-sim', '--lib', '--', '--ignored', '--exact',
              TOOLTIP_STYLE_WIRE_TEST],
             cwd=lab.ROOT, timeout=3600, stdout=log, stderr=subprocess.STDOUT,
             env={**os.environ, 'SUNRISE_TOOLTIP_STYLE_WIRE_WITNESS': str(witness.resolve())},

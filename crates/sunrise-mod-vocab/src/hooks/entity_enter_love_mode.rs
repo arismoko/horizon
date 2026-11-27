@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A mob entered love mode after player interaction. `player` is the
     /// feeder when known.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_enter_love_mode",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_enter_love_mode",
         dispatch = "flat",
         side = "server",
         contract = "listen",

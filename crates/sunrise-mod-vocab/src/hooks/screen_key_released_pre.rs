@@ -9,7 +9,7 @@ pub trait Hooks {
     /// control-key release; a held mapping can stay down. Cancelling an unhandled release in
     /// Post instead skips normal mapped release on either route, after the screen has declined.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_screen_key_released_pre",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_screen_key_released_pre",
         receiver = "read",
         dispatch = "flat",
         side = "client",

@@ -2,7 +2,7 @@ version = 1
 handle = "handle:ChunkRef::resend"
 doc = "ChunkRef::resend waits for the relight pending at the call to finish before sending to an interior holder, checks sent watchers on the owning dimension, and is not held up by a later light check or by relights of other columns."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_chunk_relight_tests.rs::resend_waits_for_the_relight_before_sending_to_an_interior_holder",
-    "crates/sunrise-client/src/game/modding/native_chunk_relight_tests.rs::later_light_check_does_not_prevent_chunk_resend",
-    "crates/sunrise-client/src/game/modding/native_chunk_relight_tests.rs::parked_chunk_resend_checks_sent_watchers_on_owning_dimension",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_chunk_relight_tests.rs::resend_waits_for_the_relight_before_sending_to_an_interior_holder",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_chunk_relight_tests.rs::later_light_check_does_not_prevent_chunk_resend",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_chunk_relight_tests.rs::parked_chunk_resend_checks_sent_watchers_on_owning_dimension",
 ]

@@ -1,3 +1,3 @@
-sunrise-client game::native_player_level_tests::a_give_that_fits_plays_pickup_in_the_players_level lib daily child-process
-sunrise-client game::native_player_level_tests::a_give_to_a_borrowed_player_drops_in_their_level lib daily child-process
-sunrise-client game::native_player_level_tests::a_give_to_a_player_in_another_level_drops_overflow_there lib daily child-process
+sunrise-client cut_layout::game::server_side::native_player_level_tests::a_give_that_fits_plays_pickup_in_the_players_level lib daily child-process
+sunrise-client cut_layout::game::server_side::native_player_level_tests::a_give_to_a_borrowed_player_drops_in_their_level lib daily child-process
+sunrise-client cut_layout::game::server_side::native_player_level_tests::a_give_to_a_player_in_another_level_drops_overflow_there lib daily child-process

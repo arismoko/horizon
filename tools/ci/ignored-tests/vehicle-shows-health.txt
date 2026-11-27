@@ -1,3 +1,3 @@
 # EntityRef::shows_vehicle_health, Entity.showVehicleHealth (#5022).
-sunrise-client game::native_entity_riding::tests::a_living_vehicle_shows_its_health_and_a_boat_does_not lib daily resources
-sunrise-client game::remote::tests::client_vanilla_reads_tests::a_client_reads_whether_a_vehicle_shows_its_health_from_its_type lib daily resources
+sunrise-gameplay-common game::server_side::native_entity_riding::tests::a_living_vehicle_shows_its_health_and_a_boat_does_not lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::a_client_reads_whether_a_vehicle_shows_its_health_from_its_type lib daily resources

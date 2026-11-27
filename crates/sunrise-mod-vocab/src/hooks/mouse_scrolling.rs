@@ -5,7 +5,7 @@ pub trait Hooks {
     /// `scroll` is scaled x/y, `accumulated` whole x/y steps, `buttons` left/middle/right,
     /// and `cursor` the GUI position. Cancel skips gameplay scrolling.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_mouse_scrolling",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_mouse_scrolling",
         dispatch = "flat",
         side = "client",
         contract = "cancel",

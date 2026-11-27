@@ -110,7 +110,7 @@ def main():
     sources = [oracle, Path(__file__), lab.ROOT / 'tools/test_rust_parity.py', lab.ROOT / 'tools/lab.py',
                lab.ROOT / 'tools/block_update_harness.py', lab.ROOT / 'tools/test_dispenser_parity.py',
                lab.ROOT / 'crates/sunrise-client/examples/probe/falling_block_fixture.rs',
-               lab.ROOT / 'crates/sunrise-client/src/falling_block.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/falling_block.rs',
                lab.ROOT / 'crates/sunrise-world/src/level/falling.rs']
     tested = base.source_hashes(sources)
     classes = build / 'classes'

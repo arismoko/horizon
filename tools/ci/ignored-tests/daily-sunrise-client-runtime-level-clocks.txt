@@ -1,2 +1,2 @@
 # A level's own world clock (#4985): the clock handle's setTotalTicks, setRate and setPaused.
-sunrise-client game::native_level_world::tests::two_levels_with_clocks_of_their_own_keep_their_own_times lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_world::tests::two_levels_with_clocks_of_their_own_keep_their_own_times lib daily resources

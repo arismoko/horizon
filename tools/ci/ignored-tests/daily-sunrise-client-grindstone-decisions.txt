@@ -1,10 +1,10 @@
 # The grindstone_place and grindstone_take listener tests use prepared resources.
-sunrise-client game::grindstone_decisions_tests::a_cancelled_place_leaves_no_grindstone_result lib daily resources
-sunrise-client game::grindstone_decisions_tests::a_cancelled_take_keeps_the_click_and_listener_writes lib daily resources
-sunrise-client game::grindstone_decisions_tests::a_grindstone_without_a_listener_keeps_the_vanilla_result lib daily resources
-sunrise-client game::grindstone_decisions_tests::a_place_listener_sets_the_grindstone_result lib daily resources
-sunrise-client game::grindstone_decisions_tests::an_outer_abort_undoes_an_accepted_grindstone_take lib daily resources
-sunrise-client game::grindstone_decisions_tests::invalid_place_output_keeps_vanilla_result lib daily resources
-sunrise-client game::grindstone_decisions_tests::negative_place_xp_falls_through_to_vanilla_award lib daily resources
-sunrise-client game::grindstone_decisions_tests::non_positive_take_xp_awards_no_orbs_and_fires_sound lib daily resources
-sunrise-client game::grindstone_decisions_tests::panicking_grindstone_listeners_keep_vanilla_and_initial_behavior lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::a_cancelled_place_leaves_no_grindstone_result lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::a_cancelled_take_keeps_the_click_and_listener_writes lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::a_grindstone_without_a_listener_keeps_the_vanilla_result lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::a_place_listener_sets_the_grindstone_result lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::an_outer_abort_undoes_an_accepted_grindstone_take lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::invalid_place_output_keeps_vanilla_result lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::negative_place_xp_falls_through_to_vanilla_award lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::non_positive_take_xp_awards_no_orbs_and_fires_sound lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::panicking_grindstone_listeners_keep_vanilla_and_initial_behavior lib daily resources

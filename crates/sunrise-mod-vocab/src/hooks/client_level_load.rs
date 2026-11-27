@@ -10,7 +10,7 @@ pub trait Hooks {
     /// while the retiring level and its own handles still resolve. Client-side,
     /// on the window; the server's levels have `level_load`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_client_level_load",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_client_level_load",
         dispatch = "flat",
         side = "client",
         contract = "listen",

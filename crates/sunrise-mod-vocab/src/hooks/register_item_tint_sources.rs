@@ -44,6 +44,7 @@ definition without falling back to a built-in; panicking in the decoder or per-s
 mod's callback for the session and surfaces an error toast. A foreign source no mod registers draws white,
 decided once at load."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_item_tint_sources::native_register_item_tint_sources",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

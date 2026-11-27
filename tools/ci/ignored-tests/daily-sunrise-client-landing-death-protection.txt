@@ -1,1 +1,1 @@
-sunrise-client game::lan_actions::guest_body::tests::fall_reset::lethal_landing_consumes_one_item_with_death_protection_from_the_selected_slot lib daily child-process
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::fall_reset::lethal_landing_consumes_one_item_with_death_protection_from_the_selected_slot lib daily child-process

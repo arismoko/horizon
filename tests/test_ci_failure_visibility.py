@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from tests.git_fixture import isolated_git_env
 from tests.os_support import needs_runner_shell, needs_symlinks
 from tests.test_ci_concurrency import ROOT
 from tests.test_ignored_test_completion import IgnoredTests, target, summary
@@ -92,13 +93,15 @@ class Visibility(unittest.TestCase):
             old = os.getcwd()
             try:
                 os.chdir(folder)
-                subprocess.run(["git", "init", "-q"], check=True)
+                env = isolated_git_env()
+                subprocess.run(["git", "init", "-q"], env=env, check=True)
                 path = Path("crates/example/src/lib.rs")
                 path.parent.mkdir(parents=True)
                 path.write_text('panic!("checked-in reason");\n')
                 Path("crates/link.rs").symlink_to("/tmp/private.rs")
-                subprocess.run(["git", "add", str(path), "crates/link.rs"], check=True)
-                subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "fixture"], check=True)
+                subprocess.run(["git", "add", str(path), "crates/link.rs"], env=env, check=True)
+                subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.com",
+                                "commit", "-qm", "fixture"], env=env, check=True)
                 path.write_text("PRIVATE_WORKTREE")
                 Path("crates/private.rs").write_text("PRIVATE_UNTRACKED")
                 ignored_tests.source_lines.cache_clear()

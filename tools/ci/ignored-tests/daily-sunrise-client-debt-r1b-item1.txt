@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::block_entity_tick::tests::aborted_block_entity_edits_preserve_a_queued_client_update lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::aborted_block_entity_edits_preserve_a_queued_client_update lib daily child-process

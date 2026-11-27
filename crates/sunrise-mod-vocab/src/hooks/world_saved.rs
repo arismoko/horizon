@@ -7,7 +7,7 @@ pub trait Hooks {
     /// A listener panic discards that listener's journaled writes and disables this
     /// callback for the session. It does not fail the save or skip level close.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_world_saved",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_world_saved",
         dispatch = "flat",
         side = "server",
         contract = "listen",

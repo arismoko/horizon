@@ -1,2 +1,2 @@
 # A tinted GUI item (#5594): item_tinted multiplies the vertices item draws; needs a Game with prepared resources.
-sunrise-client game::host::draw::gui_canvas::tests::a_tinted_item_multiplies_the_vertices_the_item_draws lib daily resources
+sunrise-client-gameplay game::host::draw::gui_canvas::tests::a_tinted_item_multiplies_the_vertices_the_item_draws lib daily resources

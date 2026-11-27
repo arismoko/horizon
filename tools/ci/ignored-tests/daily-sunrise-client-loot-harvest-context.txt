@@ -1,3 +1,3 @@
-sunrise-client game::block_drops_pops_tests::a_harvest_location_check_reads_the_dimension lib daily resources
-sunrise-client game::block_drops_pops_tests::a_harvest_reads_the_vehicle_the_player_rides lib daily resources
-sunrise-client game::block_drops_pops_tests::a_harvest_time_check_reads_the_levels_clock lib daily resources
+sunrise-client cut_layout::game::server_side::block_drops_pops_tests::a_harvest_location_check_reads_the_dimension lib daily resources
+sunrise-client cut_layout::game::server_side::block_drops_pops_tests::a_harvest_reads_the_vehicle_the_player_rides lib daily resources
+sunrise-client cut_layout::game::server_side::block_drops_pops_tests::a_harvest_time_check_reads_the_levels_clock lib daily resources

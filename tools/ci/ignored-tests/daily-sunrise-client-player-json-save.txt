@@ -1,1 +1,1 @@
-sunrise-client game::stats::tests::a_player_json_write_that_cannot_finish_keeps_the_last_saved_file lib daily resources
+sunrise-client cut_layout::game::server_side::stats::tests::a_player_json_write_that_cannot_finish_keeps_the_last_saved_file lib daily resources

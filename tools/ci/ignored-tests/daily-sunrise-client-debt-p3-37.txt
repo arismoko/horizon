@@ -1,8 +1,8 @@
-sunrise-client game::enchant_effects::tests::apply_mob_effect_rounds_negative_ties_and_has_no_source lib daily resources
-sunrise-client game::enchant_effects::tests::enchantment_sound_skips_silent_entities_and_uses_their_category lib daily resources
-sunrise-client game::enchant_effects::tests::mob_projectile_hits_on_players_run_thorns lib daily resources
-sunrise-client game::lan_pvp::tests::guest_thorns_answers_the_host_that_shot_the_arrow lib daily resources
-sunrise-client game::lan_pvp::tests::pvp_mace_smash_keeps_the_players_breach_and_does_not_retaliate_on_a_bystander lib daily resources
-sunrise-client game::native_hooks::register_enchantment_effects::tests::borrowed_mob_tick_applies_equipment_effects_once_in_slot_order lib daily resources
-sunrise-client game::native_hooks::register_enchantment_effects::tests::decoded_enchantment_effects_run_on_real_hits_and_rebind_on_load lib daily resources
-sunrise-client game::native_hooks::register_enchantment_effects::tests::sweep_applies_victim_effect_then_attacker_tree_only_on_a_landed_hit lib daily resources
+sunrise-client cut_layout::game::server_side::enchant_effects::tests::apply_mob_effect_rounds_negative_ties_and_has_no_source lib daily resources
+sunrise-client cut_layout::game::server_side::enchant_effects::tests::enchantment_sound_skips_silent_entities_and_uses_their_category lib daily resources
+sunrise-client cut_layout::game::server_side::enchant_effects::tests::mob_projectile_hits_on_players_run_thorns lib daily resources
+sunrise-client cut_layout::game::server_side::lan_pvp::tests::guest_thorns_answers_the_host_that_shot_the_arrow lib daily resources
+sunrise-client cut_layout::game::server_side::lan_pvp::tests::pvp_mace_smash_keeps_the_players_breach_and_does_not_retaliate_on_a_bystander lib daily resources
+sunrise-gameplay game::native_hooks::register_enchantment_effects::tests::borrowed_mob_tick_applies_equipment_effects_once_in_slot_order lib daily resources
+sunrise-gameplay game::native_hooks::register_enchantment_effects::tests::decoded_enchantment_effects_run_on_real_hits_and_rebind_on_load lib daily resources
+sunrise-gameplay game::native_hooks::register_enchantment_effects::tests::sweep_applies_victim_effect_then_attacker_tree_only_on_a_landed_hit lib daily resources

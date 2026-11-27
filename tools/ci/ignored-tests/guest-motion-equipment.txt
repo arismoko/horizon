@@ -1,2 +1,2 @@
-sunrise-client game::lan_actions::guest_body::tests::guest_equipment_changes_powder_snow_support_on_the_same_move lib daily child-process
-sunrise-client game::native_bots::tests::guest_equipment_and_item_use_shape_native_movement lib daily resources
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::guest_equipment_changes_powder_snow_support_on_the_same_move lib daily child-process
+sunrise-gameplay game::server_side::native_bots::tests::guest_equipment_and_item_use_shape_native_movement lib daily resources

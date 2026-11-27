@@ -7,7 +7,7 @@ rust-version.workspace = true
 description = "Commands (Brigadier): the vanilla command tree, argument types, selectors, parsing, suggestions and the network form of the tree"
 
 [dependencies]
-sunrise-client-core = { path = "../sunrise-client-core" }
+sunrise-game-data = { path = "../sunrise-game-data" }
 sunrise-core = { path = "../sunrise-core" }
 mod_vocab = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab" }
 sunrise-items = { path = "../sunrise-items" }

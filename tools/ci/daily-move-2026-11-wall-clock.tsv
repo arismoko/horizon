@@ -1,4 +1,4 @@
 # PACKAGE	TARGET	TEST	SOURCE	REASON  (tests that wait on the real clock for a background thread: they poll with sleeps until a
 # deadline, so their time depends on the machine's load; reason slow, the closest the policy has)
-sunrise-client-lib	lib	client_perf::tests::health_samples_carry_the_process_gauges_and_this_seconds_counts	crates/sunrise-client/src/client_perf/tests.rs:211	slow
-sunrise-client-lib	lib	client_perf::tests::status_grows_with_the_capture	crates/sunrise-client/src/client_perf/tests.rs:585	slow
+sunrise-client-lib	lib	client_perf::tests::health_samples_carry_the_process_gauges_and_this_seconds_counts	crates/sunrise-client/src/client_perf/tests.rs:212	slow
+sunrise-client-lib	lib	client_perf::tests::status_grows_with_the_capture	crates/sunrise-client/src/client_perf/tests.rs:586	slow

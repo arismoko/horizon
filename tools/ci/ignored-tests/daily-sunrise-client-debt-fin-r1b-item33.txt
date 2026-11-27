@@ -1,2 +1,2 @@
 # Startup pack rollback and reload with a content-only entity need prepared resources in an isolated process.
-sunrise-client game::packs::clouds_reload_tests::content_entity_stays_registered_after_startup_pack_rollback lib daily child-process
+sunrise-client cut_layout::game::client_side::packs::clouds_reload_tests::content_entity_stays_registered_after_startup_pack_rollback lib daily child-process

@@ -1,1 +1,1 @@
-sunrise-client game::native_item_places::tests::crafted_by_packet_refusal_returns_commit_refused_and_drops_map_and_stat lib daily child-process # boots the game guest fixture in a fresh child process
+sunrise-client cut_layout::game::server_side::native_item_places::tests::crafted_by_packet_refusal_returns_commit_refused_and_drops_map_and_stat lib daily child-process # boots the game guest fixture in a fresh child process

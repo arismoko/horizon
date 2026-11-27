@@ -19,7 +19,7 @@ pub trait Hooks {
         context = "loop",
         neoforge = "LivingDrownEvent",
         version = 3,
-        target = "sunrise_client_lib::breathing::native_living_drown"
+        target = "sunrise_sim::breathing::native_living_drown"
     )]
     fn living_drown(
         entity: u32,

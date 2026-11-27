@@ -15,7 +15,7 @@ pub trait Hooks {
     /// that will be sent to a client. A registered kind's `data` holds the
     /// canonical fields returned by its save codec, with their exact NBT types.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_consume_effect",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_consume_effect",
         dispatch = "direct",
         side = "server",
         contract = "listen",

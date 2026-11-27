@@ -1,1 +1,1 @@
-sunrise-client-lib mobs::spear_use::tests::a_stab_leaves_a_rider_of_the_no_dismount_tag_seated lib daily resources
+sunrise-sim mobs::spear_use::tests::a_stab_leaves_a_rider_of_the_no_dismount_tag_seated lib daily resources

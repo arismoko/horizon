@@ -295,9 +295,10 @@ fn expand(mut implementation: ItemImpl, export: bool) -> TokenStream {
 #[proc_macro_attribute]
 pub fn host_area(_attribute: TokenStream, input: TokenStream) -> TokenStream {
     let mut area = parse_macro_input!(input as syn::ItemTrait);
-    // `#[table_backend("path")]` is read by the build-time generator alone.
-    area.attrs
-        .retain(|attr| !attr.path().is_ident("table_backend"));
+    // `#[table_backend("path")]` and `#[server_only]` are read by the build-time generator alone.
+    area.attrs.retain(|attr| {
+        !attr.path().is_ident("table_backend") && !attr.path().is_ident("server_only")
+    });
     let name = area.ident.to_string();
     let union = [
         "ClientBackendMut",
@@ -336,6 +337,7 @@ pub fn host_area(_attribute: TokenStream, input: TokenStream) -> TokenStream {
                 && !attr.path().is_ident("decline_unavailable")
                 && !attr.path().is_ident("manual_handle")
                 && !attr.path().is_ident("goal_view")
+                && !attr.path().is_ident("server_only")
         });
         // A shared published read answers from the installed table, without a live Game.
         let published = match method

@@ -1,3 +1,3 @@
-sunrise-client game::server_reload::tests::refused_entry_tests::an_advancement_requiring_a_missing_criterion_refuses_the_load lib daily game-boot
-sunrise-client game::server_reload::tests::refused_entry_tests::an_unknown_loot_function_fails_reload_and_keeps_the_old_tables lib daily game-boot
-sunrise-client game::server_reload::tests::refused_entry_tests::an_unknown_loot_function_refuses_world_open lib daily game-boot
+sunrise-client cut_layout::game::server_side::server_reload::tests::refused_entry_tests::an_advancement_requiring_a_missing_criterion_refuses_the_load lib daily game-boot
+sunrise-client cut_layout::game::server_side::server_reload::tests::refused_entry_tests::an_unknown_loot_function_fails_reload_and_keeps_the_old_tables lib daily game-boot
+sunrise-client cut_layout::game::server_side::server_reload::tests::refused_entry_tests::an_unknown_loot_function_refuses_world_open lib daily game-boot

@@ -24,7 +24,7 @@ engine_read = [
 engine_new = "sunrise_core::geometry::Aabb::new(sunrise_core::geometry::Vec3::new({min_x}, {min_y}, {min_z}), sunrise_core::geometry::Vec3::new({max_x}, {max_y}, {max_z}))"
 
 [[type]]
-engine = "sunrise_client::game::entities::boats::Boat"
+engine = "sunrise_gameplay_common::game::boats_common::Boat"
 kind = "handle"
 domain = "entity"
 topic = "boat"
@@ -34,7 +34,7 @@ methods = [
 ]
 
 [[type]]
-engine = "sunrise_client::game::blocks::maps::MapData"
+engine = "sunrise_gameplay_common::game::maps::MapData"
 kind = "handle"
 domain = "world"
 topic = "map_data"

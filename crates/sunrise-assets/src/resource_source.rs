@@ -481,6 +481,18 @@ impl ResourceSource {
     pub fn directory(root: PathBuf) -> Self {
         Self::from(Storage::Directory(root))
     }
+    pub fn as_directory(&self) -> Option<&Path> {
+        match self.0.as_ref() {
+            Storage::Directory(root) => Some(root.as_path()),
+            _ => None,
+        }
+    }
+    pub fn is_empty(&self) -> bool {
+        match self.0.as_ref() {
+            Storage::Index(files, ..) => files.is_empty(),
+            _ => false,
+        }
+    }
     pub fn restricted_to_server(self) -> Self {
         Self::from(Storage::ServerProfile(self))
     }

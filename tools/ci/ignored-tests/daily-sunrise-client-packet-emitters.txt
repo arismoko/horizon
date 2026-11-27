@@ -1,4 +1,4 @@
 # Decoded hit-emitter packet regressions (prepared client resources).
-sunrise-client game::remote::tests::client_emitters_tests::hit_emitters_follow_vehicles_and_finish_at_the_removed_body lib daily resources
-sunrise-client game::remote::tests::client_emitters_tests::hit_emitters_use_cloud_radius_and_the_live_thrown_potion lib daily resources
-sunrise-client game::remote::tests::client_emitters_tests::replacing_a_general_entity_keeps_its_emitters_separate lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_emitters_tests::hit_emitters_follow_vehicles_and_finish_at_the_removed_body lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_emitters_tests::hit_emitters_use_cloud_radius_and_the_live_thrown_potion lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_emitters_tests::replacing_a_general_entity_keeps_its_emitters_separate lib daily resources

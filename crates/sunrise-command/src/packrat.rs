@@ -395,7 +395,7 @@ impl<'g, V: Value> State<'g, V> {
                 Reason::Error(e) => e.clone(),
             };
         }
-        CommandError::new(sunrise_client_core::text::Text::literal("Failed to parse"))
+        CommandError::new(sunrise_game_data::text::Text::literal("Failed to parse"))
     }
     /// CachedParseState.parse: a named rule, memoised per position.
     pub fn parse(&mut self, rule: RuleId) -> Option<V> {

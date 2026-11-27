@@ -1,1 +1,1 @@
-sunrise-client game::respawn_anchor::forced_respawn_space_tests::forced_respawn_checks_parts_for_both_cells lib daily resources
+sunrise-client cut_layout::game::server_side::respawn_anchor::forced_respawn_space_tests::forced_respawn_checks_parts_for_both_cells lib daily resources

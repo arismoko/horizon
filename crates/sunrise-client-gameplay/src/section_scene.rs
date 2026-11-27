@@ -3,7 +3,7 @@ use crate::particle_culling::state_is_opaque;
 use sunrise_client::{
     blocks::BlockFacts,
     gfx::Renderer,
-    streaming::{MeshUpload, Streaming},
+    streaming::{MeshStreamer, MeshUpload},
     world::World,
 };
 
@@ -12,7 +12,7 @@ pub struct SectionScene<'a> {
     pub world: &'a World,
     pub facts: &'a BlockFacts,
     pub renderer: Option<&'a Renderer>,
-    pub streaming: &'a Streaming,
+    pub streaming: &'a MeshStreamer,
     pub pending_uploads: &'a [MeshUpload],
 }
 

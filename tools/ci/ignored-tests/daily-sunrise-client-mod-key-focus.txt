@@ -1,2 +1,2 @@
 # A held mod mapping is let go when the window loses its focus (#4476).
-sunrise-client game::native_key_mappings_tests::a_window_losing_focus_lets_go_of_a_mod_mapping lib daily resources
+sunrise-client cut_layout::game::client_side::native_key_mappings_tests::a_window_losing_focus_lets_go_of_a_mod_mapping lib daily resources

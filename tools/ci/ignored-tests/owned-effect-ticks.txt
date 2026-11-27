@@ -1,1 +1,1 @@
-sunrise-client game::potions::tests::owned_effect_ticks_read_live_effects_and_rules_and_subtract_exhaustion lib daily resources
+sunrise-client cut_layout::game::server_side::potions_server::tests::owned_effect_ticks_read_live_effects_and_rules_and_subtract_exhaustion lib daily resources

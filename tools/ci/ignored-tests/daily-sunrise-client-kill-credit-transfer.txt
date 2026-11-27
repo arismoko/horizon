@@ -1,4 +1,4 @@
-sunrise-client game::native_living_refs::tests::a_push_names_the_credited_mob_in_another_level_and_its_main_hand lib daily resources
-sunrise-client game::native_living_refs::tests::a_refused_arrival_hands_the_credit_to_no_other_mob lib daily resources
-sunrise-client game::native_living_refs::tests::a_saved_credit_names_a_mob_in_another_level_for_a_hundred_ticks lib daily resources
-sunrise-client game::native_living_refs::tests::kill_credit_follows_a_mob_that_changed_dimension lib daily resources
+sunrise-client cut_layout::game::server_side::native_living_refs::tests::a_push_names_the_credited_mob_in_another_level_and_its_main_hand lib daily resources
+sunrise-client cut_layout::game::server_side::native_living_refs::tests::a_refused_arrival_hands_the_credit_to_no_other_mob lib daily resources
+sunrise-client cut_layout::game::server_side::native_living_refs::tests::a_saved_credit_names_a_mob_in_another_level_for_a_hundred_ticks lib daily resources
+sunrise-client cut_layout::game::server_side::native_living_refs::tests::kill_credit_follows_a_mob_that_changed_dimension lib daily resources

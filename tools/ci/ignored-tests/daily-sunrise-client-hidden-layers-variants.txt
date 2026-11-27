@@ -1,2 +1,2 @@
 # The world draw's variant textures (rows: PACKAGE TEST TARGET daily REASON).
-sunrise-client game::humanoid_setup_anim::hidden_layers_variants_tests::the_world_draw_paints_a_cat_with_its_variant_coat lib daily resources
+sunrise-client-gameplay game::client_side::humanoid_setup_anim::hidden_layers_variants_tests::the_world_draw_paints_a_cat_with_its_variant_coat lib daily resources

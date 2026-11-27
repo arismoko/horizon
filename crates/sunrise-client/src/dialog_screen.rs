@@ -205,18 +205,7 @@ fn item(
     }
 }
 
-/// `TextInputHandler.addControl`: the 20 high `EditBox`, or the
-/// `MultiLineEditBox` of the options' height, by default as tall as their most
-/// lines (4 without a limit) need, at most 512.
-pub fn text_height(multiline: Option<(Option<i32>, Option<i32>)>) -> f32 {
-    match multiline {
-        None => 20.0,
-        Some((max_lines, height)) => height.map_or_else(
-            || (9 * i64::from(max_lines.unwrap_or(4)) + 8).min(512) as f32,
-            |height| height as f32,
-        ),
-    }
-}
+pub use crate::dialog::text_height;
 
 /// `InputControlHandlers`: the control for input `i`.
 fn input(font: &Font, i: usize, control: &Control) -> Element {

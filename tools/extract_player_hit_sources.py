@@ -3,8 +3,8 @@
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-source = root / 'crates/sunrise-client/src/game/mobs/creatures/mod.rs'
-destination = root / 'crates/sunrise-client/src/game/items/player_hit_sources.rs'
+source = root / 'crates/sunrise-gameplay-common/src/game/mobs/creatures/mod.rs'
+destination = root / 'crates/sunrise-gameplay/src/game/items/player_hit_sources.rs'
 text = source.read_text()
 start = text.index('    /// Damage of a given type to the player from a point.\n')
 end = text.index('    /// `hurtServer` on the player.', start)

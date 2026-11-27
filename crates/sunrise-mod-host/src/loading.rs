@@ -70,6 +70,7 @@ pub fn main_with(
             std::process::exit(1);
         }
     };
+    #[cfg(feature = "client")]
     mod_render::render::install();
     sunrise_client::entry::start(
         native,

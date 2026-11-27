@@ -131,8 +131,8 @@ def main():
                parity / (oracle + '.java'), parity / 'VanillaSceneCollisionOracle.java',
                parity / 'VanillaRegistryCollisionScanOracle.java', lab.ROOT / 'Cargo.lock',
                lab.ROOT / 'crates/sunrise-client/examples/probe/auto_jump_probe.rs',
-               lab.ROOT / 'crates/sunrise-client/src/auto_jump.rs', lab.ROOT / 'crates/sunrise-client/src/motion.rs',
-               lab.ROOT / 'crates/sunrise-client/src/motion/integrate.rs']
+               lab.ROOT / 'crates/sunrise-sim/src/auto_jump.rs', lab.ROOT / 'crates/sunrise-sim/src/motion.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/motion/integrate.rs']
     tested = base.source_hashes(sources)
     fixtures = list(cases(random.Random(0x4155544f)))
     inputs = build / 'cases.jsonl'

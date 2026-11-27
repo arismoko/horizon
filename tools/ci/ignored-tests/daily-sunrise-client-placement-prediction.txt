@@ -1,8 +1,8 @@
 # A client’s predicted placements and breaks ask the placement and survival hooks (#2138).
-sunrise-client game::remote::placement_prediction_tests::a_denied_break_restores_wall_sign_text_and_synced_attachments lib daily resources
-sunrise-client game::remote::placement_prediction_tests::a_neighbour_s_survival_part_reads_the_prediction_s_blocks lib daily resources
-sunrise-client game::remote::placement_prediction_tests::a_placement_part_reads_comparator_outputs_the_client_holds lib daily resources
-sunrise-client game::remote::placement_prediction_tests::a_placement_view_hides_block_entity_data_at_replaced_positions lib daily resources
-sunrise-client game::remote::placement_prediction_tests::a_predicted_break_reconciles_its_neighbour_s_shape_change lib daily resources
-sunrise-client game::remote::placement_prediction_tests::client_placement_prediction_asks_placement_and_survival_parts lib daily resources
-sunrise-client game::remote::placement_prediction_tests::the_guide_s_look_asks_no_placement_or_survival_part_and_the_click_does lib daily resources
+sunrise-client cut_layout::game::remote::placement_prediction_tests::a_denied_break_restores_wall_sign_text_and_synced_attachments lib daily resources
+sunrise-client cut_layout::game::remote::placement_prediction_tests::a_neighbour_s_survival_part_reads_the_prediction_s_blocks lib daily resources
+sunrise-client cut_layout::game::remote::placement_prediction_tests::a_placement_part_reads_comparator_outputs_the_client_holds lib daily resources
+sunrise-client cut_layout::game::remote::placement_prediction_tests::a_placement_view_hides_block_entity_data_at_replaced_positions lib daily resources
+sunrise-client cut_layout::game::remote::placement_prediction_tests::a_predicted_break_reconciles_its_neighbour_s_shape_change lib daily resources
+sunrise-client cut_layout::game::remote::placement_prediction_tests::client_placement_prediction_asks_placement_and_survival_parts lib daily resources
+sunrise-client cut_layout::game::remote::placement_prediction_tests::the_guide_s_look_asks_no_placement_or_survival_part_and_the_click_does lib daily resources

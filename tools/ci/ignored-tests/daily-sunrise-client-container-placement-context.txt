@@ -1,1 +1,1 @@
-sunrise-client game::machines::can_place_item_tests::shared_admission_part_distinguishes_blocks_and_current_state lib daily resources
+sunrise-client cut_layout::game::server_side::machines::can_place_item_tests::shared_admission_part_distinguishes_blocks_and_current_state lib daily resources

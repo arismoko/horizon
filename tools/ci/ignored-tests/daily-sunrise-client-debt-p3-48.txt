@@ -1,1 +1,1 @@
-sunrise-client game::lan_actions::interaction::tests::use_item_non_finite_angles_preserve_previous_axis_and_wrap_finite_ones lib daily child-process
+sunrise-gameplay game::server_side::lan_actions_server::interaction::tests::use_item_non_finite_angles_preserve_previous_axis_and_wrap_finite_ones lib daily child-process

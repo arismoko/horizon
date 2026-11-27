@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player picked up an arrow after it was removed and its pickup was applied. `item` is
     /// the arrow's pickup item id. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_pickup_arrow",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_pickup_arrow",
         dispatch = "flat",
         side = "server",
         contract = "listen",

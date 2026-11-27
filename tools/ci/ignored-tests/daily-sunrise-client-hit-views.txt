@@ -1,1 +1,1 @@
-sunrise-client game::native_hit_view_tests::a_hit_listener_reads_its_victim_and_causer_live_and_their_attachments_read_only lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hit_view_tests::a_hit_listener_reads_its_victim_and_causer_live_and_their_attachments_read_only lib daily child-process

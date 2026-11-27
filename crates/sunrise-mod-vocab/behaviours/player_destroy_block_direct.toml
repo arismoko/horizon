@@ -2,10 +2,10 @@ version = 1
 handle = "handle:PlayerRef::destroy_block"
 doc = "PlayerRef::destroy_block uses the player's main hand and the direct ServerPlayerGameMode.destroyBlock and NeoForge CommonHooks.fireBlockBreak checks, not mining packet admission. Restricted attempts on live blocks post break_block pre-canceled while preserving hard game-mode and game-master restrictions. A listener can chain direct breaks without a fixed nesting limit. Each invocation owns its drop destination and does not repeat removal effects if a listener removed the block or completed a nested player break at that position in that level, even when a non-air block or fluid remains."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_player_break.rs::a_mod_breaks_stone_as_the_player_with_their_pickaxe",
-    "crates/sunrise-client/src/game/modding/native_player_break.rs::a_direct_break_ignores_spawn_protection_range_and_mining_progress",
-    "crates/sunrise-client/src/game/modding/native_player_break.rs::chained_breaks_keep_their_own_drops_without_a_depth_limit",
-    "crates/sunrise-client/src/game/modding/native_player_break.rs::a_break_does_not_disarm_tripwire_already_removed_by_its_listener",
-    "crates/sunrise-client/src/game/modding/native_player_break.rs::a_nested_turtle_egg_break_does_not_repeat_removal_effects",
-    "crates/sunrise-client/src/game/modding/native_player_break.rs::restricted_break_attempts_fire_pre_canceled_and_keep_hard_restrictions",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_player_break.rs::a_mod_breaks_stone_as_the_player_with_their_pickaxe",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_player_break.rs::a_direct_break_ignores_spawn_protection_range_and_mining_progress",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_player_break.rs::chained_breaks_keep_their_own_drops_without_a_depth_limit",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_player_break.rs::a_break_does_not_disarm_tripwire_already_removed_by_its_listener",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_player_break.rs::a_nested_turtle_egg_break_does_not_repeat_removal_effects",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_player_break.rs::restricted_break_attempts_fire_pre_canceled_and_keep_hard_restrictions",
 ]

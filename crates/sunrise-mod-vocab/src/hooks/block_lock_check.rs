@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A guest's block inventory lock check at `pos`. `locked` is the
     /// vanilla result and may be changed. The guest's state is not swapped in.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_block_lock_check",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_block_lock_check",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

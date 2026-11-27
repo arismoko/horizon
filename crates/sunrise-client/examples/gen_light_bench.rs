@@ -43,7 +43,10 @@ use sunrise_client::{
     mesher::MeshTables,
     models,
     spans::thread_cpu,
-    streaming::{ChunkGenerator, Proto, Streaming, WorkerContext, job_stats},
+    streaming::{
+        ChunkGenerator, ChunkWorkerContext, MeshStreamer, MeshWorkerContext, Proto, WorkerContext,
+        job_stats,
+    },
     vanillagen::VanillaTerrain,
     world::World,
 };
@@ -120,7 +123,7 @@ fn run<G: ChunkGenerator>(
     threads: usize,
     period: Duration,
 ) -> Result<Run, Error> {
-    let mut streaming = Streaming::new(Arc::new(generator), context.clone(), threads);
+    let mut streaming = MeshStreamer::new(Arc::new(generator), context.clone(), threads);
     streaming.mesh = false;
     streaming.center = center;
     streaming.radius = radius;
@@ -278,8 +281,9 @@ fn main() -> Result<(), Error> {
     sunrise_threads::jobs::configure(n);
 
     let assets = Arc::new(Assets::load(&root)?);
-    let render = Arc::new(assets.reload(
+    let render = Arc::new(sunrise_client::assets::RenderAssets::load(
         &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
     )?);
     let facts = BlockFacts::load(&root, assets.registry)?;
     let visibility = models::load_visibility(&root, assets.registry)?;
@@ -287,13 +291,17 @@ fn main() -> Result<(), Error> {
         &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
     )?);
     let context = Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None)?),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
-        biomes: biomes.clone(),
-        assets: assets.clone(),
-        render,
-        hidden_states: Arc::from([]),
-        part_tables: Default::default(),
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(&root, assets.registry, &facts)?),
+            biomes: biomes.clone(),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None)?),
+            render,
+            hidden_states: Arc::from([]),
+            part_tables: Default::default(),
+        },
     });
     let item_data = test_resources::item_data(&root, DataLoadOrigin::ServerDataLoad)?;
     let terrain_resources = sunrise_client::vanillagen::TerrainResources {

@@ -9,7 +9,8 @@ from tests.test_world_input_capture import method
 
 ROOT = Path(__file__).resolve().parents[1]
 LEVEL = ROOT / "crates/sunrise-world/src/level"
-CLIENT = ROOT / "crates/sunrise-client/src"
+COMMON = ROOT / "crates/sunrise-gameplay-common/src"
+CLIENT_GAMEPLAY = ROOT / "crates/sunrise-client-gameplay/src"
 
 
 def between(source, start, end):
@@ -95,8 +96,9 @@ impl GameLevel {
     }
 }
 struct ViewDistances { furthest: f64 }
-struct Game { world: World, res: Res }
-impl Game {
+struct CommonGame { world: World, res: Res }
+struct ClientGame { common: CommonGame }
+impl ClientGame {
     // The parts' view distances are their own test (`view_distances_are_asked_once_per_mod_block`).
     fn view_distances(&self) -> ViewDistances { ViewDistances { furthest: VIEW_DISTANCE } }
     UNTEMPLATED
@@ -188,10 +190,12 @@ fn a_carry_answer_moves_mod_and_vanilla_block_entities_alike() {
 }
 #[test]
 fn the_render_list_holds_mod_entities_of_templates_without_one() {
-    let game = Game {
-        world: World { block_entities: Entities([((0, 64, 0), BlockEntity::Mod(0)), ((1, 64, 0), BlockEntity::Mod(0)),
-                                        ((2, 64, 0), BlockEntity::Chest(0))].into_iter().collect()) },
-        res: Res,
+    let game = ClientGame {
+        common: CommonGame {
+            world: World { block_entities: Entities([((0, 64, 0), BlockEntity::Mod(0)), ((1, 64, 0), BlockEntity::Mod(0)),
+                                            ((2, 64, 0), BlockEntity::Chest(0))].into_iter().collect()) },
+            res: Res,
+        },
     };
     // x == 0 gives state 0 (template without an entity); x != 0 state 1 (has one: the mesher lists it)
     let mut listed = game.untemplated_mod_block_entities(DVec3 { x: 0.0, z: 0.0 });
@@ -204,9 +208,8 @@ fn the_render_list_holds_mod_entities_of_templates_without_one() {
 class ModBlockEntityAnyTemplateTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("rustc"), "requires Rust")
     def test_removal_piston_and_render_list(self):
-        game = ((CLIENT / "game.rs").read_text(encoding="utf-8")
-                + (CLIENT / "game/blocks/level_access.rs").read_text(encoding="utf-8"))
-        draw = (next(CLIENT.glob('game/*/native_block_entity_draw.rs'))).read_text(encoding="utf-8")
+        game = (COMMON / "game/blocks/level_access.rs").read_text(encoding="utf-8")
+        draw = (CLIENT_GAMEPLAY / "game/modding/native_block_entity_draw.rs").read_text(encoding="utf-8")
         update = (LEVEL / "update.rs").read_text(encoding="utf-8")
         pistons = (LEVEL / "pistons.rs").read_text(encoding="utf-8")
         journal_start = update.index("pub struct BlockWrite {")

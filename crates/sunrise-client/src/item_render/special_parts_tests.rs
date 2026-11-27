@@ -8,6 +8,7 @@ use mod_api::{
 };
 use std::fs;
 use sunrise_assets::resource_source::{Resource, ResourceRoot};
+use sunrise_core::nbt::Tag;
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -456,7 +457,7 @@ fn stack(item: &str, count: i32) -> StackView {
 fn each_special_draw_reads_effective_components_and_current_context() {
     let root = tempfile::tempdir().unwrap();
     let mut renderer = renderer(root.path(), 2, 2, &pan_factories(|_| {}));
-    Arc::make_mut(&mut renderer.models.prototypes).insert(
+    Arc::make_mut(&mut Arc::make_mut(&mut renderer.models).prototypes).insert(
         "spt:pan".into(),
         BTreeMap::from([("spt:tint".into(), serde_json::json!(GREY))]),
     );

@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::slot_tooltip_tests::filled_slot_tooltip_replaces_lines_but_keeps_item_image_and_visibility lib daily resources
+sunrise-client-gameplay game::native_hooks::slot_tooltip_tests::filled_slot_tooltip_replaces_lines_but_keeps_item_image_and_visibility lib daily resources

@@ -1,2 +1,2 @@
-sunrise-client game::native_chat_recipients_tests::teammsg_sends_the_team_chat_types_bound_to_the_team_name lib daily resources
-sunrise-client game::native_chat_recipients_tests::teammsg_fails_without_a_panic_when_a_chat_type_is_missing lib daily resources
+sunrise-client cut_layout::game::server_side::native_chat_recipients_tests::teammsg_sends_the_team_chat_types_bound_to_the_team_name lib daily resources
+sunrise-client cut_layout::game::server_side::native_chat_recipients_tests::teammsg_fails_without_a_panic_when_a_chat_type_is_missing lib daily resources

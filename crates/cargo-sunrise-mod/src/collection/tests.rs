@@ -1,8 +1,7 @@
 use super::*;
 use sunrise_mod_package::index::v2::collection::Member;
 
-/// A registry on `main`: two projects of `example` and one of `other`, and an API that knows
-/// `example/ports` (repository 7).
+/// A registry on `main`: two projects of `example` and one with different owners.
 fn registry(url: &str) -> Result<Option<String>, String> {
     let meta = |path: &str| format!("{MOD_REGISTRY_METADATA}/{path}");
     let text = if url == meta("repositories/7.toml") {
@@ -15,8 +14,6 @@ fn registry(url: &str) -> Result<Option<String>, String> {
         "mod = \"walls\"\nowners = [\"example\"]\nrepository = 7\n"
     } else if url == meta("projects/Ot4erP0j/project.toml") {
         "mod = \"thing\"\nowners = [\"other\"]\nrepository = 7\n"
-    } else if url == "https://api.github.com/repos/example/ports" {
-        r#"{"id":7}"#
     } else {
         return Ok(None);
     };
@@ -36,36 +33,49 @@ fn png(width: u32) -> Vec<u8> {
     bytes
 }
 
+const ORIGIN: &str = "git@github.com:example/ports.git";
+
+fn origin_id(url: &str) -> Result<Option<String>, String> {
+    // Scaffolding may resolve origin but must never read unsigned registry metadata.
+    assert_eq!(url, "https://api.github.com/repos/example/ports");
+    Ok(Some(r#"{"id":7}"#.into()))
+}
+
 #[test]
-fn a_new_collection_lists_this_repositorys_projects_and_waits_for_a_name_and_an_id() {
-    let projects = registered_from(&registry, "git@github.com:example/ports.git").unwrap();
+fn a_new_collection_lists_only_this_repositorys_published_projects_in_id_order() {
+    use serde_json::json;
+
+    let digest = "a".repeat(64);
+    let release = json!({"version": "1.0.0", "workflow": "release.yml",
+        "file": {"url": "https://example.org/mod.smod", "size": 1, "sha256": digest,
+            "attestation": "https://example.org/mod.smod.sigstore.json"}});
+    let project = |id: &str, mod_id: &str, repo: u64, name: &str, released: bool| {
+        json!({
+            "id": id, "mod": mod_id, "kind": "mod", "repository": {"id": repo, "name": name},
+            "releases": if released { vec![release.clone()] } else { Vec::new() }
+        })
+    };
+    let index = json!({"schema": 2, "serial": 1,
+        "projects": [
+            project("Zz91kLmN", "walls", 7, "example/old-name", true),
+            project("Ot4erP0j", "same_name", 8, "example/ports", true),
+            project("NotYet01", "unreleased", 7, "example/ports", false),
+            project("AllGone1", "revoked_project", 7, "example/ports", true),
+            project("OneGone1", "revoked_release", 7, "example/ports", true),
+            project("Ab3dE9xQ", "doors", 7, "example/ports", true)
+        ],
+        "revoked": [{"project": "AllGone1"}, {"project": "OneGone1", "sha256": digest}]
+    });
+    let projects = published_from(&origin_id, ORIGIN, || {
+        Ok(serde_json::from_value(index).unwrap())
+    })
+    .unwrap();
     assert_eq!(
         projects,
         [
             ("Ab3dE9xQ".to_owned(), "doors".to_owned()),
             ("Zz91kLmN".to_owned(), "walls".to_owned())
         ]
-    );
-    // Only a repository the registry has no file for is unregistered; a failed read says so.
-    let unlisted = |url: &str| -> Result<Option<String>, String> {
-        match url {
-            "https://api.github.com/repos/example/ports" => Ok(Some(r#"{"id":9}"#.into())),
-            _ => Ok(None),
-        }
-    };
-    assert_eq!(
-        registered_from(&unlisted, "git@github.com:example/ports.git").unwrap_err(),
-        NOT_REGISTERED
-    );
-    let down = |url: &str| -> Result<Option<String>, String> {
-        match url {
-            "https://api.github.com/repos/example/ports" => Ok(Some(r#"{"id":7}"#.into())),
-            _ => Err(format!("{url}: 503")),
-        }
-    };
-    assert_eq!(
-        registered_from(&down, "git@github.com:example/ports.git").unwrap_err(),
-        format!("{MOD_REGISTRY_METADATA}/repositories/7.toml: 503")
     );
     let text = scaffold(&projects);
     // The ID is added on the next run, keeping the author's text and comments, and never replaced.
@@ -92,6 +102,42 @@ fn a_new_collection_lists_this_repositorys_projects_and_waits_for_a_name_and_an_
 }
 
 #[test]
+fn a_non_github_origin_is_told_apart_from_an_unregistered_github_repository() {
+    let no_index = || -> Result<Index, String> { panic!("no index is read without an origin ID") };
+    let never = |url: &str| -> Result<Option<String>, String> { panic!("fetched {url}") };
+    let elsewhere =
+        published_from(&never, "https://gitlab.com/example/ports", no_index).unwrap_err();
+    assert!(
+        elsewhere.starts_with("origin is not a GitHub repository"),
+        "{elsewhere}"
+    );
+    let unknown = |_: &str| Ok(None);
+    let unregistered = published_from(&unknown, ORIGIN, no_index).unwrap_err();
+    assert!(
+        unregistered.starts_with("This repository isn't registered yet"),
+        "{unregistered}"
+    );
+}
+
+#[test]
+fn a_new_collection_can_be_scaffolded_from_the_verified_empty_index() {
+    let cache = tempfile::tempdir().unwrap();
+    let projects = published_from(&origin_id, ORIGIN, || {
+        crate::registry_source::read_first_index(cache.path())
+    })
+    .unwrap();
+    let (text, _) = with_id(&scaffold(&projects), &|| Ok("Qm4tZ81c".into()))
+        .unwrap()
+        .unwrap();
+    let collection: Collection = toml::from_str(&text).unwrap();
+    assert!(collection.member.is_empty());
+    assert_eq!(
+        published_from(&origin_id, ORIGIN, || Err("index unavailable".into())).unwrap_err(),
+        "index unavailable"
+    );
+}
+
+#[test]
 fn a_collection_names_who_may_open_it_and_is_refused_when_nobody_owns_every_member() {
     let mut collection = Collection {
         id: "Qm4tZ81c".into(),
@@ -105,10 +151,29 @@ fn a_collection_names_who_may_open_it_and_is_refused_when_nobody_owns_every_memb
             })
             .into(),
     };
+    let icon = png(16);
+    // The existing fixture has legacy [[package]] entries. Name-only and registrant-bearing
+    // rows must give the same publisher and owners.
     assert_eq!(
-        check(&registry, &collection, Some(&png(16))),
+        check(&registry, &collection, Some(&icon)),
         Ok(vec!["Example".to_owned()])
     );
+    for row in [
+        "name = 'example/ports'\n",
+        "name = 'example/ports'\n[[registrant]]\nid = 81\nlogin = 'org-admin'\n[[registrant]]\nid = 82\nlogin = 'another-admin'\n",
+    ] {
+        let fetch = |url: &str| {
+            if url.ends_with("/repositories/7.toml") {
+                Ok(Some(row.into()))
+            } else {
+                registry(url)
+            }
+        };
+        assert_eq!(
+            check(&fetch, &collection, Some(&icon)),
+            Ok(vec!["Example".to_owned()])
+        );
+    }
     assert_eq!(
         check(&registry, &collection, None).unwrap_err(),
         "icon.png: expected the collection's PNG icon"

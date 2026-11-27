@@ -1,1 +1,1 @@
-sunrise-client game::native_player_visibility_tests::player_support_uses_the_footprint_then_the_exact_feet_offset_on_both_sides lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_visibility_tests::player_support_uses_the_footprint_then_the_exact_feet_offset_on_both_sides lib daily resources

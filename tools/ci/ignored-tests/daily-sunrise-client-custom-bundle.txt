@@ -1,4 +1,4 @@
 # Daily data-backed tests for custom bundle-like item containers.
-sunrise-client game::native_item_bundle_tests::custom_bundle_integration_tests::custom_bundle_component_multipliers_tag_filter_and_nested_occupancy lib daily resources
-sunrise-client game::native_item_bundle_tests::custom_bundle_integration_tests::custom_bundle_transactional_stacking_lan_and_destruction_drops lib daily resources
-sunrise-client game::stations::tooltip::bundle_tests::custom_bundle_item_part_draws_tooltip_image_and_bar lib daily resources
+sunrise-client cut_layout::game::native_item_bundle_tests::custom_bundle_integration_tests::custom_bundle_component_multipliers_tag_filter_and_nested_occupancy lib daily resources
+sunrise-client cut_layout::game::native_item_bundle_tests::custom_bundle_integration_tests::custom_bundle_transactional_stacking_lan_and_destruction_drops lib daily resources
+sunrise-client cut_layout::game::client_side::stations::tooltip::bundle_tests::custom_bundle_item_part_draws_tooltip_image_and_bar lib daily resources

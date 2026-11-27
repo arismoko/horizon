@@ -1,4 +1,4 @@
 # A spectator touching an unloaded chunk skips its body tick and player tick hooks (#4520). Rows: PACKAGE TEST TARGET daily REASON, sorted.
-sunrise-client game::lan_actions::tick::spectator_body_tick_tests::a_dead_spectator_touching_an_unloaded_chunk_does_not_tick_its_death lib daily resources
-sunrise-client game::lan_actions::tick::spectator_body_tick_tests::a_spectator_touching_an_unloaded_chunk_skips_its_tick_and_its_hooks lib daily resources
-sunrise-client game::lan_actions::tick::spectator_body_tick_tests::guest_body_projects_spectator_flags_on_init_and_hub_mode_change lib daily resources
+sunrise-client cut_layout::game::lan_actions::tick::spectator_body_tick_tests::a_dead_spectator_touching_an_unloaded_chunk_does_not_tick_its_death lib daily resources
+sunrise-client cut_layout::game::lan_actions::tick::spectator_body_tick_tests::a_spectator_touching_an_unloaded_chunk_skips_its_tick_and_its_hooks lib daily resources
+sunrise-client cut_layout::game::lan_actions::tick::spectator_body_tick_tests::guest_body_projects_spectator_flags_on_init_and_hub_mode_change lib daily resources

@@ -8,17 +8,17 @@ OitRenderPassProvider.createRenderPass	inline	crates/sunrise-client-render/src/g
 OitRenderPassProvider.createDepthBoundsPass	inline	crates/sunrise-client-render/src/gfx/oit.rs::Oit::run	DepthBounds arm: the bounds target cleared to -MAX as the colour, the world depth read only
 OitRenderPassProvider.createTransmittancePass	inline	crates/sunrise-client-render/src/gfx/oit.rs::Oit::run	Transmittance arm: the two coefficient targets cleared, the bounds texture bound as the sampler
 OitRenderPassProvider.createAccumulatePass	inline	crates/sunrise-client-render/src/gfx/oit.rs::Oit::run	Accumulate arm: the accumulation target cleared to transparent, the world depth read only
-PreparedRenderType.drawFromBufferOit	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	the draw closure runs once per stage: flat draws take oit.flat, the rest oit.terrain
-PreparedRenderType.draw	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	gap: minor: the indexed draw runs in the gfx/ pass modules that draw_frame calls; RenderSetup scissor not seen
+PreparedRenderType.drawFromBufferOit	inline	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	the draw closure runs once per stage: flat draws take oit.flat, the rest oit.terrain
+PreparedRenderType.draw	inline	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	gap: minor: the indexed draw runs in the gfx/ pass modules that draw_frame calls; RenderSetup scissor not seen
 RenderSetup.toString	skip:debug
-RenderSetup.prepareTextures	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	overlay and lightmap samplers are bound per pass in gfx/
+RenderSetup.prepareTextures	inline	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	overlay and lightmap samplers are bound per pass in gfx/
 RenderSetup.RenderSetupBuilder.withTexture	skip:java		builder
 RenderSetup.RenderSetupBuilder.setOutline	skip:java		builder setter; outline behaviour is in gfx/entity_outline.rs
 RenderSetup.RenderSetupBuilder.createRenderSetup	skip:java		builder
 RenderType.calculateHasBlending	skip:other		blend flag from the pipeline colour targets; Sunrise picks blend per pipeline in gfx.rs
-RenderType.prepare	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	gap: minor: texture and overlay/lightmap binding folded into the frame passes
-RenderType.writeDynamicTransforms	inline	crates/sunrise-client-render/src/gfx.rs::Renderer::draw_frame	gap: minor: no per-render-type layering offset found (only perspective layering scale)
-RenderTypes.createMovingBlockSetup	inline	crates/sunrise-client/src/game/blocks/moving_pistons.rs::Game::moving_piston_geometry	block atlas and lightmap for moving blocks; gap: minor: crumbling and outline flags not checked here
+RenderType.prepare	inline	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	gap: minor: texture and overlay/lightmap binding folded into the frame passes
+RenderType.writeDynamicTransforms	inline	crates/sunrise-client-render/src/gfx/draw_frame.rs::Renderer::draw_frame	gap: minor: no per-render-type layering offset found (only perspective layering scale)
+RenderTypes.createMovingBlockSetup	inline	crates/sunrise-client-gameplay/src/game/blocks/moving_pistons_client.rs::Game::moving_piston_geometry	block atlas and lightmap for moving blocks; gap: minor: crumbling and outline flags not checked here
 RenderTypes.breezeWind	inline	crates/sunrise-client/src/mobs/render.rs::layers	the breeze's wind layer scrolls by 0.02 of the texture a tick (scroll_offset, scroll_u)
 BannerSpecialRenderer.submit	port	crates/sunrise-client/src/item_render/special.rs::submit	Banner arm: flag, base and up to 16 pattern layers
 BannerSpecialRenderer.Unbaked.bake	inline	crates/sunrise-client/src/item_render/special.rs::load_parts	models are baked once from entity-models.json
@@ -62,7 +62,7 @@ GlyphRenderState.buildVertices	skip:ui		GUI draw-queue geometry; Sunrise draws i
 GuiItemRenderState.calculateOversizedItemBounds	skip:ui		GUI draw-queue geometry; Sunrise draws its own HUD
 GuiItemRenderState.calculateBounds	skip:ui		GUI draw-queue geometry; Sunrise draws its own HUD
 GuiRenderState.nextStratum	skip:ui		GUI draw-queue ordering
-GuiRenderState.blurBeforeThisStratum	port	crates/sunrise-client/src/game.rs::Game::hud_layers	blur_at marks the vertices drawn before the blur (game.rs hud batch)
+GuiRenderState.blurBeforeThisStratum	port	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::hud_layers	blur_at marks the vertices drawn before the blur (game.rs hud batch)
 GuiRenderState.up	skip:ui		GUI draw-queue ordering
 GuiRenderState.addItem	skip:ui		GUI draw-queue ordering
 GuiRenderState.addText	skip:ui		GUI draw-queue ordering
@@ -105,7 +105,7 @@ CubeMapTexture.loadContents	port	crates/sunrise-client-render/src/gfx/panorama.r
 CubeMapTexture.doLoad	port	crates/sunrise-client-render/src/gfx/panorama.rs::Panorama::new	cube texture creation and upload
 DynamicAtlasTree.insertInner	skip:other		dynamic atlas packing; Sunrise uses texture-array layers, not a rectangle packer
 DynamicTexture.createTexture	skip:other		GPU texture creation for CPU pixels; Sunrise has no DynamicTexture class
-DynamicTexture.upload	port	crates/sunrise-client-render/src/gfx.rs::Renderer::update_lightmap	gap: minor: only the lightmap upload goes through here
+DynamicTexture.upload	port	crates/sunrise-client-render/src/gfx/core_lightmap.rs::Renderer::update_lightmap	gap: minor: only the lightmap upload goes through here
 DynamicTexture.dumpContents	skip:debug		dump debug action
 MipmappedTexture.setSampler	port	crates/sunrise-client-render/src/screen_effects.rs::sampling	gap: minor: only blur and clamp bits; filters fixed in gfx
 MipmappedTexture.doLoad	port	crates/sunrise-client-render/src/mipmap.rs::generate	mip chain generation

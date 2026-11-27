@@ -1,2 +1,2 @@
-sunrise-client game::remote::movement_input_tests::movement_input_passive_listener_preserves_sprint lib daily resources
-sunrise-client game::remote::movement_input_tests::movement_input_sends_auto_jump_with_the_edited_keys lib daily resources
+sunrise-client cut_layout::game::remote::movement_input_tests::movement_input_passive_listener_preserves_sprint lib daily resources
+sunrise-client cut_layout::game::remote::movement_input_tests::movement_input_sends_auto_jump_with_the_edited_keys lib daily resources

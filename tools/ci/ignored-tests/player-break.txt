@@ -1,2 +1,2 @@
-sunrise-client game::native_player_break::tests::a_vein_miner_sets_a_veins_drops_and_experience_down_at_the_origin lib daily resources
-sunrise-client game::native_player_break::tests::the_veto_asks_answer_without_changing_the_level lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::a_vein_miner_sets_a_veins_drops_and_experience_down_at_the_origin lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::the_veto_asks_answer_without_changing_the_level lib daily resources

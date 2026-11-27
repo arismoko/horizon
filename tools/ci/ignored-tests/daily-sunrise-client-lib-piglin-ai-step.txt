@@ -1,8 +1,8 @@
 # Daily tests of the piglin and hoglin AI step's order (#4734): each needs the prepared mob resources.
-sunrise-client-lib mobs::ai::server_ai_brain_tests::a_converted_piglin_takes_no_block_effects_after_its_conversion lib daily resources
-sunrise-client-lib mobs::ai::server_ai_brain_tests::a_held_items_admiring_ends_in_the_brain_before_the_activity_and_the_conversion lib daily resources
-sunrise-client-lib mobs::ai::server_ai_brain_tests::a_moving_brutes_fight_growl_comes_from_before_travel lib daily resources
-sunrise-client-lib mobs::ai::server_ai_brain_tests::a_piglin_admires_through_the_last_tick_of_its_memory lib daily resources
-sunrise-client-lib mobs::ai::server_ai_brain_tests::a_repellent_scanned_this_tick_is_avoided_this_tick lib daily resources
-sunrise-client-lib mobs::ai::server_ai_brain_tests::a_row_cancelling_server_ai_step_skips_the_brain_and_the_conversion lib daily resources
-sunrise-client-lib mobs::ai::server_ai_brain_tests::an_angry_at_that_runs_out_drops_a_gold_wearer_before_the_activity lib daily resources
+sunrise-sim mobs::ai::server_ai_brain_tests::a_converted_piglin_takes_no_block_effects_after_its_conversion lib daily resources
+sunrise-sim mobs::ai::server_ai_brain_tests::a_held_items_admiring_ends_in_the_brain_before_the_activity_and_the_conversion lib daily resources
+sunrise-sim mobs::ai::server_ai_brain_tests::a_moving_brutes_fight_growl_comes_from_before_travel lib daily resources
+sunrise-sim mobs::ai::server_ai_brain_tests::a_piglin_admires_through_the_last_tick_of_its_memory lib daily resources
+sunrise-sim mobs::ai::server_ai_brain_tests::a_repellent_scanned_this_tick_is_avoided_this_tick lib daily resources
+sunrise-sim mobs::ai::server_ai_brain_tests::a_row_cancelling_server_ai_step_skips_the_brain_and_the_conversion lib daily resources
+sunrise-sim mobs::ai::server_ai_brain_tests::an_angry_at_that_runs_out_drops_a_gold_wearer_before_the_activity lib daily resources

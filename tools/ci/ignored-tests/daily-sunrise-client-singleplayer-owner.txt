@@ -1,4 +1,4 @@
 # The integrated server's owner (Players::singleplayer_profile, PlayerRef::is_singleplayer_owner, #4636): each test reruns itself in a child process.
-sunrise-client game::native_singleplayer_owner_tests::a_dedicated_server_has_no_singleplayer_owner lib daily child-process
-sunrise-client game::native_singleplayer_owner_tests::the_integrated_owner_is_the_launch_profile_matched_by_name lib daily child-process
-sunrise-client game::native_singleplayer_owner_tests::the_startup_hooks_read_the_whole_launch_profile_before_the_hub lib daily child-process
+sunrise-client cut_layout::game::server_side::native_singleplayer_owner_tests::a_dedicated_server_has_no_singleplayer_owner lib daily child-process
+sunrise-client cut_layout::game::server_side::native_singleplayer_owner_tests::the_integrated_owner_is_the_launch_profile_matched_by_name lib daily child-process
+sunrise-client cut_layout::game::server_side::native_singleplayer_owner_tests::the_startup_hooks_read_the_whole_launch_profile_before_the_hub lib daily child-process

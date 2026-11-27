@@ -17,7 +17,7 @@ pub trait Hooks {
     /// A permission update exposes the new level; cross-dimension travel exposes the
     /// source dimension and position until the command tree has been sent.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_commands_sent",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_commands_sent",
         dispatch = "api_carrier",
         host = "read",
         receiver = "read",

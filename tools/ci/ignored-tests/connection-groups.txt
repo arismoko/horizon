@@ -1,10 +1,10 @@
 # Per-position connected-texture groups on a real game (#3843).
-sunrise-client game::native_connection_groups::tests::a_column_snapshot_supersedes_only_older_deferred_group_corrections lib daily resources
-sunrise-client game::native_connection_groups::tests::client_applies_connection_group_payloads_and_refuses_client_writes lib daily resources
-sunrise-client game::native_connection_groups::tests::connection_group_api_errors_state_preservation_and_block_replacement lib daily resources
-sunrise-client game::native_connection_groups::tests::connection_group_transactions_abort_silently_and_commit_with_block_writes lib daily child-process
-sunrise-client game::native_connection_groups::tests::received_groups_join_and_unjoin_a_real_mesh_across_the_column_border lib daily resources
-sunrise-client game::native_connection_groups::tests::viewed_group_bundles_are_scoped_and_refuse_invalid_targets lib daily resources
-sunrise-client game::remote::tests::play_bundle_tests::a_grouped_column_split_across_tcp_reads_is_adopted_as_one_bundle lib daily resources
-sunrise-client game::remote::tests::play_bundle_tests::a_split_frame_group_bundle_refuses_a_mismatched_companion lib daily resources
-sunrise-client game::view_pass::tests::a_saved_block_entity_republishes_its_group_before_a_loaded_only_column_is_sent lib daily resources
+sunrise-client cut_layout::game::client_side::native_connection_groups::tests::a_column_snapshot_supersedes_only_older_deferred_group_corrections lib daily resources
+sunrise-client cut_layout::game::client_side::native_connection_groups::tests::client_applies_connection_group_payloads_and_refuses_client_writes lib daily resources
+sunrise-client cut_layout::game::client_side::native_connection_groups::tests::connection_group_api_errors_state_preservation_and_block_replacement lib daily resources
+sunrise-client cut_layout::game::client_side::native_connection_groups::tests::connection_group_transactions_abort_silently_and_commit_with_block_writes lib daily child-process
+sunrise-client cut_layout::game::client_side::native_connection_groups::tests::received_groups_join_and_unjoin_a_real_mesh_across_the_column_border lib daily resources
+sunrise-client cut_layout::game::client_side::native_connection_groups::tests::viewed_group_bundles_are_scoped_and_refuse_invalid_targets lib daily resources
+sunrise-client cut_layout::game::remote::tests::play_bundle_tests::a_grouped_column_split_across_tcp_reads_is_adopted_as_one_bundle lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::play_bundle_tests::a_split_frame_group_bundle_refuses_a_mismatched_companion lib daily resources
+sunrise-client cut_layout::game::server_side::view_pass::tests::a_saved_block_entity_republishes_its_group_before_a_loaded_only_column_is_sent lib daily resources

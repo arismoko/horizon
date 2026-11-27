@@ -1,7 +1,7 @@
 //! `WanderingTraderSpawner`'s clock and the `WanderingTraderData` saved with the world.
 use crate::custom_spawner::{CustomSpawnerLevel, SpawnerParts};
-use sunrise_client::mobs::{Species, leash::Holder, spawn_rules::Reason, trader};
 use sunrise_core::{nbt::Tag, random::RandomSource};
+use sunrise_sim::mobs::{Species, leash::Holder, spawn_rules::Reason, trader};
 
 const TICK_DELAY: i32 = 1200;
 const SPAWN_DELAY: i32 = 24000;

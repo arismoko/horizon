@@ -192,9 +192,9 @@ def main():
         'rust-shulker-bullet-parity', 'VanillaShulkerBulletOracle', 'shulker_bullet_probe', make_input,
         'The real 26.3 ShulkerBullet(level, shulker, target, axis) constructor, Level.loadedAndEntityCanStandOn, '
         'and ShulkerBullet.tick rotation via ProjectileUtil.rotateTowardsMovement(this, 0.5F) including Breeze deflection.',
-        sources=[lab.ROOT / 'crates/sunrise-client/src/mobs/shulker.rs',
-                 lab.ROOT / 'crates/sunrise-client/src/projectiles.rs',
-                 lab.ROOT / 'crates/sunrise-client-render/src/collisions.rs',
+        sources=[lab.ROOT / 'crates/sunrise-sim/src/mobs/shulker.rs',
+                 lab.ROOT / 'crates/sunrise-sim/src/projectiles.rs',
+                 lab.ROOT / 'crates/sunrise-level/src/collisions.rs',
                  lab.ROOT / 'crates/sunrise-world/src/block_collision.rs',
                  lab.ROOT / 'crates/sunrise-world/src/collision_context.rs',
                  lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaBlockUpdateOracle.java',

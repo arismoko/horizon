@@ -1,5 +1,5 @@
 # Daily row for #5397: a block in sunrise:golem_heads placed by a level write builds snow, iron and copper golems, an empty tag builds nothing, and a reload that empties the tag stops it.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::golems::golem_heads_tests::a_reload_that_removes_the_block_from_the_tag_stops_it_building lib daily resources
-sunrise-client game::golems::golem_heads_tests::a_tagged_block_on_snow_iron_and_copper_builds_each_golem lib daily resources
-sunrise-client game::golems::golem_heads_tests::an_empty_tag_builds_nothing lib daily resources
+sunrise-gameplay game::server_side::golems::golem_heads_tests::a_reload_that_removes_the_block_from_the_tag_stops_it_building lib daily resources
+sunrise-gameplay game::server_side::golems::golem_heads_tests::a_tagged_block_on_snow_iron_and_copper_builds_each_golem lib daily resources
+sunrise-gameplay game::server_side::golems::golem_heads_tests::an_empty_tag_builds_nothing lib daily resources

@@ -6,7 +6,7 @@ pub trait Hooks {
     /// `host.server_has_time()` says whether optional work still fits in the tick
     /// (`LevelTickEvent.hasTime`); always true on a client.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_level_tick_post",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_level_tick_post",
         dispatch = "flat",
         side = "both",
         contract = "listen",

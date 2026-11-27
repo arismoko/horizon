@@ -1,3 +1,3 @@
 # PlayerRef::container_counter and next_container_counter (ServerPlayer.containerCounter, nextContainerCounter), and MenuRef::close_container in the player's own turn (ServerPlayer.closeContainer from inside openMenu): with_game loads prepared resources, so each runs in its own process.
-sunrise-client game::native_menus::container_counter_tests::a_menu_closes_at_the_call_inside_its_players_own_turn lib daily child-process
-sunrise-client game::native_menus::container_counter_tests::the_container_counter_is_the_last_window_and_advances_as_an_open_does lib daily child-process
+sunrise-client cut_layout::game::server_side::native_menus::container_counter_tests::a_menu_closes_at_the_call_inside_its_players_own_turn lib daily child-process
+sunrise-client cut_layout::game::server_side::native_menus::container_counter_tests::the_container_counter_is_the_last_window_and_advances_as_an_open_does lib daily child-process

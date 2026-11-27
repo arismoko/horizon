@@ -34,6 +34,7 @@ The extension table is process-wide, like the loaded mod set: re-collecting repl
 classification for every simultaneously live resource set. Villagers cache only vanilla
 classification and consult the current extension table, just as saves and locate do."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::extend_poi_types::native_extend_poi_types",
         receiver = "associated",
         dispatch = "flat",
         side = "server",

@@ -1,1 +1,1 @@
-sunrise-client game::slot_pickup_tests::a_menu_part_keeps_a_slot_out_of_pick_all lib daily resources
+sunrise-client cut_layout::game::slot_pickup_tests::a_menu_part_keeps_a_slot_out_of_pick_all lib daily resources

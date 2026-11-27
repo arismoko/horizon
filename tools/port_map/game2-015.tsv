@@ -8,15 +8,15 @@ PointedDripstoneBlock.animateTick	port	crates/sunrise-client/src/animate_tick.rs
 PointedDripstoneBlock.getFluidAboveStalactite	inline	crates/sunrise-client/src/animate_tick.rs::dripstone_drip	the ten-block root climb and the fluid above it folded into the drip
 PointedDripstoneBlock.canFillCauldron	inline	crates/sunrise-client/src/animate_tick.rs::dripstone_drip	water or lava by fluid type, source or flowing, passes the 2% roll
 PointedDripstoneBlock.canGrow	inline	crates/sunrise-world/src/level/speleothem.rs::Sim::speleothem_grow	the fluid two blocks above must be FluidKind::Water, the source form (flowing and falling water are FluidKind::FlowingWater), as FluidState.is(WATER) with isSource is; level::tests::a_dripstone_tip_grows_only_under_a_water_source guards it
-PointedDripstoneBlock.getDripParticle	port	crates/sunrise-client/src/game/interface/level_particles.rs::Game::dripstone_drip_particle
+PointedDripstoneBlock.getDripParticle	port	crates/sunrise-client-gameplay/src/game/interface/level_particles_client.rs::Game::dripstone_drip_particle
 PotentSulfurBlock.isSourceIfFluid	inline	crates/sunrise-world/src/level/shapes.rs::Sim::potent_sulfur_state	source_if_fluid check inside the state rule
 PotentSulfurBlock.onPlace	port	crates/sunrise-world/src/level/shapes.rs::Sim::potent_sulfur_on_place	ticked in #3516; `PotentSulfurBlock.onPlace` is cited at crates/sunrise-world/src/level/shapes.rs:878
 PotentSulfurBlock.spawnBubbleParticlesAt	inline	crates/sunrise-client/src/animate_tick.rs::block_animate_tick	two sulfur bubbles in the potent sulfur arm; add_visible is the always-visible add
 PotentSulfurBlock.triggerEvent	port	crates/sunrise-world/src/level/pistons.rs::Sim::trigger_event	the potent sulfur arm answers handled, and the caller hands the block entity the eruption's game time, which the plume timing reads (the geyser itself erupts in game/blocks/potent_sulfur.rs)
-PotentSulfurBlock.getTicker	port	crates/sunrise-client/src/game/blocks/potent_sulfur.rs::Game::tick_potent_sulfur	ticked in #3516; `PotentSulfurBlock.getTicker` is cited at crates/sunrise-client/src/game/blocks/potent_sulfur.rs:133
+PotentSulfurBlock.getTicker	port	crates/sunrise-gameplay/src/game/blocks/potent_sulfur.rs::Game::tick_potent_sulfur	ticked in #3516; `PotentSulfurBlock.getTicker` is cited at crates/sunrise-client/src/game/blocks/potent_sulfur.rs:133
 PowderSnowBlock.skipRendering	port	crates/sunrise-world/src/block_render.rs::FaceVisibility::skips	same_block skip kind from the block data
 PowderSnowBlock.fallOn	port	crates/sunrise-world/src/block_landing.rs::BlockLandingRegistry::fall_on	powder snow landing sound from 4 blocks, small or big by 7
-PowderSnowBlock.getEntityInsideCollisionShape	inline	crates/sunrise-client/src/motion.rs::MotionWorld::check_inside_blocks	gap: minor: each powder snow cell is swept as a full box; vanilla uses the entity-context shape, which for falling entities over 2.5 blocks is a 0.9 tall box
+PowderSnowBlock.getEntityInsideCollisionShape	inline	crates/sunrise-sim/src/motion.rs::inside_shape	gap: minor: each powder snow cell is swept as a full box; vanilla uses the entity-context shape, which for falling entities over 2.5 blocks is a 0.9 tall box
 RailBlock.updateState	port	crates/sunrise-world/src/level/rails.rs::Sim::rail_update_state
 RailBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate	rail shape rotation from the generated state table, as PoweredRailBlock.rotate
 RailBlock.mirror	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::mirror	rail shape mirror from the generated state table, as PoweredRailBlock.rotate
@@ -36,7 +36,7 @@ ScaffoldingBlock.getFluidState	port	crates/sunrise-world/src/registry_fluid.rs::
 RedStoneOreBlock.interact	port	crates/sunrise-world/src/level/interact.rs::Behaviours::attack_block	gap: player: no red dust burst when the ore lights; the lit set is in attack_block and game/blocks/sculk.rs step_on_redstone_ore
 RedStoneOreBlock.randomTick	port	crates/sunrise-world/src/level/tick.rs::Sim::random_tick_block
 RedStoneOreBlock.spawnAfterBreak	inline	crates/sunrise-world/src/level/removal.rs::break_experience	ore experience (1 to 5) for the break is in break_experience
-RedStoneOreBlock.spawnParticles	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::redstone_ore_particles	the dust burst of an ore that lights, from mining, stepping on it or a right click
+RedStoneOreBlock.spawnParticles	port	crates/sunrise-client-gameplay/src/game/blocks/sculk.rs::Game::redstone_ore_particles	the dust burst of an ore that lights, from mining, stepping on it or a right click
 RedstoneWireBlock.makeShapes	skip:data		wire shapes are per-state data from the block tables
 RedstoneWireBlock.getMissingConnections	inline	crates/sunrise-world/src/level/redstone.rs::Sim::wire_connection_state	the missing-side loop of the connection state
 RedstoneWireBlock.updateShape	port	crates/sunrise-world/src/level/redstone.rs::Sim::redstone_wire_update_shape
@@ -61,7 +61,7 @@ RedstoneWireBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::St
 RedstoneWireBlock.mirror	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::mirror	mirror from the generated state table
 RedstoneWireBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
 RedstoneWireBlock.updatesOnShapeChange	port	crates/sunrise-world/src/level/interact.rs::Sim::wire_use	the cross or dot toggle on right-click calls the shape-change update
-RespawnAnchorBlock.canBeCharged	inline	crates/sunrise-client/src/game/blocks/respawn_anchor.rs::Game::use_respawn_anchor	the charge below four check before a glowstone charge
+RespawnAnchorBlock.canBeCharged	inline	crates/sunrise-gameplay/src/game/blocks/respawn_anchor.rs::Game::use_respawn_anchor	the charge below four check before a glowstone charge
 RespawnAnchorBlock.animateTick	port	crates/sunrise-client/src/animate_tick.rs::block_animate_tick
 RespawnAnchorBlock.getScaledChargeLevel	inline	crates/sunrise-world/src/level/redstone.rs::Sim::analog_output	the charges over four times 15 comparator value
 SaplingBlock.isValidBonemealTarget	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::bonemeal_valid	sapling arm: tree can grow and the minimum height fits
@@ -73,9 +73,9 @@ SculkSensorBlock.getFluidState	port	crates/sunrise-world/src/registry_fluid.rs::
 SculkSensorBlock.onPlace	port	crates/sunrise-world/src/level/hooks.rs::Sim::on_place	sensor arm: clears a stored power on placement
 SculkSensorBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	waterlogged water tick
 SculkSensorBlock.updateNeighbours	port	crates/sunrise-world/src/level/sculk.rs::Sim::sensor_update_neighbours
-SculkSensorBlock.getTicker	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::tick_sculk_block	the vibration tick: pending vibrations start and are received here; the cooldown is the block tick in sunrise-world tick.rs
+SculkSensorBlock.getTicker	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::tick_sculk_block	the vibration tick: pending vibrations start and are received here; the cooldown is the block tick in sunrise-world tick.rs
 SculkSensorBlock.getDirectSignal	port	crates/sunrise-world/src/level/redstone.rs::Sim::state_direct_signal	the upward signal comes from the generated strong facts
-SculkSensorBlock.tryResonateVibration	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::activate_sensor	resonator game event and amethyst sound; the sensor activation is in the same fn
+SculkSensorBlock.tryResonateVibration	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::activate_sensor	resonator game event and amethyst sound; the sensor activation is in the same fn
 SculkSensorBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
 SculkSensorBlock.spawnAfterBreak	inline	crates/sunrise-world/src/level/removal.rs::break_experience	sensor experience of 5 in break_experience
 SculkShriekerBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
@@ -83,8 +83,8 @@ SculkShriekerBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Si
 SculkShriekerBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	waterlogged from the clicked fluid
 SculkShriekerBlock.getFluidState	port	crates/sunrise-world/src/registry_fluid.rs::RegistryFluidWorld::fluid_state	waterlogged state from block data
 SculkShriekerBlock.spawnAfterBreak	inline	crates/sunrise-world/src/level/removal.rs::break_experience	shrieker experience of 5 in break_experience
-SculkShriekerBlock.getTicker	port	crates/sunrise-client/src/game/blocks/sculk.rs::Game::tick_sculk_block	the vibration tick for shriekers
-SculkSpreader.save	port	crates/sunrise-client-render/src/sculk.rs::cursors_to_nbt	the cursors tag of a catalyst: pos, charge, decay and update delays, facings
+SculkShriekerBlock.getTicker	port	crates/sunrise-gameplay/src/game/blocks/sculk_server.rs::Game::tick_sculk_block	the vibration tick for shriekers
+SculkSpreader.save	port	crates/sunrise-level/src/sculk.rs::cursors_to_nbt	the cursors tag of a catalyst: pos, charge, decay and update delays, facings
 SculkSpreader.ChargeCursor.shouldUpdate	port	crates/sunrise-world/src/level/sculk.rs::Sim::sculk_cursor_update	gap: minor: the world generation case is in worldgen/sculk.rs; this is the live tick gate
 SculkSpreader.ChargeCursor.mergeWith	inline	crates/sunrise-world/src/level/sculk.rs::Sim::sculk_update_cursors	the merge of cursors on the same position in the update loop
 SculkSpreader.ChargeCursor.getBlockBehaviour	port	crates/sunrise-world/src/level/sculk.rs::Sim::sculk_behaviour
@@ -108,13 +108,13 @@ ShelfBlock.isPathfindable	skip:data		path types come from the per-state path dat
 ShelfBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
 ShelfBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class	shelf arm of the placement rules
 ShelfBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate	facing rotation from the generated state table
-ShelfBlock.useItemOn	port	crates/sunrise-client/src/game/blocks/shelf.rs::Game::use_shelf	a single slot swap, the multi-block hotbar swap while powered (`block.shelf.multi_swap`) and the creative keep, with the block entity and comparator told
-ShelfBlock.swapSingleItem	inline	crates/sunrise-client/src/game/blocks/shelf.rs::Game::use_shelf	the unpowered single-slot swap is the other arm of `use_shelf`
-ShelfBlock.swapHotbar	inline	crates/sunrise-client/src/game/blocks/shelf.rs::Game::use_shelf	the powered chain's hotbar swap is the `powered` arm of `use_shelf`
+ShelfBlock.useItemOn	port	crates/sunrise-gameplay/src/game/blocks/shelf_server.rs::Game::use_shelf	a single slot swap, the multi-block hotbar swap while powered (`block.shelf.multi_swap`) and the creative keep, with the block entity and comparator told
+ShelfBlock.swapSingleItem	inline	crates/sunrise-gameplay/src/game/blocks/shelf_server.rs::Game::use_shelf	the unpowered single-slot swap is the other arm of `use_shelf`
+ShelfBlock.swapHotbar	inline	crates/sunrise-gameplay/src/game/blocks/shelf_server.rs::Game::use_shelf	the powered chain's hotbar swap is the `powered` arm of `use_shelf`
 ShelfBlock.getFluidState	port	crates/sunrise-world/src/registry_fluid.rs::RegistryFluidWorld::fluid_state	waterlogged state from block data
 ShelfBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class
-ShulkerBoxBlock.useWithoutItem	port	crates/sunrise-client/src/game.rs::Game::open_menu	opens the box and awards the open stat; canOpen via shulker_can_open
-ShulkerBoxBlock.playerWillDestroy	port	crates/sunrise-client/src/game/blocks/block_items.rs::Game::drop_creative_shulker	creative filled box spawns directly with collected components; ordinary removal keeps contents for survival drops
+ShulkerBoxBlock.useWithoutItem	port	crates/sunrise-gameplay/src/game/network/lan_actions/menus.rs::ServerGame::open_block_menu	opens the box and awards the open stat; canOpen via shulker_can_open
+ShulkerBoxBlock.playerWillDestroy	port	crates/sunrise-gameplay/src/game/blocks/block_items_server.rs::Game::drop_creative_shulker	creative filled box spawns directly with collected components; ordinary removal keeps contents for survival drops
 ShulkerBoxBlock.getDrops	port	crates/sunrise-world/src/level/removal.rs::pre_remove	gap: minor: the contents kept on the dropped box come from the same kind; the loot drop is not traced here
 ShulkerBoxBlock.getBlockSupportShape	missing		unsure: shulker_is_closed returns None in the level and the client, so an open box keeps the full cube as its support shape
 ShulkerBoxBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate	facing rotation from the generated state table
@@ -134,7 +134,7 @@ SideChainPartBlock.SideChainNeighbor.disconnectFromLeft	port	crates/sunrise-worl
 SignBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class	waterlogged water tick
 SignBlock.getFluidState	port	crates/sunrise-world/src/registry_fluid.rs::RegistryFluidWorld::fluid_state	waterlogged state from block data
 SignBlock.otherPlayerIsEditingSign	missing		unsure: minor: no check that another player is editing the sign; sign_edit.rs tracks sign_editing per connection only
-SignBlock.setPlacedBy	port	crates/sunrise-client/src/game/use_hand.rs::Game::use_hand	gap: minor: the sign editor opens after a sign is placed; no allowed-editor player is stored
+SignBlock.setPlacedBy	port	crates/sunrise-gameplay/src/game/items/use_hand.rs::ServerGame::use_hand	gap: minor: the sign editor opens after a sign is placed; no allowed-editor player is stored
 SnifferEggBlock.onPlace	port	crates/sunrise-world/src/level/hooks.rs::Sim::on_place	sniffer egg arm: moss boost, place event and the hatch timer
 SnowLayerBlock.isPathfindable	skip:data		path types come from the per-state path data (mobs/path.rs)
 SnowLayerBlock.getShadeBrightness	inline	crates/sunrise-client-render/src/mesher.rs::MeshTables::new	a full eight-layer snow block shades 0.2 like a full cube, fewer layers 1.0, in the shade table

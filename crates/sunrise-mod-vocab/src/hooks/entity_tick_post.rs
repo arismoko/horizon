@@ -11,7 +11,7 @@ pub trait Hooks {
     /// (`entity`, `kind`). Version 5 adds the server's frames, paintings, armor stands and thrown
     /// tridents.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_tick_post",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_entity_tick_post",
         dispatch = "flat",
         side = "both",
         version = 5,

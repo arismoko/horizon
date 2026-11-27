@@ -1,3 +1,3 @@
-sunrise-client game::native_chat_recipients_tests::a_relay_answering_its_own_answer_stops_at_the_repeat lib daily resources
-sunrise-client game::native_chat_recipients_tests::console_and_command_block_say_can_be_hidden_per_receiver lib daily resources
-sunrise-client game::native_chat_recipients_tests::listener_commands_do_not_count_as_command_block_successes lib daily child-process
+sunrise-client cut_layout::game::server_side::native_chat_recipients_tests::a_relay_answering_its_own_answer_stops_at_the_repeat lib daily resources
+sunrise-client cut_layout::game::server_side::native_chat_recipients_tests::console_and_command_block_say_can_be_hidden_per_receiver lib daily resources
+sunrise-client cut_layout::game::server_side::native_chat_recipients_tests::listener_commands_do_not_count_as_command_block_successes lib daily child-process

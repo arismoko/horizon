@@ -23,7 +23,7 @@ from tools import lab, test_rust_parity as base
 ORACLE = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaCommandExecOracle.java'
 DRIVER = lab.ROOT / 'tools/test_command_exec_parity.py'
 CORPUS = lab.ROOT / 'tools/command_exec_corpus.py'
-TEST = 'game::commands::data::eye_item_tests::a_summoned_eye_saves_its_normalised_item_live_and_after_a_reload'
+TEST = 'game::server_side::commands::data::eye_item_tests::a_summoned_eye_saves_its_normalised_item_live_and_after_a_reload'
 
 
 def java_version_string():

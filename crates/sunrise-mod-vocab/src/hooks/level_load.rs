@@ -14,7 +14,7 @@ pub trait Hooks {
     /// `event.dimension` names the opened level, not the Host's current level.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_level_load",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_level_load",
         dispatch = "flat",
         side = "server",
         contract = "listen",

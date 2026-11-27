@@ -275,7 +275,7 @@ pub trait LivingBackend {
     /// skip it), a guest's the same rule over their body and vehicle, a
     /// mob's walk gate (`mob_can_use_portal`, 's read: not a boss that
     /// never travels, not a creaking bound to its heart, not asleep in its
-    /// bed, riding nothing, carrying no one this side holds back). None for
+    /// bed, and riding nothing). None for
     /// a stale handle, an armor stand or the dragon: the portal walk
     /// carries neither as its own traveller.
     fn living_can_use_portal(&self, living: LivingRef) -> Option<bool>;

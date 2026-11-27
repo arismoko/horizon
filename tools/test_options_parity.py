@@ -190,9 +190,9 @@ def main():
              'default by options_probe; the slider/persistence unit regression checks that intentional extension.')
     harness.differential(
         'rust-options-parity', 'VanillaOptionsOracle', 'options_probe', make_cases, scope,
-        sources=[lab.ROOT / 'crates/sunrise-client-render/src/options_file.rs', lab.ROOT / 'crates/sunrise-client-render/src/options_fixes.rs',
-                 lab.ROOT / 'crates/sunrise-client-render/src/java_text.rs', lab.ROOT / 'crates/sunrise-core/src/java_number.rs', lab.ROOT / 'crates/sunrise-client-input/src/key_names.rs',
-                 lab.ROOT / 'crates/sunrise-client-input/src/keybinds.rs'])
+        sources=[lab.ROOT / 'crates/sunrise-level/src/options_file.rs', lab.ROOT / 'crates/sunrise-level/src/options_fixes.rs',
+                 lab.ROOT / 'crates/sunrise-level/src/java_text.rs', lab.ROOT / 'crates/sunrise-core/src/java_number.rs', lab.ROOT / 'crates/sunrise-game-data/src/key_names.rs',
+                 lab.ROOT / 'crates/sunrise-game-data/src/key_mappings.rs', lab.ROOT / 'crates/sunrise-client-input/src/keybinds.rs'])
 
 
 if __name__ == '__main__':

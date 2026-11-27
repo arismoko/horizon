@@ -161,11 +161,11 @@ fn a_shader_pack_lights_the_faces_itself() {
         root.to_path_buf(),
     ))
     .unwrap();
-    let render = assets
-        .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-            root.to_path_buf(),
-        ))
-        .unwrap();
+    let render = crate::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )
+    .unwrap();
     let visibility = crate::models::load_visibility(&root, assets.registry).unwrap();
     let tables = MeshTables::new(&assets, &render, &facts, visibility.clone(), None).unwrap();
     let stone = assets.registry.default_state("minecraft:stone").unwrap().0;
@@ -227,11 +227,11 @@ fn a_shader_pack_lights_every_nether_face_like_an_up_face() {
         root.to_path_buf(),
     ))
     .unwrap();
-    let render = assets
-        .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-            root.to_path_buf(),
-        ))
-        .unwrap();
+    let render = crate::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )
+    .unwrap();
     let visibility = crate::models::load_visibility(&root, assets.registry).unwrap();
     let tables = MeshTables::new(&assets, &render, &facts, visibility.clone(), None).unwrap();
     let state = |name| assets.registry.default_state(name).unwrap().0;
@@ -290,11 +290,11 @@ fn separate_ao_passes_ao_in_alpha_without_darkening_rgb() {
         root.to_path_buf(),
     ))
     .unwrap();
-    let render = assets
-        .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-            root.to_path_buf(),
-        ))
-        .unwrap();
+    let render = crate::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )
+    .unwrap();
     let visibility = crate::models::load_visibility(&root, assets.registry).unwrap();
     let tables = MeshTables::new(&assets, &render, &facts, visibility.clone(), None).unwrap();
     let stone = assets.registry.default_state("minecraft:stone").unwrap().0;
@@ -383,11 +383,11 @@ fn reused_mesh_matches_fresh_geometry_across_sections_and_resource_reload() {
     // The same scratch and output buffers survive a resource reload. They must
     // contain no references into the previous RenderAssets or MeshTables.
     for reload in 0..2 {
-        let render = assets
-            .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap();
+        let render = crate::assets::RenderAssets::load(
+            &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
+        )
+        .unwrap();
         let visibility = crate::models::load_visibility(&root, assets.registry).unwrap();
         let tables = MeshTables::new(&assets, &render, &facts, visibility.clone(), None).unwrap();
         let mut mesher = Mesher {
@@ -531,11 +531,11 @@ fn a_shader_pack_s_still_water_top_starts_at_its_south_west_corner() {
         root.to_path_buf(),
     ))
     .unwrap();
-    let render = assets
-        .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-            root.to_path_buf(),
-        ))
-        .unwrap();
+    let render = crate::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )
+    .unwrap();
     let visibility = crate::models::load_visibility(&root, assets.registry).unwrap();
     let tables = MeshTables::new(&assets, &render, &facts, visibility.clone(), None).unwrap();
     let state = |name| assets.registry.default_state(name).unwrap().0;

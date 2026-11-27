@@ -11,7 +11,7 @@ pub trait Hooks {
     /// the pillars' crystals are still placed once with the arena, as world generation
     /// places them in vanilla. NeoForge has no such event.
     #[hook(
-        target = "sunrise_client::game::native_hooks::dragon_fight::Game<'_>::native_dragon_fight_tick",
+        target = "sunrise_gameplay::game::native_hooks::dragon_fight::ServerGame<'_>::native_dragon_fight_tick",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

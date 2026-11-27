@@ -1,7 +1,7 @@
 # Dropped-item expiry (debt p3-65): NeoForge ItemExpireEvent lifespan rules and entity_leave_level at removal.
-sunrise-client game::item_entities::expire_tests::expiry_leave_runs_before_the_next_due_drop_ticks lib daily resources
-sunrise-client game::item_entities::expire_tests::expiry_listener_discards_are_swept_before_more_ticks_or_pickup lib daily resources
-sunrise-client game::item_entities::expire_tests::expiry_listener_discards_while_told_alone_still_deliver_post_once lib daily resources
-sunrise-client game::item_entities::expire_tests::item_expire_adds_extra_life_to_pre_dispatch_lifespan lib daily resources
-sunrise-client game::item_entities::expire_tests::item_expire_discards_after_insufficient_negative_or_wrapping_extensions lib daily resources
-sunrise-client game::item_entities::expire_tests::item_expire_extends_lifespan_without_rewinding_age_and_caps_at_32766 lib daily resources
+sunrise-client cut_layout::game::server_side::item_entities::expire_tests::expiry_leave_runs_before_the_next_due_drop_ticks lib daily resources
+sunrise-client cut_layout::game::server_side::item_entities::expire_tests::expiry_listener_discards_are_swept_before_more_ticks_or_pickup lib daily resources
+sunrise-client cut_layout::game::server_side::item_entities::expire_tests::expiry_listener_discards_while_told_alone_still_deliver_post_once lib daily resources
+sunrise-client cut_layout::game::server_side::item_entities::expire_tests::item_expire_adds_extra_life_to_pre_dispatch_lifespan lib daily resources
+sunrise-client cut_layout::game::server_side::item_entities::expire_tests::item_expire_discards_after_insufficient_negative_or_wrapping_extensions lib daily resources
+sunrise-client cut_layout::game::server_side::item_entities::expire_tests::item_expire_extends_lifespan_without_rewinding_age_and_caps_at_32766 lib daily resources

@@ -6,7 +6,7 @@ pub trait Hooks {
     /// waits for its writes: a refused record leaves the column and its entities
     /// resident instead of sending their unload notices.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entities_unload",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entities_unload",
         dispatch = "flat",
         side = "server",
         contract = "listen",

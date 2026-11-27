@@ -58,7 +58,7 @@ pub trait Hooks {
         cancellable = true,
         output_validator = "crate::entity::types::refused_move_output",
         neoforge = "none (fork addition, #2308)",
-        target = "sunrise_client_lib::move_gate::native_entity_move"
+        target = "sunrise_sim::move_gate::native_entity_move"
     )]
     fn entity_move(
         entity: u32,

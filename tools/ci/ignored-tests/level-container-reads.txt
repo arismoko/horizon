@@ -1,2 +1,2 @@
 # Restricted level reads use prepared game and loot resources.
-sunrise-client game::container_loot::tests::level_container_reads_preserve_snapshot_and_unpack_comparator_once lib daily resources
+sunrise-client cut_layout::game::server_side::container_loot::tests::level_container_reads_preserve_snapshot_and_unpack_comparator_once lib daily resources

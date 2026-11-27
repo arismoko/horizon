@@ -1,14 +1,13 @@
 //! `Mob.aiStep`'s looting block: what a mob that can pick up loot takes and wears, on `MobLevel`.
-use crate::{item_areas::ItemAreas, mob_level::MobLevel};
-use sunrise_client::{
-    items::ItemStack,
-    mobs::{
-        Species,
-        equip::{self, Facts, ItemTags, Slot},
-        finalize::{self, set_drop_chance, set_item_stack, stored_drop_chance},
-    },
-};
+use crate::mob_level::MobLevel;
 use sunrise_core::{geometry::Vec3, random::RandomSource};
+use sunrise_gameplay_common::item_areas::ItemAreas;
+use sunrise_items::items::ItemStack;
+use sunrise_sim::mobs::{
+    Species,
+    equip::{self, Facts, ItemTags, Slot},
+    finalize::{self, set_drop_chance, set_item_stack, stored_drop_chance},
+};
 
 /// What looting asks of the level beyond `MobLevel`: the mod hooks and the tables only the game holds.
 pub trait LootingLevel: MobLevel {

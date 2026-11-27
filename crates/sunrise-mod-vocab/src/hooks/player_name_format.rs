@@ -14,7 +14,7 @@ pub trait Hooks {
         neoforge = "PlayerEvent.NameFormat",
         cancellable = false,
         version = 2,
-        target = "sunrise_client_lib::lan::hub::native_player_name_format"
+        target = "sunrise_sim::lan::hub::native_player_name_format"
     )]
     fn player_name_format(username: &Text, displayname: &mut Text);
 }

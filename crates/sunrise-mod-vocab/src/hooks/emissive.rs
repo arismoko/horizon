@@ -8,7 +8,7 @@ pub trait Hooks {
     /// changing gameplay light. Resolved pairs stay bound to the loaded render-asset generation
     /// until the next reload and share the GPU emissive uniform table with OptiFine overlays.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_emissive",
+        target = "sunrise_client_gameplay::game::native_hooks::base::native_emissive",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

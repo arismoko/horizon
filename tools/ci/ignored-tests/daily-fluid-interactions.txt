@@ -1,2 +1,2 @@
-sunrise-client game::fluid_interaction_tests::a_declared_interaction_runs_after_vanillas_and_a_veto_stops_it lib daily resources
-sunrise-client game::fluid_interaction_tests::a_native_handler_tests_and_acts_in_its_place_and_a_panicking_one_does_not_apply lib daily resources
+sunrise-client cut_layout::game::fluid_interaction_tests::a_declared_interaction_runs_after_vanillas_and_a_veto_stops_it lib daily resources
+sunrise-client cut_layout::game::fluid_interaction_tests::a_native_handler_tests_and_acts_in_its_place_and_a_panicking_one_does_not_apply lib daily resources

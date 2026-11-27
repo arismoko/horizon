@@ -49,6 +49,7 @@ section the client meshes, also one that holds only air, and returns quickly whe
 are shaded only by the colour and light it gives them. A section meshes again when its blocks change, when the
 resources reload, and when a mod calls `ClientHost::refresh_render_visibility` and the hidden blocks change."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::add_section_geometry::native_add_section_geometry",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

@@ -31,7 +31,7 @@ pub trait Hooks {
         context = "loop",
         scope = "item",
         key = "stack",
-        target = "sunrise_client_lib::stations::native_item_name",
+        target = "sunrise_sim::stations::native_item_name",
         version = 2,
         neoforge = "Item.getName"
     )]

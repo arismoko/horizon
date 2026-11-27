@@ -18,7 +18,7 @@ sunrise-hooks = { path = "../sunrise-hooks" }
 sunrise-mod-runtime = { path = "../sunrise-mod-runtime" }
 mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab" }
 sunrise-assets = { path = "../sunrise-assets" }
-sunrise-client-core = { path = "../sunrise-client-core" }
+sunrise-game-data = { path = "../sunrise-game-data" }
 sunrise-client-input = { path = "../sunrise-client-input" }
 sunrise-client-render = { path = "../sunrise-client-render" }
 sunrise-command = { path = "../sunrise-command" }
@@ -35,6 +35,8 @@ sunrise-perf-format = { path = "../sunrise-perf-format" }
 # once, not for every phase of every tick.
 rayon = "1.10"
 sunrise-world = { path = "../sunrise-world" }
+sunrise-sim = { path = "../sunrise-sim" }
+sunrise-level = { path = "../sunrise-level" }
 sunrise-protocol = { path = "../sunrise-protocol" }
 # server.properties, eula.txt and the user lists, shared with sunrise-server.
 sunrise-server-files = { path = "../sunrise-server-files" }
@@ -103,32 +105,35 @@ wgpu = { version = "30.0.1", default-features = false, features = ["gles"] }
 
 [features]
 # Thread-local menu callbacks for resource-backed game fixtures only.
-test-menu-validity = []
+test-menu-validity = ["sunrise-sim/test-menu-validity"]
 # Scoped observations for compiled-guest executor tests only.
-test-payload-probe = []
+test-payload-probe = ["sunrise-sim/test-payload-probe"]
 # Isolated server-publication slots for resource-backed game fixtures only.
-test-publication-scope = []
+test-publication-scope = ["sunrise-sim/test-publication-scope"]
 # Thread-local tooltip component factories for isolated game unit tests only.
 test-tooltip-factories = []
 # Non-consuming residency journal observation for game fixtures only.
-test-residency-observer = []
+test-residency-observer = ["sunrise-sim/test-residency-observer"]
 # Local server-pack feedback observation for game fixtures only.
 test-pack-feedback = []
 # A level side with no weather, tags or block entities, for tests and probes that never read them.
-test-dry-side = []
+test-dry-side = ["sunrise-sim/test-dry-side"]
 # `FixedStep::still_for_tests`: a clock with SUNRISE_STILL on, for game fixtures only.
-test-still-clock = []
+test-still-clock = ["sunrise-sim/test-still-clock"]
+# Shared immutable resource cloning helpers for sunrise-client test fixtures only.
+test-resource-cache = []
 default = ["audio", "controllers"]
 # Dev-only: the ignored tracker-send benchmark uses the executable's allocator.
 tracker-send-bench = []
 # Sound output. Without it (and `controllers`) the program links neither libasound nor libudev on
 # Linux: the server build (`--no-default-features`, released as sunrise-engine; docs/server.md).
 audio = ["sunrise-client-render/audio"]
-# Controllers: the input layer's side of them (gilrs and the DualSense's output live in sunrise-client's
+# Controllers: the input layer's side of them (gilrs and the DualSense's output live in sunrise-client-gameplay's
 # `controllers`). Without it only `sunrise-ctl pad`'s virtual pad.
 controllers = ["sunrise-client-input/controllers"]
 # The sensor_scan_tests mob-kind fixture for the gameplay crates' tests.
-test-mob-kind = []
+test-mob-kind = ["sunrise-sim/test-mob-kind"]
+test-support = ["sunrise-sim/test-support", "sunrise-protocol/test-receive-progress"]
 # Records the call sites of mob random draws (`mob_ai_probe` traces).
 rng-trace = ["sunrise-core/rng-trace"]
 # Opt-in Windows heap experiment; see docs/windows-allocators.md.
@@ -138,7 +143,7 @@ windows-segment-heap = []
 workspace = true
 
 [dev-dependencies]
-sunrise-client-lib = { path = ".", default-features = false, features = ["test-dry-side"] }
+sunrise-client-lib = { path = ".", default-features = false, features = ["test-dry-side", "test-payload-probe"] }
 sunrise-threads = { path = "../sunrise-threads", features = ["test-allocation-probe", "test-game-dir"] }
 tempfile = "3"
 mod_platform = { package = "sunrise-mod-api", path = "../sunrise-mod-api", features = ["testing"] }
@@ -147,8 +152,9 @@ mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab", featur
 sunrise-theme = { path = "../sunrise-theme" }
 sunrise-client-render = { path = "../sunrise-client-render", features = ["test-support"] }
 sunrise-items = { path = "../sunrise-items", features = ["test-support"] }
+sunrise-sim = { path = "../sunrise-sim", features = ["test-support"] }
 sunrise-world = { path = "../sunrise-world", features = ["test-support"] }
-sunrise-client-core = { path = "../sunrise-client-core", features = ["test-language-publication", "test-effect-registry"] }
+sunrise-game-data = { path = "../sunrise-game-data", features = ["test-language-publication", "test-effect-registry"] }
 # Reads back the captures the server_perf tests write.
 sunrise-perf = { path = "../sunrise-perf" }
 # Every WGSL shader translated as wgpu's DirectX 12 backend does (gfx.rs tests).

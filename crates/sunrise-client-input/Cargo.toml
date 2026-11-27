@@ -8,7 +8,7 @@ description = "The client's input layer: key bindings and their names, mouse, co
 
 [dependencies]
 sunrise-mod-api-macros = { path = "../sunrise-mod-api-macros" }
-sunrise-client-core = { path = "../sunrise-client-core" }
+sunrise-game-data = { path = "../sunrise-game-data" }
 sunrise-core = { path = "../sunrise-core" }
 winit = "0.30.13"
 log = "0.4"

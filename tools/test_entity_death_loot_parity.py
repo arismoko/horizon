@@ -132,7 +132,7 @@ def main():
     types = sorted('minecraft:' + p.stem for p in tables.glob('*.json') if p.stem not in SKIPPED)
     oracle = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaEntityDeathLootOracle.java'
     sources = [oracle, Path(__file__), lab.ROOT / 'crates/sunrise-client/examples/probe/entity_death_loot_fixture.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/drops.rs', lab.ROOT / 'crates/sunrise-client/src/mobs/enderman.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/drops.rs', lab.ROOT / 'crates/sunrise-sim/src/mobs/enderman.rs',
                lab.ROOT / 'crates/sunrise-world/src/loot.rs']
     tested = base.source_hashes(sources)
     inputs = build / 'inputs.txt'

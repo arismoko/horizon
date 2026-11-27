@@ -1,2 +1,2 @@
 # Typed payloads: integrated memory, unpublished owner enumeration and addressed delivery, and LAN TCP peers.
-sunrise-client game::payload_transport::typed_tests::typed_payloads_follow_the_raw_routes lib daily child-process
+sunrise-client cut_layout::game::payload_transport::typed_tests::typed_payloads_follow_the_raw_routes lib daily child-process

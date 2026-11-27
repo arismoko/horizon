@@ -24,7 +24,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         host = "level",
-        target = "sunrise_client::game::native_hooks::block_path_type::ReadLevel<'_,'_>::native_block_path_type",
+        target = "sunrise_gameplay_common::game::native_hooks::block_path_type::ReadLevel<'_, '_>::native_block_path_type",
         neoforge = "IBlockExtension.getBlockPathType"
     )]
     fn block_path_type(pos: BlockPos, state: BlockState, path_type: &mut Option<mod_api::PathType>);

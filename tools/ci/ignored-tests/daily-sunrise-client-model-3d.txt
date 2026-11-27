@@ -1,2 +1,2 @@
 # model_3d with a turn that overflows needs a booted game with prepared resources (#3282).
-sunrise-client game::native_model_3d::tests::an_overflowing_item_is_refused_and_leaves_the_batch_as_it_was lib daily resources
+sunrise-client-gameplay game::client_side::native_model_3d::tests::an_overflowing_item_is_refused_and_leaves_the_batch_as_it_was lib daily resources

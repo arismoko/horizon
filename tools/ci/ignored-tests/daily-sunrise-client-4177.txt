@@ -1,7 +1,13 @@
 # Vehicle step_on contact damage (#4177): the hull's saved data and the game fixture.
-sunrise-client game::entity::vehicle_contact_hurt_tests::a_breaking_contact_hurt_removes_a_boat_through_its_tick lib daily resources
-sunrise-client game::entity::vehicle_contact_hurt_tests::a_breaking_contact_hurt_removes_a_cart_through_its_tick lib daily resources
-sunrise-client game::entity::vehicle_contact_hurt_tests::a_second_pass_breaking_hurt_removes_a_boat_without_a_later_pass lib daily resources
-sunrise-client game::entity::vehicle_contact_hurt_tests::a_surviving_contact_hurt_reaches_a_boat_through_its_tick lib daily resources
-sunrise-client game::entity::vehicle_contact_hurt_tests::a_surviving_contact_hurt_reaches_a_cart_through_its_tick lib daily resources
-sunrise-client game::entity::vehicle_contact_hurt_tests::an_invulnerable_vehicle_refuses_a_contact_hurt lib daily resources
+sunrise-client cut_layout::game::server_side::entity_server::vehicle_contact_hurt_tests::a_breaking_contact_hurt_removes_a_boat_through_its_tick lib daily resources
+sunrise-client cut_layout::game::server_side::entity_server::vehicle_contact_hurt_tests::a_breaking_contact_hurt_removes_a_cart_through_its_tick lib daily resources
+sunrise-client cut_layout::game::server_side::entity_server::vehicle_contact_hurt_tests::a_second_pass_breaking_hurt_removes_a_boat_without_a_later_pass lib daily resources
+sunrise-client cut_layout::game::server_side::entity_server::vehicle_contact_hurt_tests::a_surviving_contact_hurt_reaches_a_boat_through_its_tick lib daily resources
+sunrise-client cut_layout::game::server_side::entity_server::vehicle_contact_hurt_tests::a_surviving_contact_hurt_reaches_a_cart_through_its_tick lib daily resources
+sunrise-client cut_layout::game::server_side::entity_server::vehicle_contact_hurt_tests::an_invulnerable_vehicle_refuses_a_contact_hurt lib daily resources
+sunrise-gameplay game::server_side::entity_server::vehicle_contact_hurt_tests::a_surviving_contact_hurt_reaches_a_boat_through_its_tick lib daily resources
+sunrise-gameplay game::server_side::entity_server::vehicle_contact_hurt_tests::a_surviving_contact_hurt_reaches_a_cart_through_its_tick lib daily resources
+sunrise-gameplay game::server_side::entity_server::vehicle_contact_hurt_tests::a_breaking_contact_hurt_removes_a_boat_through_its_tick lib daily resources
+sunrise-gameplay game::server_side::entity_server::vehicle_contact_hurt_tests::a_second_pass_breaking_hurt_removes_a_boat_without_a_later_pass lib daily resources
+sunrise-gameplay game::server_side::entity_server::vehicle_contact_hurt_tests::a_breaking_contact_hurt_removes_a_cart_through_its_tick lib daily resources
+sunrise-gameplay game::server_side::entity_server::vehicle_contact_hurt_tests::an_invulnerable_vehicle_refuses_a_contact_hurt lib daily resources

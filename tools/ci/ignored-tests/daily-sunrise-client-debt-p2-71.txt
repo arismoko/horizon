@@ -1,3 +1,3 @@
-sunrise-client game::core_tests::blank_inventory_presses_are_handled_and_feed_double_click_history lib daily child-process
-sunrise-client game::native_hooks::register_preset_editors::tests::failed_preset_editor_paint_leaves_stock_frame_and_post lib daily child-process
-sunrise-client game::native_hooks::register_preset_editors::tests::preset_editor_test_mod_draws_and_edits_through_real_client_hooks lib daily child-process
+sunrise-client cut_layout::game::core_tests::blank_inventory_presses_are_handled_and_feed_double_click_history lib daily child-process
+sunrise-client cut_layout::game::native_hooks::register_preset_editors::tests::failed_preset_editor_paint_leaves_stock_frame_and_post lib daily child-process
+sunrise-client cut_layout::game::native_hooks::register_preset_editors::tests::preset_editor_test_mod_draws_and_edits_through_real_client_hooks lib daily child-process

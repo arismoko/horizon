@@ -23,6 +23,11 @@ static REGISTERED_RENDER_TYPES: OnceLock<Vec<RenderSetup>> = OnceLock::new();
 static REGISTERED_MODIFIERS: OnceLock<Vec<PipelineModifier>> = OnceLock::new();
 static PACK_UNIFORMS: OnceLock<HashMap<&'static str, PackUniformType>> = OnceLock::new();
 
+#[cfg(any(test, feature = "test-support"))]
+pub fn has_registered() -> bool {
+    REGISTERED.get().is_some_and(|v| !v.is_empty())
+}
+
 /// The built-in tables exported by `RenderPipelines.requiredPipelines` and `optionalPipelines`.
 #[derive(serde::Deserialize)]
 struct VanillaPipelines {

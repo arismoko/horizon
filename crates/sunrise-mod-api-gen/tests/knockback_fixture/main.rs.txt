@@ -21,13 +21,13 @@ fn main() {
         assert_eq!(mob.needs_sync, !cancel);
         assert_eq!(*level.heard, 1, "mob must delegate exactly one push, including vetoed pushes");
 
-        let mut game = Game {
-            player: Some(motion::PlayerMotion {
+        let mut game = ServerGame {
+            common: CommonGame { player: Some(motion::PlayerMotion {
                 velocity: Vec3::default(), ground: Ground { on_ground: true }, entity_id: 1,
                 attributes: motion::Attributes, random: Random,
-            }),
+            }) },
             level,
-            last_hurt_by_player: (),
+            server: ServerState { last_hurt_by_player: () },
         };
         let attack = Attack { attacker: 0 };
         if full {
@@ -35,7 +35,7 @@ fn main() {
         } else {
             game.knock_back_player(0.2, 1.0, 0.0, HurtSource("test"), &attack, 3.0);
         }
-        let velocity = game.player.as_ref().unwrap().velocity;
+        let velocity = game.common.player.as_ref().unwrap().velocity;
         assert_eq!((velocity.x, velocity.y, velocity.z), (expected_x, expected_y, 0.0));
         assert_eq!(*game.level.heard, 2, "player must delegate exactly one push, including vetoed pushes");
     }

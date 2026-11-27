@@ -1,1 +1,1 @@
-sunrise-client game::lan_actions::tick::spectator_body_tick_tests::pre_teleport_to_unloaded_edge_keeps_the_resolved_body_tick lib daily resources
+sunrise-client cut_layout::game::server_side::lan_actions_server::tick::spectator_body_tick_tests::pre_teleport_to_unloaded_edge_keeps_the_resolved_body_tick lib daily resources

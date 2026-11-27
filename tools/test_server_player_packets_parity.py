@@ -21,7 +21,7 @@ from tools import lab, oracle_harness, test_rust_parity as base
 
 NAME = 'server-player-packets-parity'
 ORACLE = 'VanillaServerPlayerPacketsOracle'
-TEST = 'game::lan::player_packet_tests::server_player_packet_witness'
+TEST = 'game::server_side::lan::player_packet_tests::server_player_packet_witness'
 CASES = {
     '141': ['credits_pose', 'credits_move_count', 'credits_idle_credit', 'ordinary_idle_credit',
             'repeated_position', 'invalid_rotation'],
@@ -46,7 +46,7 @@ def main():
     lock, jars, libraries = base.verify_artifacts()
     source = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity' / (ORACLE + '.java')
     sources = [Path(__file__), source, lab.ROOT / 'Cargo.lock',
-               lab.ROOT / 'crates/sunrise-client/src/game/network/lan/player_packet_tests.rs']
+               lab.ROOT / 'crates/sunrise-client/src/cut_layout/game/network/lan/player_packet_tests.rs']
     hashes = base.source_hashes(sources)
     cp = os.pathsep.join(map(str, (jars['server'], *libraries)))
     oracle_harness.run_logged(['javac', '--release', lock['minecraft']['java_major'], '-proc:none',

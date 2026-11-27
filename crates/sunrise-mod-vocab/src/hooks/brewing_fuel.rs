@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A brewing stand at `pos` consumed `fuel` and gained brewing fuel. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_brewing_fuel",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_brewing_fuel",
         dispatch = "flat",
         side = "server",
         contract = "listen",

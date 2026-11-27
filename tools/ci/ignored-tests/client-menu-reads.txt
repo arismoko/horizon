@@ -1,1 +1,1 @@
-sunrise-client game::native_small_reads_tests::a_client_reads_only_its_own_menu lib daily resources
+sunrise-client cut_layout::game::client_side::native_small_reads_tests::a_client_reads_only_its_own_menu lib daily resources

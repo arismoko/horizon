@@ -5,7 +5,7 @@ pub trait Hooks {
     /// spin attack and grounded lift have been applied. The player's state is
     /// swapped in. No reply is needed.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_riptide",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_riptide",
         dispatch = "flat",
         side = "server",
         contract = "listen",

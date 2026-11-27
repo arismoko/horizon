@@ -14,7 +14,7 @@ pub trait Hooks {
     /// there, since only the server spawns drops, damages the shears and shears for a dispenser
     /// (`host` says which side runs).
     #[hook(
-        target = "sunrise_client::game::native_hooks::on_sheared::Game<'_>::native_on_sheared",
+        target = "sunrise_gameplay_common::game::native_hooks::on_sheared::GameHooks::native_on_sheared",
         receiver = "write",
         dispatch = "direct",
         side = "both",

@@ -16,4 +16,7 @@ for target in x86_64-unknown-linux-gnu x86_64-pc-windows-msvc x86_64-pc-windows-
     cfg=$("${RUSTC:-rustc}" --print cfg --target "$target" -C "target-feature=$crt")
     configs+=("$cfg")
 done
+if [[ -n ${SUNRISE_HOOK_WIRING_TOOL:-} ]]; then
+    exec "$SUNRISE_HOOK_WIRING_TOOL" "$PWD" "${configs[@]}"
+fi
 exec cargo run --quiet --locked -p sunrise-mod-api-gen --bin sunrise-hook-wiring -- "$PWD" "${configs[@]}"

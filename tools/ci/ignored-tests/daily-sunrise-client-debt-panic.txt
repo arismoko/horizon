@@ -1,5 +1,5 @@
-sunrise-client game::creatures::borrowed_panic_tests::player_living_breathe_panic_rolls_back_transactional_writes lib daily resources
-sunrise-client game::server_packs::tests::hook_panic_toast_cannot_be_vetoed_or_rewritten_by_toast_add lib daily child-process
-sunrise-client game::client_reload::tests::panicking_client_reload_registration_discards_its_listener_and_edges lib daily resources
-sunrise-client game::mod_menu_decisions_tests::menu_button_validates_writes_and_contains_panics_on_live_resident_block_entity lib daily resources
-sunrise-client game::mod_menu_decisions_tests::menu_quick_move_validates_writes_and_contains_panics_on_live_resident_block_entity lib daily resources
+sunrise-client cut_layout::game::creatures::borrowed_panic_tests::player_living_breathe_panic_rolls_back_transactional_writes lib daily resources
+sunrise-client cut_layout::game::client_side::server_packs::tests::hook_panic_toast_cannot_be_vetoed_or_rewritten_by_toast_add lib daily child-process
+sunrise-client cut_layout::game::client_side::client_reload::tests::panicking_client_reload_registration_discards_its_listener_and_edges lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::menu_button_validates_writes_and_contains_panics_on_live_resident_block_entity lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::menu_quick_move_validates_writes_and_contains_panics_on_live_resident_block_entity lib daily resources

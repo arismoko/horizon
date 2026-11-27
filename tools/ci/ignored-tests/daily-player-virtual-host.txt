@@ -1,1 +1,1 @@
-sunrise-client game::payload_transport::virtual_host_tests::virtual_host_is_the_rewritten_handshake_host lib daily resources
+sunrise-client cut_layout::game::payload_transport::virtual_host_tests::virtual_host_is_the_rewritten_handshake_host lib daily resources

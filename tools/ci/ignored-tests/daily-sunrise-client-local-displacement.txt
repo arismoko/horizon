@@ -1,4 +1,4 @@
-sunrise-client game::native_local_player_writes::tests::a_local_displacement_respects_collider_exemptions_when_moving_and_sneaking lib daily resources
-sunrise-client game::native_local_player_writes::tests::a_local_displacement_stops_at_a_wall_and_reports_how_far_it_moved lib daily resources
-sunrise-client game::native_local_player_writes::tests::local_displacements_out_and_back_notify_both_section_crossings lib daily resources
-sunrise-client game::native_local_player_writes::tests::local_displacements_refuse_bad_deltas_and_players_held_in_place lib daily resources
+sunrise-client cut_layout::game::client_side::native_local_player_writes::tests::a_local_displacement_respects_collider_exemptions_when_moving_and_sneaking lib daily resources
+sunrise-client cut_layout::game::client_side::native_local_player_writes::tests::a_local_displacement_stops_at_a_wall_and_reports_how_far_it_moved lib daily resources
+sunrise-client cut_layout::game::client_side::native_local_player_writes::tests::local_displacements_out_and_back_notify_both_section_crossings lib daily resources
+sunrise-client cut_layout::game::client_side::native_local_player_writes::tests::local_displacements_refuse_bad_deltas_and_players_held_in_place lib daily resources

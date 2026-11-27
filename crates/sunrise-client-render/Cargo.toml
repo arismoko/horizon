@@ -15,7 +15,7 @@ sunrise-mod-api-macros = { path = "../sunrise-mod-api-macros" }
 # The GUI atlas's pixels, kept compressed once uploaded (hud/atlas.rs `pack_pixels`).
 lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-encode", "safe-decode", "checked-decode"] }
 sunrise-assets = { path = "../sunrise-assets" }
-sunrise-client-core = { path = "../sunrise-client-core" }
+sunrise-game-data = { path = "../sunrise-game-data" }
 sunrise-client-input = { path = "../sunrise-client-input" }
 sunrise-command = { path = "../sunrise-command" }
 sunrise-core = { path = "../sunrise-core" }
@@ -41,6 +41,8 @@ sunrise-shaders = { path = "../sunrise-shaders" }
 sunrise-system = { path = "../sunrise-system" }
 sunrise-threads = { path = "../sunrise-threads" }
 sunrise-world = { path = "../sunrise-world" }
+sunrise-level = { path = "../sunrise-level" }
+sunrise-server-profiles-http = { path = "../sunrise-server-profiles-http" }
 ab_glyph = "0.2.32"
 base64 = "0.22"
 bytemuck = { version = "1.24", features = ["derive"] }
@@ -94,7 +96,7 @@ wgpu = { version = "30.0.1", default-features = false, features = ["gles"] }
 # Sound output and input: sunrise-client's `audio` feature.
 audio = ["dep:cpal", "dep:alsa", "dep:libc", "dep:sunrise-audio-input"]
 # Helpers sunrise-client's tests build their fixtures with.
-test-support = []
+test-support = ["sunrise-level/test-support"]
 
 [lints]
 workspace = true
@@ -123,8 +125,11 @@ sunrise-perf = { path = "../sunrise-perf" }
 # Tests: a TrueType font to load, and the design system the menus' motion curves match.
 sunrise-theme = { path = "../sunrise-theme" }
 sunrise-items = { path = "../sunrise-items", features = ["test-support"] }
-sunrise-client-core = { path = "../sunrise-client-core", features = ["test-effect-registry"] }
+sunrise-game-data = { path = "../sunrise-game-data", features = ["test-effect-registry"] }
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false, features = ["folder"] }
 naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out", "glsl-out", "msl-out", "spv-out"] }
+sunrise-level = { path = "../sunrise-level", features = ["test-support"] }
+
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 # Independently calibrate CPU timer delivery for live sampling assertions.

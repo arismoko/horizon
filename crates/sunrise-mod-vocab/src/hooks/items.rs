@@ -14,7 +14,7 @@ pub trait Hooks {
     /// A panic discards this listener's declarations and diagnostics without rejecting startup.
     /// Bare item IDs use the submitting mod ID; valid explicit names retain their namespace.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_items",
+        target = "sunrise_gameplay_common::game::native_hooks::base::native_items",
         receiver = "associated",
         dispatch = "flat",
         side = "both",

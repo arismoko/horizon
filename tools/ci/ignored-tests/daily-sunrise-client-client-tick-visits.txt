@@ -1,7 +1,7 @@
 # Client tick counts at each visit and use-animation re-entry, as callbacks read them (#4771).
-sunrise-client game::item_use::tests::a_part_reading_a_transformed_copy_is_not_asked_again lib daily resources
-sunrise-client game::item_use::tests::another_stacks_part_is_asked_from_inside_a_part lib daily resources
-sunrise-client game::remote::tests::client_vanilla_reads_tests::a_canceled_root_does_not_count_and_a_passenger_does lib daily resources
-sunrise-client game::remote::tests::client_vanilla_reads_tests::a_dying_mount_stays_the_jumpable_vehicle lib daily resources
-sunrise-client game::remote::tests::client_vanilla_reads_tests::a_respawned_player_counts_from_its_admission lib daily resources
-sunrise-client game::remote::tests::client_vanilla_reads_tests::callbacks_read_other_entities_counts_as_their_visits_left_them lib daily resources
+sunrise-client cut_layout::game::server_side::item_use::tests::a_part_reading_a_transformed_copy_is_not_asked_again lib daily resources
+sunrise-client cut_layout::game::server_side::item_use::tests::another_stacks_part_is_asked_from_inside_a_part lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::a_canceled_root_does_not_count_and_a_passenger_does lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::a_dying_mount_stays_the_jumpable_vehicle lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::a_respawned_player_counts_from_its_admission lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::callbacks_read_other_entities_counts_as_their_visits_left_them lib daily resources

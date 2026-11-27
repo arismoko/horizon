@@ -1,8 +1,8 @@
-sunrise-client game::native_ride_player::tests::a_save_ejects_a_mob_riding_a_player lib daily game-boot
-sunrise-client game::native_ride_player::tests::a_level_save_ejects_a_mob_riding_a_player lib daily game-boot
-sunrise-client game::native_ride_player::tests::an_autosave_ejects_a_mob_riding_a_player lib daily game-boot
-sunrise-client game::native_ride_player::tests::a_staged_save_ejects_a_mob_riding_a_player lib daily game-boot
-sunrise-client game::native_ride_player::tests::an_unload_save_ejects_a_mob_riding_a_player lib daily game-boot
-sunrise-client game::native_ride_player::tests::a_logout_ejects_a_mob_riding_the_player lib daily game-boot
-sunrise-client game::native_ride_player::tests::a_death_ejects_a_mob_riding_the_player lib daily game-boot
-sunrise-client game::native_ride_player::tests::a_dimension_change_ejects_a_mob_riding_the_player lib daily game-boot
+sunrise-client cut_layout::game::server_side::native_ride_player::tests::a_save_ejects_a_mob_riding_a_player lib daily game-boot
+sunrise-client cut_layout::game::server_side::native_ride_player::tests::a_level_save_ejects_a_mob_riding_a_player lib daily game-boot
+sunrise-client cut_layout::game::server_side::native_ride_player::tests::an_autosave_ejects_a_mob_riding_a_player lib daily game-boot
+sunrise-client cut_layout::game::server_side::native_ride_player::tests::a_staged_save_ejects_a_mob_riding_a_player lib daily game-boot
+sunrise-client cut_layout::game::server_side::native_ride_player::tests::an_unload_save_ejects_a_mob_riding_a_player lib daily game-boot
+sunrise-client cut_layout::game::server_side::native_ride_player::tests::a_logout_ejects_a_mob_riding_the_player lib daily game-boot
+sunrise-client cut_layout::game::server_side::native_ride_player::tests::a_death_ejects_a_mob_riding_the_player lib daily game-boot
+sunrise-client cut_layout::game::server_side::native_ride_player::tests::a_dimension_change_ejects_a_mob_riding_the_player lib daily game-boot

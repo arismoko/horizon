@@ -1,1 +1,1 @@
-sunrise-client-render streaming::tests::decoration_updates_saved_column_light_through_neighbour_checkout lib daily resources
+sunrise-level chunk_streamer::tests::decoration_updates_saved_column_light_through_neighbour_checkout lib daily resources

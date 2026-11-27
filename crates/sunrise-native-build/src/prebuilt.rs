@@ -130,10 +130,38 @@ pub struct Identity {
     /// The game crate's features the SDK was built with: a patched function copied out of its
     /// source is compiled under the same `cfg`s.
     game_features: Vec<String>,
+    #[serde(default)]
+    source_layout: SdkSourceLayout,
+    #[serde(default)]
+    runtime_role: Option<RuntimeRole>,
     /// The cfg atoms of the lower libraries in this target and side's build. Absent on SDKs
     /// whose tool could build a lower mirror without these records.
     lower_crate_cfg: Option<BTreeMap<String, Vec<String>>>,
     slices: Slices,
+}
+
+#[derive(Default, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum SdkSourceLayout {
+    #[default]
+    Legacy,
+    Split,
+}
+
+#[derive(serde::Deserialize)]
+pub struct RuntimeRole {
+    pub side: sunrise_mod_package::sdk::Side,
+    pub libraries: std::collections::BTreeMap<String, RuntimeLibrary>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct RuntimeLibrary {
+    pub package: String,
+    pub library: String,
+    pub features: Vec<String>,
+    pub aliases: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub artifacts: Vec<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -285,8 +313,41 @@ impl Identity {
         self.facade_crates.iter().map(String::as_str)
     }
 
-    pub fn game_features(&self) -> &[String] {
-        &self.game_features
+    pub fn runtime_role(&self) -> Option<&RuntimeRole> {
+        self.runtime_role.as_ref()
+    }
+
+    pub(crate) fn patch_library(&self, owner: &str) -> Result<Option<&RuntimeLibrary>, String> {
+        let Some(role) = self.runtime_role() else {
+            return Ok(None);
+        };
+        let package = owner.replace('_', "-");
+        let mut matches = role
+            .libraries
+            .values()
+            .filter(|fact| fact.package == package);
+        match (matches.next(), matches.next()) {
+            (Some(library), None) => Ok(Some(library)),
+            _ => Err(format!(
+                "split SDK has no unique runtime library for {owner}"
+            )),
+        }
+    }
+
+    pub(crate) fn patch_features(&self, owner: &str) -> Result<&[String], String> {
+        match self.patch_library(owner)? {
+            Some(library) => Ok(&library.features),
+            None => self.legacy_game_features(),
+        }
+    }
+
+    pub fn legacy_game_features(&self) -> Result<&[String], String> {
+        match self.source_layout {
+            SdkSourceLayout::Legacy => Ok(&self.game_features),
+            SdkSourceLayout::Split => {
+                Err(tr("This SDK requires per-library patch compilation.").to_string())
+            }
+        }
     }
 
     pub(crate) fn lower_crate_cfg(&self) -> Option<&BTreeMap<String, Vec<String>>> {
@@ -318,7 +379,38 @@ pub fn identity(dir: &Path) -> Result<Identity, String> {
     ];
     match found {
         found if found == supported => {
-            serde_json::from_str(&text).map_err(|e| unreadable_identity(&path, &e))
+            let identity: Identity =
+                serde_json::from_str(&text).map_err(|e| unreadable_identity(&path, &e))?;
+            match (&identity.source_layout, identity.runtime_role()) {
+                (SdkSourceLayout::Legacy, None) => {}
+                (SdkSourceLayout::Split, Some(role)) => {
+                    let side = match role.side {
+                        sunrise_mod_package::sdk::Side::Client => "client",
+                        sunrise_mod_package::sdk::Side::Server => "server",
+                    };
+                    if side != identity.side
+                        || role.libraries.is_empty()
+                        || role.libraries.values().any(|library| {
+                            library
+                                .aliases
+                                .values()
+                                .any(|name| !role.libraries.contains_key(name))
+                        })
+                    {
+                        return Err(format!(
+                            "{}: invalid {side} SDK runtime library facts",
+                            path.display()
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(format!(
+                        "{}: SDK source layout and runtime facts disagree",
+                        path.display()
+                    ));
+                }
+            }
+            Ok(identity)
         }
         found if found < supported => Err(trf(
             "SDK format {version} is too old for this tool (format {format}); the SDK is older than this tool: use the tool in the SDK's own release, or pin a newer SDK with cargo sunrise-mod pin",
@@ -420,7 +512,8 @@ pub fn needs_pinned_patch_tool(package: &Package, bundle: &crate::Bundle) -> Res
             .is_some_and(|(krate, _)| krate != "sunrise_client")
     });
     if copies_lower_crate {
-        Ok(identity(&package.runtime)?.lower_crate_cfg().is_none())
+        let sdk = identity(&package.runtime)?;
+        Ok(sdk.runtime_role().is_none() && sdk.lower_crate_cfg().is_none())
     } else {
         Ok(false)
     }
@@ -457,6 +550,39 @@ pub fn library(deps: &Path, krate: &str) -> Result<PathBuf, String> {
         )),
         _ => Err(facade_refused(krate)),
     }
+}
+
+pub(crate) fn role_library(deps: &Path, fact: &RuntimeLibrary) -> Result<PathBuf, String> {
+    if fact.artifacts.is_empty() {
+        return library(deps, &fact.library);
+    }
+    let mut metadata = None;
+    for name in &fact.artifacts {
+        let path = Path::new(name);
+        if path.file_name().and_then(|name| name.to_str()) != Some(name.as_str()) {
+            return Err(format!("invalid SDK library artifact {name:?}"));
+        }
+        let file = deps.join(path);
+        if matches!(
+            path.extension().and_then(|ext| ext.to_str()),
+            Some("so" | "dll" | "dylib")
+        ) && file.is_file()
+        {
+            return Ok(file);
+        }
+        if path.extension().is_some_and(|ext| ext == "rmeta")
+            && file.is_file()
+            && metadata.replace(file).is_some()
+        {
+            return Err(facade_refused(&fact.library));
+        }
+    }
+    metadata.ok_or_else(|| {
+        format!(
+            "SDK runtime library {} has no packaged artifact",
+            fact.library
+        )
+    })
 }
 
 /// Both compiler routes link the same SDK-owned executable template, and the patch library, so `sunrise_mod_host`
@@ -1334,6 +1460,95 @@ pub fn runtime_libraries(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn role_facts_keep_aliases_and_features_separate_from_legacy_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        let format = sunrise_mod_package::sdk::PACKAGE_FORMAT;
+        let common = format!(
+            r#""package_format":{format},"commit":"fixture","side":"server","rustc":"fixture","target":"host","registry_lock":"version = 4","registry_patches":{{}},"native_links":[],"facade_crates":[],"slices":{{"api":[],"runtime":[]}}"#
+        );
+        let write = |fields: &str| {
+            fs::write(
+                dir.path().join(super::IDENTITY),
+                format!("{{{common},{fields}}}"),
+            )
+            .unwrap();
+        };
+        write(r#""game_features":["legacy"]"#);
+        let legacy = super::identity(dir.path()).unwrap();
+        assert_eq!(legacy.legacy_game_features().unwrap(), &["legacy"]);
+        assert!(legacy.runtime_role().is_none());
+
+        write(
+            r#""game_features":["shared-shell"],"source_layout":"split","runtime_role":{"side":"server","libraries":{
+                "common@0.1.0:fixture_common":{"package":"common","library":"fixture_common","features":["shared"],"aliases":{},"artifacts":["libfixture_common-role.rmeta"]},
+                "server@0.1.0:fixture_server":{"package":"server","library":"fixture_server","features":["headless"],"aliases":{"shared_loan":"common@0.1.0:fixture_common"}},
+                "sunrise-gameplay@0.1.0:sunrise_gameplay":{"package":"sunrise-gameplay","library":"sunrise_gameplay","features":[],"aliases":{},"artifacts":["libsunrise_gameplay-role.rmeta"]}
+            }}"#,
+        );
+        #[derive(serde::Deserialize)]
+        struct LegacyFeatureFields {
+            game_features: Vec<String>,
+        }
+        let written = fs::read(dir.path().join(super::IDENTITY)).unwrap();
+        let legacy_reader: LegacyFeatureFields = serde_json::from_slice(&written).unwrap();
+        let sdk = super::identity(dir.path()).unwrap();
+        assert_eq!(legacy_reader.game_features, ["shared-shell"]);
+        assert_eq!(sdk.game_features, legacy_reader.game_features);
+        assert!(sdk.legacy_game_features().is_err());
+        let role = sdk.runtime_role().unwrap();
+        assert_eq!(
+            role.libraries["server@0.1.0:fixture_server"].features,
+            ["headless"]
+        );
+        assert_eq!(
+            role.libraries["server@0.1.0:fixture_server"].aliases["shared_loan"],
+            "common@0.1.0:fixture_common"
+        );
+
+        assert_eq!(sdk.patch_features("server").unwrap(), ["headless"]);
+        assert_eq!(sdk.patch_features("common").unwrap(), ["shared"]);
+        assert!(sdk.patch_features("client").is_err());
+        let deps = dir.path().join("deps");
+        fs::create_dir(&deps).unwrap();
+        for name in [
+            "libsunrise_client.rmeta",
+            "libfixture_common-role.rmeta",
+            "libfixture_common-stale.rmeta",
+            "libsunrise_gameplay-role.rmeta",
+            "libsunrise_gameplay-stale.rmeta",
+        ] {
+            fs::write(deps.join(name), []).unwrap();
+        }
+        let externs = crate::patch::sdk_externs(dir.path(), &sdk, "server").unwrap();
+        assert_eq!(
+            externs["shared_loan"],
+            deps.join("libfixture_common-role.rmeta")
+        );
+        assert_eq!(
+            externs["sunrise_gameplay"],
+            deps.join("libsunrise_gameplay-role.rmeta")
+        );
+
+        write(r#""source_layout":"split","game_features":["legacy"]"#);
+        assert!(
+            super::identity(dir.path())
+                .err()
+                .unwrap()
+                .contains("runtime facts disagree")
+        );
+
+        write(
+            r#""source_layout":"split","game_features":[],"runtime_role":{"side":"client","libraries":{}}"#,
+        );
+        assert!(
+            super::identity(dir.path())
+                .err()
+                .unwrap()
+                .contains("invalid client SDK")
+        );
+    }
+
     #[test]
     fn an_outside_library_root_is_refused_before_writing_generated_source() {
         let work = tempfile::tempdir().unwrap();

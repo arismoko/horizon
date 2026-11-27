@@ -35,7 +35,7 @@ The six combat hooks (`living_incoming_damage`, `damage_pre`, `damage_post`, `li
         host = "hit",
         neoforge = "LivingDamageEvent.Pre",
         version = 5,
-        target = "sunrise_client::game::native_hooks::living_damage_pre::HitLevel<'_>::native_living_damage_pre"
+        target = "sunrise_gameplay_common::game::native_hooks::living_damage_pre::HitLevel<'_>::native_living_damage_pre"
     )]
     fn living_damage_pre(
         entity: i32,

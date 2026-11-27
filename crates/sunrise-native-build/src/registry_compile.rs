@@ -322,6 +322,8 @@ pub(super) fn stage_and_cargo(
     )?;
     if let Some(patch) = &patch {
         for name in &patch.names {
+            let owner = &patch.owners[name];
+            let game_features = sdk.patch_features(owner)?;
             let dir = patch.dir.join(name);
             let mut manifest = toml::toml! { [package] name = (name.clone()) version = "0.0.0" edition = "2024" [lib] path = "src/lib.rs" };
             let mut dependencies = toml::Table::new();
@@ -339,15 +341,13 @@ pub(super) fn stage_and_cargo(
                 );
             }
             manifest.insert("dependencies".into(), dependencies.into());
-            let features: toml::Table = sdk
-                .game_features()
+            let features: toml::Table = game_features
                 .iter()
                 .map(|feature| (feature.clone(), toml::Value::Array(Vec::new())))
                 .collect();
             manifest.insert("features".into(), features.into());
             fs::write(dir.join("Cargo.toml"), manifest.to_string()).map_err(|e| e.to_string())?;
-            let externs: BTreeMap<_, _> =
-                super::patch::sdk_externs(game, sdk)?.into_iter().collect();
+            let externs = super::patch::sdk_externs(game, sdk, owner)?;
             for (krate, path) in &externs {
                 prebuilt::refuse_closure_rlib("sunrise_patch", krate, path)?;
             }
@@ -369,7 +369,7 @@ pub(super) fn stage_and_cargo(
             members.push(relative.clone());
             wrapper_deps.insert(
                 name.clone(),
-                toml::toml! { path = (relative) features = (sdk.game_features().iter().cloned().map(toml::Value::String).collect::<Vec<_>>()) }.into(),
+                toml::toml! { path = (relative) features = (game_features.iter().cloned().map(toml::Value::String).collect::<Vec<_>>()) }.into(),
             );
         }
         // The tool's workspace files would make the crates a second workspace inside this one.

@@ -1,0 +1,21 @@
+#[cfg(feature = "client")]
+#[allow(unused_variables)]
+impl SideOps for crate::game::client_side::ClientState {
+    type Game<'g> = crate::game::ClientGame<'g>;
+
+    fn side_block_entity_nbt(game: &Self::Game<'_>, pos: [i32; 3]) -> Option<Tag> {
+        game.client_block_entity_nbt(pos)
+    }
+    fn side_send_chat_command(game: &mut Self::Game<'_>, command: &str) {
+        game.client_send_chat_command(command)
+    }
+    fn side_apply_item_splash(game: &mut Self::Game<'_>, splash: ItemSplash) {
+        game.client_apply_item_splash(splash)
+    }
+    fn side_level_min_y(game: &Self::Game<'_>) -> i32 {
+        game.client_level_min_y()
+    }
+}
+use sunrise_core::nbt::Tag;
+use sunrise_gameplay_common::game::side_ops::ui::SideOps;
+use sunrise_sim::entities::ItemSplash;

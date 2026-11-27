@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::label_tests::inventory_label_default_follows_image_height_not_inventory_slots lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::label_tests::inventory_label_default_follows_image_height_not_inventory_slots lib daily resources

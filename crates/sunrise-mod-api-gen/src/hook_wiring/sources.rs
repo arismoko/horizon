@@ -96,6 +96,10 @@ impl Build {
     pub(super) fn enabled(&self, attrs: &[syn::Attribute]) -> bool {
         self.permits(&cfg_conditions(attrs))
     }
+
+    pub(super) fn is_disabled(&self, atom: &str) -> bool {
+        self.values.get(atom) == Some(&false)
+    }
 }
 
 fn is_target_atom(atom: &str) -> bool {
@@ -106,10 +110,14 @@ type ModuleItems = Vec<(Vec<String>, Vec<Item>)>;
 
 const CRATES: &[(&str, &str)] = &[
     ("sunrise_client", ""),
+    ("sunrise_client_gameplay", ""),
+    ("sunrise_gameplay", ""),
+    ("sunrise_gameplay_common", ""),
     ("sunrise_client_lib", ""),
     ("sunrise_client_render", ""),
     ("sunrise_mod_render", ""),
     ("sunrise_mod_vocab", ""),
+    ("sunrise_sim", ""),
     ("sunrise_world", ""),
 ];
 
@@ -131,6 +139,10 @@ impl<'a> Sources<'a> {
     }
 
     pub(super) fn index<'s>(&'s mut self, build: &'s Build) -> Index<'s> {
+        self.binding_index(build, false)
+    }
+
+    pub(super) fn binding_index<'s>(&'s mut self, build: &'s Build, types: bool) -> Index<'s> {
         Index::new(self.root, &[], CRATES)
             .loading_functions(move |krate, path| {
                 let path = path.join("::");
@@ -141,6 +153,11 @@ impl<'a> Sources<'a> {
                     .filter_map(|item| match item {
                         Item::Fn(item) => Some(Item::Fn(item.clone())),
                         Item::Struct(item) => Some(Item::Struct(item.clone())),
+                        Item::Enum(_) | Item::Union(_) | Item::Type(_) | Item::Trait(_)
+                            if types =>
+                        {
+                            Some(item.clone())
+                        }
                         Item::Use(item) => Some(Item::Use(item.clone())),
                         Item::Mod(item) => Some(Item::Mod(syn::ItemMod {
                             vis: item.vis.clone(),
@@ -158,10 +175,39 @@ impl<'a> Sources<'a> {
             .filtering_items(move |item| match item {
                 Item::Fn(item) => build.enabled(&item.attrs),
                 Item::Struct(item) => build.enabled(&item.attrs),
+                Item::Enum(item) => build.enabled(&item.attrs),
+                Item::Union(item) => build.enabled(&item.attrs),
+                Item::Type(item) => build.enabled(&item.attrs),
+                Item::Trait(item) => build.enabled(&item.attrs),
                 Item::Use(item) => build.enabled(&item.attrs),
                 Item::Mod(item) => build.enabled(&item.attrs),
                 _ => true,
             })
+    }
+
+    pub(super) fn variants(&mut self, package: &str) -> Result<&[ModuleVariant], String> {
+        let root = self.root;
+        let parse = |path: &Path, text: &str| {
+            let parsed = if package == "sunrise_mod_vocab" {
+                syn::parse_file(&crate::exports::expand(root, text)?)
+            } else {
+                syn::parse_file(text)
+            };
+            parsed.map_err(|error| format!("{}: {error}", path.display()))
+        };
+        self.files
+            .entry(package.to_owned())
+            .or_insert_with(|| {
+                let (_, lib) = source::crate_root(root, package)?;
+                let dir = lib
+                    .parent()
+                    .expect("a library file has a folder")
+                    .to_owned();
+                walk_module_variants(package.to_owned(), lib, dir, false, false, parse)
+            })
+            .as_ref()
+            .map(Vec::as_slice)
+            .map_err(Clone::clone)
     }
 
     pub(super) fn items<'s>(
@@ -181,26 +227,14 @@ impl<'a> Sources<'a> {
                 };
                 parsed.map_err(|error| format!("{}: {error}", path.display()))
             };
-            let files = self.files.entry(package.to_owned()).or_insert_with(|| {
-                let (_, lib) = source::crate_root(root, package)?;
-                let dir = lib
-                    .parent()
-                    .expect("a library file has a folder")
-                    .to_owned();
-                walk_module_variants(package.to_owned(), lib, dir, false, false, parse)
-            });
+            let files = self.variants(package)?;
             let path = if module.is_empty() {
                 package.to_owned()
             } else {
                 format!("{package}::{module}")
             };
             let mut variants = Vec::new();
-            for variant in files
-                .as_ref()
-                .map_err(Clone::clone)?
-                .iter()
-                .filter(|v| v.file.module == path)
-            {
+            for variant in files.iter().filter(|v| v.file.module == path) {
                 let path = &variant.file.path;
                 let text = fs::read_to_string(path)
                     .map_err(|error| format!("{}: {error}", path.display()))?;

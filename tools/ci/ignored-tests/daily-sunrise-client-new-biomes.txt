@@ -1,1 +1,1 @@
-sunrise-client game::world_loading::tests::a_pack_biome_no_built_in_has_generates_in_the_overworld lib daily resources
+sunrise-gameplay game::server_side::world_loading::tests::a_pack_biome_no_built_in_has_generates_in_the_overworld lib daily resources

@@ -1,18 +1,18 @@
-ListOperation.Insert.apply	port	crates/sunrise-client/src/game/administration/commands/items.rs::list_operation	gap: minor: an offset past the end is clamped and a result over 256 entries is cut; vanilla returns the original list
-ListOperation.ReplaceSection.apply	port	crates/sunrise-client/src/game/administration/commands/items.rs::list_operation	gap: minor: an offset past the end is clamped and a result over 256 entries is cut; vanilla returns the original list
+ListOperation.Insert.apply	port	crates/sunrise-gameplay/src/game/administration/commands/items.rs::list_operation	gap: minor: an offset past the end is clamped and a result over 256 entries is cut; vanilla returns the original list
+ListOperation.ReplaceSection.apply	port	crates/sunrise-gameplay/src/game/administration/commands/items.rs::list_operation	gap: minor: an offset past the end is clamped and a result over 256 entries is cut; vanilla returns the original list
 ListOperation.StandAlone.codec	skip:java		codec
 SetNameFunction.getReferencedContextParams	skip:other		loot table validation only: the context params a function reads; no runtime effect
 SetNameFunction.createResolver	missing		minor: a set_name with an entity target keeps its raw text; vanilla resolves selectors and scores against the entity (loot.rs:1230 notes no table uses it)
 SetNameFunction.setName	skip:data		datagen builder for loot tables; Sunrise reads the loot JSON
 SetNameFunction.Target.component	port	crates/sunrise-world/src/loot.rs::Context::run	target becomes the component id minecraft:custom_name or minecraft:item_name
-ContextFloatProvider.getFloat	port	crates/sunrise-client-render/src/providers/evaluation.rs::Evaluation::cooking_fuel	non-finite or arithmetic failure uses zero for an existing furnace speed provider
-ContextFloatProvider.getFloatOrThrow	port	crates/sunrise-client/src/game/administration/commands/compute.rs::Game::provider_float	the non-finite throw is in Game::cmd_compute (compute.rs:119)
-floats/Power.getFloatUnsafe	port	crates/sunrise-client-render/src/providers/evaluation.rs::Op::apply	the "pow" arm; 0 to the power of 0 gives NaN as in vanilla
-ResolvableFloat.Reference.get	port	crates/sunrise-client-render/src/providers/evaluation.rs::Evaluation::cooking_fuel	furnace speed uses its field default when the registry key is absent
-ContextIntProvider.floatToIntSafe	inline	crates/sunrise-client-render/src/providers/evaluation.rs::Op::apply	the "from_float" arm rejects non-finite values and out-of-range results
-ContextIntProvider.longToIntSafe	inline	crates/sunrise-client-render/src/providers/evaluation.rs::Op::apply	the long_to_int closure checks the final narrowing to int
-ints/Power.getIntUnsafe	port	crates/sunrise-client-render/src/providers/evaluation.rs::Op::apply	the "pow" arm uses checked_pow; 0 to the power of 0 and negative exponents are errors
-ResolvableInt.Reference.get	port	crates/sunrise-client-render/src/providers/evaluation.rs::Evaluation::cooking_fuel	furnace burn time uses its field default when the registry key is absent
+ContextFloatProvider.getFloat	port	crates/sunrise-level/src/providers/evaluation.rs::Evaluation::cooking_fuel	non-finite or arithmetic failure uses zero for an existing furnace speed provider
+ContextFloatProvider.getFloatOrThrow	port	crates/sunrise-gameplay/src/game/administration/commands/compute.rs::Game::provider_float	the non-finite throw is in Game::cmd_compute (compute.rs:119)
+floats/Power.getFloatUnsafe	port	crates/sunrise-level/src/providers/evaluation.rs::Op::apply	the "pow" arm; 0 to the power of 0 gives NaN as in vanilla
+ResolvableFloat.Reference.get	port	crates/sunrise-level/src/providers/evaluation.rs::Evaluation::cooking_fuel	furnace speed uses its field default when the registry key is absent
+ContextIntProvider.floatToIntSafe	inline	crates/sunrise-level/src/providers/evaluation.rs::Op::apply	the "from_float" arm rejects non-finite values and out-of-range results
+ContextIntProvider.longToIntSafe	inline	crates/sunrise-level/src/providers/evaluation.rs::Op::apply	the long_to_int closure checks the final narrowing to int
+ints/Power.getIntUnsafe	port	crates/sunrise-level/src/providers/evaluation.rs::Op::apply	the "pow" arm uses checked_pow; 0 to the power of 0 and negative exponents are errors
+ResolvableInt.Reference.get	port	crates/sunrise-level/src/providers/evaluation.rs::Evaluation::cooking_fuel	furnace burn time uses its field default when the registry key is absent
 AABB.of	inline	crates/sunrise-core/src/bounding_box.rs::BoundingBox::intersects	the max+1 edge is folded into the inclusive compare; the 0.25 deflate and shape joins in JigsawPlacement are not reproduced
 AABB.unitCubeFromLowerCorner	port	crates/sunrise-core/src/geometry/mod.rs::Aabb::unit_cube	-
 AABB.encapsulatingFullBlocks	port	crates/sunrise-core/src/geometry/mod.rs::Aabb::encapsulating_blocks	-
@@ -77,29 +77,29 @@ VoxelShape.forAllBoxes	port	crates/sunrise-core/src/geometry/shape.rs::VoxelShap
 VoxelShape.toAabbs	port	crates/sunrise-core/src/geometry/shape.rs::VoxelShape::boxes	-
 VoxelShape.isCubeLike	port	crates/sunrise-core/src/geometry/shape/face.rs::VoxelShape::cube_like_along	gap: minor: one axis per call; the three-axis loop is not a separate fn
 VoxelShape.isCubeLikeAlong	port	crates/sunrise-core/src/geometry/shape/face.rs::VoxelShape::cube_like_along	-
-Objective.pack	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::pack	objectives are written inside the saved scoreboard
-PlayerTeam.pack	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::pack	teams are written inside the saved scoreboard
-PlayerTeam.setPlayerPrefix	port	crates/sunrise-client/src/scoreboard_cmd.rs::team_modify	the team.modify prefix path; the null-to-empty rule is not repeated here
-PlayerTeam.setPlayerSuffix	port	crates/sunrise-client/src/scoreboard_cmd.rs::team_modify	the team.modify suffix path
-PlayerTeam.packOptions	port	crates/sunrise-client/src/lan/scoreboard.rs::View::of	the friendly fire and see-invisible flags as the team options byte
-PlayerTeam.unpackOptions	port	crates/sunrise-client/src/game/network/remote/sync.rs::Game::remote_team	the two option bits are read from the team packet
-ScoreHolder.getFeedbackDisplayName	port	crates/sunrise-client/src/scoreboard_cmd.rs::Holder::named	gap: minor: the hover with the scoreboard name is set where a holder is built from an entity, not here
-ScoreHolder.forNameOnly	port	crates/sunrise-client/src/scoreboard_cmd.rs::Holder::named	gap: minor: "*" is not a wildcard holder; game/interface/scoreboard/mod.rs maps it to the player name
-Scoreboard.getOrCreatePlayerScore	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::score_mut	gap: minor: the read-only criteria check is in scoreboard_cmd.rs, not here
-Scoreboard.getPlayerScoreInfo	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::score	-
-Scoreboard.listPlayerScores	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::list_scores	-
-Scoreboard.resetAllPlayerScores	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::reset_all	-
-Scoreboard.resetSinglePlayerScore	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::reset_one	-
-Scoreboard.addPlayerTeam	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::add_team	-
-Scoreboard.removePlayerTeam	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::remove_team	-
-Scoreboard.packPlayerScores	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::pack	scores are written inside the saved scoreboard
-Scoreboard.loadPlayerScore	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::unpack	-
-Scoreboard.loadPlayerTeam	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::unpack	-
-Scoreboard.loadObjective	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::unpack	-
-Scoreboard.packDisplaySlots	port	crates/sunrise-client-core/src/scoreboard.rs::Scoreboard::pack	display slots are written inside the saved scoreboard
+Objective.pack	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::pack	objectives are written inside the saved scoreboard
+PlayerTeam.pack	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::pack	teams are written inside the saved scoreboard
+PlayerTeam.setPlayerPrefix	port	crates/sunrise-sim/src/scoreboard_cmd.rs::team_modify	the team.modify prefix path; the null-to-empty rule is not repeated here
+PlayerTeam.setPlayerSuffix	port	crates/sunrise-sim/src/scoreboard_cmd.rs::team_modify	the team.modify suffix path
+PlayerTeam.packOptions	port	crates/sunrise-sim/src/lan/scoreboard.rs::View::of	the friendly fire and see-invisible flags as the team options byte
+PlayerTeam.unpackOptions	port	crates/sunrise-client-gameplay/src/game/network/remote/sync_client.rs::Game::remote_team	the two option bits are read from the team packet
+ScoreHolder.getFeedbackDisplayName	port	crates/sunrise-sim/src/scoreboard_cmd.rs::Holder::named	gap: minor: the hover with the scoreboard name is set where a holder is built from an entity, not here
+ScoreHolder.forNameOnly	port	crates/sunrise-sim/src/scoreboard_cmd.rs::Holder::named	gap: minor: "*" is not a wildcard holder; game/interface/scoreboard/mod.rs maps it to the player name
+Scoreboard.getOrCreatePlayerScore	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::score_mut	gap: minor: the read-only criteria check is in scoreboard_cmd.rs, not here
+Scoreboard.getPlayerScoreInfo	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::score	-
+Scoreboard.listPlayerScores	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::list_scores	-
+Scoreboard.resetAllPlayerScores	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::reset_all	-
+Scoreboard.resetSinglePlayerScore	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::reset_one	-
+Scoreboard.addPlayerTeam	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::add_team	-
+Scoreboard.removePlayerTeam	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::remove_team	-
+Scoreboard.packPlayerScores	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::pack	scores are written inside the saved scoreboard
+Scoreboard.loadPlayerScore	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::unpack	-
+Scoreboard.loadPlayerTeam	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::unpack	-
+Scoreboard.loadObjective	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::unpack	-
+Scoreboard.packDisplaySlots	port	crates/sunrise-game-data/src/scoreboard.rs::Scoreboard::pack	display slots are written inside the saved scoreboard
 ObjectiveCriteria.registerForEveryTeamColor	skip:data		criteria registry; Sunrise resolves criteria names in criteria_by_name
 ObjectiveCriteria.registerCustom	skip:data		criteria registry; Sunrise resolves criteria names in criteria_by_name
-ObjectiveCriteria.getStat	port	crates/sunrise-client-core/src/scoreboard.rs::stat_criteria	-
+ObjectiveCriteria.getStat	port	crates/sunrise-game-data/src/scoreboard.rs::stat_criteria	-
 LevelTicks.addContainer	port	crates/sunrise-core/src/ticks/mod.rs::LevelTicks::add_chunk	-
 LevelTicks.removeContainer	port	crates/sunrise-core/src/ticks/mod.rs::LevelTicks::remove_chunk	-
 LevelTicks.collectTicks	port	crates/sunrise-core/src/ticks/mod.rs::LevelTicks::begin_tick	-
@@ -137,12 +137,12 @@ TrackedWaypoint.Vec3iWaypoint.yawAngleToCamera	port	crates/sunrise-client/src/lo
 TrackedWaypoint.Vec3iWaypoint.pitchDirectionToCamera	port	crates/sunrise-client/src/locator_bar.rs::View::pitch_direction	-
 Waypoint.addHideAttribute	skip:data		item property for the waypoint item, set in item registration
 Waypoint.Icon.hasData	missing		unsure: LivingEntity.java:798 tracks only entities whose icon has data; lan/waypoints.rs make() has no such gate
-WaypointTransmitter.EntityAzimuthConnection.isBroken	port	crates/sunrise-client/src/lan/waypoints.rs::Tick::broken	-
-WaypointTransmitter.EntityAzimuthConnection.connect	port	crates/sunrise-client/src/lan/waypoints.rs::Tick::connect	-
-WaypointTransmitter.EntityAzimuthConnection.update	port	crates/sunrise-client/src/lan/waypoints.rs::Tick::update	-
-WaypointTransmitter.EntityBlockConnection.connect	port	crates/sunrise-client/src/lan/waypoints.rs::Tick::connect	-
-WaypointTransmitter.EntityBlockConnection.update	port	crates/sunrise-client/src/lan/waypoints.rs::Tick::update	-
-WaypointTransmitter.EntityBlockConnection.isBroken	port	crates/sunrise-client/src/lan/waypoints.rs::Tick::broken	-
-WaypointTransmitter.EntityChunkConnection.connect	port	crates/sunrise-client/src/lan/waypoints.rs::Tick::connect	-
-WaypointTransmitter.EntityChunkConnection.update	port	crates/sunrise-client/src/lan/waypoints.rs::Tick::update	-
-WaypointTransmitter.EntityChunkConnection.isBroken	port	crates/sunrise-client/src/lan/waypoints.rs::Tick::broken	-
+WaypointTransmitter.EntityAzimuthConnection.isBroken	port	crates/sunrise-sim/src/lan/waypoints.rs::Tick::broken	-
+WaypointTransmitter.EntityAzimuthConnection.connect	port	crates/sunrise-sim/src/lan/waypoints.rs::Tick::connect	-
+WaypointTransmitter.EntityAzimuthConnection.update	port	crates/sunrise-sim/src/lan/waypoints.rs::Tick::update	-
+WaypointTransmitter.EntityBlockConnection.connect	port	crates/sunrise-sim/src/lan/waypoints.rs::Tick::connect	-
+WaypointTransmitter.EntityBlockConnection.update	port	crates/sunrise-sim/src/lan/waypoints.rs::Tick::update	-
+WaypointTransmitter.EntityBlockConnection.isBroken	port	crates/sunrise-sim/src/lan/waypoints.rs::Tick::broken	-
+WaypointTransmitter.EntityChunkConnection.connect	port	crates/sunrise-sim/src/lan/waypoints.rs::Tick::connect	-
+WaypointTransmitter.EntityChunkConnection.update	port	crates/sunrise-sim/src/lan/waypoints.rs::Tick::update	-
+WaypointTransmitter.EntityChunkConnection.isBroken	port	crates/sunrise-sim/src/lan/waypoints.rs::Tick::broken	-

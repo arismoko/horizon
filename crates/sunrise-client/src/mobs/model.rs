@@ -11,7 +11,7 @@ pub struct Polygon {
     pub cull_back: bool,
 }
 impl Polygon {
-    pub(super) fn vertex_normal(&self, pose: ModelNormals) -> [i8; 4] {
+    pub(crate) fn vertex_normal(&self, pose: ModelNormals) -> [i8; 4] {
         let n = pose.matrix * glam::Vec3::from_array(self.normal);
         let n = if pose.trusted {
             n
@@ -124,7 +124,7 @@ impl ModelNormals {
             zz - yy - xx + ww,
         ])
     }
-    pub(super) fn part(self, pose: [f32; 9]) -> Self {
+    pub(crate) fn part(self, pose: [f32; 9]) -> Self {
         self.part_rotated(pose, Self::rotation(pose[3], pose[4], pose[5]))
     }
     pub(super) fn part_rotated(mut self, pose: [f32; 9], rotation: glam::Mat3) -> Self {
@@ -142,7 +142,7 @@ pub struct Part {
     pub polygons: Vec<Polygon>,
     pub children: Vec<Part>,
     /// The model layer the tree was baked from (`minecraft:player#main`), on the root of a
-    /// layer read from `entity-models.json` ([`Part::parse_layer`]); None on its children and
+    /// layer read from `entity-models.json`; None on its children and
     /// on a model built another way. [`render::compile_part`](super::render::compile_part)
     /// and [`render::takes_part`](super::render::takes_part) are asked with it.
     pub layer: Option<std::sync::Arc<str>>,
@@ -151,7 +151,7 @@ impl Part {
     /// The model layer `key` (`minecraft:player#main`) of `entity-models.json`, as
     /// [`Part::parse`] bakes its root, recording the layer on it.
     #[cfg(test)]
-    pub(super) fn parse_layer(key: &str, v: &Value) -> Self {
+    pub(crate) fn parse_layer(key: &str, v: &Value) -> Self {
         let mut part = Self::parse("root", v);
         part.layer = Some(key.into());
         part
@@ -165,7 +165,7 @@ impl Part {
         Some(child)
     }
     /// Marks every polygon as drawn by a back-face-culling render type.
-    pub(super) fn set_cull_back(&mut self) {
+    pub(crate) fn set_cull_back(&mut self) {
         for poly in &mut self.polygons {
             poly.cull_back = true;
         }
@@ -173,6 +173,11 @@ impl Part {
             child.set_cull_back();
         }
     }
+    #[cfg(test)]
+    pub(crate) fn parse(name: &str, value: &Value) -> Self {
+        Self::decode(name, value.clone()).expect("valid test model part")
+    }
+
     pub(super) fn empty(name: &str) -> Self {
         Self {
             name: name.to_owned(),
@@ -183,12 +188,7 @@ impl Part {
         }
     }
 
-    #[cfg(test)]
-    pub(super) fn parse(name: &str, value: &Value) -> Self {
-        Self::decode(name, value.clone()).expect("valid test model part")
-    }
-
-    pub(super) fn decode(name: &str, value: Value) -> Result<Self, String> {
+    pub(crate) fn decode(name: &str, value: Value) -> Result<Self, String> {
         fn field<T: serde::de::DeserializeOwned>(
             fields: &mut serde_json::Map<String, Value>,
             key: &str,
@@ -262,5 +262,26 @@ impl Part {
             part.name.clear();
         }
         Ok(part)
+    }
+}
+
+impl super::anim::PosePart for Part {
+    fn part_name(&self) -> &str {
+        &self.name
+    }
+
+    fn bind_pose(&self) -> [f32; 9] {
+        self.pose
+    }
+
+    fn visit_parts(&self, f: &mut impl FnMut(&str, [f32; 9])) {
+        f(&self.name, self.pose);
+        for child in &self.children {
+            child.visit_parts(f);
+        }
+    }
+
+    fn part_identity(&self) -> usize {
+        self as *const Self as usize
     }
 }

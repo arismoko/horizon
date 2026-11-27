@@ -12,7 +12,7 @@ pub trait Hooks {
     /// world. The player's state is swapped in, so `host.players().acting_player()`,
     /// `PlayerRef::tell` and the item helpers reach them. On a server.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_food_level_changed",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_food_level_changed",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

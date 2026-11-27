@@ -1,2 +1,2 @@
-sunrise-client game::native_lifecycle::tests::due_tasks_run_only_for_enabled_owners_under_their_identity lib daily resources
-sunrise-client game::native_lifecycle::tests::panicking_scheduled_write_rolls_back_before_the_next_task lib daily resources
+sunrise-client cut_layout::game::server_side::native_lifecycle::tests::due_tasks_run_only_for_enabled_owners_under_their_identity lib daily resources
+sunrise-client cut_layout::game::server_side::native_lifecycle::tests::panicking_scheduled_write_rolls_back_before_the_next_task lib daily resources

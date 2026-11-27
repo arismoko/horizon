@@ -39,11 +39,11 @@ def main():
     sources = lab.ROOT / "mods/sunrise/src/test/java/dev/sunriselab/parity"
     tested_paths = [Path(__file__), sources / "ParityData.java", sources / "VanillaBrewingFuelOracle.java",
                     lab.ROOT / "crates/sunrise-client-render/examples/brewing_fuel_probe.rs",
-                    lab.ROOT / "crates/sunrise-client-render/src/brewing.rs",
-                    lab.ROOT / "crates/sunrise-client-render/src/providers.rs",
+                    lab.ROOT / "crates/sunrise-level/src/brewing.rs",
+                    lab.ROOT / "crates/sunrise-level/src/providers.rs",
                     lab.ROOT / "crates/sunrise-items/src/items.rs",
-                    lab.ROOT / "crates/sunrise-client/src/menu.rs",
-                    lab.ROOT / "crates/sunrise-client/src/game/blocks/machines/mod.rs",
+                    lab.ROOT / "crates/sunrise-sim/src/menu.rs",
+                    lab.ROOT / "crates/sunrise-gameplay/src/game/blocks/machines/mod.rs",
                     lab.ROOT / "crates/sunrise-items/src/item_data.rs", lab.ROOT / "Cargo.lock"]
     tested_sources = base.source_hashes(tested_paths)
     tested_fixtures = base.source_hashes([inputs])

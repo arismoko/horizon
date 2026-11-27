@@ -335,33 +335,7 @@ fn is_potion_item(item: &str) -> bool {
     item.ends_with("potion") || item == "minecraft:tipped_arrow"
 }
 
-/// `PlayerHeadItem.getName`: a player head whose profile has a name is titled
-/// after it.
-pub struct PlayerHeadName(String);
-
-impl PlayerHeadName {
-    /// The title as `getName`'s `%s's Head` translation.
-    pub fn title(&self, translate: &dyn Fn(&str) -> Option<String>) -> String {
-        translate("block.minecraft.player_head.named")
-            .unwrap_or_else(|| "%s's Head".to_owned())
-            .replacen("%s", &self.0, 1)
-    }
-    /// The title as a component, for command feedback.
-    pub fn text(&self) -> crate::text::Text {
-        crate::text::Text::from(serde_json::json!({
-            "translate": "block.minecraft.player_head.named",
-            "with": [&self.0],
-        }))
-    }
-}
-
-/// The name in a player head's `minecraft:profile`, if it has one.
-pub fn player_head_name(stack: &ItemStack) -> Option<PlayerHeadName> {
-    if &*stack.item != "minecraft:player_head" {
-        return None;
-    }
-    Some(PlayerHeadName(stack.profile_name()?))
-}
+pub use crate::stations::{PlayerHeadName, player_head_name, rarity};
 
 /// The name line of `stack`, as the item's translation or, for potions and
 /// smithing templates, its name component gives it.
@@ -411,35 +385,6 @@ pub fn name_line(stack: &ItemStack, translate: &dyn Fn(&str) -> Option<String>) 
         .or_else(|| translate(&format!("item.{id}")))
         .or_else(|| translate(&format!("block.{id}")))
         .unwrap_or_else(|| path.replace('_', " "))
-}
-
-/// ItemStack.getRarity: the stack's `minecraft:rarity` (the item's default
-/// unless a command or server set it; the ominous banner's uncommon), then
-/// the enchantment upgrade.
-pub fn rarity<'a>(stack: &ItemStack, default: &'a str) -> &'a str {
-    let set = match stack.data().and_then(|d| d.other("minecraft:rarity")) {
-        Some(Tag::String(s)) => match &*s.to_string_lossy() {
-            "common" => Some("common"),
-            "uncommon" => Some("uncommon"),
-            "rare" => Some("rare"),
-            "epic" => Some("epic"),
-            _ => None,
-        },
-        _ => None,
-    };
-    let rarity = if let Some(set) = set {
-        set
-    } else if stack
-        .data()
-        .is_some_and(|data| data.other("!minecraft:rarity").is_some())
-    {
-        "common"
-    } else if stack.data().is_some_and(|data| data.ominous_banner) {
-        "uncommon"
-    } else {
-        default
-    };
-    sunrise_items::properties::ItemRarity::of(rarity, !stack.enchantments().is_empty()).as_str()
 }
 
 /// `BundleItem.getTooltipImage`: select a stack's bundle tooltip only when it carries
@@ -1875,7 +1820,7 @@ mod tests {
     #[test]
     fn a_potions_tooltip_lists_its_custom_effects_and_their_modifiers() {
         use sunrise_core::nbt::Tag;
-        let _scope = crate::mobs::ai::effect_modifier_tests::register_test_mod_effects();
+        let _scope = sunrise_game_data::potions::register_test_mod_effects();
         let translate = |key: &str| {
             Some(
                 match key {
@@ -3170,5 +3115,12 @@ mod stack_modifier_tests {
             )>::new())),
         );
         assert!(sword.default_attribute_modifiers_or(&[]).is_empty());
+    }
+
+    #[test]
+    fn a_raid_banner_keeps_its_tooltip_display_across_the_wire() {
+        let (renamed, hidden) = crate::item_sync::raid_banner_round_trip_fixture();
+        assert!(!super::tooltip_display(&renamed).shows("minecraft:banner_patterns"));
+        assert!(!super::tooltip_display(&hidden).shows("minecraft:banner_patterns"));
     }
 }

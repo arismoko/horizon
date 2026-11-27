@@ -7,7 +7,7 @@
 //! server's guests, so the groups stay as few as those, and only while timing is recorded.
 
 use std::sync::Arc;
-use sunrise_client::lan::hub::HostEvent;
+use sunrise_sim::lan::hub::HostEvent;
 
 pub struct Burst<W, D> {
     pub kind: &'static str,

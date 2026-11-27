@@ -1,3 +1,3 @@
-sunrise-client game::server_travel::tests::a_joining_player_keeps_its_saved_portal_cooldown lib daily child-process
-sunrise-client game::server_travel::tests::a_travel_listener_reads_the_cooldown_the_portal_just_set lib daily child-process
-sunrise-client game::server_travel::tests::guest_portal_entry_uses_body_sleep_and_vehicle lib daily child-process
+sunrise-client cut_layout::game::server_side::server_travel::tests::a_joining_player_keeps_its_saved_portal_cooldown lib daily child-process
+sunrise-client cut_layout::game::server_side::server_travel::tests::a_travel_listener_reads_the_cooldown_the_portal_just_set lib daily child-process
+sunrise-client cut_layout::game::server_side::server_travel::tests::guest_portal_entry_uses_body_sleep_and_vehicle lib daily child-process

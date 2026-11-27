@@ -1,4 +1,4 @@
 # Owner-bound native config lifecycle (debt P3-25) over a real game fixture.
-sunrise-client game::native_configs::storage_tests::world_bulk_files_survive_save_reload_backup_and_world_deletion lib daily child-process
-sunrise-client game::native_configs::tests::an_initial_callback_that_edits_the_next_file_is_seen_by_it lib daily child-process
-sunrise-client game::native_configs::tests::owner_bound_config_lifecycle_isolates_owners_refusals_and_panics lib daily resources
+sunrise-client cut_layout::game::server_side::native_config_files::tests::world_bulk_files_survive_save_reload_backup_and_world_deletion lib daily child-process
+sunrise-client-gameplay game::client_side::native_configs_lifecycle_tests_client::an_initial_callback_that_edits_the_next_file_is_seen_by_it lib daily child-process
+sunrise-gameplay game::native_configs::lifecycle_tests_server::owner_bound_config_lifecycle_isolates_owners_refusals_and_panics lib daily resources

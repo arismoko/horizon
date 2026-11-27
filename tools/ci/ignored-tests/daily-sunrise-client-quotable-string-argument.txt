@@ -1,1 +1,1 @@
-sunrise-client game::native_command_completion_tests::a_quotable_argument_reads_a_quoted_phrase_mid_command_and_goes_out_as_a_quotable_string lib daily child-process
+sunrise-client cut_layout::game::native_command_completion_tests::a_quotable_argument_reads_a_quoted_phrase_mid_command_and_goes_out_as_a_quotable_string lib daily child-process

@@ -16,7 +16,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         out = "answer",
-        target = "sunrise_client::game::native_hooks::fence_gate_in_wall::GameLevel<'_>::native_fence_gate_in_wall",
+        target = "sunrise_gameplay_common::game::native_hooks::fence_gate_in_wall::GameLevel<'_>::native_fence_gate_in_wall",
         neoforge = "none (vanilla FenceGateBlock.isWall)"
     )]
     fn fence_gate_in_wall(state: BlockState, answer: &mut Option<bool>);

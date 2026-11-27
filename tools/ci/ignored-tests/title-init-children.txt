@@ -1,2 +1,2 @@
 # The title screen's own widgets as screen_init_post children (#1167).
-sunrise-client game::native_hooks::base::screen_widgets_tests::title_init_post_lists_and_removes_the_title_screens_own_widgets lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::title_init_post_lists_and_removes_the_title_screens_own_widgets lib daily child-process

@@ -1,1 +1,1 @@
-sunrise-client game::item_contact_tests::step_on_can_hurt_only_living_bodies_on_the_same_block lib daily resources
+sunrise-client cut_layout::game::server_side::item_contact_tests::step_on_can_hurt_only_living_bodies_on_the_same_block lib daily resources

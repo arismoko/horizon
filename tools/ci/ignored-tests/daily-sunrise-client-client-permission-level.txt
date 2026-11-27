@@ -1,1 +1,1 @@
-sunrise-client game::native_client_session::tests::the_local_players_permission_level_follows_the_servers_events lib daily resources
+sunrise-client-gameplay game::client_side::native_client_session::tests::the_local_players_permission_level_follows_the_servers_events lib daily resources

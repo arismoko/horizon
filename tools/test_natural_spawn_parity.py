@@ -560,9 +560,9 @@ def main():
     resources = lab.RESOURCES
     oracle = lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaNaturalSpawnOracle.java'
     sources = [oracle, Path(__file__), lab.ROOT / 'crates/sunrise-client/examples/probe/natural_spawn_fixture.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/spawn_selection.rs',
-               lab.ROOT / 'crates/sunrise-client-render/src/biome.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/spawn_rules.rs']
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/spawn_selection.rs',
+               lab.ROOT / 'crates/sunrise-level/src/biome.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/spawn_rules.rs']
     tested = base.source_hashes(sources)
     inputs = build / 'inputs.txt'
     cases = corpus()
