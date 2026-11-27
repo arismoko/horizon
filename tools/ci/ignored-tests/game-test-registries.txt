@@ -1,3 +1,3 @@
 # Game test registry (test_environment, test_instance) daily tests (README.md). Rows: PACKAGE TEST TARGET daily REASON.
-sunrise-client game::world_test_def_tests::a_pack_test_instance_runs_and_applies_its_pack_test_environment lib daily resources
-sunrise-client game::world_test_def_tests::a_malformed_test_instance_refuses_world_open_naming_the_file lib daily resources
+sunrise-client cut_layout::game::server_side::world_test_def_tests::a_pack_test_instance_runs_and_applies_its_pack_test_environment lib daily resources
+sunrise-client cut_layout::game::server_side::world_test_def_tests::a_malformed_test_instance_refuses_world_open_naming_the_file lib daily resources

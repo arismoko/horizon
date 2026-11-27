@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_renderers::tests::entity_renderer_samples_the_elements_world_cell_but_a_preview_stays_fixed lib daily child-process
+sunrise-client-gameplay game::client_side::native_entity_renderers::tests::entity_renderer_samples_the_elements_world_cell_but_a_preview_stays_fixed lib daily child-process

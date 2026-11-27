@@ -1,2 +1,2 @@
 # Restricted level support and sky queries need prepared resources.
-sunrise-client game::native_small_reads_tests::restricted_level_support_and_sky_reads lib daily resources
+sunrise-client cut_layout::game::client_side::native_small_reads_tests::restricted_level_support_and_sky_reads lib daily resources

@@ -1,1 +1,1 @@
-sunrise-client game::inline_loot_reference_tests::pack_functions_admit_inline_references_on_first_open lib daily resources
+sunrise-client cut_layout::game::server_side::inline_loot_reference_tests::pack_functions_admit_inline_references_on_first_open lib daily resources

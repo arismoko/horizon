@@ -2,7 +2,7 @@
 """Move the existing augmenting-path recipe picker into its own module."""
 from pathlib import Path
 root = Path(__file__).resolve().parents[1]
-p = root / 'crates/sunrise-client/src/menu/place.rs'
+p = root / 'crates/sunrise-sim/src/menu/place.rs'
 s = p.read_text()
 a = s.index('/// `StackedContents.RecipePicker`')
 b = s.index('/// `RecipeBookMenu.PostPlaceAction`', a)

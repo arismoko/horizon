@@ -15,7 +15,7 @@ pub trait Hooks {
         out = "can",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::rails::GameLevel<'_>::native_rail_can_make_slopes",
+        target = "sunrise_gameplay_common::game::native_hooks::rails::GameLevel<'_>::native_rail_can_make_slopes",
         neoforge = "IBaseRailBlockExtension.canMakeSlopes"
     )]
     fn rail_can_make_slopes(

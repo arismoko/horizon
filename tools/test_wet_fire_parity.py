@@ -57,8 +57,8 @@ def main():
     classes.mkdir(exist_ok=True)
     dependencies = os.pathsep.join(map(str, [jars["server"], *libraries]))
     source = lab.ROOT / "mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaWetFireOracle.java"
-    sources = [Path(__file__), source, lab.ROOT / "crates/sunrise-client/src/mobs/ai.rs",
-               lab.ROOT / "crates/sunrise-client/src/mobs/wet_fire_tests.rs"]
+    sources = [Path(__file__), source, lab.ROOT / "crates/sunrise-sim/src/mobs/ai.rs",
+               lab.ROOT / "crates/sunrise-sim/src/mobs/wet_fire_tests.rs"]
     hashes = base.source_hashes(sources)
     oracle_harness.run_logged(["javac", "--release", lock["minecraft"]["java_major"],
         "-proc:none", "-sourcepath", lab.ROOT / "mods/sunrise/src/test/java", "-cp",

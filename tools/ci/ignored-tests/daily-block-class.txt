@@ -1,1 +1,1 @@
-sunrise-client game::native_block_class_tests::a_block_is_of_the_vanilla_classes_its_chain_names lib daily resources
+sunrise-client cut_layout::game::native_block_class_tests::a_block_is_of_the_vanilla_classes_its_chain_names lib daily resources

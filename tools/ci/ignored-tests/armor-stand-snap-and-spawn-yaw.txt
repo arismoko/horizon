@@ -1,3 +1,3 @@
-sunrise-client game::lan_entities::tests::a_stands_add_entity_packet_keeps_head_yaw_separate_from_view_yaw lib daily child-process
-sunrise-client game::lan_entities::tests::stand_rotation_commands_update_the_head_for_an_already_paired_viewer lib daily child-process
-sunrise-client game::remote::tests::movement_snap_tests::a_stand_position_snap_keeps_the_first_draws_body_yaw lib daily child-process
+sunrise-gameplay game::server_side::lan_entities::tests::a_stands_add_entity_packet_keeps_head_yaw_separate_from_view_yaw lib daily child-process
+sunrise-gameplay game::server_side::lan_entities::tests::stand_rotation_commands_update_the_head_for_an_already_paired_viewer lib daily child-process
+sunrise-client cut_layout::game::remote::tests::movement_snap_tests::a_stand_position_snap_keeps_the_first_draws_body_yaw lib daily child-process

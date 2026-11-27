@@ -1,0 +1,4 @@
+# Role and remote-session dispatch for client/server ticking and startup handoff.
+sunrise-client-gameplay game::client_side::client_tick_steps::tests::client_redraw_without_title_or_remote_fails_loudly lib daily resources
+sunrise-client-gameplay game::client_side::client_tick_steps::tests::startup_menu_handoff_without_title_opens_title_on_disconnected_client lib daily resources
+sunrise-client-gameplay game::client_side::client_tick_steps::tests::tick_body_dispatches_by_role_and_remote lib daily resources

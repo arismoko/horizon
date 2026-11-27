@@ -1,1 +1,1 @@
-sunrise-client game::remote::tests::main_hand_tests::a_client_receives_a_mannequins_main_hand lib daily game-boot
+sunrise-client cut_layout::game::remote::tests::main_hand_tests::a_client_receives_a_mannequins_main_hand lib daily game-boot

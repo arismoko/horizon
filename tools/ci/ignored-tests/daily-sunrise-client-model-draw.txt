@@ -1,4 +1,4 @@
 # Model draw colour, hidden faces and the translucent copies (#3120, #3280) need prepared resources.
-sunrise-client game::native_custom_geometry::tests::a_block_state_resolves_once_and_an_unknown_state_is_refused lib daily resources
-sunrise-client game::native_custom_geometry::tests::an_opaque_copy_with_a_colour_or_hidden_faces_is_baked_on_the_cpu lib daily resources
-sunrise-client game::native_custom_geometry::tests::translucent_and_hidden_copies_take_the_cpu_routes lib daily resources
+sunrise-client-gameplay game::client_side::native_custom_geometry::tests::a_block_state_resolves_once_and_an_unknown_state_is_refused lib daily resources
+sunrise-client-gameplay game::client_side::native_custom_geometry::tests::an_opaque_copy_with_a_colour_or_hidden_faces_is_baked_on_the_cpu lib daily resources
+sunrise-client-gameplay game::client_side::native_custom_geometry::tests::translucent_and_hidden_copies_take_the_cpu_routes lib daily resources

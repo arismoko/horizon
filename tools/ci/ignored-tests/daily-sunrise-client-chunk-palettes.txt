@@ -1,1 +1,1 @@
-sunrise-client game::native_chunk_queries::tests::sections_with_a_block_follow_the_palettes lib daily resources
+sunrise-client cut_layout::game::server_side::native_chunk_queries::tests::sections_with_a_block_follow_the_palettes lib daily resources

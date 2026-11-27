@@ -5,7 +5,7 @@ use super::{
     Dispatcher, RegistryId,
     args::{ArgType, Resource, integer},
 };
-use sunrise_client_core::gamerules::{MINECART_IMPROVEMENTS, RuleRegistry, Value, rule_registry};
+use sunrise_game_data::gamerules::{MINECART_IMPROVEMENTS, RuleRegistry, Value, rule_registry};
 
 /// Permission levels (Commands.LEVEL_*).
 pub const ALL: u8 = 0;

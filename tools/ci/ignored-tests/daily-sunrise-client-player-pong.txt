@@ -1,1 +1,1 @@
-sunrise-client game::play_ping_tests::player_pong_observes_order_and_sends_typed_ping lib daily child-process
+sunrise-client cut_layout::game::server_side::play_ping_tests::player_pong_observes_order_and_sends_typed_ping lib daily child-process

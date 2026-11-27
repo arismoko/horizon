@@ -1,1 +1,1 @@
-sunrise-client-lib menu::place::custom::tests::furnace_preflights_only_the_input_and_clears_the_output lib daily resources
+sunrise-sim menu::place::custom::tests::furnace_preflights_only_the_input_and_clears_the_output lib daily resources

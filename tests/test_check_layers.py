@@ -1,12 +1,12 @@
 import io
 import json
-import os
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 from unittest import mock
 
+from tests.git_fixture import isolated_git_env
 from tools import check_layers, merge_base
 
 CONFIG = {
@@ -83,6 +83,56 @@ class CheckLayersTests(unittest.TestCase):
         problems, _ = run(package("gameplay", "cosmetics"), allowed=["gameplay -> cosmetics"], base=base,
                           crates={"gameplay": "engine"})
         self.assertEqual(problems, [])
+
+    def test_only_witnessed_transfers_keep_their_exception(self):
+        old, new = "sunrise-client", "sunrise-client-gameplay"
+        source = f"{old} -> sunrise-friends"
+        dest = f"{new} -> sunrise-friends"
+        old_telemetry = f"{old} -> sunrise-telemetry"
+        new_telemetry = f"{new} -> sunrise-telemetry"
+        layers = dict(CONFIG["crates"], **{old: "engine", new: "engine",
+                                          "sunrise-friends": "sunrise", "sunrise-telemetry": "sunrise"})
+        graph = {old: {"sunrise-telemetry"}, new: {"sunrise-friends", "sunrise-telemetry"}}
+        base = dict(CONFIG, crates=layers, allowed=[source, old_telemetry])
+        config = dict(CONFIG, crates=layers, allowed=[dest, old_telemetry, new_telemetry])
+        self.assertEqual(check_layers.check(config, graph, base, {dest}), ([], []))
+        self.assertIn("added to 'allowed'", check_layers.check(config, graph, base)[0][0])
+        self.assertIn("added to 'allowed'", check_layers.check(
+            config, graph, dict(base, allowed=[old_telemetry]), {dest})[0][0])
+        graph[old].add("sunrise-friends")
+        copied = dict(config, allowed=config["allowed"] + [source])
+        self.assertIn("added to 'allowed'", check_layers.check(copied, graph, base, {dest})[0][0])
+
+    def test_a_moved_client_exception_may_become_optional(self):
+        old, new = "sunrise-client", "sunrise-client-gameplay"
+        for dep in ("sunrise-optifine", "sunrise-theme"):
+            with self.subTest(dep=dep):
+                source, dest = f"{old} -> {dep}", f"{new} -> {dep}"
+                layers = dict(CONFIG["crates"], **{old: "engine", new: "engine", dep: "platform"})
+                base = dict(CONFIG, crates=layers, allowed=[source])
+                config = dict(CONFIG, crates=layers, optional=[{"edge": dest, "reason": "client-only"}])
+                graph = {old: set(), new: {dep}}
+                self.assertEqual(check_layers.check(config, graph, base, {dest}), ([], []))
+                self.assertIn("added to 'optional'", check_layers.check(
+                    config, graph, dict(base, allowed=[]), {dest})[0][0])
+                self.assertTrue(any("no longer optional" in problem for problem in
+                                    check_layers.check(config, graph, base)[0]))
+                for still_has_dependency, still_has_exception in ((True, False), (False, True)):
+                    current = dict(config, allowed=[source] if still_has_exception else [])
+                    graph[old] = {dep} if still_has_dependency else set()
+                    problems, _ = check_layers.check(current, graph, base, {dest})
+                    self.assertTrue(any("added to 'optional'" in problem for problem in problems))
+
+    def test_a_portable_gameplay_generator_edge_must_be_build_only(self):
+        owner, generator = "sunrise-gameplay-common", "sunrise-mod-api-gen"
+        config = dict(CONFIG, crates={owner: "engine", generator: "engine"},
+                      portable={"crates": [owner, generator], "forbidden": ["wgpu"]})
+        self.assertEqual(check_layers.portable(config, [package(owner, (generator, "build"))]), [])
+        self.assertEqual(check_layers.portable(config, [package(owner, generator)]),
+                         [f"{owner} -> {generator}: portable gameplay may use the generator only as a build dependency"])
+        gpu = {"name": "wgpu", "kind": None, "path": None}
+        self.assertIn("takes no window, GPU", check_layers.portable(
+            config, [package(owner, (generator, "build")), {"name": generator, "dependencies": [gpu]}])[0])
 
     def test_a_new_dependency_target_excuses_nothing(self):
         base = {"crates": CONFIG["crates"], "allowed": []}
@@ -250,8 +300,8 @@ class RollupTests(unittest.TestCase):
         """A rollup merges pull request heads main lacks; a crate one of them adds gets its layer like any other."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
-                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+            env = isolated_git_env(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
 
             def run(*args):
                 return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env,
@@ -283,8 +333,8 @@ class PullRequestMergeTests(unittest.TestCase):
         holds it, so the pull request isn't charged with it; the event's old base does not."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
-                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+            env = isolated_git_env(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
 
             def run(*args):
                 return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env,
@@ -320,8 +370,8 @@ class BaseConfigTests(unittest.TestCase):
         """An entry main dropped after the branch left it is still on the branch's base: the branch didn't add it."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
-                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+            env = isolated_git_env(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
 
             def run(*args):
                 subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env)

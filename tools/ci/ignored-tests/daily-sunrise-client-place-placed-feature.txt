@@ -1,4 +1,4 @@
 # A placed feature placed by a native mod.
-sunrise-client game::native_place_feature_tests::a_biome_filter_refuses_only_when_reached lib daily resources
-sunrise-client game::native_place_feature_tests::a_placed_feature_id_is_checked_in_its_own_registry lib daily resources
-sunrise-client game::native_place_feature_tests::a_placed_feature_runs_its_modifiers_before_the_feature lib daily resources
+sunrise-client cut_layout::game::native_place_feature_tests::a_biome_filter_refuses_only_when_reached lib daily resources
+sunrise-client cut_layout::game::native_place_feature_tests::a_placed_feature_id_is_checked_in_its_own_registry lib daily resources
+sunrise-client cut_layout::game::native_place_feature_tests::a_placed_feature_runs_its_modifiers_before_the_feature lib daily resources

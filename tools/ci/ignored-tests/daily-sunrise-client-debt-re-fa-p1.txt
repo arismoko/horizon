@@ -1,2 +1,2 @@
-sunrise-client game::mod_menu_decisions_tests::a_panicking_live_quick_move_rolls_back_and_disables_only_its_callback lib daily child-process
-sunrise-client game::slot_rules_tests::a_failing_slot_rule_does_not_override_or_disable_the_other_parts lib daily resources
+sunrise-client cut_layout::game::client_side::mod_menu_decisions_tests::a_panicking_live_quick_move_rolls_back_and_disables_only_its_callback lib daily child-process
+sunrise-gameplay game::slot_rules_tests::a_failing_slot_rule_does_not_override_or_disable_the_other_parts lib daily resources

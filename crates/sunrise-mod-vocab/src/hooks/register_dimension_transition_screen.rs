@@ -21,6 +21,7 @@ death respawn do not select factories when they open a new loading screen. Retur
 reason and optional smoothed integrated-server progress. The existing tracker still governs
 readiness, timeout and closing."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_dimension_transition_screen::native_register_dimension_transition_screen",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

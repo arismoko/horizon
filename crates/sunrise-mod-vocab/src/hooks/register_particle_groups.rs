@@ -48,6 +48,7 @@ resulting engine-owned definitions. A spawn, a tick and a draw use the resolved 
 handle, look nothing up by group name and scan no mod. Live provider-driven particles are
 dropped when resources reload, in a group as in the built-in one."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_particle_groups::native_register_particle_groups",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

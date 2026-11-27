@@ -1,1 +1,1 @@
-sunrise-client game::native_item_places::tests::player_slot_extract_matches_resident_damage_without_max_damage lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::player_slot_extract_matches_resident_damage_without_max_damage lib daily resources

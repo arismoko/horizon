@@ -17,7 +17,7 @@ pub trait Hooks {
     /// the owner's own profile when that fetch answers later. Once for each login, on a server
     /// opened to players.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_login_profile",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_login_profile",
         dispatch = "flat",
         side = "server",
         contract = "collect",

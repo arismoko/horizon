@@ -1,6 +1,6 @@
-sunrise-client game::remote::tests::play_bundle_tests::a_bundle_applies_its_column_and_orders_main_network_and_close lib daily resources
-sunrise-client game::remote::tests::play_bundle_tests::a_bundled_transfer_starts_the_next_session_before_later_members lib daily resources
-sunrise-client game::remote::tests::play_bundle_tests::a_parked_main_payload_does_not_retire_the_bundle_listener lib daily resources
-sunrise-client game::remote::tests::play_bundle_tests::a_post_disconnect_droppable_reply_cannot_join_the_writer_drain lib daily resources
-sunrise-client game::remote::tests::play_bundle_tests::a_second_admitted_standalone_transfer_keeps_the_first_opening lib daily child-process
-sunrise-client game::remote::tests::play_bundle_tests::standalone_transfer_keeps_its_earlier_cookie_even_after_source_eof lib daily child-process
+sunrise-client cut_layout::game::remote::tests::play_bundle_tests::a_bundle_applies_its_column_and_orders_main_network_and_close lib daily resources
+sunrise-client cut_layout::game::remote::tests::play_bundle_tests::a_bundled_transfer_starts_the_next_session_before_later_members lib daily resources
+sunrise-client cut_layout::game::remote::tests::play_bundle_tests::a_parked_main_payload_does_not_retire_the_bundle_listener lib daily resources
+sunrise-client cut_layout::game::remote::tests::play_bundle_tests::a_post_disconnect_droppable_reply_cannot_join_the_writer_drain lib daily resources
+sunrise-client cut_layout::game::remote::tests::play_bundle_tests::a_second_admitted_standalone_transfer_keeps_the_first_opening lib daily child-process
+sunrise-client cut_layout::game::remote::tests::play_bundle_tests::standalone_transfer_keeps_its_earlier_cookie_even_after_source_eof lib daily child-process

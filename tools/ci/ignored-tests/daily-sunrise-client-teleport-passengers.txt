@@ -1,1 +1,1 @@
-sunrise-client game::commands::teleport_player_rider_tests::teleport_rider_tests::a_vehicle_carries_a_two_level_mob_stack_without_a_seating_tick lib daily resources
+sunrise-client cut_layout::game::server_side::commands::teleport_player_rider_tests::teleport_rider_tests::a_vehicle_carries_a_two_level_mob_stack_without_a_seating_tick lib daily resources

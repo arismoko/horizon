@@ -1,5 +1,5 @@
 # Decoded server container close regressions (prepared client resources).
-sunrise-client game::remote::tests::client_close_tests::server_close_keeps_shown_native_screen_alive_for_closing_and_veto lib daily resources
-sunrise-client game::remote::tests::client_close_tests::server_close_notifies_the_outgoing_receiver_and_only_opens_real_screens lib daily resources
-sunrise-client game::remote::tests::client_close_tests::server_close_restores_inventory_under_chat_without_echo lib daily resources
-sunrise-client game::remote::tests::client_close_tests::server_close_runs_sign_and_inventory_removal_without_echo lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::client_close_tests::server_close_keeps_shown_native_screen_alive_for_closing_and_veto lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::client_close_tests::server_close_notifies_the_outgoing_receiver_and_only_opens_real_screens lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::client_close_tests::server_close_restores_inventory_under_chat_without_echo lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::client_close_tests::server_close_runs_sign_and_inventory_removal_without_echo lib daily resources

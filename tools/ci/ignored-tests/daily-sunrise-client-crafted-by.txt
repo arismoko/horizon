@@ -1,4 +1,4 @@
-sunrise-client game::native_item_places::tests::crafted_by_map_reservations_follow_nested_commit_and_abort lib daily resources # boots the game guest fixture
-sunrise-client game::native_item_places::tests::crafted_by_processes_a_held_map_and_defers_the_stat_and_new_map_until_commit lib daily resources # boots the game guest fixture
-sunrise-client game::native_item_places::tests::crafted_by_refused_handler_write_drops_the_map_and_stat lib daily child-process
-sunrise-client game::native_item_places::tests::crafted_by_replaces_the_map_in_a_handler_backed_slot lib daily child-process
+sunrise-client cut_layout::game::server_side::native_item_places::tests::crafted_by_map_reservations_follow_nested_commit_and_abort lib daily resources # boots the game guest fixture
+sunrise-client cut_layout::game::server_side::native_item_places::tests::crafted_by_processes_a_held_map_and_defers_the_stat_and_new_map_until_commit lib daily resources # boots the game guest fixture
+sunrise-client cut_layout::game::server_side::native_item_places::tests::crafted_by_refused_handler_write_drops_the_map_and_stat lib daily child-process
+sunrise-client cut_layout::game::server_side::native_item_places::tests::crafted_by_replaces_the_map_in_a_handler_backed_slot lib daily child-process

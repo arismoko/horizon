@@ -1,1 +1,1 @@
-sunrise-client game::native_viewed_levels::tests::brightness_reads_the_requested_client_world lib daily child-process
+sunrise-client cut_layout::game::client_side::native_viewed_levels::tests::brightness_reads_the_requested_client_world lib daily child-process

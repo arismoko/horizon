@@ -21,9 +21,9 @@ from tools import lab
 from tools.integration_env import run_game
 
 SOURCES = [
-    'crates/sunrise-client/src/game.rs',
-    'crates/sunrise-client/src/game/modding/native_client_particles.rs',
-    'crates/sunrise-client/src/game/modding/native_client_particles_fixture.rs',
+    'crates/sunrise-gameplay-common/src/game.rs',
+    'crates/sunrise-client-gameplay/src/game/modding/native_client_particles.rs',
+    'crates/sunrise-client-gameplay/src/game/modding/native_client_particles_fixture.rs',
     'crates/sunrise-client-render/src/particles.rs',
     'tools/test_native_client_particles_parity.py',
 ]

@@ -1,1 +1,1 @@
-sunrise-client game::buckets::bucket_hook_moment_tests::a_pour_is_heard_by_bucket_empty_alone_and_a_pickup_by_fill_bucket_alone lib daily resources
+sunrise-gameplay game::server_side::buckets::bucket_hook_moment_tests::a_pour_is_heard_by_bucket_empty_alone_and_a_pickup_by_fill_bucket_alone lib daily resources

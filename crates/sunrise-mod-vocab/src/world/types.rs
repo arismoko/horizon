@@ -1799,16 +1799,15 @@ pub trait LevelHost {
     fn has_item_capability(&self, _pos: [i32; 3], _side: Option<Direction>) -> Option<bool> {
         None
     }
-    /// The number of slots on this side, as [`ItemsBackend::container_size`](crate::prelude::ItemsBackend::container_size) reads it.
-    /// Never generates loot or loads chunks. None for unloaded positions, clients or
+    /// The number of slots on this side, using local resident storage on client views.
+    /// Never generates loot or loads chunks. None for unloaded positions or
     /// unsupported storage. Owning game thread only, never in worker hook bodies.
     fn container_size(&self, _at: BlockSide) -> Option<usize> {
         None
     }
-    /// Lend the resident stack in this side-local slot once, as
-    /// [`ItemsBackend::lend_container_stack`](crate::prelude::ItemsBackend::lend_container_stack) reads it.
-    /// Never loads chunks or generates loot; unopened slots remain empty. Does not invoke `read` for empty or unreadable slots or when storage is unavailable
-    /// in this view, including at unloaded positions and on clients. Owning game thread only.
+    /// Lend the resident stack in this side-local slot once, using the local copy on clients.
+    /// Never loads chunks or generates loot. Unopened slots remain empty.
+    /// Invokes `read` only for a readable, nonempty slot in supported storage. Owning game thread only.
     /// Use `with_container_stack` on `&dyn LevelHost` to return a value from the loan.
     fn lend_container_stack(
         &self,

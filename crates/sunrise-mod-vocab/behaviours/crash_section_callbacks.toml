@@ -1,7 +1,7 @@
 version = 1
 doc = "Crash header and section callbacks run sequentially in registration order and appear in the crash report with the full text of the mod that registered them; a callback that panics disables only itself and the report still lists the others."
 tests = [
-    "crates/sunrise-client-render/src/crash.rs::crash_callbacks_run_in_registration_order",
-    "crates/sunrise-client-render/src/crash.rs::crash_details_keep_the_full_text_from_the_mod_named_in_the_crash",
-    "crates/sunrise-client-render/src/crash.rs::a_panicking_crash_section_disables_only_itself",
+    "crates/sunrise-level/src/crash.rs::crash_callbacks_run_in_registration_order",
+    "crates/sunrise-level/src/crash.rs::crash_details_keep_the_full_text_from_the_mod_named_in_the_crash",
+    "crates/sunrise-level/src/crash.rs::a_panicking_crash_section_disables_only_itself",
 ]

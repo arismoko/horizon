@@ -9,23 +9,23 @@ StringRepresentable	skip:java		codec and name-lookup builders; Sunrise matches e
 StringRepresentable.EnumCodec	skip:java		codec byName lookup
 StringUtil.truncateStringIfNecessary	port	crates/sunrise-client-render/src/screen_draw.rs::TextField::set_value	gap: minor: no '...' suffix variant (only the brain-dump debug text uses it); cuts by characters
 StringUtil.lineCount	skip:other		no caller in 26.3 (dead helper)
-StringUtil.isBlank	port	crates/sunrise-client/src/title.rs::Title::buttons	Save of the rename screen is active only for a non-blank name; trim() uses Unicode whitespace, a tiny difference from Java's isWhitespace
+StringUtil.isBlank	port	crates/sunrise-client/src/title/preset_buttons.rs::Title::buttons	Save of the rename screen is active only for a non-blank name; trim() uses Unicode whitespace, a tiny difference from Java's isWhitespace
 ThreadingDetector	skip:debug		debug check that two threads enter the same structure; Rust's ownership rules rule it out
-TickThrottler.isUnderThreshold	port	crates/sunrise-client/src/game/network/lan_chat.rs::detect_rate_spam	a chat message or command adds 20 to the guest's counter, and a guest over the threshold who is not an operator is kicked with disconnect.spam; a threshold of 0 or less never kicks
-Util.makeDescriptionId	inline	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::stack_display_name	gap: minor: each caller builds its own item, block or entity key (creative.rs, brewing.rs, stats_screen.rs, combat.rs); no shared key builder
+TickThrottler.isUnderThreshold	port	crates/sunrise-gameplay/src/game/network/lan_chat.rs::detect_rate_spam	a chat message or command adds 20 to the guest's counter, and a guest over the threshold who is not an operator is kicked with disconnect.spam; a threshold of 0 or less never kicks
+Util.makeDescriptionId	inline	crates/sunrise-gameplay-common/src/game/administration/commands_common.rs::Game::stack_display_name	gap: minor: each caller builds its own item, block or entity key (creative.rs, brewing.rs, stats_screen.rs, combat.rs); no shared key builder
 Util.makeExecutor	skip:java		background ForkJoin pool with thread names
 Util.getMaxThreads	skip:java		max.bg.threads pool size; Sunrise sizes its own pools
 Util.makeIoExecutor	skip:java		cached IO thread pool
 Util.throwAsRuntime	skip:java		Java checked-exception rethrow
-Util.onThreadException	port	crates/sunrise-client-render/src/crash.rs::install	gap: player: vanilla then relays a crash report to the main thread and the game ends; Sunrise only logs an error from a worker thread
+Util.onThreadException	port	crates/sunrise-level/src/crash.rs::install	gap: player: vanilla then relays a crash report to the main thread and the game ends; Sunrise only logs an error from a worker thread
 Util.doFetchChoiceType	skip:data		DataFixer choice-type lookup; Sunrise migrates saves in sunrise-world datafix
 Util.runNamed	skip:debug		renames the thread and opens a Tracy zone
 Util.getRegisteredName	skip:debug		registry key text for logs and debug output (Ticket.toString)
 Util.allOf	skip:java		predicate combinator
 Util.anyOf	skip:java		predicate combinator
 Util.growByHalf	skip:java		array growth; Rust Vec grows itself
-Util.findNextInIterable	port	crates/sunrise-client/src/game/blocks/debug_stick.rs::Game::debug_stick_interact	the debug stick cycles a property forward, and backward while sneaking
-Util.findPreviousInIterable	port	crates/sunrise-client/src/game/blocks/debug_stick.rs::Game::debug_stick_interact	same function: relative_index walks the value list backward on sneak
+Util.findNextInIterable	port	crates/sunrise-gameplay/src/game/blocks/debug_stick.rs::Game::debug_stick_interact	the debug stick cycles a property forward, and backward while sneaking
+Util.findPreviousInIterable	port	crates/sunrise-gameplay/src/game/blocks/debug_stick.rs::Game::debug_stick_interact	same function: relative_index walks the value list backward on sneak
 Util.makeEnumMap	skip:java		EnumMap builder
 Util.mapValues	skip:java		map stream helper
 Util.sequence	skip:java		future combinator
@@ -40,10 +40,10 @@ Util.describeError	skip:debug		error text for game test reports and FreeType err
 Util.executeInSequence	missing		minor: the steps of a file move are not retried as a unit; a failed move is reported once
 Util.runWithRetries	missing		minor: no retry loop (10 attempts) around file moves for Windows file locks; Sunrise's save and datafix moves do not retry
 Util.safeMoveFile	port	crates/sunrise-world/src/datafix/files.rs::move_file	gap: minor: one attempt, no 10-try retry; still refuses to overwrite an existing target
-Util.safeReplaceOrMoveFile	port	crates/sunrise-client/src/save/level_dat.rs::write_dat	gap: minor: no retries and no rollback to the backup when the new file cannot be renamed in; the old file is moved to a *_old name
+Util.safeReplaceOrMoveFile	port	crates/sunrise-sim/src/save/level_dat.rs::write_dat	gap: minor: no retries and no rollback to the backup when the new file cannot be renamed in; the old file is moved to a *_old name
 Util.offsetByCodepoints	inline	crates/sunrise-client-render/src/screen_draw.rs::TextField::key	gap: minor: arrow keys move one character only (no count argument, no surrogate pairs); ctrl-arrows use ui word_position
 Util.startTimerHackThread	skip:other		JVM Windows timer-resolution thread; Rust timers do not need it
-Util.copyBetweenDirs	inline	crates/sunrise-client-render/src/datapack.rs::install	Create World's picks are copied into <world>/datapacks one by one, each pack's folder or zip (datapack.rs::copy)
+Util.copyBetweenDirs	inline	crates/sunrise-level/src/datapack.rs::install	Create World's picks are copied into <world>/datapacks one by one, each pack's folder or zip (datapack.rs::copy)
 Util.sanitizeName	skip:other		builds the texture cache path of a world icon; Sunrise reads icon.png straight from the save folder (title.rs)
 Util.memoize	skip:java		memoizing function wrapper
 Util.blockUntilDone	skip:java		waits on executor futures during startup (game test server)
@@ -68,7 +68,7 @@ DebugSubscription.Event	skip:java		packet codec for debug renderer subscription 
 DebugSubscription.Update	skip:java		packet codec for debug renderer subscription updates; not ported
 DebugSubscriptions.registerTemporaryValue	skip:debug		registers a temporary debug renderer subscription; not ported
 LevelDebugSynchronizers	skip:debug		server push of F3 debug renderer data; renderer subscriptions are not ported
-ServerDebugSubscribers.hasRequiredPermissions	port	crates/sunrise-client/src/lan/containers.rs::Hub::tick_time_subscribers	operators only (any level); the IDE and singleplayer-owner clause is false on a dedicated server
+ServerDebugSubscribers.hasRequiredPermissions	port	crates/sunrise-sim/src/lan/containers.rs::Hub::tick_time_subscribers	operators only (any level); the IDE and singleplayer-owner clause is false on a dedicated server
 ServerDebugSubscribers	skip:debug		tracks which players opted into debug renderers; only the tick-time subscription is served, by Hub::tick_time_subscribers
 TrackingDebugSynchronizer	skip:debug		F3 debug renderer data sync; Sunrise has none
 TrackingDebugSynchronizer.PoiSynchronizer	skip:debug		F3 POI debug renderer data sync; Sunrise has none
@@ -79,4 +79,4 @@ AbstractSampleLogger.logFullSample	port	crates/sunrise-client/src/debug_chart.rs
 AbstractSampleLogger.logPartialSample	inline	crates/sunrise-client/src/debug_chart.rs::log_tick	one tick sample's four slots are filled at once and pushed by log_full: full tick, tick method, scheduled tasks, idle
 AbstractSampleLogger.resetSample	skip:other		resets the working sample buffer; Sunrise passes each full sample, nothing to reset
 LocalSampleLogger.useSample	port	crates/sunrise-client/src/debug_chart.rs::SampleLogger::log_full	copies the working sample into the 240-entry ring
-RemoteSampleLogger.useSample	port	crates/sunrise-client/src/game/interface/dedicated/mod.rs::Game::run_dedicated_inner	the dedicated loop sends full, method, scheduled-task and idle durations to the snapshotted tick-time subscribers
+RemoteSampleLogger.useSample	port	crates/sunrise-gameplay/src/game/interface/dedicated/mod.rs::Game::run_dedicated_inner	the dedicated loop sends full, method, scheduled-task and idle durations to the snapshotted tick-time subscribers

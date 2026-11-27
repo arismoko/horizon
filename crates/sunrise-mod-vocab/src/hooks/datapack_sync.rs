@@ -14,7 +14,7 @@ pub trait Hooks {
     /// An empty answer retains the client's own recipes, or restores
     /// them after an earlier nonempty answer.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_datapack_sync",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_datapack_sync",
         dispatch = "api_carrier",
         side = "server",
         contract = "collect",

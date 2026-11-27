@@ -1,1 +1,1 @@
-sunrise-client game::player_destroy_item_tests::original_stack_and_hand_reach_used_up_and_broken_item_notices lib daily resources
+sunrise-client cut_layout::game::player_destroy_item_tests::original_stack_and_hand_reach_used_up_and_broken_item_notices lib daily resources

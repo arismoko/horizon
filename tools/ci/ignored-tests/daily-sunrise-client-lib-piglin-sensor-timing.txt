@@ -1,2 +1,2 @@
 # Daily tests of the piglin and hoglin sensor timing (#4824): each needs the prepared mob resources.
-sunrise-client-lib mobs::ai::server_ai_brain_tests::a_repellent_scanned_on_a_running_goals_only_tick_is_avoided_that_tick lib daily resources
+sunrise-sim mobs::ai::server_ai_brain_tests::a_repellent_scanned_on_a_running_goals_only_tick_is_avoided_that_tick lib daily resources

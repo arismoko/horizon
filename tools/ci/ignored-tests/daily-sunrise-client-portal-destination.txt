@@ -1,3 +1,3 @@
-sunrise-client game::native_portal_destination::tests::a_portal_across_a_chunk_edge_waits_for_its_far_chunk lib daily resources
-sunrise-client game::native_portal_destination::tests::a_portal_is_asked_where_it_leads_and_find_or_create_builds_its_exit lib daily resources
-sunrise-client game::native_portal_destination::tests::end_portals_answer_the_fixed_spawn_with_the_travel_yaw lib daily resources
+sunrise-client cut_layout::game::server_side::native_portal_destination::tests::a_portal_across_a_chunk_edge_waits_for_its_far_chunk lib daily resources
+sunrise-client cut_layout::game::server_side::native_portal_destination::tests::a_portal_is_asked_where_it_leads_and_find_or_create_builds_its_exit lib daily resources
+sunrise-client cut_layout::game::server_side::native_portal_destination::tests::end_portals_answer_the_fixed_spawn_with_the_travel_yaw lib daily resources

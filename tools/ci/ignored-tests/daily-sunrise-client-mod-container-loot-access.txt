@@ -1,6 +1,6 @@
-sunrise-client game::native_block_entity_refs::container_loot_table_tests::a_data_merge_keeps_a_mod_containers_waiting_table lib daily child-process
-sunrise-client game::native_block_entity_refs::container_loot_table_tests::a_filled_mod_container_keeps_its_stacks_and_fills_the_empty_slots lib daily child-process
-sunrise-client game::native_block_entity_refs::container_loot_table_tests::a_saved_mod_container_loads_its_table_before_its_items lib daily child-process
-sunrise-client game::native_block_entity_refs::container_loot_table_tests::a_slotless_mod_block_entitys_loot_fields_stay_in_a_captured_structure lib daily child-process
-sunrise-client game::native_menus::container_loot_open_tests::a_guests_open_rolls_a_mod_containers_table_with_the_guests_luck lib daily child-process
-sunrise-client game::native_menus::container_loot_open_tests::a_refused_open_leaves_a_mod_containers_table_waiting lib daily child-process
+sunrise-client cut_layout::game::container_loot_table_tests::a_data_merge_keeps_a_mod_containers_waiting_table lib daily child-process
+sunrise-client cut_layout::game::container_loot_table_tests::a_filled_mod_container_keeps_its_stacks_and_fills_the_empty_slots lib daily child-process
+sunrise-client cut_layout::game::container_loot_table_tests::a_saved_mod_container_loads_its_table_before_its_items lib daily child-process
+sunrise-client cut_layout::game::container_loot_table_tests::a_slotless_mod_block_entitys_loot_fields_stay_in_a_captured_structure lib daily child-process
+sunrise-client cut_layout::game::server_side::native_menus::container_loot_open_tests::a_guests_open_rolls_a_mod_containers_table_with_the_guests_luck lib daily child-process
+sunrise-client cut_layout::game::server_side::native_menus::container_loot_open_tests::a_refused_open_leaves_a_mod_containers_table_waiting lib daily child-process

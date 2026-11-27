@@ -1,3 +1,3 @@
-sunrise-client game::native_render_pair_tests::a_spectator_following_an_entity_submits_no_local_body lib daily resources
-sunrise-client game::native_render_pair_tests::entity_draw_order_after_client_packets lib daily resources
-sunrise-client game::shader_packs::projectile_body_uses_its_own_shader_entity_id lib daily resources
+sunrise-client-gameplay game::client_side::native_render_pair_tests::a_spectator_following_an_entity_submits_no_local_body lib daily resources
+sunrise-client-gameplay game::client_side::native_render_pair_tests::entity_draw_order_after_client_packets lib daily resources
+sunrise-client-gameplay game::client_side::shader_packs::projectile_body_uses_its_own_shader_entity_id lib daily resources

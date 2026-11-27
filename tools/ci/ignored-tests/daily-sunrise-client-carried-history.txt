@@ -1,2 +1,2 @@
-sunrise-client game::lan_actions::movement::collision_exclusion_wall_tests::a_carried_guests_eyes_are_tested_against_the_collider_as_it_stands_now lib daily resources
-sunrise-client game::native_colliders_tests::the_level_records_its_colliders_as_each_tick_begins lib daily resources
+sunrise-client cut_layout::game::lan_actions::movement::collision_exclusion_wall_tests::a_carried_guests_eyes_are_tested_against_the_collider_as_it_stands_now lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::the_level_records_its_colliders_as_each_tick_begins lib daily resources

@@ -654,6 +654,36 @@ mod tests {
         d
     }
 
+    pub(crate) fn split_source(root: &Path) -> PathBuf {
+        let write = |path: &Path, text: &str| {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, text).unwrap();
+        };
+        for package in [
+            "sunrise-client",
+            "sunrise-gameplay-common",
+            "sunrise-gameplay",
+            "sunrise-client-gameplay",
+        ] {
+            let root = root.join("crates").join(package);
+            write(
+                &root.join("Cargo.toml"),
+                &format!("[package]\nname = '{package}'\n"),
+            );
+            if package == "sunrise-client" {
+                write(&root.join("src/lib.rs"), "mod entry;");
+                write(&root.join("src/entry.rs"), "");
+            } else {
+                write(&root.join("src/lib.rs"), "pub mod game;");
+                write(&root.join("src/game.rs"), "");
+            }
+        }
+        let generator = root.join("crates/sunrise-mod-api-gen");
+        write(&generator.join("source-layout"), "split\n");
+        write(&generator.join("internals.txt"), "");
+        root.join("crates/sunrise-gameplay/src")
+    }
+
     pub fn project_manifest(id: &str, version: &str, sunrise: &str, mixins: &str) -> String {
         format!(
             "id='{id}'\nname='{id}'\nversion='{version}'\napi='0.2'\ncapabilities=['registries']\n[native]\ngame='26.3'\nsunrise='{sunrise}'\nmixins='{mixins}'\n"
@@ -697,15 +727,15 @@ mod tests {
         let root = dir("mixins-input");
         let source = root.join("download");
         let prepared = root.join("prepared");
-        let src = source.join("crates/sunrise-client/src");
+        let src = split_source(&source);
         let area = src.join("game/items");
         fs::create_dir_all(&area).unwrap();
-        let game = "struct Game;\n#[path = \"game/items/using_item.rs\"]\nmod using_item;\n";
-        let helper = "use super::*; impl Game { fn area_helper(&mut self) {} }";
+        let game = "struct ServerGame;\n#[path = \"game/items/using_item.rs\"]\nmod using_item;\n";
+        let helper = "use super::*; impl ServerGame { fn area_helper(&mut self) {} }";
         fs::write(src.join("game.rs"), game).unwrap();
         fs::write(area.join("using_item.rs"), helper).unwrap();
         prepare_mixins_source(&source, &prepared).unwrap();
-        let output = prepared.join("crates/sunrise-client/src");
+        let output = prepared.join("crates/sunrise-gameplay/src");
         assert_eq!(fs::read_to_string(output.join("game.rs")).unwrap(), game);
         assert_eq!(
             fs::read_to_string(output.join("game/items/using_item.rs")).unwrap(),
@@ -713,12 +743,12 @@ mod tests {
         );
         // A file the next source no longer has leaves the copy.
         fs::remove_file(area.join("using_item.rs")).unwrap();
-        fs::write(src.join("game.rs"), "struct Game;\n").unwrap();
+        fs::write(src.join("game.rs"), "struct ServerGame;\n").unwrap();
         prepare_mixins_source(&source, &prepared).unwrap();
         assert!(!output.join("game/items/using_item.rs").exists());
         assert_eq!(
             fs::read_to_string(src.join("game.rs")).unwrap(),
-            "struct Game;\n"
+            "struct ServerGame;\n"
         );
         fs::remove_dir_all(root).unwrap();
     }

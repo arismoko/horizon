@@ -376,6 +376,14 @@ fn copy_indexed(
         copies.push((import, destination));
         total += size;
     }
+    // A prepared-data cache otherwise shadows loose assets, even when a previous import updated them.
+    let data = assets.target.join(crate::extras::DATA_FILE);
+    match fs::remove_file(&data) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            return Err(format!("{}: {e}", data.display()));
+        }
+        _ => {}
+    }
     // Check the entire set before replacing any placeholders: a missing late face
     // must not leave a mixture of real textures and gray faces in either entry point.
     for (import, destination) in copies {
@@ -663,6 +671,7 @@ mod tests {
     fn panorama_replaces_jar_placeholders_and_repairs_repeated_preparations() {
         let f = Fixture::new("panorama");
         let target = f.root.join(".local/sunrise-client/9.9");
+        let cache = target.join(crate::extras::DATA_FILE);
         for _ in 0..2 {
             // Full preparation extracts the JAR before importing the asset store.
             for (name, _) in &f.objects[FIRST_FACE..] {
@@ -670,10 +679,12 @@ mod tests {
                 fs::create_dir_all(path.parent().unwrap()).unwrap();
                 fs::write(path, b"1x1 gray placeholder").unwrap();
             }
+            fs::write(&cache, b"cache of the original placeholders").unwrap();
             assert_eq!(
                 panorama(&f.root, Some(&f.minecraft), &|_| {}).unwrap(),
                 target
             );
+            assert!(!cache.exists(), "the cache would shadow the imported faces");
             for (name, data) in &f.objects[FIRST_FACE..] {
                 assert_eq!(&fs::read(target.join("assets").join(name)).unwrap(), data);
             }

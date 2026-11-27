@@ -1,2 +1,2 @@
 # LevelRef::entity_by_uuid (ServerLevel.getEntity(UUID), #4856): an Overworld hook finds a parked Nether zombie by UUID, its handle reads and removes it once the Nether is in place, and the lookup answers None after the removal and after its chunk unloads.
-sunrise-client game::native_entity_refs::level_uuid_tests::a_parked_levels_uuid_lookup_finds_its_entity_until_removed_or_unloaded lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_refs::level_uuid_tests::a_parked_levels_uuid_lookup_finds_its_entity_until_removed_or_unloaded lib daily child-process

@@ -1,7 +1,7 @@
-sunrise-client game::container_hooks::tests::no_view_is_built_without_a_registrant_or_a_held_button lib daily game-boot
-sunrise-client game::container_hooks::tests::a_hooks_click_goes_through_the_menu lib daily game-boot
-sunrise-client game::container_hooks::tests::a_taken_press_keeps_its_release_from_vanilla lib daily game-boot
-sunrise-client game::container_hooks::tests::a_key_is_not_dispatched_while_the_recipe_search_is_focused lib daily game-boot
-sunrise-client game::container_hooks::tests::a_release_taken_from_vanillas_press_ends_its_drag_unclicked lib daily game-boot
-sunrise-client game::container_hooks::tests::a_slot_outside_the_open_menu_reads_nothing lib daily game-boot
-sunrise-client game::extras::mouse_tweaks::tests::a_drag_whose_button_went_up_or_was_pressed_again_unseen_moves_nothing_and_ends lib daily game-boot
+sunrise-client cut_layout::game::client_side::container_hooks::tests::no_view_is_built_without_a_registrant_or_a_held_button lib daily game-boot
+sunrise-client cut_layout::game::client_side::container_hooks::tests::a_hooks_click_goes_through_the_menu lib daily game-boot
+sunrise-client cut_layout::game::client_side::container_hooks::tests::a_taken_press_keeps_its_release_from_vanilla lib daily game-boot
+sunrise-client cut_layout::game::client_side::container_hooks::tests::a_key_is_not_dispatched_while_the_recipe_search_is_focused lib daily game-boot
+sunrise-client cut_layout::game::client_side::container_hooks::tests::a_release_taken_from_vanillas_press_ends_its_drag_unclicked lib daily game-boot
+sunrise-client cut_layout::game::client_side::container_hooks::tests::a_slot_outside_the_open_menu_reads_nothing lib daily game-boot
+sunrise-client cut_layout::game::client_side::extras::mouse_tweaks::tests::a_drag_whose_button_went_up_or_was_pressed_again_unseen_moves_nothing_and_ends lib daily game-boot

@@ -1,2 +1,2 @@
 # The slot-move test builds a client game and its container layout, which needs prepared resources.
-sunrise-client game::native_hooks::book_screen::lifecycle_tests::a_moved_slot_takes_its_place_for_drawing_and_input_from_the_next_frame lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::book_screen::lifecycle_tests::a_moved_slot_takes_its_place_for_drawing_and_input_from_the_next_frame lib daily resources

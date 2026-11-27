@@ -11,7 +11,7 @@ SELF = Path(__file__).resolve()
 # Files where a bare `LegacyRandom` already means the API's re-export.
 BARE_LEGACY = [
     *map(str, (ROOT / "crates/sunrise-mod-vocab/src").rglob("*.rs")),
-    str(ROOT / "crates/sunrise-client/src/game/modding/native_goal_ticks/mod.rs"),
+    str(ROOT / "crates/sunrise-gameplay/src/game/modding/native_goal_ticks/mod.rs"),
 ]
 
 tracked = subprocess.run(

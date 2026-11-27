@@ -2,7 +2,7 @@
 //! inventories, with compact icons when there is little room on the right.
 use std::borrow::Cow;
 
-use sunrise_client_core::text::Text;
+use sunrise_game_data::text::Text;
 
 use crate::{
     effects::EffectInstance,
@@ -92,7 +92,7 @@ pub fn panels<'a>(
         .into_iter()
         .enumerate()
         .map(|(i, (effect, icon))| {
-            let mut name = translate(&sunrise_client_core::potions::description_id(effect.id))
+            let mut name = translate(&sunrise_game_data::potions::description_id(effect.id))
                 .unwrap_or_else(|| effect.id.to_owned());
             if (1..=9).contains(&effect.amplifier) {
                 let level = effect.amplifier + 1;
@@ -205,7 +205,7 @@ pub fn paint<'p, 'a>(
             );
         }
         icon.clear();
-        sunrise_client_core::potions::push_sprite(&mut icon, &panel.icon.id);
+        sunrise_game_data::potions::push_sprite(&mut icon, &panel.icon.id);
         if let Some(r) = atlas.sprite_or_missing(&icon) {
             let (x, y) = ((panel.x + 7) as f32, (panel.y + 7) as f32);
             batch.rect_uv(x, y, 18.0, 18.0, r, u32::MAX);

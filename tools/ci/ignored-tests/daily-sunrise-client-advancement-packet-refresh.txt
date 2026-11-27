@@ -1,5 +1,5 @@
-sunrise-client game::advancements_screen::remote_tests::extreme_remote_positions_use_java_widget_coordinates_and_bounds lib daily resources
-sunrise-client game::advancements_screen::remote_tests::opening_reports_the_first_tab_twice_and_preserves_offscreen_selection lib daily resources
-sunrise-client game::advancements_screen::remote_tests::remote_tab_updates_restore_pan_and_clear_hover_on_progress_only lib daily resources
-sunrise-client game::advancements_screen::remote_tests::remote_widget_keeps_progress_requirements_until_new_progress lib daily resources
-sunrise-client game::advancements_screen::remote_tests::repeated_remote_ids_keep_insertion_edges_and_take_packet_order_positions lib daily resources
+sunrise-client cut_layout::game::client_side::advancements_screen::remote_tests::extreme_remote_positions_use_java_widget_coordinates_and_bounds lib daily resources
+sunrise-client cut_layout::game::client_side::advancements_screen::remote_tests::opening_reports_the_first_tab_twice_and_preserves_offscreen_selection lib daily resources
+sunrise-client cut_layout::game::client_side::advancements_screen::remote_tests::remote_tab_updates_restore_pan_and_clear_hover_on_progress_only lib daily resources
+sunrise-client cut_layout::game::client_side::advancements_screen::remote_tests::remote_widget_keeps_progress_requirements_until_new_progress lib daily resources
+sunrise-client cut_layout::game::client_side::advancements_screen::remote_tests::repeated_remote_ids_keep_insertion_edges_and_take_packet_order_positions lib daily resources

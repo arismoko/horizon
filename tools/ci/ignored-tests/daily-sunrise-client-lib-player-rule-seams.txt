@@ -1,3 +1,3 @@
 # Daily tests of the replaceable Player.getDesiredPose seam (#4854): every pose update takes its answer, a replaced one too; they need the prepared resources.
-sunrise-client-lib lan::hub::tests::desired_pose_tests::a_replaced_desired_pose_reaches_every_pose_update lib daily resources
-sunrise-client-lib lan::hub::tests::desired_pose_tests::update_player_pose_takes_the_desired_pose_and_the_others_see_the_bodys lib daily resources
+sunrise-sim lan::hub::tests::desired_pose_tests::a_replaced_desired_pose_reaches_every_pose_update lib daily resources
+sunrise-sim lan::hub::tests::desired_pose_tests::update_player_pose_takes_the_desired_pose_and_the_others_see_the_bodys lib daily resources

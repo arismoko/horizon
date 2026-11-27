@@ -36,6 +36,7 @@ replaces a raw pack file at the same staged path with a warning (matching
 vanilla's `TextureManager.register`); if two registered atlases stage the same
 sprite path, the first stands and a warning names both."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_texture_atlases::native_register_texture_atlases",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

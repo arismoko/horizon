@@ -1,6 +1,6 @@
-sunrise-client game::native_hooks::block_entity_tick::tests::edit_then_replace_abort_restores_the_original_contents lib daily child-process
-sunrise-client game::native_hooks::block_entity_tick::tests::edit_then_replace_commit_spills_only_the_remaining_contents lib daily child-process
-sunrise-client game::native_hooks::block_entity_tick::tests::ordinary_replacement_between_strict_edits_uses_its_own_resident_row lib daily resources
-sunrise-client game::native_hooks::block_entity_tick::tests::replacement_and_item_stack_journals_close_in_their_own_dimensions lib daily resources
-sunrise-client game::native_hooks::block_entity_tick::tests::strict_bulk_commit_publishes_whole_chunks_without_drops lib daily resources
-sunrise-client game::native_hooks::block_entity_tick::tests::strict_bulk_replacement_aborts_the_block_handle_and_inventory_together lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::edit_then_replace_abort_restores_the_original_contents lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::edit_then_replace_commit_spills_only_the_remaining_contents lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::ordinary_replacement_between_strict_edits_uses_its_own_resident_row lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tests::replacement_and_item_stack_journals_close_in_their_own_dimensions lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::strict_bulk_commit_publishes_whole_chunks_without_drops lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::strict_bulk_replacement_aborts_the_block_handle_and_inventory_together lib daily resources

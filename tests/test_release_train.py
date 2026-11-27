@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.git_fixture import git_in
 from tools import release_train as train
 from tools.ci import vendored_yaml
 
@@ -286,8 +287,7 @@ class ReleaseTrainTests(unittest.TestCase):
 
     def test_fork_channels_check_the_main_push_gate(self):
         with tempfile.TemporaryDirectory() as folder:
-            def git(*args):
-                return subprocess.check_output(["git", *args], cwd=folder, text=True, stderr=subprocess.DEVNULL).strip()
+            git = git_in(folder)
             git("init", "-q", "-b", "main")
             git("config", "user.name", "Test")
             git("config", "user.email", "test@example.invalid")
@@ -334,8 +334,7 @@ class ReleaseTrainTests(unittest.TestCase):
 
     def test_a_nightly_ships_only_daily_green_unless_the_owner_granted_an_exception(self):
         with tempfile.TemporaryDirectory() as folder:
-            def git(*args):
-                return subprocess.check_output(["git", *args], cwd=folder, text=True, stderr=subprocess.DEVNULL).strip()
+            git = git_in(folder)
             git("init", "-q", "-b", "main")
             git("config", "user.name", "Test")
             git("config", "user.email", "test@example.invalid")
@@ -380,24 +379,24 @@ class ReleaseTrainTests(unittest.TestCase):
 
     def test_daily_green_is_read_from_origin_never_a_local_tag(self):
         with tempfile.TemporaryDirectory() as folder:
-            def git(cwd, *args):
-                return subprocess.check_output(["git", *args], cwd=cwd, text=True, stderr=subprocess.DEVNULL).strip()
             origin, clone = Path(folder, "origin"), Path(folder, "clone")
-            git(folder, "init", "-q", "-b", "main", str(origin))
+            setup_git = git_in(folder)
+            setup_git("init", "-q", "-b", "main", str(origin))
+            git = git_in(origin)
+            git("config", "user.name", "T")
+            git("config", "user.email", "t@example.invalid")
             for n in range(2):
-                git(origin, "-c", "user.name=T", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty",
-                    "-m", str(n))
-            first, second = git(origin, "rev-parse", "HEAD~1"), git(origin, "rev-parse", "HEAD")
-            git(origin, "-c", "user.name=T", "-c", "user.email=t@example.invalid", "tag", "-a", "-m", "green",
-                "daily-green", first)
-            git(folder, "clone", "-q", str(origin), str(clone))
+                git("commit", "-q", "--allow-empty", "-m", str(n))
+            first, second = git("rev-parse", "HEAD~1"), git("rev-parse", "HEAD")
+            git("tag", "-a", "-m", "green", "daily-green", first)
+            setup_git("clone", "-q", str(origin), str(clone))
             with mock.patch.object(train, "ROOT", clone):
                 self.assertEqual(train.daily_green_commit(), first, "an annotated tag's commit")
-                git(origin, "tag", "-d", "daily-green")
+                git("tag", "-d", "daily-green")
                 self.assertEqual(train.daily_green_commit(), "", "withdrawn on origin: none, whatever the clone holds")
-                git(origin, "tag", "daily-green", second)
+                git("tag", "daily-green", second)
                 self.assertEqual(train.daily_green_commit(), second)
-                git(clone, "remote", "set-url", "origin", str(Path(folder, "gone")))
+                git_in(clone)("remote", "set-url", "origin", str(Path(folder, "gone")))
                 with self.assertRaises(SystemExit, msg="a failed lookup never falls back to the local tag"):
                     train.daily_green_commit()
 

@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_move_sweep_tests::every_walk_family_of_the_entity_lists_fires_its_case lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_move_sweep_tests::every_walk_family_of_the_entity_lists_fires_its_case lib daily resources

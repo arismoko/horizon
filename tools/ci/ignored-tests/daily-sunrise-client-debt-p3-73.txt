@@ -1,1 +1,1 @@
-sunrise-client game::client_reload::texture_atlases::tests::a_mod_atlas_sprite_is_stitched_into_the_gui_atlas_until_a_reload_drops_it lib daily child-process
+sunrise-client cut_layout::game::client_side::client_reload::texture_atlases::tests::a_mod_atlas_sprite_is_stitched_into_the_gui_atlas_until_a_reload_drops_it lib daily child-process

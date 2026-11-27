@@ -1,1 +1,1 @@
-sunrise-client game::item_attack_tests::inventory_tick_edits_the_acting_guests_live_slot lib daily resources
+sunrise-client cut_layout::game::item_attack_tests::inventory_tick_edits_the_acting_guests_live_slot lib daily resources

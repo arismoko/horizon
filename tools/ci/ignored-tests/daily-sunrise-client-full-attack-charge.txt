@@ -1,1 +1,1 @@
-sunrise-client game::native_server::fake_action_tests::scoped_fake_attack_with_full_charge_deals_the_weapons_full_damage lib daily child-process
+sunrise-gameplay game::server_side::native_server_server::fake_action_tests::scoped_fake_attack_with_full_charge_deals_the_weapons_full_damage lib daily child-process

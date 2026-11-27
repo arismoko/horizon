@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::fence_gate_in_wall_tests::a_gate_asks_its_neighbours_parts_for_wall_height lib daily resources
+sunrise-client cut_layout::game::native_hooks::fence_gate_in_wall_tests::a_gate_asks_its_neighbours_parts_for_wall_height lib daily resources

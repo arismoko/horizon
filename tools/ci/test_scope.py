@@ -37,11 +37,12 @@ SUNRISE_CLIENT = [
 # The generator scans these to write the mod API and the host boundary: its own sources, the vocabulary, the
 # engine crates holding hook targets and their manifests.
 MOD_API_GEN = [
-    "Cargo.lock", "crates/sunrise-assets/src", "crates/sunrise-client", "crates/sunrise-client-core/src",
-    "crates/sunrise-client-render", "crates/sunrise-core/src", "crates/sunrise-items",
+    "Cargo.lock", "crates/sunrise-assets/src", "crates/sunrise-client", "crates/sunrise-client-gameplay",
+    "crates/sunrise-game-data/src", "crates/sunrise-client-render", "crates/sunrise-core/src",
+    "crates/sunrise-gameplay", "crates/sunrise-gameplay-common", "crates/sunrise-items",
     "crates/sunrise-mod-api", "crates/sunrise-mod-api-macros/src/lib.rs", "crates/sunrise-mod-package/src",
     "crates/sunrise-mod-render", "crates/sunrise-mod-runtime/src", "crates/sunrise-mod-vocab/behaviours",
-    "crates/sunrise-mod-vocab/src", "crates/sunrise-world",
+    "crates/sunrise-mod-vocab/src", "crates/sunrise-sim/src", "crates/sunrise-world",
     "tools/layering/mod_vocab_state.json",
 ]
 READERS = {
@@ -65,9 +66,20 @@ READERS = {
     "sunrise-client": SUNRISE_CLIENT,
     # Shares sunrise-client's sources, so its unit tests run the same reads.
     "sunrise-client-lib": SUNRISE_CLIENT,
-    "sunrise-parity-fixtures": SUNRISE_CLIENT,
+    "sunrise-gameplay-common": [
+        "crates/sunrise-gameplay/src", "crates/sunrise-mod-vocab/src/hooks", "crates/sunrise-world/src",
+        "docs/api/launch-reference.md", "docs/modding/examples/src/worldgen.rs",
+    ],
+    "sunrise-gameplay": ["crates/sunrise-mod-vocab/src/hooks", "tests/fixtures"],
+    "sunrise-client-gameplay": ["crates/sunrise-mod-vocab/src/hooks"],
+    "sunrise-parity-fixtures": [*SUNRISE_CLIENT, "crates/sunrise-gameplay-common/src/game/parity_fixtures.rs"],
+    "sunrise-sim": [
+        "crates/sunrise-client/tests/fixtures/advancement-icons/data",
+        "crates/sunrise-client/tests/fixtures/dialog_codec_cases.json",
+        "docs/parity/random-chance-seeded.jsonl",
+    ],
     # lang.rs embeds the bundled language files.
-    "sunrise-client-core": ["crates/sunrise-client/assets/sunrise/lang"],
+    "sunrise-game-data": ["crates/sunrise-client/assets/sunrise/lang"],
     "sunrise-client-render": [
         "crates/sunrise-client/assets/sunrise/lang", "crates/sunrise-client/assets/sunrise/textures/gui",
         # Its WGSL validation compiles the shader pack crate's shaders too.
@@ -78,7 +90,10 @@ READERS = {
     "sunrise-core": ["tools/JavaCharacterTables.java"],
     "sunrise-game": ["packaging/windows/exe.rs", "packaging/macos/exe.rs"],
     # The ignored-test inventory reads the game's modules and the vocabulary's export fragments.
-    "sunrise-game-discovery": ["crates/sunrise-client/src", "crates/sunrise-mod-vocab/src"],
+    "sunrise-game-discovery": [
+        "crates/sunrise-client/src", "crates/sunrise-gameplay-common/src", "crates/sunrise-gameplay/src",
+        "crates/sunrise-client-gameplay/src", "crates/sunrise-mod-vocab/src",
+    ],
     "sunrise-mod-api": MOD_API_GEN,
     "sunrise-mod-api-gen": [
         *MOD_API_GEN,
@@ -97,10 +112,10 @@ READERS = {
     "sunrise-perf": ["crates/sunrise-perf-format/tests/fixtures", "tests/fixtures/pacing_slow_frames.hzperf"],
     "sunrise-port-pack": ["docs/modpacks/atm10-mods.csv"],
     "sunrise-prepare": [
-        "crates/sunrise-client/src/game/runtime/launch_api.rs", "mods/sunrise/src/test/java", "research-lock.json",
+        "crates/sunrise-gameplay-common/src/game/runtime/launch_api.rs", "mods/sunrise/src/test/java", "research-lock.json",
     ],
     # The RSA key tests verify the client's signed-textures fixture.
-    "sunrise-protocol": ["crates/sunrise-client/src/game/network/remote/fixtures/signed_textures.json"],
+    "sunrise-protocol": ["crates/sunrise-client/src/cut_layout/game/network/remote/fixtures/signed_textures.json"],
     "sunrise-release-sign": [
         "tests/install_ps1_signature.ps1", "tools/ci/sign_native_build.sh", "tools/ci/sign_release.sh",
     ],
@@ -120,12 +135,14 @@ READERS = {
     ],
 }
 # What a package's tests only read at run time and nothing else uses: the package is selected, its dependents are not.
-# sunrise-client-core's lang.rs tests read the sources of every crate for the language keys the code names.
-SCANNED = {"sunrise-client-core": ["crates"]}
+# sunrise-game-data's lang.rs tests read the sources of every crate for the language keys the code names.
+SCANNED = {"sunrise-game-data": ["crates"]}
 # Literals the scan takes for a walk up to crates/ that are not one (a ".." among path-traversal checks).
 # "machines/.." in a test's sample paths, "mods/" in an instance's file names: no read either.
 NOT_READS = {
     "sunrise-client": {"crates"}, "sunrise-client-lib": {"crates"}, "sunrise-parity-fixtures": {"crates"},
+    "sunrise-gameplay-common": {"crates"}, "sunrise-sim": {"crates"},
+    "sunrise-level": {"crates/sunrise-client-render"},
     "sunrise-mod-package": {"crates"},
     # The retained-SDK test writes a synthetic render.rs into its temporary archive, not this checkout.
     "cargo-sunrise-mod": {"crates/sunrise-mod-render/src/render.rs"},
@@ -143,8 +160,9 @@ NOT_READS = {
         "crates/sunrise-mod-api", "crates/sunrise-mod-host", "crates/sunrise-mod-host/Cargo.toml", "crates/sunrise-official",
         "crates/sunrise-official/Cargo.toml",
         # The discovery tests' scratch game source (`discover_tests.rs`).
-        "crates/sunrise-client/src/entry.rs", "crates/sunrise-client/src/game.rs", "crates/sunrise-client/src/lib.rs",
-        "crates/sunrise-mod-api-gen/internals.txt",
+        "crates/sunrise-client/src/entry.rs", "crates/sunrise-gameplay-common/src/game.rs", "crates/sunrise-client/src/lib.rs",
+        "crates/sunrise-gameplay/src", "crates/sunrise-gameplay/src/game.rs",
+        "crates/sunrise-mod-api-gen", "crates/sunrise-mod-api-gen/internals.txt",
     },
 }
 

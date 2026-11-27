@@ -1,4 +1,4 @@
 # The tracking hooks at their pairing (#4522): a world with guests, a vanilla-peer payload connection and prepared resources. Rows: PACKAGE TEST TARGET daily REASON, sorted.
-sunrise-client game::lan::tracking_hook_tests::a_leaving_player_hears_its_stops_after_logging_out lib daily resources
-sunrise-client game::lan::tracking_hook_tests::a_stop_waiting_for_a_sound_is_heard_after_its_removal lib daily resources
-sunrise-client game::lan::tracking_hook_tests::starts_and_stops_are_heard_at_their_packets lib daily resources
+sunrise-client cut_layout::game::server_side::lan::tracking_hook_tests::a_leaving_player_hears_its_stops_after_logging_out lib daily resources
+sunrise-client cut_layout::game::client_side::lan_client::tracking_hook_tests::a_stop_waiting_for_a_sound_is_heard_after_its_removal lib daily resources
+sunrise-client cut_layout::game::server_side::lan::tracking_hook_tests::starts_and_stops_are_heard_at_their_packets lib daily resources

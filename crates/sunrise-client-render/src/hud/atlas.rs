@@ -111,6 +111,7 @@ pub struct HudAtlas {
     pub(crate) white: Rect,
 }
 /// The CPU image and animations of one registered atlas, kept across renderer rebuilds.
+#[derive(Clone)]
 pub(crate) struct RegisteredAtlasPage {
     pub(crate) atlas: String,
     pub(crate) mod_id: Option<&'static str>,
@@ -124,7 +125,7 @@ pub(crate) struct RegisteredAtlasPage {
 pub const GLYPH_ROWS: u32 = 512;
 /// The largest atlas side: the 2D texture limit of the GPUs Sunrise runs on
 /// (Apple silicon, RADV and Intel allow 16384; NVIDIA 32768).
-pub const MAX_ATLAS_SIZE: u32 = 16384;
+pub use sunrise_level::pack_image::MAX_ATLAS_SIZE;
 /// 128x128 atlas slots for map textures. A lobby paints its signs as walls of
 /// framed maps, so the pool holds a wall; too few slots re-upload every map
 /// every frame. 26.3's `MapTextureManager` keeps a texture per map instead.
@@ -343,6 +344,63 @@ impl HudAtlas {
             let _ = slot.set(lz4_flex::compress_prepend_size(&raw));
         }
         self.packed = Some(slot);
+    }
+    /// Compress raw atlas pixels synchronously so a cached test atlas holds lz4 bytes, not raw RGBA.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn pack_pixels_sync(&mut self) {
+        if self.pixels.is_empty() || self.packed.is_some() {
+            return;
+        }
+        let raw = std::mem::take(&mut self.pixels);
+        let slot = Arc::new(OnceLock::new());
+        let _ = slot.set(lz4_flex::compress_prepend_size(&raw));
+        self.packed = Some(slot);
+    }
+    /// Clone atlas metadata while sharing packed pixels and Arc-backed shaders for tests.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn clone_for_tests(&self) -> Self {
+        Self {
+            pictures: Default::default(),
+            revision: Self::next_revision(),
+            pixels: self.pixels.clone(),
+            packed: self.packed.clone(),
+            galactic_widths: self.galactic_widths,
+            width: self.width,
+            height: self.height,
+            sprites: self.sprites.clone(),
+            skin_origins: self.skin_origins.clone(),
+            gui: self.gui.clone(),
+            non_gui: self.non_gui.clone(),
+            registered: self.registered.clone(),
+            registered_owners: self.registered_owners.clone(),
+            registered_pages: self.registered_pages.clone(),
+            stitch_limit: self.stitch_limit,
+            object_skins: self.object_skins.clone(),
+            object_skins_revision: Self::next_revision(),
+            translucent: self.translucent.clone(),
+            flags: self.flags.clone(),
+            sprite_animations: self.sprite_animations.clone(),
+            sprite_animation_placements: self.sprite_animation_placements.clone(),
+            font: self.font.clone_for_tests(),
+            glint: self.glint.clone(),
+            glint_armor: self.glint_armor.clone(),
+            text_shaders: self.text_shaders.clone(),
+            lines_shader: self.lines_shader.clone(),
+            lines_expressions: self.lines_expressions.clone(),
+            sky_shader: self.sky_shader.clone(),
+            stars_shader: self.stars_shader.clone(),
+            sky_expressions: self.sky_expressions.clone(),
+            stars_expressions: self.stars_expressions.clone(),
+            lightmap_shader: self.lightmap_shader.clone(),
+            lightmap_expressions: self.lightmap_expressions.clone(),
+            clouds_shader: self.clouds_shader.clone(),
+            sprite_modifiers: self.sprite_modifiers.clone(),
+            random_textures: self.random_textures.clone(),
+            emissive: self.emissive.clone(),
+            blinks: self.blinks.clone(),
+            material_maps: self.material_maps.clone(),
+            white: self.white,
+        }
     }
     /// The sprite of the GUI id `id` (`minecraft:` dropped) that is there, with its scaling: the GUI list's own (a removed or failed entry ends the search); else, where
     /// the list says nothing of the id, a registered atlas's sprite of the name, and last a packed

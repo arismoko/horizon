@@ -19,7 +19,7 @@ pub trait Hooks {
         host = "hit",
         neoforge = "LivingShieldBlockEvent",
         version = 4,
-        target = "sunrise_client::game::native_hooks::living_shield_block::HitLevel<'_>::native_living_shield_block"
+        target = "sunrise_gameplay_common::game::native_hooks::living_shield_block::HitLevel<'_>::native_living_shield_block"
     )]
     fn living_shield_block(
         entity: i32,

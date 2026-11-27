@@ -492,7 +492,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
                     } else {
                         format!("minecraft:{id}")
                     };
-                    if sunrise_client_core::block_entity_nbt::is_known_type(&id) {
+                    if sunrise_game_data::block_entity_nbt::is_known_type(&id) {
                         Ok(())
                     } else {
                         Err(format!(
@@ -1893,7 +1893,7 @@ mod tests {
             );
             return;
         }
-        use sunrise_client_core::block_entity_types::{self, BlockEntityTypes};
+        use sunrise_game_data::block_entity_types::{self, BlockEntityTypes};
         block_entity_types::install(BlockEntityTypes::new(
             [("example:crate".into(), "example:crate".into())].into(),
             vec!["example:crate".into()],

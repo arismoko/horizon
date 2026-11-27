@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A mob broke the door at `pos`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_break_door",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_break_door",
         dispatch = "flat",
         side = "server",
         contract = "listen",

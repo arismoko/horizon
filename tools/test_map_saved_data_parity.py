@@ -47,8 +47,8 @@ def main():
     tested_sources = base.source_hashes([
         Path(__file__), source,
         lab.ROOT / "mods/sunrise/src/test/java/dev/sunriselab/parity/ParityData.java",
-        lab.ROOT / "crates/sunrise-client/src/game/blocks/maps/mod.rs",
-        lab.ROOT / "crates/sunrise-client/src/game/blocks/maps/save_tests.rs",
+        lab.ROOT / "crates/sunrise-gameplay/src/game/blocks/maps/mod.rs",
+        lab.ROOT / "crates/sunrise-gameplay/src/game/blocks/maps/save_tests.rs",
         lab.ROOT / "crates/sunrise-client/Cargo.toml",
         lab.ROOT / "Cargo.toml", lab.ROOT / "Cargo.lock"])
     classes = out / "classes"
@@ -75,7 +75,7 @@ def main():
     rust.unlink(missing_ok=True)
     env = dict(os.environ, SUNRISE_MAP_SAVE_CASES=str(inputs), SUNRISE_MAP_SAVE_OUTPUT=str(rust))
     run([lab.parity_fixtures(),
-         "game::maps::save_tests::saved_map_codec_fixture", "--ignored", "--exact"],
+         "game::server_side::maps_server::save_tests::saved_map_codec_fixture", "--ignored", "--exact"],
         "rust", env)
     actual = rust.read_text(encoding="utf-8").splitlines()
     assert len(actual) == len(reference), (len(actual), len(reference))

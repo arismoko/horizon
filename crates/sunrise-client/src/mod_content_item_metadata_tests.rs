@@ -1,5 +1,7 @@
 //! Item metadata assertions for the prepared mod-content fixture.
-use super::*;
+use crate::items::Items;
+use std::path::Path;
+use sunrise_world::registry::BlockStateId;
 
 pub(super) fn assert_metadata(
     root: &Path,

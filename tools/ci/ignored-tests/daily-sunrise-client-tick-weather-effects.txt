@@ -1,2 +1,2 @@
 # Daily row for #5614: a client mod takes the weather effects over.
-sunrise-client game::native_hooks::tick_weather_effects_tests::a_mod_takes_the_weather_effects_over lib daily resources
+sunrise-client-gameplay game::native_hooks::tick_weather_effects_tests::a_mod_takes_the_weather_effects_over lib daily resources

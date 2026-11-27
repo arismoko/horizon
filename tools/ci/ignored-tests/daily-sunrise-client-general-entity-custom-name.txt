@@ -1,3 +1,3 @@
-sunrise-client game::general::save_load_tests::a_general_row_answers_distance_nearest_and_uuid_selectors lib daily resources
-sunrise-client game::general::save_load_tests::a_general_rows_custom_name_is_read_selected_and_saved lib daily resources
-sunrise-client game::remote::general::tests::a_general_rows_synced_name_and_visibility_read_through_its_handle lib daily resources
+sunrise-client cut_layout::game::general::save_load_tests::a_general_row_answers_distance_nearest_and_uuid_selectors lib daily resources
+sunrise-client cut_layout::game::general::save_load_tests::a_general_rows_custom_name_is_read_selected_and_saved lib daily resources
+sunrise-client cut_layout::game::remote::general::tests::a_general_rows_synced_name_and_visibility_read_through_its_handle lib daily resources

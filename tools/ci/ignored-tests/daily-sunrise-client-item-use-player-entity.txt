@@ -1,1 +1,1 @@
-sunrise-client game::native_living_writes::tests::the_item_use_hooks_name_the_player_who_uses lib daily resources
+sunrise-gameplay game::server_side::native_living_writes::tests::the_item_use_hooks_name_the_player_who_uses lib daily resources

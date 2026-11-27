@@ -1,3 +1,3 @@
 version = 1
 doc = "After ClientHost::refresh_biome_colors, ClientHost::block_tint_color uses the refreshed biome colours for block and fluid faces, even when the server uses stock biome definitions. Face tint sources and resource-pack colormaps still apply."
-tests = ["crates/sunrise-client/src/game/modding/native_block_sprites.rs::face_tints_read_refreshed_colours_with_stock_server_biomes"]
+tests = ["crates/sunrise-client/src/cut_layout/game/modding/native_block_sprites.rs::face_tints_read_refreshed_colours_with_stock_server_biomes"]

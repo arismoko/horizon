@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player inserted a book into a lectern, after the block entity and inventory changed.
     /// `book` is the item id. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_insert_lectern_book",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_insert_lectern_book",
         dispatch = "flat",
         side = "server",
         contract = "listen",

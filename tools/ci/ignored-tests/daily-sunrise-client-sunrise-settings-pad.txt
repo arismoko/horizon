@@ -1,2 +1,2 @@
 # Sunrise Settings' page list and a controller's bumpers, on a real Game over the test resources.
-sunrise-client game::pad::parity_tests::bumpers_walk_every_page_of_sunrise_settings_and_wrap lib daily resources
+sunrise-client cut_layout::game::client_side::pad::parity_tests::bumpers_walk_every_page_of_sunrise_settings_and_wrap lib daily resources

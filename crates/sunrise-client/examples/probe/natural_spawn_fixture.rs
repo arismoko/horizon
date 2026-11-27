@@ -533,7 +533,6 @@ pub fn main() -> sunrise_client::Result<()> {
     let data = MobData::load(
         &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
         facts.states.len(),
-        false,
     )?;
     let defaults = sunrise_world::item_defaults::read(root)?;
     let items = Items::catalog(root, &PackOverlay::NONE, &defaults)?;

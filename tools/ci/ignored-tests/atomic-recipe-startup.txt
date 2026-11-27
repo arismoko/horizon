@@ -1,1 +1,1 @@
-sunrise-client game::load_conditions::tests::malformed_known_recipe_stops_dedicated_world_startup lib daily game-boot
+sunrise-client cut_layout::game::load_conditions::tests::malformed_known_recipe_stops_dedicated_world_startup lib daily game-boot

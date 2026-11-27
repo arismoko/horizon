@@ -1,2 +1,2 @@
 # #3944: the section host and the game read the same published entity-type defaults on a running game.
-sunrise-client game::entity_sections::tests::section_host_and_game_read_the_same_entity_type_defaults lib daily child-process
+sunrise-client cut_layout::game::entity_sections::tests::section_host_and_game_read_the_same_entity_type_defaults lib daily child-process

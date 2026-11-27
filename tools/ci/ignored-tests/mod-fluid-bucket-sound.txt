@@ -1,2 +1,2 @@
 # A tank-only mod fluid with a bucket plays its fill sound (#5070).
-sunrise-client game::world_fluids_tests::a_tank_only_fluid_with_a_bucket_plays_its_fill_sound_at_the_commit lib daily child-process
+sunrise-client cut_layout::game::server_side::world_fluids_tests::a_tank_only_fluid_with_a_bucket_plays_its_fill_sound_at_the_commit lib daily child-process

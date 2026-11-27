@@ -2,6 +2,6 @@ version = 1
 doc = "The engine releases its call-owned PayloadWork reference under its receiving registration after execution, refusal, or cancellation. A destructor panic is reported and quarantines that registration for the mod session. Staged effects of the affected delivery are discarded; the panic does not itself close the connection, abort the bundle, or quarantine another registration."
 tests = [
     "crates/sunrise-mod-api/src/parts/payloads/typed_tests.rs::call_owned_work_is_disposed_under_the_receiving_registration",
-    "crates/sunrise-client/src/lan/payload_executor_tests.rs::handler_error_or_epoch_cancellation_publishes_no_staged_work_or_replies",
-    "crates/sunrise-client/src/lan/payload_executor_tests.rs::a_panicking_work_destructor_on_refused_enqueue_quarantines_only_its_registration",
+    "crates/sunrise-sim/src/lan/payload_executor_tests.rs::handler_error_or_epoch_cancellation_publishes_no_staged_work_or_replies",
+    "crates/sunrise-sim/src/lan/payload_executor_tests.rs::a_panicking_work_destructor_on_refused_enqueue_quarantines_only_its_registration",
 ]

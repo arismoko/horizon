@@ -1,6 +1,6 @@
 # PACKAGE TEST TARGET daily REASON
-sunrise-client game::native_living_model_posed_tests::a_non_finite_write_is_refused_and_the_part_keeps_its_pose lib daily resources
-sunrise-client game::native_living_model_posed_tests::a_worn_chestplate_model_gets_a_call_of_its_own lib daily resources
-sunrise-client game::native_living_model_posed_tests::an_edit_after_an_attack_swing_sees_the_swing_and_is_drawn lib daily resources
-sunrise-client game::native_living_model_posed_tests::no_listener_means_no_call lib daily resources
-sunrise-client game::native_living_model_posed_tests::reset_pose_returns_the_bind_pose lib daily resources
+sunrise-client cut_layout::game::native_living_model_posed_tests::a_non_finite_write_is_refused_and_the_part_keeps_its_pose lib daily resources
+sunrise-client cut_layout::game::native_living_model_posed_tests::a_worn_chestplate_model_gets_a_call_of_its_own lib daily resources
+sunrise-client cut_layout::game::native_living_model_posed_tests::an_edit_after_an_attack_swing_sees_the_swing_and_is_drawn lib daily resources
+sunrise-client cut_layout::game::native_living_model_posed_tests::no_listener_means_no_call lib daily resources
+sunrise-client cut_layout::game::native_living_model_posed_tests::reset_pose_returns_the_bind_pose lib daily resources

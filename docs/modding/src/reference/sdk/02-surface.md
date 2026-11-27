@@ -155,6 +155,9 @@ API and engine ids, publishing still checks its API ids and carries the note for
 holds these notes since the previous SDK (`surface.notes`); `cargo sunrise-mod pin` prints a changed item's
 `migrate` line beside it.
 
+For updating native declarations whose game modules live under `client_side` or `server_side`, see
+[Repinning native targets for game side modules](../../how-to/native-mods/16-repinning-side-module-targets.md).
+
 ## Behaviours
 
 A few promises are neither a type nor a signature, so no other record can pin them: how `sunrise:add_to` files merge,

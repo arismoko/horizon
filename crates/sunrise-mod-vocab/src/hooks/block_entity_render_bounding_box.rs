@@ -10,7 +10,7 @@ pub trait Hooks {
     /// within its view distance (`block_entity_view_distance`) whose chunk is drawn.
     /// `entity` borrows the same resident data as `block_entity_submit`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_block_entity_render_bounding_box",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_block_entity_render_bounding_box",
         receiver = "read",
         dispatch = "flat",
         side = "client",

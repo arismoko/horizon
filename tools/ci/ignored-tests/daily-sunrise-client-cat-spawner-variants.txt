@@ -1,2 +1,2 @@
 # The cat spawner daily test, changed by the wolf and cat variant registry (rows: PACKAGE TEST TARGET daily REASON).
-sunrise-client game::cat_spawner::cat_spawner_tests::a_cat_spawner_cat_faces_south_without_a_level_draw lib daily resources
+sunrise-client cut_layout::game::server_side::cat_spawner::cat_spawner_tests::a_cat_spawner_cat_faces_south_without_a_level_draw lib daily resources

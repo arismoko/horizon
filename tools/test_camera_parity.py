@@ -352,8 +352,8 @@ RENDER_WITNESS_TESTS = [
 ]
 
 CLIENT_WITNESS_TESTS = [
-    'game::interactions::tests::interaction_negative_height_bounds_invert_downward_26_3',
-    'game::interactions::tests::interaction_unsynced_default_sync_and_pose_sync_seat_height_26_3',
+    'game::client_side::interactions::tests::interaction_negative_height_bounds_invert_downward_26_3',
+    'game::client_side::interactions::tests::interaction_unsynced_default_sync_and_pose_sync_seat_height_26_3',
     'game::remote::tests::camera_death_tests::a_spectated_dying_living_entity_squeezes_the_fov_26_3',
     'game::remote::tests::camera_draw_tests::local_player_and_camera_entity_draw_like_the_real_client',
     'game::remote::tests::camera_parity_red_tests::any_tracked_entity_resolves_as_camera_26_3',
@@ -371,11 +371,11 @@ CLIENT_WITNESS_TESTS = [
     'game::remote::tests::camera_parity_red_tests::review_followup_camera_parity_26_3',
     'game::remote::tests::camera_parity_red_tests::sleeping_spectated_living_entity_bed_view_and_visibility_26_3',
     'game::remote::tests::camera_parity_red_tests::spectated_rider_mount_attributes_26_3',
-    'game::remote::tests::client_camera_tests::a_named_mob_the_server_camera_is_attached_to_shows_no_name_tag',
+    'game::client_side::remote_client::client_camera_tests::a_named_mob_the_server_camera_is_attached_to_shows_no_name_tag',
     'game::remote::tests::client_hud_camera_tests::hud_bars_follow_the_camera_player_like_26_3',
     'game::remote::tests::set_camera_kinds_tests::set_camera_follows_the_real_26_3_clients_camera_for_every_entity_kind',
-    'game::remote_camera::camera_mount_tests::a_spectated_rider_backs_off_by_its_living_vehicles_camera_distance',
-    'game::remote_camera::camera_tests::a_spectated_sleeping_villager_shows_the_bed_view',
+    'game::client_side::remote_camera::camera_mount_tests::a_spectated_rider_backs_off_by_its_living_vehicles_camera_distance',
+    'game::client_side::remote_camera::camera_tests::a_spectated_sleeping_villager_shows_the_bed_view',
 ]
 
 

@@ -97,10 +97,10 @@ def main():
         'addTicketWithRadius(PORTAL, 3) and deactivateTicketsOnClosing, against SaveDir and '
         'ChunkTickets through a real chunk_tickets.dat. Excludes level propagation, streaming '
         'readiness and other ticket types than FORCED beside PORTAL.',
-        sources=[lab.ROOT / 'crates/sunrise-client/src/save.rs',
-                 lab.ROOT / 'crates/sunrise-client/src/save/dir.rs',
-                 lab.ROOT / 'crates/sunrise-client/src/save/tickets.rs',
-                 lab.ROOT / 'crates/sunrise-client/src/ticket_levels.rs'],
+        sources=[lab.ROOT / 'crates/sunrise-sim/src/save.rs',
+                 lab.ROOT / 'crates/sunrise-sim/src/save/dir.rs',
+                 lab.ROOT / 'crates/sunrise-sim/src/save/tickets.rs',
+                 lab.ROOT / 'crates/sunrise-sim/src/ticket_levels.rs'],
         expected_lines=len(CASES))
 
 

@@ -58,9 +58,9 @@ def main():
         "item may be tried afterward. "
         "Game-mode side effects and world simulation are controlled fixtures.",
         sources=[lab.ROOT / "crates/sunrise-client-input/src/interaction_input.rs",
-                 lab.ROOT / "crates/sunrise-client/src/game/network/remote/mod.rs",
-                 lab.ROOT / "crates/sunrise-client/src/game/network/remote/interaction_actions.rs",
-                 lab.ROOT / "crates/sunrise-client/src/game/items/hand.rs",
+                 lab.ROOT / "crates/sunrise-gameplay-common/src/game/network/remote/mod.rs",
+                 lab.ROOT / "crates/sunrise-gameplay-common/src/game/network/remote/interaction_actions.rs",
+                 lab.ROOT / "crates/sunrise-client-gameplay/src/game/items/hand.rs",
                  lab.ROOT / "mods/sunrise/src/test/java/dev/sunriselab/parity/ParityData.java"])
 
 

@@ -1,2 +1,2 @@
-sunrise-client game::native_hooks::placement_context_tests::item_parts_rewrite_or_refuse_context_and_control_survival_on_both_sides lib daily resources
-sunrise-client game::native_hooks::placement_context_tests::player_and_dispenser_apply_only_the_context_seen_by_the_veto lib daily child-process
+sunrise-client cut_layout::game::native_hooks::placement_context_tests::item_parts_rewrite_or_refuse_context_and_control_survival_on_both_sides lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::placement_context_tests::player_and_dispenser_apply_only_the_context_seen_by_the_veto lib daily child-process

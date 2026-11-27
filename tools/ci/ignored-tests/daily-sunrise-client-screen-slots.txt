@@ -1,4 +1,4 @@
 # A client mod moving and hiding its open screen's slots (ScreensClientHost::set_screen_slot).
-sunrise-client game::native_hooks::book_screen::lifecycle_tests::a_hidden_slot_leaves_the_screen_and_comes_back_where_put lib daily resources
-sunrise-client game::native_hooks::book_screen::lifecycle_tests::a_bound_books_catalogue_survives_slot_moves_and_hides lib daily resources
-sunrise-client game::native_hooks::book_screen::lifecycle_tests::hidden_player_slots_are_no_target_and_come_back_on_reopen lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::book_screen::lifecycle_tests::a_hidden_slot_leaves_the_screen_and_comes_back_where_put lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::book_screen::lifecycle_tests::a_bound_books_catalogue_survives_slot_moves_and_hides lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::book_screen::lifecycle_tests::hidden_player_slots_are_no_target_and_come_back_on_reopen lib daily resources

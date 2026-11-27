@@ -1,1 +1,1 @@
-sunrise-client game::native_hover_name_tests::a_hover_name_is_a_component_each_viewer_renders_in_their_language lib daily resources
+sunrise-client cut_layout::game::native_hover_name_tests::a_hover_name_is_a_component_each_viewer_renders_in_their_language lib daily resources

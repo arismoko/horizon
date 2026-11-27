@@ -1,2 +1,2 @@
-sunrise-client game::native_entity_riding::tests::mounting_a_leashed_mob_drops_one_lead_without_a_break_sound lib daily resources
-sunrise-client game::native_entity_riding::tests::natural_boarding_drops_a_lead_only_after_a_successful_mount lib daily resources
+sunrise-client cut_layout::game::client_side::native_entity_riding_client::tests::mounting_a_leashed_mob_drops_one_lead_without_a_break_sound lib daily resources
+sunrise-client cut_layout::game::client_side::native_entity_riding_client::tests::natural_boarding_drops_a_lead_only_after_a_successful_mount lib daily resources

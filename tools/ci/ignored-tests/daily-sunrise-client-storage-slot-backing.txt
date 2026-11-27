@@ -1,4 +1,4 @@
-sunrise-client game::machines::native_items::storage_slot_backing_tests::a_composter_has_no_backing_on_any_face_at_any_level lib daily resources
-sunrise-client game::machines::native_items::storage_slot_backing_tests::a_double_chests_halves_report_the_same_slots_each_with_its_owning_half lib daily resources
-sunrise-client game::machines::native_items::storage_slot_backing_tests::a_furnaces_sides_share_a_slot_and_its_other_faces_stay_distinct lib daily resources
-sunrise-client game::machines::native_items::storage_slot_backing_tests::an_open_double_chest_menu_backs_each_slot_as_its_sides_do_until_it_closes lib daily resources
+sunrise-gameplay game::server_side::machines::native_items::storage_slot_backing_tests::a_composter_has_no_backing_on_any_face_at_any_level lib daily resources
+sunrise-gameplay game::server_side::machines::native_items::storage_slot_backing_tests::a_double_chests_halves_report_the_same_slots_each_with_its_owning_half lib daily resources
+sunrise-gameplay game::server_side::machines::native_items::storage_slot_backing_tests::a_furnaces_sides_share_a_slot_and_its_other_faces_stay_distinct lib daily resources
+sunrise-gameplay game::server_side::machines::native_items::storage_slot_backing_tests::an_open_double_chest_menu_backs_each_slot_as_its_sides_do_until_it_closes lib daily resources

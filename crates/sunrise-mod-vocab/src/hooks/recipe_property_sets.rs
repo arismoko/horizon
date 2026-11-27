@@ -23,7 +23,7 @@ pub trait Hooks {
         out = "additions",
         registration_append = "attributed",
         context = "data_load",
-        target = "sunrise_client_lib::crafting::native_hooks::native_recipe_property_sets",
+        target = "sunrise_sim::crafting::native_hooks::native_recipe_property_sets",
         neoforge = "RegisterRecipePropertiesEvent"
     )]
     fn recipe_property_sets(additions: &mut Vec<Answered<RecipePropertyAddition>>);

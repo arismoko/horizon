@@ -1,2 +1,2 @@
 # Clientbound explosion packet regression (prepared client resources).
-sunrise-client game::remote::tests::client_explosion_tests::explosion_validates_impulse_and_result_without_suppressing_effects lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::tests::client_explosion_tests::explosion_validates_impulse_and_result_without_suppressing_effects lib daily resources

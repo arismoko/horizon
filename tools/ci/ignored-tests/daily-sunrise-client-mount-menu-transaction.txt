@@ -1,2 +1,2 @@
 # Mount-menu rollback exercises a real server in a fresh process with prepared resources.
-sunrise-client game::stacked_on_other_tests::families::an_outer_abort_restores_the_mount_and_guest_without_publishing_the_click lib daily child-process
+sunrise-gameplay game::stacked_on_other_tests::families::an_outer_abort_restores_the_mount_and_guest_without_publishing_the_click lib daily child-process

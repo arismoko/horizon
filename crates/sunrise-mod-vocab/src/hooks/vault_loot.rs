@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A vault at `pos` is about to eject a loot item.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_vault_loot",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_vault_loot",
         dispatch = "flat",
         side = "server",
         contract = "listen",

@@ -5,7 +5,7 @@ pub trait Hooks {
     /// added to or filtered from `suggestions`. `range` is the replaced byte range.
     /// The game snapshots completions only when a listener subscribes.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_tab_complete",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_tab_complete",
         dispatch = "flat",
         side = "server",
         contract = "collect",

@@ -1,12 +1,12 @@
 # Callback-based entity_inside behavior tests (debt 42).
-sunrise-client game::native_hooks::entity_inside::sweep_tests::callback_hurt_resolves_a_lifted_sibling_but_not_a_retired_handle lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::callback_level_writes_apply_after_block_state_changes_and_do_not_rollback_siblings lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::item_float_hurt_bundle_spill_and_projectile_mark_hurt lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::mob_inside_tick_keeps_water_and_resolves_live_sources lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::panicking_mod_callback_disables_only_that_mod_and_queues_error_toast lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::player_live_inside_flush_level_writes_peaceful_effect_and_fire_semantics lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::player_powder_snow_and_fire_builtin_ordering lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::item_tick_sweeps_once_and_keeps_the_single_hit lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::mob_inside_hurt_teleports_before_the_next_callback lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::item_tick_places_vanilla_fire_inside_the_ignition_slot lib daily child-process
-sunrise-client game::native_hooks::entity_inside::sweep_tests::burning_mob_sweeping_into_dry_powder_snow_melts_it_and_draws_the_hiss lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::callback_hurt_resolves_a_lifted_sibling_but_not_a_retired_handle lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::callback_level_writes_apply_after_block_state_changes_and_do_not_rollback_siblings lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::item_float_hurt_bundle_spill_and_projectile_mark_hurt lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::mob_inside_tick_keeps_water_and_resolves_live_sources lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::panicking_mod_callback_disables_only_that_mod_and_queues_error_toast lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::player_live_inside_flush_level_writes_peaceful_effect_and_fire_semantics lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::player_powder_snow_and_fire_builtin_ordering lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::item_tick_sweeps_once_and_keeps_the_single_hit lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::mob_inside_hurt_teleports_before_the_next_callback lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::item_tick_places_vanilla_fire_inside_the_ignition_slot lib daily child-process
+sunrise-client cut_layout::game::server_side::native_hooks_server::entity_inside::sweep_tests::burning_mob_sweeping_into_dry_powder_snow_melts_it_and_draws_the_hiss lib daily child-process

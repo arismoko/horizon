@@ -14,6 +14,6 @@ mixins = "MIXINS"
 
 [[native.mixin]]
 id = "head0"
-target = "sunrise_client::game::native_item_entity_refs::Game<'_>::item_entity_owner"
+target = "sunrise_gameplay::game::server_side::native_item_entity_refs_server::crate::game::ServerGame<'_>::item_entity_owner"
 kind = "HEAD"
 helper = "src/mixins/head.rs"

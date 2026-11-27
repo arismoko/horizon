@@ -19,7 +19,7 @@ pub trait Hooks {
     /// the transaction spawned and removed is never told to join, so it never
     /// leaves. Check `kind`. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_leave_level",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_leave_level",
         dispatch = "flat",
         side = "server",
         contract = "listen",

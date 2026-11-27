@@ -1,2 +1,2 @@
 # LivingRef::equipment_drop_chance reads a mob's per-slot drop chance outside a death roll (#5935).
-sunrise-client game::native_living_refs::tests::a_mobs_equipment_drop_chance_reads_its_recorded_chance_per_slot lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::a_mobs_equipment_drop_chance_reads_its_recorded_chance_per_slot lib daily resources

@@ -1,1 +1,1 @@
-sunrise-client game::dragon::residency_tests::the_dragons_killing_blow_fires_the_living_death_hooks lib daily resources
+sunrise-client cut_layout::game::server_side::dragon::residency_tests::the_dragons_killing_blow_fires_the_living_death_hooks lib daily resources

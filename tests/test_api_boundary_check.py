@@ -37,7 +37,7 @@ class ApiBoundaryCheckTests(unittest.TestCase):
         self.assert_rule("pub use sunrise_world::{fluid::{FluidState as Fluid}};")
 
     def test_glob_export(self):
-        self.assert_rule("pub use sunrise_client_core::text::*;")
+        self.assert_rule("pub use sunrise_game_data::text::*;")
 
     def test_private_import_alias_in_public_signature(self):
         self.assert_rule("use sunrise_world::fluid::FluidState as X; pub fn f() -> X { todo!() }")

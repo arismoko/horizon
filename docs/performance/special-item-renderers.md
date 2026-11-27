@@ -8,7 +8,7 @@ allocation counts with and without an unmatched registration.
 
 ## Measuring direct submission
 
-The `special_item_draw_cost` benchmark times `Game::resolve_item` and `submit_item_unlit` for:
+The `special_item_draw_cost` benchmark times `ClientGame::resolve_item` and `submit_item_unlit` for:
 
 - `built_in_model`: stone's own `minecraft:model`.
 - `special_direct_submission`: a registered renderer submitting the same stone geometry from
@@ -18,7 +18,7 @@ It checks that the vertex counts match and reports median, p95 and p99 after war
 prepared resources on an optimized build:
 
 ```sh
-SUNRISE_TEST_RESOURCES=$PWD/.local/sunrise-client/26.3 cargo test --profile fast -p sunrise-client --lib -- --ignored --nocapture --exact game::native_special_renderers::cost_tests::special_item_draw_cost
+SUNRISE_TEST_RESOURCES=$PWD/.local/sunrise-client/26.3 cargo test --profile fast -p sunrise-client --lib -- --ignored --nocapture --exact cut_layout::game::client_side::native_special_renderers::cost_tests::special_item_draw_cost
 ```
 
 ## Historical: cached recipes

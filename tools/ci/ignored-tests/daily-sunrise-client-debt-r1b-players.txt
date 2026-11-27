@@ -1,3 +1,3 @@
-sunrise-client game::transactions::player_tests::abort_restores_fake_players_with_the_same_uuid_in_different_levels lib daily resources
-sunrise-client game::transactions::player_tests::abort_restores_player_inventory_and_data_after_the_acting_player_dies lib daily resources
-sunrise-client game::transactions::player_tests::abort_restores_the_suspended_guest_without_touching_the_inner_guest lib daily resources
+sunrise-client cut_layout::game::transactions::player_tests::abort_restores_fake_players_with_the_same_uuid_in_different_levels lib daily resources
+sunrise-client cut_layout::game::transactions::player_tests::abort_restores_player_inventory_and_data_after_the_acting_player_dies lib daily resources
+sunrise-client cut_layout::game::transactions::player_tests::abort_restores_the_suspended_guest_without_touching_the_inner_guest lib daily resources

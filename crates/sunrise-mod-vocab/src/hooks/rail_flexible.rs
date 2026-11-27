@@ -16,7 +16,7 @@ pub trait Hooks {
         out = "flexible",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::rails::GameLevel<'_>::native_rail_flexible",
+        target = "sunrise_gameplay_common::game::native_hooks::rails::GameLevel<'_>::native_rail_flexible",
         neoforge = "IBaseRailBlockExtension.isFlexibleRail"
     )]
     fn rail_flexible(

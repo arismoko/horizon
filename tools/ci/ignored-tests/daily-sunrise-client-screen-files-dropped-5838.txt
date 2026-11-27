@@ -1,3 +1,3 @@
 # screen_files_dropped (#5788, #5838): a drop reaches the screen it was dropped on, through Game::idle and before a screen-changing click.
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::a_drop_reaches_its_screen_before_a_click_that_closes_it lib daily child-process
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::dropped_files_reach_a_mod_screen_whole_and_in_order lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::a_drop_reaches_its_screen_before_a_click_that_closes_it lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::dropped_files_reach_a_mod_screen_whole_and_in_order lib daily child-process

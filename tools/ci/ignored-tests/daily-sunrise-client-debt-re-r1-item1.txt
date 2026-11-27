@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::block_entity_tick::tests::reentrant_removal_does_not_spill_the_same_saved_pot_twice lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_tick::tick_tests::reentrant_removal_does_not_spill_the_same_saved_pot_twice lib daily resources

@@ -1,1 +1,1 @@
-sunrise-client game::remote::general::tests::riding_reads_follow_the_server_passenger_lists lib daily resources
+sunrise-client cut_layout::game::remote::general::tests::riding_reads_follow_the_server_passenger_lists lib daily resources

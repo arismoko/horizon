@@ -7,14 +7,13 @@ use std::{
 };
 use sunrise_client::{
     Result,
-    mobs::{Anim, Brain, Flags, Mob, MobEvent, MobType, Part, Species, zombie_villager},
+    mobs::{Anim, Brain, Flags, Mob, MobEvent, MobType, Species, zombie_villager},
 };
 use sunrise_core::{geometry::Vec3, random::RandomSource};
 
 fn kind(eye_height: f64) -> Arc<MobType> {
     Arc::new(MobType {
         type_key: Default::default(),
-        shadow: None,
         id: "minecraft:zombie_villager".into(),
         species: Species::ZombieVillager,
         width: 0.6,
@@ -47,15 +46,6 @@ fn kind(eye_height: f64) -> Arc<MobType> {
         max_head_y_rot: 75.0,
         ambient_interval: 120,
         flags: Flags::default(),
-        model: Arc::new(Part {
-            name: "root".into(),
-            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
-            polygons: Vec::new(),
-            children: Vec::new(),
-            layer: None,
-        }),
-        layers: Default::default(),
-        texture: String::new(),
         brain: Brain::Passive,
         anim: Anim::Zombie,
         sounds: [""; 3],

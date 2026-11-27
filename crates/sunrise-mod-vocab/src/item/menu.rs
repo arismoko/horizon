@@ -431,6 +431,131 @@ pub struct AnvilUpdateEdits {
     /// zero or a value exceeding the stack consumes all of it on take.
     pub material_cost: i32,
 }
+
+/// A mutable host that can run an anvil menu's listeners on its logical side.
+pub trait AnvilUpdateHost {
+    /// Borrows the active hook host for the duration of an anvil update.
+    fn anvil_update_host(&mut self) -> HostSide<'_>;
+}
+
+impl<H: ServerHost> AnvilUpdateHost for H {
+    fn anvil_update_host(&mut self) -> HostSide<'_> {
+        HostSide::Server(self)
+    }
+}
+
+impl AnvilUpdateHost for dyn ServerHost + '_ {
+    fn anvil_update_host(&mut self) -> HostSide<'_> {
+        HostSide::Server(self)
+    }
+}
+
+impl AnvilUpdateHost for dyn ClientHost + '_ {
+    fn anvil_update_host(&mut self) -> HostSide<'_> {
+        HostSide::Client(self)
+    }
+}
+
+impl AnvilUpdateHost for HostSide<'_> {
+    fn anvil_update_host(&mut self) -> HostSide<'_> {
+        self.reborrow()
+    }
+}
+
+impl PlayerRef {
+    /// Side: both.
+    /// Runs every mod's `anvil_update` listeners for a mod's own anvil menu, as NeoForge's
+    /// `CommonHooks.onAnvilUpdate` does for a menu that is not vanilla's `AnvilMenu`: an
+    /// upgraded or portable anvil computes its own result, then asks this so the other mods'
+    /// anvil recipes, cost changes and repair rules work in it too. `pos` is the anvil's block
+    /// (any position for one with no block) and `inputs` lends the stacks, the rename text and
+    /// the menu's own result and costs, which the listeners see as vanilla's. The listeners run
+    /// in their usual order, on this side, for `player`, starting from `Keep` and those costs.
+    /// Returns the edits they left (apply the output, the level cost, clamped at 0 as
+    /// `AnvilMenu.setCost` does, and the material cost to your menu), or None when a listener
+    /// canceled, which clears your result and both costs as it does vanilla's. Also None, with
+    /// no listener asked, for a stale player, a client's player other than its local one, and a
+    /// call from inside an `anvil_update` listener, which would run them again without bound.
+    /// Pass the active server or client hook host, or borrow its `HostSide`.
+    pub fn anvil_update(
+        self,
+        host: &mut (impl AnvilUpdateHost + ?Sized),
+        pos: [i32; 3],
+        inputs: &AnvilUpdateInputs<'_>,
+    ) -> Option<AnvilUpdateEdits> {
+        match host.anvil_update_host() {
+            HostSide::Server(host) => backend_mut_of(host)?.player_anvil_update(self, pos, inputs),
+            HostSide::Client(host) => {
+                client_backend_mut_of(host)?.player_anvil_update(self, pos, inputs)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn anvil_update_uses_the_active_sides_backend() {
+    struct Stub;
+    impl Host for Stub {}
+    crate::impl_host_areas!(Stub);
+    impl ServerHost for Stub {}
+    crate::impl_server_host_areas!(Stub);
+    impl ClientHost for Stub {
+        fn client_backend_mut(&mut self) -> Option<ClientBackendMutRef<'_>> {
+            Some(ClientBackendMutRef::of(self))
+        }
+    }
+    crate::impl_client_host_areas!(Stub);
+    impl ClientBackendMut for Stub {}
+    crate::impl_client_backend_mut_areas!(Stub, except(player_menus));
+    impl prelude::PlayerMenusClientBackendMut for Stub {
+        fn player_anvil_update(
+            &mut self,
+            player: PlayerRef,
+            pos: [i32; 3],
+            inputs: &AnvilUpdateInputs<'_>,
+        ) -> Option<AnvilUpdateEdits> {
+            assert_eq!(player.uuid(), 42);
+            assert_eq!(pos, [7, 64, 7]);
+            Some(AnvilUpdateEdits {
+                output: StackResult::Keep,
+                xp_cost: inputs.vanilla_xp_cost + 1,
+                material_cost: inputs.vanilla_material_cost,
+            })
+        }
+    }
+
+    let player = __private::game::player_ref(EntityRef::new(WorldEpoch::new(1), 7), 42);
+    let inputs = AnvilUpdateInputs {
+        left: &ItemStack::of(ItemKey(3)),
+        right: None,
+        name: None,
+        vanilla_output: None,
+        vanilla_xp_cost: 3,
+        vanilla_material_cost: 1,
+    };
+    let stub = &mut Stub;
+    let pos = [7, 64, 7];
+    assert_eq!(player.anvil_update(stub, pos, &inputs), None);
+    assert_eq!(
+        player.anvil_update(stub as &mut dyn ServerHost, pos, &inputs),
+        None
+    );
+    let client: &mut dyn ClientHost = stub;
+    assert_eq!(
+        player.anvil_update(client, pos, &inputs).unwrap().xp_cost,
+        4
+    );
+    let mut side = HostSide::Client(client);
+    assert_eq!(
+        player
+            .anvil_update(&mut side, pos, &inputs)
+            .unwrap()
+            .xp_cost,
+        4
+    );
+}
+
 /// The inputs and vanilla result of `GrindstoneMenu.createResult`, borrowed for
 /// the `grindstone_place` callback. Edits by earlier listeners do not change these values.
 #[derive(Clone, Debug, PartialEq)]

@@ -22,15 +22,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools import lab, test_rust_parity as artifacts
 
-TEST = 'game::potions::arrow_contents::actual_arrow_contents_match_pinned_methods'
+TEST = 'game::server_side::potions_server::arrow_contents::actual_arrow_contents_match_pinned_methods'
 ORACLE = 'VanillaArrowContentsExpiryOracle'
 PRODUCTION = [
-    'crates/sunrise-client-render/src/brewing.rs',
-    'crates/sunrise-client/src/entities/arrows.rs',
-    'crates/sunrise-client/src/entities/arrows/flight.rs',
-    'crates/sunrise-client/src/entities/arrows/contact.rs',
-    'crates/sunrise-client/src/entities/arrows/state.rs',
-    'crates/sunrise-client/src/game/items/potions.rs',
+    'crates/sunrise-level/src/brewing.rs',
+    'crates/sunrise-sim/src/entities/arrows.rs',
+    'crates/sunrise-sim/src/entities/arrows/flight.rs',
+    'crates/sunrise-sim/src/entities/arrows/contact.rs',
+    'crates/sunrise-sim/src/entities/arrows/state.rs',
+    'crates/sunrise-gameplay/src/game/items/potions_server.rs',
 ]
 
 
@@ -71,7 +71,7 @@ def main():
         p.error('input changed since the pinned Java oracle run')
     inputs.write_bytes(input_bytes)
     source=root/f'mods/sunrise/src/test/java/dev/sunriselab/parity/{ORACLE}.java'
-    native=root/'crates/sunrise-client/src/game/items/potions.rs'
+    native=root/'crates/sunrise-gameplay/src/game/items/potions_server.rs'
     provenance=dict(source_head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),
                     phase=a.phase,rows=len(rows),input_sha256=sha(input_bytes),
                     oracle_source_sha256=sha(source.read_bytes()),native_source_sha256=sha(native.read_bytes()),

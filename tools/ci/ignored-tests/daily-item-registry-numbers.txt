@@ -1,1 +1,1 @@
-sunrise-client game::native_item_registry::tests::item_numbers_follow_the_prepared_content_plan_for_api_and_scatter lib daily resources
+sunrise-client cut_layout::game::native_item_registry::tests::item_numbers_follow_the_prepared_content_plan_for_api_and_scatter lib daily resources

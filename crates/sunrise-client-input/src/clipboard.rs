@@ -74,37 +74,7 @@ pub fn types_text(edit_modifier: bool, alt: bool, altgr_is_ctrl_alt: bool) -> bo
     !edit_modifier || (altgr_is_ctrl_alt && alt)
 }
 
-/// `StringUtil.isAllowedChatCharacter`.
-pub fn is_allowed_chat_character(c: char) -> bool {
-    c != '§' && c >= ' ' && c != '\u{7f}'
-}
-
-/// `StringUtil.filterText`: the allowed characters, and line breaks where
-/// the field takes several lines.
-pub fn filter_text(input: &str, multiline: bool) -> String {
-    input
-        .chars()
-        .filter(|&c| is_allowed_chat_character(c) || (multiline && c == '\n'))
-        .collect()
-}
-
-/// `ChatFormatting.stripFormatting`: `§` followed by a format code removed.
-pub fn strip_formatting(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    let mut chars = input.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '§'
-            && chars.peek().is_some_and(
-                |n| matches!(n.to_ascii_lowercase(), '0'..='9' | 'a'..='f' | 'k'..='o' | 'r'),
-            )
-        {
-            chars.next();
-            continue;
-        }
-        out.push(c);
-    }
-    out
-}
+pub use sunrise_game_data::text::{filter_text, is_allowed_chat_character, strip_formatting};
 
 /// `TextFieldHelper.getClipboardContents`: formatting and carriage returns
 /// removed (signs).

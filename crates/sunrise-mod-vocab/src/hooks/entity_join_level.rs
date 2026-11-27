@@ -10,7 +10,7 @@ pub trait Hooks {
     /// On the server, neither player tick hook fires for a spectator whose
     /// bounds touch an unloaded chunk; that player's body tick is skipped.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_tick_pre",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_player_tick_pre",
         dispatch = "api_carrier",
         side = "both",
         contract = "listen",
@@ -27,7 +27,7 @@ pub trait Hooks {
     /// On the server, neither player tick hook fires for a spectator whose
     /// bounds touch an unloaded chunk; that player's body tick is skipped.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_tick_post",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameHooks::native_player_tick_post",
         dispatch = "api_carrier",
         side = "both",
         contract = "listen",
@@ -74,7 +74,7 @@ pub trait Hooks {
     /// and do not notify yet. Saved data kept for a missing mod is not an entity in the level
     /// and does not notify. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_join_level",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_join_level",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

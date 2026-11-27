@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             input["item"].as_str().unwrap(),
             input["count"].as_u64().unwrap() as u32,
         );
-        let components = sunrise_client_core::scoreboard::json_to_tag(&input["components"]);
+        let components = sunrise_game_data::scoreboard::json_to_tag(&input["components"]);
         let (_, extra) = decode_components(Some(&components));
         stack.extra = extra;
         let accepted = brewing_fuel(&items, &stack).is_some();

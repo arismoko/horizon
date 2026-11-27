@@ -1,4 +1,4 @@
-sunrise-client game::native_menu_places::tests::a_code_opened_backed_menu_respects_its_display_only_slot lib daily child-process
-sunrise-client game::native_hooks::screen_position_tests::a_hopper_layout_mod_menu_opens_its_screen_from_block_packets lib daily child-process
-sunrise-client game::remote::interaction_event_tests::mapping_press_tests::a_mod_releases_the_toolbar_mapping_while_its_physical_key_stays_down lib daily resources
-sunrise-client game::remote::interaction_event_tests::mapping_press_tests::input_burst_tests::the_inventory_poll_releases_live_queues_only_when_it_opens_a_screen lib daily resources
+sunrise-client cut_layout::game::server_side::native_menu_places::tests::a_code_opened_backed_menu_respects_its_display_only_slot lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::screen_position_tests::a_hopper_layout_mod_menu_opens_its_screen_from_block_packets lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::interaction_event_tests::mapping_press_tests::a_mod_releases_the_toolbar_mapping_while_its_physical_key_stays_down lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::interaction_event_tests::mapping_press_tests::input_burst_tests::the_inventory_poll_releases_live_queues_only_when_it_opens_a_screen lib daily resources

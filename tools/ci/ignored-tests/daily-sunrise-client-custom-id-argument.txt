@@ -1,1 +1,1 @@
-sunrise-client game::native_command_completion_tests::custom_id_reads_a_mid_command_identifier_and_sends_its_vanilla_parser lib daily child-process
+sunrise-client cut_layout::game::native_command_completion_tests::custom_id_reads_a_mid_command_identifier_and_sends_its_vanilla_parser lib daily child-process

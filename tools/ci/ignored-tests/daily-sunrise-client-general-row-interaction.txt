@@ -1,1 +1,1 @@
-sunrise-client game::remote::general::tests::a_shown_pickable_general_row_receives_the_named_use_and_attack lib daily resources
+sunrise-client cut_layout::game::server_side::remote_server::general::tests::a_shown_pickable_general_row_receives_the_named_use_and_attack lib daily resources

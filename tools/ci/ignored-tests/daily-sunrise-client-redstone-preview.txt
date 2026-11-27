@@ -1,2 +1,2 @@
 # Client redstone preview checks with prepared resources.
-sunrise-client game::remote::tests::placement_preview_tests::redstone_updates_respect_the_preview_level_side lib daily resources
+sunrise-client cut_layout::game::remote::tests::placement_preview_tests::redstone_updates_respect_the_preview_level_side lib daily resources

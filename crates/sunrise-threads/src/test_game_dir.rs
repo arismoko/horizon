@@ -36,9 +36,28 @@ pub fn keep() {
 static INIT: extern "C" fn() = enter;
 
 extern "C" fn enter() {
+    configure_test_allocator();
     if let Err(error) = move_into_own_folder() {
         eprintln!("test game folder: staying in the working directory: {error}");
     }
+}
+
+/// Match production's mimalloc purge and THP settings in test binaries unless overridden.
+fn configure_test_allocator() {
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    if !is_test_binary(&exe) {
+        return;
+    }
+    let is_threads_test = exe
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.starts_with("sunrise_threads-"));
+    if is_threads_test || std::env::var_os("MIMALLOC_PURGE_DELAY").is_some() {
+        return;
+    }
+    crate::configure_allocator();
 }
 
 /// Whether `exe` is a cargo test harness binary: those, and only those, are built into `deps`

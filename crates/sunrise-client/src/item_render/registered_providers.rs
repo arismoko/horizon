@@ -115,6 +115,13 @@ impl<'a> ItemProviderTables<'a> {
             select_property: SELECT_PROPERTY_FACTORIES.get().map(Arc::as_ref),
         }
     }
+    #[cfg(any(test, feature = "test-resource-cache"))]
+    pub(super) fn has_registered() -> bool {
+        TINT_FACTORIES.get().is_some()
+            || ITEM_MODEL_FACTORIES.get().is_some()
+            || RANGE_PROPERTY_FACTORIES.get().is_some()
+            || SELECT_PROPERTY_FACTORIES.get().is_some()
+    }
 }
 
 fn is_builtin_tint_source(kind: &str) -> bool {

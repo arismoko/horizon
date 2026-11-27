@@ -1,1 +1,1 @@
-sunrise-client game::load_conditions::startup_tests::startup_recipe_reads_bound_tags_for_tag_empty lib daily resources
+sunrise-client-gameplay game::load_conditions::startup_tests::startup_recipe_reads_bound_tags_for_tag_empty lib daily resources

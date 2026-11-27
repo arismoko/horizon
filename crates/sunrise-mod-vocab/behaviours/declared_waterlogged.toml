@@ -2,5 +2,5 @@ version = 1
 doc = "A block declaration with a boolean state_properties.waterlogged gains SimpleWaterloggedBlock behaviour: buckets fill and drain it, incoming water waterlogs it, default placement copies source water at the cell, and default shape updates schedule a water tick. Part answers replace the placement and shape defaults. The template's class and companion-half behaviour remain unchanged. An enum waterlogged property, an always-water template, or a property the template already has is refused."
 tests = [
   "crates/sunrise-mod-package/src/content.rs::declared_waterlogged_requires_a_boolean",
-  "crates/sunrise-client/src/mod_content_waterlogged_tests.rs::declared_waterlogged_blocks_keep_their_class_and_gain_liquid_defaults",
+  "crates/sunrise-sim/src/mod_content_waterlogged_tests.rs::declared_waterlogged_blocks_keep_their_class_and_gain_liquid_defaults",
 ]

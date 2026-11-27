@@ -1,3 +1,3 @@
-sunrise-client game::native_player_destroyed_block_tests::block_drops_holds_nothing_after_a_listener_panics lib daily resources
-sunrise-client game::native_player_destroyed_block_tests::block_drops_names_the_mob_that_broke_the_block lib daily resources
-sunrise-client game::native_player_destroyed_block_tests::block_drops_lends_the_removed_chests_data_without_a_temporary_handle lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_destroyed_block_tests::block_drops_holds_nothing_after_a_listener_panics lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_destroyed_block_tests::block_drops_names_the_mob_that_broke_the_block lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_destroyed_block_tests::block_drops_lends_the_removed_chests_data_without_a_temporary_handle lib daily resources

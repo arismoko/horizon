@@ -1,1 +1,1 @@
-sunrise-client game::transaction_entities_tests::a_mob_removed_in_a_transaction_leaves_once_at_the_root_commit lib daily child-process
+sunrise-gameplay game::server_side::transaction_entities_tests::a_mob_removed_in_a_transaction_leaves_once_at_the_root_commit lib daily child-process

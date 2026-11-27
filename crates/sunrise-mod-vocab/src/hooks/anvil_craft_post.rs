@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A player took an anvil's result at `pos` and the levels, inputs and anvil wear are done (`AnvilCraftEvent.Post`); a broken anvil is already air. `inputs` borrows the same pre-take input stacks and result as `anvil_craft_pre`. Not called when `anvil_craft_pre` cancelled.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_anvil_craft_post",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_anvil_craft_post",
         dispatch = "flat",
         side = "server",
         contract = "listen",

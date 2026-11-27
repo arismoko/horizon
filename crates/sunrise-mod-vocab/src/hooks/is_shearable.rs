@@ -13,7 +13,7 @@ pub trait Hooks {
     /// the same question the server does); `host` says which side asks, and a dispenser's ask is
     /// the server's alone.
     #[hook(
-        target = "sunrise_client::game::native_hooks::is_shearable::Game<'_>::native_is_shearable",
+        target = "sunrise_gameplay_common::game::native_hooks::is_shearable::GameHooks::native_is_shearable",
         receiver = "write",
         dispatch = "direct",
         side = "both",

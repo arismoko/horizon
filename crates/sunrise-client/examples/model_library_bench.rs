@@ -60,9 +60,10 @@ fn main() -> sunrise_client::Result<()> {
     let initial = LIVE.load(Relaxed);
     let start = Instant::now();
     let assets = Assets::load(root)?;
-    let render = assets.reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-        root.to_path_buf(),
-    ))?;
+    let render = sunrise_client::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )?;
     let block_ms = start.elapsed().as_secs_f64() * 1000.;
     let block_retained = LIVE.load(Relaxed) - initial;
     let start_items = Instant::now();

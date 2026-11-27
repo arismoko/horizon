@@ -9,7 +9,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         host = "level",
-        target = "sunrise_client::game::native_hooks::block_landing::HitLevel<'_>::native_fall_on",
+        target = "sunrise_gameplay_common::game::native_hooks::block_landing::HitLevel<'_>::native_fall_on",
         neoforge = "LivingFallEvent",
         version = 2
     )]
@@ -31,7 +31,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         host = "level",
-        target = "sunrise_client::game::native_hooks::block_landing::HitLevel<'_>::native_bounce_on",
+        target = "sunrise_gameplay_common::game::native_hooks::block_landing::HitLevel<'_>::native_bounce_on",
         neoforge = "none (vanilla Block.bounceOn; IBlockExtension.getBounceRestitution only returns a factor)",
         version = 2
     )]

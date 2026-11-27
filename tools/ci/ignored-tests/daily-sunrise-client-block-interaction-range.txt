@@ -1,2 +1,2 @@
 # Daily row for #5824: a mod's block_interaction_range decides a far block's reach.
-sunrise-client game::native_server::fake_action_tests::a_mods_interaction_range_lets_a_player_act_on_a_far_block lib daily resources
+sunrise-client cut_layout::game::server_side::native_server_server::fake_action_tests::a_mods_interaction_range_lets_a_player_act_on_a_far_block lib daily resources

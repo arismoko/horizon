@@ -1,2 +1,2 @@
 # A client mod rebinds and resets its own registered mapping through ModKeyMappingRef.
-sunrise-client game::native_key_mappings_tests::a_mod_rebinds_and_resets_its_own_mapping lib daily resources
+sunrise-client cut_layout::game::client_side::native_key_mappings_tests::a_mod_rebinds_and_resets_its_own_mapping lib daily resources

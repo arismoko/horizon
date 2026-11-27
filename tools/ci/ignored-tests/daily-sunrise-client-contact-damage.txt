@@ -1,3 +1,3 @@
-sunrise-client game::item_contact_tests::contact_hurt_uses_the_orbs_level_fall_immunity_tag lib daily child-process
-sunrise-client game::item_contact_tests::contact_hurt_uses_the_player_creative_and_frost_walker_bypass_tag lib daily child-process
-sunrise-client game::item_contact_tests::contact_hurt_uses_the_world_damage_type_tags_and_death_message lib daily child-process
+sunrise-client cut_layout::game::server_side::item_contact_tests::contact_hurt_uses_the_orbs_level_fall_immunity_tag lib daily child-process
+sunrise-client cut_layout::game::server_side::item_contact_tests::contact_hurt_uses_the_player_creative_and_frost_walker_bypass_tag lib daily child-process
+sunrise-client cut_layout::game::server_side::item_contact_tests::contact_hurt_uses_the_world_damage_type_tags_and_death_message lib daily child-process

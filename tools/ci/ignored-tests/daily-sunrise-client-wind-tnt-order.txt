@@ -1,1 +1,1 @@
-sunrise-client game::wind::tests::a_wind_push_waits_for_fresh_tnt_even_after_a_later_orb_ticked lib daily resources
+sunrise-client cut_layout::game::server_side::wind::tests::a_wind_push_waits_for_fresh_tnt_even_after_a_later_orb_ticked lib daily resources

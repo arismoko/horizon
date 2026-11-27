@@ -1,2 +1,2 @@
 # A block state drawn by a special renderer resolves to its composite model and blends when faded (#5334); needs prepared resources.
-sunrise-client game::native_custom_geometry::tests::a_special_block_state_draws_its_renderer_and_a_faded_copy_blends lib daily resources
+sunrise-client-gameplay game::client_side::native_custom_geometry::tests::a_special_block_state_draws_its_renderer_and_a_faded_copy_blends lib daily resources

@@ -1,5 +1,5 @@
 # Daily rows for #478: a mob's stored effect attribute modifier reaches the attribute packet once and in insertion order, with the prepared mob types.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::lan_attributes::effect_modifier_tests::a_babys_modifier_comes_before_a_given_effects_in_the_packet lib daily resources
-sunrise-client game::lan_attributes::effect_modifier_tests::a_dash_after_a_given_effect_comes_after_it_in_the_packet lib daily resources
-sunrise-client game::lan_attributes::effect_modifier_tests::the_attribute_packet_carries_a_given_effect_modifier_once lib daily resources
+sunrise-client cut_layout::game::server_side::lan_attributes::effect_modifier_tests::a_babys_modifier_comes_before_a_given_effects_in_the_packet lib daily resources
+sunrise-client cut_layout::game::server_side::lan_attributes::effect_modifier_tests::a_dash_after_a_given_effect_comes_after_it_in_the_packet lib daily resources
+sunrise-client cut_layout::game::server_side::lan_attributes::effect_modifier_tests::the_attribute_packet_carries_a_given_effect_modifier_once lib daily resources

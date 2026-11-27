@@ -1,4 +1,4 @@
-sunrise-client game::grindstone_decisions_tests::a_place_answer_does_not_validate_borrowed_inputs lib daily resources
-sunrise-client game::grindstone_decisions_tests::a_take_answer_validates_only_the_remainders lib daily resources
-sunrise-client game::lan_stations::anvil_tests::anvil_pre_and_post_read_pre_take_inputs lib daily resources
-sunrise-client game::stations::tests::anvil_update_validates_only_a_changed_output lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::a_place_answer_does_not_validate_borrowed_inputs lib daily resources
+sunrise-client cut_layout::game::server_side::grindstone_decisions_tests::a_take_answer_validates_only_the_remainders lib daily resources
+sunrise-client cut_layout::game::server_side::lan_stations::anvil_tests::anvil_pre_and_post_read_pre_take_inputs lib daily resources
+sunrise-client-gameplay game::client_side::stations::tests::anvil_update_validates_only_a_changed_output lib daily resources

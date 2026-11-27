@@ -27,7 +27,7 @@ pub trait Hooks {
         contract = "listen",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::on_block_state_change::GameLevel<'_>::native_on_block_state_change",
+        target = "sunrise_gameplay_common::game::native_hooks::on_block_state_change::GameLevel<'_>::native_on_block_state_change",
         neoforge = "IBlockExtension.onBlockStateChange"
     )]
     fn on_block_state_change(

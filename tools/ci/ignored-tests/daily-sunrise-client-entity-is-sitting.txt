@@ -1,1 +1,1 @@
-sunrise-client game::native_small_reads_tests::is_sitting_reads_each_mobs_own_test lib daily resources
+sunrise-client cut_layout::game::client_side::native_small_reads_tests::is_sitting_reads_each_mobs_own_test lib daily resources

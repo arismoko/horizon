@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A server player stopped spectating `entity_id`, after their camera returned to the player.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_stop_spectating_entity",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_stop_spectating_entity",
         dispatch = "flat",
         side = "server",
         contract = "listen",

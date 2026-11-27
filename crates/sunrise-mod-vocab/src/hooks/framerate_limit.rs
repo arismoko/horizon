@@ -11,7 +11,7 @@ pub trait Hooks {
     /// frames a second, so the game goes on ticking. A skipped frame fires neither
     /// `render_frame_pre` nor `render_frame_post`. Below 0 keeps the game's limit.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_framerate_limit",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_framerate_limit",
         receiver = "read",
         dispatch = "flat",
         side = "client",

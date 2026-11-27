@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::client_pick::tests::pick_origin_is_the_eye_used_for_each_pick_and_isolated_per_listener lib daily resources
+sunrise-client cut_layout::game::native_hooks::client_pick::tests::pick_origin_is_the_eye_used_for_each_pick_and_isolated_per_listener lib daily resources

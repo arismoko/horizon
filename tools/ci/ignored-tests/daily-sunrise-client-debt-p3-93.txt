@@ -1,1 +1,1 @@
-sunrise-client game::spill::tests::removal_effects_are_uncapped_and_refusals_are_local lib daily child-process # Loads prepared resources in the isolated child.
+sunrise-client cut_layout::game::server_side::spill::tests::removal_effects_are_uncapped_and_refusals_are_local lib daily child-process # Loads prepared resources in the isolated child.

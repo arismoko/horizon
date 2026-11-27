@@ -1,4 +1,4 @@
 # Daily rows for #5376: a mod cancels the sleeping action-bar line and nobody gets it; a mod's replacement line is what players receive; on the guest fixture.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::lan_actions::sleep::sleep_status_announce_tests::a_canceling_listener_sends_no_overlay_line lib daily resources
-sunrise-client game::lan_actions::sleep::sleep_status_announce_tests::a_replaced_line_is_what_players_receive lib daily resources
+sunrise-gameplay game::server_side::lan_actions_server::sleep::sleep_status_announce_tests::a_canceling_listener_sends_no_overlay_line lib daily resources
+sunrise-gameplay game::server_side::lan_actions_server::sleep::sleep_status_announce_tests::a_replaced_line_is_what_players_receive lib daily resources

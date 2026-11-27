@@ -1,1 +1,1 @@
-sunrise-client game::pointer_capture::tests::movement_key_held_behind_a_screen_counts_after_pointer_grab lib daily resources
+sunrise-client cut_layout::game::client_side::pointer_capture::tests::movement_key_held_behind_a_screen_counts_after_pointer_grab lib daily resources

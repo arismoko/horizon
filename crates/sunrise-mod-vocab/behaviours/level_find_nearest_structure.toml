@@ -2,5 +2,5 @@ version = 1
 handle = "handle:LevelRef::find_nearest_structure"
 doc = "LevelRef::find_nearest_structure accepts any nonnegative search radius with no Sunrise-only maximum, searching the named level's generator without loading resident chunks."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_refs.rs::nearest_structure_uses_the_named_generator_without_loading_resident_chunks",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_refs.rs::nearest_structure_uses_the_named_generator_without_loading_resident_chunks",
 ]

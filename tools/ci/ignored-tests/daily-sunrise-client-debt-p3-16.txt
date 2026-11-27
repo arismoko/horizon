@@ -1,4 +1,4 @@
-sunrise-client game::native_client_particles_fixture::tests::changing_dimension_discards_queued_typed_explosion_debris lib daily resources
-sunrise-client game::native_client_particles_fixture::tests::declared_native_particle_cold_loads_without_a_sprite_description lib daily resources
-sunrise-client game::native_client_particles_fixture::tests::opening_an_integrated_world_does_not_bind_client_particle_providers lib daily child-process
-sunrise-client game::native_client_particles_fixture::tests::registered_provider_receives_host_and_network_spawns_with_live_level lib daily resources
+sunrise-client-gameplay game::client_side::native_client_particles_fixture::tests::changing_dimension_discards_queued_typed_explosion_debris lib daily resources
+sunrise-client-gameplay game::client_side::native_client_particles_fixture::tests::declared_native_particle_cold_loads_without_a_sprite_description lib daily resources
+sunrise-client-gameplay game::client_side::native_client_particles_fixture::tests::registered_provider_receives_host_and_network_spawns_with_live_level lib daily resources
+sunrise-client-gameplay game::client_side::native_client_particles_fixture::tests::opening_an_integrated_world_does_not_bind_client_particle_providers lib daily child-process

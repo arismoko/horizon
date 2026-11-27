@@ -16,7 +16,7 @@ pub trait Hooks {
     /// is not in that copy, and is dropped with the chunk.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_chunk_load",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_chunk_load",
         dispatch = "flat",
         side = "server",
         contract = "listen",

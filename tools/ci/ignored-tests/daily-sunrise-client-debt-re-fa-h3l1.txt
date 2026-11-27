@@ -1,1 +1,1 @@
-sunrise-client game::native_configs::tests::panicking_config_hooks_keep_live_writes_and_do_not_stop_later_listeners lib daily child-process
+sunrise-gameplay game::native_configs::lifecycle_tests_server::panicking_config_hooks_keep_live_writes_and_do_not_stop_later_listeners lib daily child-process

@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_refs::tests::destroy_block_passes_breaker_to_loot_and_game_event lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::destroy_block_passes_breaker_to_loot_and_game_event lib daily child-process

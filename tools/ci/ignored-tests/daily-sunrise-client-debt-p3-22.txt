@@ -1,4 +1,4 @@
-sunrise-client game::fov::camera_tests::at_effect_scale_zero_the_listener_still_sees_the_raw_modifier lib daily resources
-sunrise-client game::fov::camera_tests::spectated_non_player_fov_does_not_dispatch_the_player_hook lib daily resources
-sunrise-client game::fov::camera_tests::spectated_player_fov_uses_their_own_attributes_and_item_use lib daily resources
-sunrise-client game::fov::camera_tests::the_world_angle_takes_valid_listener_values_and_ignores_the_rest lib daily resources
+sunrise-client-gameplay game::client_side::fov::camera_tests::at_effect_scale_zero_the_listener_still_sees_the_raw_modifier lib daily resources
+sunrise-client-gameplay game::client_side::fov::camera_tests::spectated_non_player_fov_does_not_dispatch_the_player_hook lib daily resources
+sunrise-client-gameplay game::client_side::fov::camera_tests::spectated_player_fov_uses_their_own_attributes_and_item_use lib daily resources
+sunrise-client-gameplay game::client_side::fov::camera_tests::the_world_angle_takes_valid_listener_values_and_ignores_the_rest lib daily resources

@@ -1,2 +1,2 @@
-sunrise-client game::remote::tests::client_block_changed_tests::predictions_and_their_reconciliation_are_told lib daily game-boot
-sunrise-client game::remote::tests::client_block_changed_tests::server_updates_tell_each_changed_block_once lib daily game-boot
+sunrise-client cut_layout::game::remote::tests::client_block_changed_tests::predictions_and_their_reconciliation_are_told lib daily game-boot
+sunrise-client cut_layout::game::remote::tests::client_block_changed_tests::server_updates_tell_each_changed_block_once lib daily game-boot

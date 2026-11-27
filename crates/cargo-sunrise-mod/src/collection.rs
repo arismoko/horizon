@@ -4,15 +4,19 @@
 //! `release --pull-request` proposes its branch: pushed with plain `git`, then GitHub's page for
 //! opening the pull request. The registry checks again who opens it.
 use crate::{
-    author_release::{self, Fetch, Git, GitHubRepository, NOT_REGISTERED, Repository},
+    author_release::{self, Fetch, Git},
     options::Options,
+    registry_source::Registry,
 };
 use serde::Deserialize;
 use std::{collections::BTreeMap, fs, io::Read, path::Path};
 use sunrise_addresses::{MOD_REGISTRY_METADATA, MOD_REGISTRY_REPOSITORY};
 use sunrise_mod_package::{
     icon::MAX_ICON,
-    index::v2::collection::{Collection, ICON, Registered, TOML, check_collection, id},
+    index::v2::{
+        Index,
+        collection::{Collection, ICON, Registered, TOML, check_collection, id},
+    },
 };
 
 pub(crate) const USAGE: &str = "collection [--check]";
@@ -22,6 +26,13 @@ pub(crate) const USAGE: &str = "collection [--check]";
 struct ProjectRecord {
     owners: Vec<String>,
     repository: u64,
+}
+
+/// Only the publisher's `owner/name` is needed from the repository row. The registry owns the
+/// rest of its schema, including legacy package lists and registrant metadata.
+#[derive(Deserialize)]
+struct Repository {
+    name: String,
 }
 
 #[derive(Deserialize)]
@@ -46,11 +57,13 @@ pub(crate) fn run(dir: &Path, args: &[String]) -> Result<(), String> {
         Ok(text) => text,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             let origin = origin(dir, &git)?;
-            let projects = registered_from(fetch, &origin)?;
+            let projects = published_from(fetch, &origin, || {
+                Ok(Registry::read(&crate::dev::cache_dir()?)?.index)
+            })?;
             fs::write(&file, scaffold(&projects))
                 .map_err(|e| format!("{}: {e}", file.display()))?;
             println!(
-                "Wrote {TOML} with the {} projects registered from this repository. Fill in name and summary, add a square PNG {ICON} of at most 512×512 pixels and 256 KiB, then run `cargo sunrise-mod collection` again.",
+                "Wrote {TOML} with {} published projects from this repository. Fill in name and summary, add a square PNG {ICON} of at most 512×512 pixels and 256 KiB, then run `cargo sunrise-mod collection` again.",
                 projects.len()
             );
             return Ok(());
@@ -152,37 +165,39 @@ fn origin(dir: &Path, git: &Git) -> Result<String, String> {
     Ok(origin)
 }
 
-/// The project ID and mod ID of every package registered from origin's repository.
-fn registered_from(fetch: Fetch<'_>, origin: &str) -> Result<Vec<(String, String)>, String> {
-    #[derive(Deserialize)]
-    struct ModId {
-        #[serde(rename = "mod")]
-        mod_id: String,
-    }
-    let name = author_release::github_name(origin).ok_or(NOT_REGISTERED)?;
-    let url = format!("https://api.github.com/repos/{name}");
-    let text = fetch(&url)?.ok_or(NOT_REGISTERED)?;
-    let GitHubRepository { id } = serde_json::from_str(&text).map_err(|e| format!("{url}: {e}"))?;
-    let file = format!("repositories/{id}.toml");
-    let text = fetch(&format!("{MOD_REGISTRY_METADATA}/{file}"))?.ok_or(NOT_REGISTERED)?;
-    let repository: Repository =
-        toml::from_str(&text).map_err(|e| format!("registry/{file}: {e}"))?;
-    repository
-        .package
-        .into_iter()
-        .map(|package| {
-            let record = format!("projects/{}/project.toml", package.project);
-            let ModId { mod_id } = toml::from_str(&author_release::registry_file(fetch, &record)?)
-                .map_err(|e| format!("registry/{record}: {e}"))?;
-            Ok((package.project, mod_id))
+/// The published project IDs and their in-game IDs for origin's repository, ordered by project ID.
+fn published_from(
+    fetch: Fetch<'_>,
+    origin: &str,
+    read_index: impl FnOnce() -> Result<Index, String>,
+) -> Result<Vec<(String, String)>, String> {
+    let name = author_release::github_name(origin)
+        .ok_or("origin is not a GitHub repository: the projects a collection lists are found by their GitHub repository")?;
+    let id = author_release::github_repository_id(fetch, &name)?;
+    let index = read_index()?;
+    let mut projects: Vec<_> = index
+        .projects
+        .iter()
+        .filter(|project| {
+            project.repository.id == id
+                && project
+                    .releases
+                    .iter()
+                    .any(|release| index.revoked(&project.id, &release.file.sha256).is_none())
         })
-        .collect()
+        .map(|project| (project.id.clone(), project.mod_id.clone()))
+        .collect();
+    projects.sort_unstable();
+    Ok(projects)
 }
 
 /// A new `collection.toml`: no `id` yet, `name` and `summary` left for the author, and every
 /// project selected by default.
 fn scaffold(projects: &[(String, String)]) -> String {
     let mut text = String::from("name = \"\"\nsummary = \"\"\ndescription = \"\"\n");
+    if projects.is_empty() {
+        text += "member = []\n";
+    }
     for (project, mod_id) in projects {
         text += &format!("\n[[member]]\nproject = \"{project}\"  # {mod_id}\n");
     }
@@ -272,7 +287,7 @@ fn check(
             Some(publisher) => publisher,
             None => {
                 let file = format!("repositories/{repository}.toml");
-                let Repository { name, .. } =
+                let Repository { name } =
                     toml::from_str(&author_release::registry_file(fetch, &file)?)
                         .map_err(|e| format!("registry/{file}: {e}"))?;
                 let owner = name

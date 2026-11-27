@@ -2,6 +2,6 @@ version = 1
 handle = "handle:LevelRef::set_weather_levels"
 doc = "LevelRef::set_weather_levels sets the named level's own rain and thunder interpolants immediately, including a parked level: infinities clamp to 0 and 1, NaN is refused, and neither the natural cycle nor this write calls weather_change."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_level_weather.rs::weather_parameters_are_shared_and_strengths_are_local",
-    "crates/sunrise-client/src/game/modding/native_level_world.rs::rain_and_thunder_start_above_vanillas_thresholds",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_weather.rs::weather_parameters_are_shared_and_strengths_are_local",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_level_world.rs::rain_and_thunder_start_above_vanillas_thresholds",
 ]

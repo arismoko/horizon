@@ -14,60 +14,60 @@ mixins = "MIXINS"
 
 [[native.mixin]]
 id = "head0"
-target = "sunrise_client::game::native_item_entity_refs::Game<'_>::item_entity_owner"
+target = "sunrise_gameplay::game::server_side::native_item_entity_refs_server::crate::game::ServerGame<'_>::item_entity_owner"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 [[native.mixin]]
 id = "head1"
-target = "sunrise_client::game::raids::Game<'_>::load_raid_omen_position"
+target = "sunrise_gameplay::game::server_side::raids::crate::game::ServerGame<'_>::load_raid_omen_position"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 [[native.mixin]]
 id = "head2"
-target = "sunrise_client::game::lan::Game<'_>::world_spawn_position"
+target = "sunrise_gameplay::game::server_side::lan::crate::game::ServerGame<'_>::world_spawn_position"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 [[native.mixin]]
 id = "head3"
-target = "sunrise_client::game::commands::pregen::Game<'_>::pregen_runs_here"
+target = "sunrise_gameplay::game::server_side::commands_server::pregen::crate::game::ServerGame<'_>::pregen_runs_here"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 [[native.mixin]]
 id = "head4"
-target = "sunrise_client::game::test_instances::Game<'_>::clear_test_space"
+target = "sunrise_gameplay::game::server_side::test_instances::crate::game::ServerGame<'_>::clear_test_space"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 [[native.mixin]]
 id = "head5"
-target = "sunrise_client::game::boats::Game<'_>::boat_player_dismount_target"
+target = "sunrise_gameplay::game::server_side::boats::crate::game::ServerGame<'_>::boat_player_dismount_target"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 [[native.mixin]]
 id = "head6"
-target = "sunrise_client::game::shield::Game<'_>::player_blocking"
+target = "sunrise_gameplay::game::server_side::shield::ServerGame<'_>::player_blocking"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 [[native.mixin]]
 id = "head7"
-target = "sunrise_client::game::respawn_anchor::Game<'_>::beds_destroy_on_use"
+target = "sunrise_gameplay::game::server_side::respawn_anchor::crate::game::ServerGame<'_>::beds_destroy_on_use"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 [[native.mixin]]
 id = "head8"
-target = "sunrise_client::game::leads::Game<'_>::break_leash"
+target = "sunrise_gameplay::game::server_side::leads::crate::game::ServerGame<'_>::break_leash"
 kind = "HEAD"
 helper = "src/mixins/head.rs"
 
 [[native.mixin]]
 id = "head9"
-target = "sunrise_client::game::native_level_refs::Game<'_>::chunk_forced"
+target = "sunrise_gameplay::game::server_side::native_level_refs::ServerGame<'_>::chunk_forced"
 kind = "HEAD"
 helper = "src/mixins/head.rs"

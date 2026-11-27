@@ -15,7 +15,7 @@ pub trait Hooks {
     /// the proxy's forwarding) refuse earlier, on the connection, and this
     /// hook does not hear those players.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_login",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_login",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

@@ -18,7 +18,7 @@ pub trait Hooks {
     /// containers have closed, and any menu-owned transient slots have been
     /// detached. State swapped in, when the player has a body. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_container_close",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_container_close",
         dispatch = "flat",
         version = 2,
         side = "server",

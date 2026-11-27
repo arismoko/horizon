@@ -1,2 +1,2 @@
-sunrise-client game::native_colliders_tests::a_client_collider_turning_before_the_tick_carries_the_local_player lib daily child-process
-sunrise-client game::native_colliders_tests::a_client_descending_collider_carries_the_local_player_without_sideways_drift lib daily child-process
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_client_collider_turning_before_the_tick_carries_the_local_player lib daily child-process
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_client_descending_collider_carries_the_local_player_without_sideways_drift lib daily child-process

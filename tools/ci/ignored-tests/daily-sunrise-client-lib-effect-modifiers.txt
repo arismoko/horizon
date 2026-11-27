@@ -1,3 +1,3 @@
 # Daily rows for #478: a Health-Boosted horse partner below its boosted maximum is no mate, with the prepared mob types.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client-lib mobs::ai::effect_modifier_tests::a_health_boosted_partner_below_its_maximum_is_no_mate lib daily resources
+sunrise-sim mobs::ai::effect_modifier_tests::a_health_boosted_partner_below_its_maximum_is_no_mate lib daily resources

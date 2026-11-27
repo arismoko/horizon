@@ -1,1 +1,1 @@
-sunrise-client game::native_profiles::tests::invalid_names_and_clients_resolve_no_profile lib daily child-process
+sunrise-client cut_layout::game::server_side::native_profiles::tests::invalid_names_resolve_no_profile lib daily child-process

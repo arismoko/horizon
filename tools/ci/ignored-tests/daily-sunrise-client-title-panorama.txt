@@ -1,0 +1,2 @@
+# Rows: PACKAGE TEST TARGET daily REASON (README.md).
+sunrise-client-gameplay game::client_side::title_panorama_tests::the_title_frame_draws_the_loaded_panorama lib daily child-process

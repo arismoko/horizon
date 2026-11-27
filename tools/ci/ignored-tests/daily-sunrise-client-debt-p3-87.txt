@@ -1,8 +1,8 @@
-sunrise-client game::native_player_break::tests::a_break_does_not_disarm_tripwire_already_removed_by_its_listener lib daily resources
-sunrise-client game::native_player_break::tests::a_break_of_air_still_dispatches_break_block lib daily resources
-sunrise-client game::native_player_break::tests::a_direct_break_ignores_spawn_protection_range_and_mining_progress lib daily resources
-sunrise-client game::native_player_break::tests::a_listener_breaking_its_own_subject_is_not_called_again lib daily child-process
-sunrise-client game::native_player_break::tests::a_nested_turtle_egg_break_does_not_repeat_removal_effects lib daily resources
-sunrise-client game::native_player_break::tests::a_refused_harvest_still_wears_the_tool_and_drops_nothing lib daily resources
-sunrise-client game::native_player_break::tests::chained_breaks_keep_their_own_drops_without_a_depth_limit lib daily resources
-sunrise-client game::native_player_break::tests::restricted_break_attempts_fire_pre_canceled_and_keep_hard_restrictions lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::a_break_does_not_disarm_tripwire_already_removed_by_its_listener lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::a_break_of_air_still_dispatches_break_block lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::a_direct_break_ignores_spawn_protection_range_and_mining_progress lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::a_listener_breaking_its_own_subject_is_not_called_again lib daily child-process
+sunrise-client cut_layout::game::server_side::native_player_break::tests::a_nested_turtle_egg_break_does_not_repeat_removal_effects lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::a_refused_harvest_still_wears_the_tool_and_drops_nothing lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::chained_breaks_keep_their_own_drops_without_a_depth_limit lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::restricted_break_attempts_fire_pre_canceled_and_keep_hard_restrictions lib daily resources

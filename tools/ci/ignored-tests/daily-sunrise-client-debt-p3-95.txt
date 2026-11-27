@@ -1,1 +1,1 @@
-sunrise-client game::native_local_sounds::tests::a_client_muffle_accepts_more_than_sixty_four_exempt_events lib daily resources
+sunrise-client-gameplay game::client_side::native_local_sounds::tests::a_client_muffle_accepts_more_than_sixty_four_exempt_events lib daily resources

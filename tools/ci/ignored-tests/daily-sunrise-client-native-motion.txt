@@ -1,4 +1,4 @@
 # Native server motion API tests boot prepared game fixtures in fresh processes.
-sunrise-client game::lan_actions::guest_body::tests::fall_reset::fall_distance_handle_reads_the_guests_fall_and_landing lib daily resources
-sunrise-client game::native_guest_turn_tests::velocity_writes_send_only_the_owning_player_the_replacement_motion lib daily resources
-sunrise-client game::native_knockback_tests::callable_knockback_respects_the_hook_and_resistance_without_dealing_damage lib daily resources
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::fall_reset::fall_distance_handle_reads_the_guests_fall_and_landing lib daily resources
+sunrise-client cut_layout::game::server_side::native_guest_turn_tests::velocity_writes_send_only_the_owning_player_the_replacement_motion lib daily resources
+sunrise-client cut_layout::game::server_side::native_knockback_tests::callable_knockback_respects_the_hook_and_resistance_without_dealing_damage lib daily resources

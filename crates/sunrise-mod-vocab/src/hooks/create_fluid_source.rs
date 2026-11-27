@@ -15,7 +15,7 @@ pub trait Hooks {
         side = "server",
         contract = "listen",
         neoforge = "CreateFluidSourceEvent",
-        target = "sunrise_client::game::native_hooks::create_fluid_source::GameLevel<'_>::native_create_fluid_source"
+        target = "sunrise_gameplay_common::game::native_hooks::create_fluid_source::GameLevel<'_>::native_create_fluid_source"
     )]
     fn create_fluid_source(
         dimension: LevelDimension,

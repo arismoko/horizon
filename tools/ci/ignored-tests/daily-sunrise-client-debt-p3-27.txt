@@ -1,5 +1,5 @@
-sunrise-client game::client_item_extensions::tests::client_item_extensions_can_draw_without_a_level lib daily child-process
-sunrise-client game::client_item_extensions::tests::invalid_equipped_stack_warns_without_disabling_later_draws lib daily child-process
-sunrise-client game::client_item_extensions::tests::invalid_registrations_do_not_discard_valid_reload_entries lib daily child-process
-sunrise-client game::client_item_extensions::tests::mob_worn_callbacks_read_gear_and_submit_reload_bound_uvs lib daily child-process
-sunrise-client game::native_block_entity_draw::tests::block_draws_resolved_states_and_rejects_unknown_states lib daily child-process
+sunrise-client-gameplay game::client_side::client_item_extensions::tests::client_item_extensions_can_draw_without_a_level lib daily child-process
+sunrise-client-gameplay game::client_side::client_item_extensions::tests::invalid_equipped_stack_warns_without_disabling_later_draws lib daily child-process
+sunrise-client-gameplay game::client_side::client_item_extensions::tests::invalid_registrations_do_not_discard_valid_reload_entries lib daily child-process
+sunrise-client-gameplay game::client_side::client_item_extensions::tests::mob_worn_callbacks_read_gear_and_submit_reload_bound_uvs lib daily child-process
+sunrise-client-gameplay game::client_side::native_block_entity_draw::tests::block_draws_resolved_states_and_rejects_unknown_states lib daily child-process

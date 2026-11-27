@@ -189,7 +189,7 @@ class ModApiBoundaryTests(unittest.TestCase):
         self.assertRegex(api_text(), r"pub struct WorldFluid\b")
 
     def test_fluid_model_collection_uses_api_owned_values(self):
-        source = (ROOT / "crates/sunrise-client/src/game/native_hooks/register_fluid_models.rs").read_text()
+        source = (ROOT / "crates/sunrise-gameplay-common/src/game/native_hooks/register_fluid_models.rs").read_text()
         signature = source.split("fn native_register_fluid_models(", 1)[1].split(") {", 1)[0]
         # Collected hook fields are generated directly from this signature.
         self.assertNotIn("sunrise_mod_package::", signature)
@@ -204,13 +204,14 @@ class ModApiBoundaryTests(unittest.TestCase):
 
     def test_unhandled_arms_name_a_non_exhaustive_enum(self):
         text = api_text()
-        for path in ROOT.glob("crates/sunrise-client*/src/**/*.rs"):
-            for name in re.findall(r'unreachable!\("(\w+): unhandled variant"\)', path.read_text()):
-                self.assertRegex(
-                    text,
-                    rf"#\[non_exhaustive\]\s*(?:#\[[^\n]*\]\s*)*pub enum {name}\b",
-                    f"{path.relative_to(ROOT)}: `{name}` is not a #[non_exhaustive] pub enum of the API",
-                )
+        for pattern in ("crates/sunrise-client*/src/**/*.rs", "crates/sunrise-gameplay*/src/**/*.rs"):
+            for path in ROOT.glob(pattern):
+                for name in re.findall(r'unreachable!\("(\w+): unhandled variant"\)', path.read_text()):
+                    self.assertRegex(
+                        text,
+                        rf"#\[non_exhaustive\]\s*(?:#\[[^\n]*\]\s*)*pub enum {name}\b",
+                        f"{path.relative_to(ROOT)}: `{name}` is not a #[non_exhaustive] pub enum of the API",
+                    )
 
 
 if __name__ == "__main__":

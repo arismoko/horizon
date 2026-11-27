@@ -1,6 +1,7 @@
 //! Captured level sounds through the production packet builder and protocol codec.
 use std::io::Write;
-use sunrise_client::{audio::CapturedSound, lan::containers::captured_sound_packet};
+use sunrise_client::lan::containers::captured_sound_packet;
+use sunrise_game_data::sound_source::ServerSound;
 use sunrise_protocol::{buf::Reader, packets::play::Clientbound as C};
 
 pub fn main() {
@@ -13,7 +14,7 @@ pub fn main() {
         let position = std::array::from_fn(|i| {
             f64::from_bits(u64::from_str_radix(c["position"][i].as_str().unwrap(), 16).unwrap())
         });
-        let sound = CapturedSound {
+        let sound = ServerSound {
             event: "fixture:bound".into(),
             position,
             volume: float("volume"),
@@ -24,8 +25,7 @@ pub fn main() {
                 .unwrap()
                 .then(|| c["entity"].as_i64().unwrap() as u32),
             except_entity: None,
-            seed: 0,
-            particles_before: 0,
+            seed: None,
         };
         let (packet, range) = captured_sound_packet(
             &sound,

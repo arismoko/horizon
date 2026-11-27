@@ -1,4 +1,4 @@
 # An idle hopper sleeps until its inventory, the block above it or an item or
 # vehicle reaching it changes (#8558). PACKAGE TEST TARGET daily REASON; exact
 # logical libtest identities, sorted.
-sunrise-client game::machines::tests::an_idle_hopper_sleeps_and_wakes_for_what_it_could_take lib daily child-process
+sunrise-client cut_layout::game::server_side::machines::tests::an_idle_hopper_sleeps_and_wakes_for_what_it_could_take lib daily child-process

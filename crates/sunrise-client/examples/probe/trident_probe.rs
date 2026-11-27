@@ -8,9 +8,7 @@ use std::{
     io::{BufRead, Write},
     path::PathBuf,
 };
-use sunrise_client::{
-    Result, arrows, assets::Assets, blocks::BlockFacts, collisions, world::World,
-};
+use sunrise_client::{Result, arrows, assets::Assets, blocks::BlockFacts, collisions};
 use sunrise_core::geometry::Vec3;
 
 fn number(v: &Value) -> f64 {
@@ -36,10 +34,11 @@ pub fn main() -> Result<()> {
     let root = PathBuf::from(&args[0]);
     let dir = PathBuf::from(&args[1]);
     let assets = Assets::load(&root)?;
-    let render = assets.reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-        root.to_path_buf(),
-    ))?;
-    let mut scene = World::test_scene(&assets, &render, 1)?;
+    let render = sunrise_client::assets::RenderAssets::load(
+        &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+        &assets,
+    )?;
+    let mut scene = sunrise_client::assets::test_scene_world(&assets, &render, 1)?;
     fs::write(
         dir.join("scene.json"),
         serde_json::to_vec(

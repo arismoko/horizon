@@ -1,1 +1,1 @@
-sunrise-client game::server_packs::tests::scheduled_task_error_toasts_are_admitted_by_the_owning_client lib daily child-process
+sunrise-client cut_layout::game::client_side::server_packs::tests::scheduled_task_error_toasts_are_admitted_by_the_owning_client lib daily child-process

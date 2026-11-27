@@ -115,6 +115,18 @@ fn each_rule_refuses_with_its_reason() {
 }
 
 #[test]
+fn a_collection_without_members_is_read_and_refused_by_the_member_rules() {
+    let toml = "id = \"Qm4tZ81c\"\nname = \"Wayfinding\"\nsummary = \"The map and its markers.\"\n";
+    assert_eq!(
+        messages(&judge(toml)),
+        [
+            "a collection needs at least two members",
+            "at least one member must be selected by default"
+        ]
+    );
+}
+
+#[test]
 fn the_folder_holds_its_file_and_a_square_png_icon_and_is_named_by_a_free_id() {
     let collection: Collection = ::toml::from_str(GOOD).unwrap();
     let check = |folder, entries: &[&str], icon: Option<&[u8]>| {

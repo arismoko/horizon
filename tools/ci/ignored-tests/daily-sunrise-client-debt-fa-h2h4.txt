@@ -1,4 +1,4 @@
-sunrise-client game::native_item_places::tests::cursor_edit_interleaved_with_stale_component_hash_click_still_syncs lib daily resources
-sunrise-client game::native_item_places::tests::player_cursor_edit_syncs_set_cursor_item_once lib daily resources
-sunrise-client game::native_item_places::tests::player_cursor_read_ignores_guest_liveness lib daily resources
-sunrise-client game::native_item_places::tests::player_cursor_whole_stack_edit_validates_and_rolls_back lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::cursor_edit_interleaved_with_stale_component_hash_click_still_syncs lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::player_cursor_edit_syncs_set_cursor_item_once lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::player_cursor_read_ignores_guest_liveness lib daily resources
+sunrise-client cut_layout::game::server_side::native_item_places::tests::player_cursor_whole_stack_edit_validates_and_rolls_back lib daily resources

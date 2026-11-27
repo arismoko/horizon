@@ -1,2 +1,2 @@
-sunrise-client game::server_reload::tests::refused_entry_tests::a_recipe_with_an_unknown_result_item_fails_reload_and_keeps_the_old_recipes lib daily game-boot
-sunrise-client game::server_reload::tests::refused_entry_tests::a_recipe_with_an_unknown_result_item_refuses_world_open lib daily game-boot
+sunrise-client cut_layout::game::server_side::server_reload::tests::refused_entry_tests::a_recipe_with_an_unknown_result_item_fails_reload_and_keeps_the_old_recipes lib daily game-boot
+sunrise-client cut_layout::game::server_side::server_reload::tests::refused_entry_tests::a_recipe_with_an_unknown_result_item_refuses_world_open lib daily game-boot

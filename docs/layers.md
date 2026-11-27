@@ -78,7 +78,7 @@ Vanilla Minecraft: Java Edition 26.3, and nothing else.
 
 ### Portable crates
 
-`sunrise-core`, `sunrise-world`, `sunrise-protocol`, `sunrise-items`, `sunrise-command`, `sunrise-client-core`
+`sunrise-core`, `sunrise-world`, `sunrise-protocol`, `sunrise-items`, `sunrise-command`, `sunrise-game-data`
 and `sunrise-assets` hold vanilla's rules and data with no desktop in them. `sunrise-threads` provides worker
 scheduling and sampling, and `sunrise-java-properties` reads and writes Java-properties files with the standard
 library alone. These portable crates have no window, GPU, sound, gamepad or clipboard library, no HTTP client,

@@ -1,3 +1,3 @@
 # Daily tests of the replaceable ServerPlayer.canHarmPlayer seam (#4854): every player-on-player rule takes its answer, a replaced one too; they need the prepared resources.
-sunrise-client game::lan_pvp::tests::a_replaced_can_harm_player_answer_reaches_every_site lib daily resources
-sunrise-client game::lan_pvp::tests::every_player_on_player_rule_takes_can_harm_player lib daily resources
+sunrise-client cut_layout::game::server_side::lan_pvp::tests::a_replaced_can_harm_player_answer_reaches_every_site lib daily resources
+sunrise-client cut_layout::game::server_side::lan_pvp::tests::every_player_on_player_rule_takes_can_harm_player lib daily resources

@@ -21,6 +21,7 @@ pub trait Hooks {
     /// settlement when the commit happens during `menu_quick_move`). A provider writing its
     /// own storage can issue an explicit `set_changed` or seed the filter itself.
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::can_place_item::native_can_place_item",
         receiver = "associated",
         dispatch = "flat",
         side = "server",

@@ -16,14 +16,14 @@ The owner's guide is [hosting.md](hosting.md); every command, `server.toml` key 
 
 The dedicated server is the game itself, run headless:
 `sunrise-client --resources <prepared> --dedicated [--nogui] [--port N] [--world NAME] [--universe DIR]
-[--initSettings]`, started in the server folder (`crates/sunrise-client/src/game/interface/dedicated/mod.rs`).
+[--initSettings]`, started in the server folder (`crates/sunrise-gameplay/src/game/interface/dedicated/mod.rs`).
 
 - **Startup.** It follows vanilla's `Main.main` and `DedicatedServer.initServer`. It reads `server.properties`
   and writes it straight back with vanilla's defaults filled in (`sunrise_client::server`, byte-exact with
   vanilla's `Properties.store`), and refuses to start until `eula.txt` says `eula=true`. It then loads the
   operator, whitelist and ban lists in vanilla's order and format, and opens `<universe>/<level-name>` with
-  the same `Game` as single player, minus the local player.
-- **Network.** Players join through the play-state hub that Open to LAN uses (`crates/sunrise-client/src/lan`).
+  the same `ServerGame` as single player, minus the local player.
+- **Network.** Players join through the play-state hub that Open to LAN uses (`crates/sunrise-sim/src/lan`).
   Status ping, legacy ping, compression, login gate (bans, whitelist, IP bans), operator permission levels,
   the player limit with `bypassesPlayerLimit`, MOTD and `server-icon.png` all follow `server.properties`.
 - **Main loop.** It ticks at 20 TPS on one thread, with chunk generation and lighting on the worker pool.
@@ -89,8 +89,8 @@ inventory on this same server thread and answers `{"mods":[{"id":"example","vers
 It includes native and content packages installed in that inventory, in inventory order; an empty
 inventory is `{"mods":[]}`. The supervisor's `GET /api/v1/mods` uses this query, never a build-record fallback.
 
-**A proxy moving a player between two servers** uses more requests on this endpoint (`lan/arrivals.rs`,
-`game/interface/dedicated/transfer.rs`). They are a built-in module, **off by default**, that the owner turns on in
+**A proxy moving a player between two servers** uses more requests on this endpoint (`crates/sunrise-sim/src/lan/arrivals.rs`,
+`crates/sunrise-gameplay/src/game/interface/dedicated/transfer.rs`). They are a built-in module, **off by default**, that the owner turns on in
 `server.toml`:
 
 ```toml
@@ -413,7 +413,7 @@ held player has its own lines instead of the join and leave ones: `<name> is hel
 `<name> placed: it has arrived from another server` and `<name> was dropped while held: <reason>`.
 
 **The headless engine** comes after perf-ticks-2's work lands: Resources split into shared and per-game, the
-game built in `Game::new`, the integrated server on its own thread. On that base:
+game built in `ServerGame::new`, the integrated server on its own thread. On that base:
 
 1. The dedicated path skips everything only a window uses: the HUD atlas, item renderer, block-entity and
    entity models, panorama, fog, music, and mesh tables (perf-ticks-2 already stops server-side meshing).
@@ -816,7 +816,7 @@ runtime or new dependency. Server-sent events can replace the polling later if a
   - game rules: `gamerules` lists every rule the game has as a typed rule (`{key, type, value}`), `gamerules/update`
     sets one (checked against its type and bounds with vanilla's error texts, and set, logged and told on every
     update, as vanilla's does) and `notification/gamerules/updated` follows every change, by that method or by
-    `/gamerule` (`Game::set_game_rule`); the parity script compares both servers on all of it;
+    `/gamerule` (`ServerGame::set_game_rule`); the parity script compares both servers on all of it;
   - `server/activity`: a login attempt (the game records `login_activity` in its login gate, as
     `ServerActivityMonitor.reportLoginActivity` is called when a login starts), told at most once in thirty
     seconds and lost otherwise, as the monitor clears its flag whatever it did; and `server/status`, the

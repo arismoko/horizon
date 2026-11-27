@@ -1,5 +1,5 @@
-sunrise-client game::cushions::cushion_drop_tests::a_loaded_cushion_keeps_its_motion_and_pitch_through_tick_and_reload lib daily resources
-sunrise-client game::native_hooks::client_pick::tests::a_click_on_a_cushion_at_a_non_finite_position_is_refused lib daily resources
-sunrise-client game::native_hooks::client_pick::tests::a_click_on_a_cushion_with_a_synced_passenger_passes_to_the_item lib daily resources
-sunrise-client game::native_hooks::client_pick::tests::a_click_on_a_free_cushion_while_sneaking_passes_to_the_item lib daily resources
-sunrise-client game::native_hooks::client_pick::tests::a_free_cushion_takes_the_click_and_sends_one_interact lib daily resources
+sunrise-client cut_layout::game::server_side::cushions::cushion_drop_tests::a_loaded_cushion_keeps_its_motion_and_pitch_through_tick_and_reload lib daily resources
+sunrise-client cut_layout::game::native_hooks::client_pick::tests::a_click_on_a_cushion_at_a_non_finite_position_is_refused lib daily resources
+sunrise-client cut_layout::game::native_hooks::client_pick::tests::a_click_on_a_cushion_with_a_synced_passenger_passes_to_the_item lib daily resources
+sunrise-client cut_layout::game::native_hooks::client_pick::tests::a_click_on_a_free_cushion_while_sneaking_passes_to_the_item lib daily resources
+sunrise-client cut_layout::game::native_hooks::client_pick::tests::a_free_cushion_takes_the_click_and_sends_one_interact lib daily resources

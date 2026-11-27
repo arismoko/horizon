@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A server player removed an entity's leash, after it was cleared.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_unleash_entity",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_unleash_entity",
         dispatch = "flat",
         side = "server",
         contract = "listen",

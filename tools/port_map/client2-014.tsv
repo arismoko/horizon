@@ -1,16 +1,16 @@
-ConfirmLinkScreen.confirmMessage	port	crates/sunrise-client/src/game/network/server_links.rs::confirm_link_layout	gap: minor: no separate trusted text; the untrusted text is always used
-ConfirmLinkScreen.addAdditionalText	port	crates/sunrise-client/src/game/network/server_links.rs::confirm_link_layout	gap: minor: the red warning is always drawn, vanilla draws it only for untrusted links
-ConfirmLinkScreen.addButtons	port	crates/sunrise-client/src/game/network/server_links.rs::Game::confirm_link_click	Yes opens the browser, Copy Link copies, No goes back; 100 wide
-ConfirmLinkScreen.confirmLinkNow	port	crates/sunrise-client/src/game/network/server_links.rs::Game::click_link	opens the prompt when Prompt on Links is on; gap: minor: the trusted flag is not passed
-ConfirmLinkScreen.confirmLink	inline	crates/sunrise-client/src/game/network/server_links.rs::Game::click_link	the button's action, folded into click_link
-ConfirmScreen.getNarrationMessage	port	crates/sunrise-client/src/game/interface/screen_info.rs::confirm	the title and the message joined for the narrator (PackConfirmScreen, ConfirmLinkScreen, DialogScreen.WarningScreen); the confirm screens the menus build narrate themselves in title.rs::Title::narration and multiplayer.rs::Screen::narration
+ConfirmLinkScreen.confirmMessage	port	crates/sunrise-client-gameplay/src/game/network/server_links.rs::confirm_link_layout	gap: minor: no separate trusted text; the untrusted text is always used
+ConfirmLinkScreen.addAdditionalText	port	crates/sunrise-client-gameplay/src/game/network/server_links.rs::confirm_link_layout	gap: minor: the red warning is always drawn, vanilla draws it only for untrusted links
+ConfirmLinkScreen.addButtons	port	crates/sunrise-client-gameplay/src/game/network/server_links.rs::Game::confirm_link_click	Yes opens the browser, Copy Link copies, No goes back; 100 wide
+ConfirmLinkScreen.confirmLinkNow	port	crates/sunrise-client-gameplay/src/game/network/server_links.rs::Game::click_link	opens the prompt when Prompt on Links is on; gap: minor: the trusted flag is not passed
+ConfirmLinkScreen.confirmLink	inline	crates/sunrise-client-gameplay/src/game/network/server_links.rs::Game::click_link	the button's action, folded into click_link
+ConfirmScreen.getNarrationMessage	port	crates/sunrise-client-gameplay/src/screen_info.rs::confirm	the title and the message joined for the narrator (PackConfirmScreen, ConfirmLinkScreen, DialogScreen.WarningScreen); the confirm screens the menus build narrate themselves in title.rs::Title::narration and multiplayer.rs::Screen::narration
 ConfirmScreen.addMessage	port	crates/sunrise-client/src/confirm_screen.rs::Confirm::new	message wrapped to width - 50, 15 rows at most, centred
 ConfirmScreen.addButtons	port	crates/sunrise-client/src/confirm_screen.rs::Confirm::answer_at	Yes and No buttons; the answer comes from the click position
 ConfirmScreen.tick	inline	crates/sunrise-client/src/confirm_screen.rs::Confirm::draw_active	the 20-tick delay is a 1000 ms timer kept by the caller; buttons are greyed while it runs
 ConnectScreen.connect	port	crates/sunrise-client/src/net.rs::Session::connect	background connect on its own thread (Session::start)
-ConnectScreen.tick	port	crates/sunrise-client/src/game/network/remote/tick.rs::Game::tick_remote	ticks the pending session while it opens; game.rs tick sends remote sessions here
+ConnectScreen.tick	port	crates/sunrise-client-gameplay/src/game/network/remote/tick_client.rs::Game::tick_remote	ticks the pending session while it opens; game.rs tick sends remote sessions here
 ConnectScreen.init	port	crates/sunrise-client-render/src/level_loading.rs::draw_connecting	the status centred at (width / 2, height / 2 - 50) and Cancel at `connect_cancel`'s corner while the connection can still be cancelled; unsure whether Escape aborts the join
-ConnectScreen.extractRenderState	port	crates/sunrise-client/src/game/network/remote/ui.rs::Game::remote_overlay	gap: minor: also draws the address line, vanilla draws only the status
+ConnectScreen.extractRenderState	port	crates/sunrise-client-gameplay/src/game/network/remote/ui_client.rs::Game::remote_overlay	gap: minor: also draws the address line, vanilla draws only the status
 CreateBuffetWorldScreen.init	port	crates/sunrise-client/src/title/buffet.rs::State::new	title, the 200x15 search box, the biome list and the footer's Done and Cancel; the list is drawn each frame
 CreateBuffetWorldScreen.repositionElements	skip:ui		layout only; the list is laid out each frame in buffet.rs::list_area
 CreateBuffetWorldScreen.updateButtonValidity	inline	crates/sunrise-client/src/title/buffet.rs::buttons	Done needs a selected biome, that is one the search text still shows
@@ -29,17 +29,17 @@ CreateFlatWorldScreen.DetailsList.HeaderEntry.getNarration	port	crates/sunrise-c
 CreateFlatWorldScreen.DetailsList.LayerEntry.extractContent	port	crates/sunrise-client/src/title/flat.rs::draw_layers	slot, block name and the Top, Bottom or height label
 CreateFlatWorldScreen.DetailsList.LayerEntry.getDisplayItem	port	crates/sunrise-client/src/title/flat.rs::layer_icon	water and lava use the bucket sprites
 CreateFlatWorldScreen.DetailsList.LayerEntry.blitSlot	port	crates/sunrise-client/src/title/flat.rs::slot	slot frame and icon
-CreditsAndAttributionScreen.init	port	crates/sunrise-client-render/src/options_ui.rs::OptionsUi::layout	Credits page: Credits, Attribution and Licenses buttons; gap: unsure whether Attribution and Licenses open links here
-CreditsAndAttributionScreen.openCreditsScreen	port	crates/sunrise-client/src/game/interface/win.rs::Game::open_win_screen	rolls the credits without the poem, then returns here
+CreditsAndAttributionScreen.init	port	crates/sunrise-client-render/src/options_ui/layout.rs::OptionsUi::layout	Credits page: Credits, Attribution and Licenses buttons; gap: unsure whether Attribution and Licenses open links here
+CreditsAndAttributionScreen.openCreditsScreen	port	crates/sunrise-client-gameplay/src/game/interface/win.rs::Game::open_win_screen	rolls the credits without the poem, then returns here
 DatapackLoadFailureScreen.init	missing		gap: minor: no datapack failure screen; a pack that fails to install is logged (game.rs:12109-12111) and the world opens with the packs it has
 DatapackLoadFailureScreen.extractRenderState	missing		gap: minor: same as init, there is no failure screen to draw; a failed pack install only reaches the log
-DeathScreen.exitToTitleScreen	port	crates/sunrise-client/src/game/interface/screens.rs::Game::death_confirm_answer	Yes leaves the world; gap: minor: the leave and title hand-off is one close_world call
-DeathScreen.extractRenderState	port	crates/sunrise-client/src/game/interface/screens.rs::Game::draw_death_screen	gap: minor: no draft-report badge on the title button (reporting service); the cause line is visited with hover tooltips and a link cursor
-DeathScreen.visitText	port	crates/sunrise-client/src/game/interface/screens.rs::Game::draw_death_screen	title at double size, cause and score lines
-DeathScreen.mouseClicked	port	crates/sunrise-client/src/game/interface/screens.rs::Game::death_click	buttons, the title confirm and the cause line's open_url links (ClickableStyleFinder, Game::click_url)
-DeathScreen.tick	inline	crates/sunrise-client/src/game/interface/screens.rs::Game::draw_death_screen	the 20-tick delay is checked as 1000 ms since death, on draw and on click
-DeathScreen.setButtonsActive	inline	crates/sunrise-client/src/game/interface/screens.rs::Game::draw_death_screen	buttons are active once the 1000 ms delay has passed
-DirectJoinServerScreen.keyPressed	port	crates/sunrise-client/src/game/interface/startup_menu.rs::StartupMenu::title_key	gap: player: Enter in the Direct Connection field does not join; title_key only confirms a rename
+DeathScreen.exitToTitleScreen	port	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::death_confirm_answer	Yes leaves the world; gap: minor: the leave and title hand-off is one close_world call
+DeathScreen.extractRenderState	port	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::draw_death_screen	gap: minor: no draft-report badge on the title button (reporting service); the cause line is visited with hover tooltips and a link cursor
+DeathScreen.visitText	port	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::draw_death_screen	title at double size, cause and score lines
+DeathScreen.mouseClicked	port	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::death_click	buttons, the title confirm and the cause line's open_url links (ClickableStyleFinder, Game::click_url)
+DeathScreen.tick	inline	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::draw_death_screen	the 20-tick delay is checked as 1000 ms since death, on draw and on click
+DeathScreen.setButtonsActive	inline	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::draw_death_screen	buttons are active once the 1000 ms delay has passed
+DirectJoinServerScreen.keyPressed	port	crates/sunrise-client-gameplay/src/game/interface/startup_menu.rs::StartupMenu::title_key	gap: player: Enter in the Direct Connection field does not join; title_key only confirms a rename
 DirectJoinServerScreen.init	port	crates/sunrise-client/src/multiplayer.rs::Screen::buttons	Direct Connection field with Join and Cancel (Screen::Direct arm)
 DirectJoinServerScreen.resize	skip:ui		layout only; Screen::Direct keeps the typed address
 DirectJoinServerScreen.onSelect	port	crates/sunrise-client/src/multiplayer.rs::Screen::click	Join returns the typed address as Outcome::Connect
@@ -47,7 +47,7 @@ DirectJoinServerScreen.removed	port	crates/sunrise-client/src/title.rs::Title::r
 DirectJoinServerScreen.extractRenderState	port	crates/sunrise-client/src/multiplayer.rs::Screen::draw	title, label and address field (Screen::Direct arm)
 DisconnectedScreen.init	port	crates/sunrise-client/src/multiplayer.rs::Screen::buttons	reason text and the disconnected buttons; gap: minor: no Report to Server or open-report-folder button
 DisconnectedScreen.getNarrationMessage	port	crates/sunrise-client/src/multiplayer.rs::Screen::narration	disconnect.lost and the reason, joined
-ErrorScreen.init	port	crates/sunrise-client/src/title.rs::Title::buttons	Cancel button of the error mode (Mode::Error arm)
+ErrorScreen.init	port	crates/sunrise-client/src/title/preset_buttons.rs::Title::buttons	Cancel button of the error mode (Mode::Error arm)
 ErrorScreen.extractRenderState	port	crates/sunrise-client/src/title/draw.rs::Title::draw_with_items	the error title and message (Mode::Error arm)
 ErrorScreen.extractBackground	port	crates/sunrise-client/src/title/draw.rs::Title::draw_with_items	gap: minor: the flat gradient is replaced by the title background
 FaviconTexture.forWorld	port	crates/sunrise-client/src/title.rs::Title::icon	the world row's icon texture
@@ -68,13 +68,13 @@ GenericWaitingScreen.tick	skip:service		the report button's delay (reporting)
 GenericWaitingScreen.extractRenderState	port	crates/sunrise-client/src/title/draw.rs::Title::draw_with_items	Mode::Backup draws the waiting title, the message and the animated dots while the backup runs; the Created/Failed toast follows when it finishes
 GenericWaitingScreen.shouldCloseOnEsc	skip:service		Escape on the report waiting screen (reporting)
 GenericWaitingScreen.getNarrationMessage	port	crates/sunrise-client/src/title.rs::Title::narration	Mode::Backup: selectWorld.waitingForBackup.title and its message, joined
-InBedChatScreen.init	port	crates/sunrise-client/src/game/interface/chat.rs::Game::draw_chat_screen	Leave Bed button over the chat; its click is in chat_click
-InBedChatScreen.onPlayerWokeUp	port	crates/sunrise-client/src/game/interface/chat.rs::Game::tick_in_bed_chat	closes the chat, or turns it into the plain chat if text was typed; gap: minor: polled each tick, not on the wake event
-LevelLoadingScreen.updateNarratedWidget	port	crates/sunrise-client/src/game/interface/screen_info.rs::level_loading	loading.progress with the server progress floored to a percent, in the title's place, said again every 2 s
+InBedChatScreen.init	port	crates/sunrise-client-gameplay/src/game/interface/chat.rs::Game::draw_chat_screen	Leave Bed button over the chat; its click is in chat_click
+InBedChatScreen.onPlayerWokeUp	port	crates/sunrise-client-gameplay/src/game/interface/chat.rs::Game::tick_in_bed_chat	closes the chat, or turns it into the plain chat if text was typed; gap: minor: polled each tick, not on the wake event
+LevelLoadingScreen.updateNarratedWidget	port	crates/sunrise-client-gameplay/src/screen_info.rs::level_loading	loading.progress with the server progress floored to a percent, in the title's place, said again every 2 s
 LevelLoadingScreen.extractChunksForRendering	port	crates/sunrise-client-render/src/level_loading.rs::draw	chunk status colours; gap: minor: the debug red centre square is not drawn
 LevelLoadingScreen.getNetherPortalSprite	port	crates/sunrise-client-render/src/hud_overlays.rs::portal_overlay	draws the block/nether_portal sprite
-LoadingOverlay.extractRenderState	port	crates/sunrise-client/src/game.rs::Game::render	the reload screen's progress bar; gap: player: no Mojang logo and no fade in or out
-LoadingOverlay.tick	port	crates/sunrise-client/src/game/world/server_packs.rs::Game::tick_server_packs	finishes the reload; gap: minor: no fade-out before it finishes
+LoadingOverlay.extractRenderState	port	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::render	the reload screen's progress bar; gap: player: no Mojang logo and no fade in or out
+LoadingOverlay.tick	port	crates/sunrise-client-gameplay/src/game/world/server_packs.rs::Game::tick_server_packs	finishes the reload; gap: minor: no fade-out before it finishes
 LoadingOverlay.isReadyToFadeOut	missing		minor: no one-second fade-in before the reload can finish
 LoadingOverlay.extractProgressBar	port	crates/sunrise-client-render/src/level_loading.rs::draw_progress	200 by 2 bar; gap: minor: no fade alpha
 LoadingOverlay.LogoTexture.loadContents	skip:other		Sunrise ships no Mojang logo
@@ -82,24 +82,24 @@ ManageServerScreen.init	port	crates/sunrise-client/src/multiplayer.rs::Screen::b
 ManageServerScreen.resize	skip:ui		layout only; Screen::Edit keeps its fields
 ManageServerScreen.onAdd	port	crates/sunrise-client/src/multiplayer.rs::Screen::click	Done saves the name (default if empty) and the address
 ManageServerScreen.extractRenderState	port	crates/sunrise-client/src/multiplayer.rs::Screen::draw	labels and fields (Screen::Edit arm)
-MenuScreens.create	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::remote_open_screen	server-opened menus; gap: minor: the screen is built from the packet title
+MenuScreens.create	port	crates/sunrise-client-gameplay/src/game/network/remote/menu_interactions_client.rs::ClientGame::remote_open_screen	server-opened menus; gap: minor: the screen is built from the packet title
 MenuScreens.register	skip:data		registry of menu types; Sunrise reads them from tables
 MenuScreens.selfTest	skip:debug		startup check that every menu has a screen
-MenuScreens.ScreenConstructor.fromPacket	port	crates/sunrise-client/src/game/network/remote/mod.rs::Game::remote_open_screen	builds the screen from the open-screen packet and sets the container menu
+MenuScreens.ScreenConstructor.fromPacket	port	crates/sunrise-client-gameplay/src/game/network/remote/menu_interactions_client.rs::ClientGame::remote_open_screen	builds the screen from the open-screen packet and sets the container menu
 NoticeWithLinkScreen.init	missing		minor: no symlink warning when a world or pack folder is a symlink
 NoticeWithLinkScreen.getNarrationMessage	missing		the symlink warning screen does not exist (see init), so nothing narrates it
 OutOfMemoryScreen.init	missing		minor: unsure: no out-of-memory screen; Sunrise does not handle allocation failures this way
 PauseScreen.added	skip:service		friend list listener on the pause screen (social)
-PauseScreen.init	port	crates/sunrise-client/src/game/interface/screens.rs::pause_buttons	button layout; the title is drawn in draw_pause_menu
-PauseScreen.createPauseMenu	port	crates/sunrise-client/src/game/interface/screens.rs::pause_buttons	gap: minor: no Mods button; the report bugs, feedback, friends and player reporting icons are all live (icon_active, screens.rs:144-151)
-PauseScreen.getCustomAdditions	port	crates/sunrise-client/src/game/interface/screens.rs::Game::pause_screen_additions	the pause_screen_additions tag: one dialog, else minecraft:custom_options, else the server links row
-PauseScreen.addCustomDialogButtons	port	crates/sunrise-client/src/game/interface/screens.rs::Game::pause_click	one full-width button in row 3 (id 14), labelled by computeExternalTitle; the server links fallback opens the links screen (id 11)
-PauseScreen.extractRenderState	port	crates/sunrise-client/src/game/interface/screens.rs::Game::draw_pause_menu	gap: minor: no draft-report badge; the now-playing song on the pause menu is drawn by music.rs::Game::draw_music_toast, not here
-PauseScreen.rendersNowPlayingToast	port	crates/sunrise-client/src/game/interface/music.rs::Game::draw_music_toast	on the pause menu the song name is drawn under the Pause and Pause and Toast settings while music is audible, instead of the toast; the Music Toast option still decides whether the toast exists
-PauseScreen.openScreenButton	inline	crates/sunrise-client/src/game/interface/screens.rs::Game::pause_click	the Advancements, Stats, Options and World Options actions
-PresetFlatWorldScreen.getLayerInfoFromString	inline	crates/sunrise-client/src/title/flat.rs::FlatSettings::parse	one layer of the share text, parsed in the same loop
-PresetFlatWorldScreen.getLayersInfoFromString	port	crates/sunrise-client/src/title/flat.rs::FlatSettings::parse	the share text's layers and biome; malformed text gives None
-PresetFlatWorldScreen.save	port	crates/sunrise-client/src/title/flat.rs::FlatSettings::to_share	the share text
+PauseScreen.init	port	crates/sunrise-client-gameplay/src/game/interface/screens.rs::pause_buttons	button layout; the title is drawn in draw_pause_menu
+PauseScreen.createPauseMenu	port	crates/sunrise-client-gameplay/src/game/interface/screens.rs::pause_buttons	gap: minor: no Mods button; the report bugs, feedback, friends and player reporting icons are all live (icon_active, screens.rs:144-151)
+PauseScreen.getCustomAdditions	port	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::pause_screen_additions	the pause_screen_additions tag: one dialog, else minecraft:custom_options, else the server links row
+PauseScreen.addCustomDialogButtons	port	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::pause_click	one full-width button in row 3 (id 14), labelled by computeExternalTitle; the server links fallback opens the links screen (id 11)
+PauseScreen.extractRenderState	port	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::draw_pause_menu	gap: minor: no draft-report badge; the now-playing song on the pause menu is drawn by music.rs::Game::draw_music_toast, not here
+PauseScreen.rendersNowPlayingToast	port	crates/sunrise-client-gameplay/src/game/interface/music.rs::Game::draw_music_toast	on the pause menu the song name is drawn under the Pause and Pause and Toast settings while music is audible, instead of the toast; the Music Toast option still decides whether the toast exists
+PauseScreen.openScreenButton	inline	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::pause_click	the Advancements, Stats, Options and World Options actions
+PresetFlatWorldScreen.getLayerInfoFromString	inline	crates/sunrise-sim/src/world_options.rs::FlatSettings::parse	one layer of the share text, parsed in the same loop
+PresetFlatWorldScreen.getLayersInfoFromString	port	crates/sunrise-sim/src/world_options.rs::FlatSettings::parse	the share text's layers and biome; malformed text gives None
+PresetFlatWorldScreen.save	port	crates/sunrise-sim/src/world_options.rs::FlatSettings::to_share	the share text
 PresetFlatWorldScreen.init	inline	crates/sunrise-client/src/title/flat.rs::buttons	the share box and Select and Cancel buttons
 PresetFlatWorldScreen.resize	skip:ui		layout only; the screen keeps its state
 PresetFlatWorldScreen.extractRenderState	port	crates/sunrise-client/src/title/flat.rs::draw_presets	title, labels and share box
@@ -112,25 +112,25 @@ PresetFlatWorldScreen.PresetsList.Entry.blitSlot	port	crates/sunrise-client/src/
 PrivacyConfirmLinkScreen.init	skip:service		privacy link confirm from the friends and online settings (social)
 PrivacyConfirmLinkScreen.addAdditionalText	skip:service		privacy link confirm from the friends and online settings (social)
 PrivacyConfirmLinkScreen.confirmLinkNow	skip:service		opens privacy links from the friends and online settings (social)
-ProgressScreen.extractRenderState	port	crates/sunrise-client/src/game/world/saving.rs::Game::render_closing_save	stage line and bar while the world saves; gap: minor: no header or percent text
+ProgressScreen.extractRenderState	port	crates/sunrise-client-gameplay/src/game/world/saving_client.rs::Game::render_closing_save	stage line and bar while the world saves; gap: minor: no header or percent text
 RecoverWorldDataScreen.<init>	port	crates/sunrise-client/src/title.rs::Title::open_recover	opening a world whose level.dat does not read switches to Mode::Recover: the level.dat and level.dat_old entries with their buildInfo lines, Restore, and Back
 RecoverWorldDataScreen.attemptRestore	port	crates/sunrise-client/src/title.rs::Title::attempt_restore	takes level.dat_old in level.dat's place only when level.dat still reads broken and level.dat_old reads clean; anything else is Recovered { success: false }
 RecoverWorldDataScreen.buildInfo	port	crates/sunrise-client/src/title.rs::recover_info	"State from <date>: " and the issue, green No issues / red Missing file or the read error; nothing for a level.dat_old that is just missing
 RecoverWorldDataScreen.collectIssue	port	crates/sunrise-client/src/title.rs::recover_issues	the level.dat and level.dat_old issues the screen and the restore both read (save::level_dat_issue)
 RecoverWorldDataScreen.repositionElements	port	crates/sunrise-client/src/title.rs::recover_buttons_top	the column of title, message, issues, the restore row and Back, 8 apart, centred; the widgets themselves are built in Title::buttons
 RecoverWorldDataScreen.getNarrationMessage	port	crates/sunrise-client/src/title.rs::Title::narration	Mode::Recover: recover_world.title then recover_world.message with the folder name
-Screen.extractRenderStateWithTooltipAndSubtitles	port	crates/sunrise-client/src/game.rs::Game::hud_layers	draws the current screen's layer and tooltips; unsure about subtitles
+Screen.extractRenderStateWithTooltipAndSubtitles	port	crates/sunrise-client-gameplay/src/game/game_client.rs::Game::hud_layers	draws the current screen's layer and tooltips; unsure about subtitles
 Screen.setInitialFocus	skip:ui		keyboard focus starts on the first widget; Sunrise draws its own focus
 Screen.isInputCaptured	port	crates/sunrise-client/src/title.rs::Title::has_caret_field	gap: minor: only the title screen's text fields
 Screen.addWidget	skip:ui		widget list plumbing; Sunrise draws each screen from its own state
 Screen.removeWidget	skip:ui		widget list plumbing; Sunrise draws each screen from its own state
 Screen.getTooltipFromItem	port	crates/sunrise-client/src/item_tooltip.rs::lines	tooltip lines for an item
-Screen.defaultHandleGameClickEvent	port	crates/sunrise-client/src/game/interface/books.rs::Game::book_follow_link	gap: minor: ShowDialog and custom click events are not handled here
+Screen.defaultHandleGameClickEvent	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::book_follow_link	gap: minor: ShowDialog and custom click events are not handled here
 Screen.fadeWidgets	inline	crates/sunrise-client/src/title/onboarding.rs::Onboarding::fade	the onboarding screen's fade in on open and out on close, its alpha Mth.clampedMap(fade, 0.5, 1, 0, 1) in Onboarding::widget_alpha; the other screens draw their widgets at full alpha
 Screen.extractPanorama	port	crates/sunrise-client-render/src/gfx/panorama.rs::Panorama::draw	the title panorama cube, drawn in the render pass
 Screen.extractMenuBackground	port	crates/sunrise-client-render/src/ui.rs::menu_background	the dirt background with blur
 Screen.extractMenuBackgroundTexture	port	crates/sunrise-client-render/src/ui.rs::menu_background	gap: minor: only the standard background texture
-Screen.isValidCharacterForName	port	crates/sunrise-client/src/game/interface/block_editor.rs::valid_character_for_name	structure and command block editors' name field: one `:` before any `/`, `/` only after it
+Screen.isValidCharacterForName	port	crates/sunrise-client-gameplay/src/game/interface/block_editor.rs::valid_character_for_name	structure and command block editors' name field: one `:` before any `/`, `/` only after it
 Screen.scheduleNarration	port	crates/sunrise-narrator/src/screen.rs::ScreenNarration::schedule	the delay, the suppression and the trigger of one narration; after_mouse_move, after_mouse_action, after_keyboard_action and after_status_change are the vanilla entry points
 Screen.shouldRunNarration	port	crates/sunrise-client/src/screen_narrator.rs::ScreenNarrator::frame_with	GameNarrator.isActive decides it: while the narrator cannot speak the screens still record and the narration is marked said, so turning it on says only what changed
 Screen.handleDelayedNarration	port	crates/sunrise-narrator/src/screen.rs::ScreenNarration::due	the trigger of a narration due now, once the delay and the suppression have passed; the frame says it
@@ -139,10 +139,10 @@ Screen.updateNarratedWidget	port	crates/sunrise-client/src/screen_narrator.rs::u
 Screen.findNarratableWidget	port	crates/sunrise-narrator/src/screen.rs::find_narratable	the first focused narratable that is not the last said, else the highest priority one, else the last said focused one
 Screen.updateNarratorStatus	port	crates/sunrise-client/src/screen_narrator.rs::ScreenNarrator::status_changed	once the narrator is turned on the open screen is narrated two seconds later (after_status_change)
 TitleScreen.tick	skip:service		Realms notifications and the friend request count (social)
-TitleScreen.init	port	crates/sunrise-client/src/title.rs::Title::buttons	main menu buttons; the splash text is chosen at load (choose_splash)
+TitleScreen.init	port	crates/sunrise-client/src/title/preset_buttons.rs::Title::buttons	main menu buttons; the splash text is chosen at load (choose_splash)
 TitleScreen.getHorizontalPosition	skip:ui		layout of the icon row only
-TitleScreen.createNormalMenuOptions	port	crates/sunrise-client/src/title.rs::Title::buttons	Singleplayer, Multiplayer, Minecraft Realms and Quit Game buttons
-TitleScreen.getMultiplayerDisabledReason	port	crates/sunrise-client/src/title.rs::Title::buttons	the decision is the button's enabled flag from Title.allows_multiplayer (AccountStatus::allows_multiplayer: servers-allowed, a multiplayer ban, a forced name change); the reason component vanilla shows for it is not built
+TitleScreen.createNormalMenuOptions	port	crates/sunrise-client/src/title/preset_buttons.rs::Title::buttons	Singleplayer, Multiplayer, Minecraft Realms and Quit Game buttons
+TitleScreen.getMultiplayerDisabledReason	port	crates/sunrise-client/src/title/preset_buttons.rs::Title::buttons	the decision is the button's enabled flag from Title.allows_multiplayer (AccountStatus::allows_multiplayer: servers-allowed, a multiplayer ban, a forced name change); the reason component vanilla shows for it is not built
 TitleScreen.createDemoMenuOptions	skip:other		demo build only (isDemo); Sunrise has no demo mode
 TitleScreen.checkDemoWorldPresence	skip:other		demo world only
 TitleScreen.extractRenderState	port	crates/sunrise-client/src/title/draw.rs::Title::draw_with_items	version line and buttons

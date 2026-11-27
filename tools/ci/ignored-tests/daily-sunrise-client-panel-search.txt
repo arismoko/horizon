@@ -1,2 +1,2 @@
 # panel_search reaching its owner when its box draws, in a client game (#2618).
-sunrise-client game::native_panel::tests::a_queued_search_is_heard_by_its_owner_when_its_box_draws lib daily resources
+sunrise-client cut_layout::game::client_side::native_panel::tests::a_queued_search_is_heard_by_its_owner_when_its_box_draws lib daily resources

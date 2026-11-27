@@ -5,7 +5,7 @@ pub trait Hooks {
     /// the server cleared the dig and sent the block back to the client.
     /// The player's state is not swapped in.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_block_damage_abort",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_block_damage_abort",
         dispatch = "flat",
         side = "server",
         contract = "listen",

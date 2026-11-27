@@ -17,7 +17,7 @@ pub trait Hooks {
     /// event cannot exceed a total lifespan of 32766 ticks; use unlimited or
     /// extended lifetime (`ItemDrop::UNLIMITED_LIFETIME`) for longer lifetimes.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_item_expire",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_item_expire",
         dispatch = "flat",
         side = "server",
         contract = "listen",

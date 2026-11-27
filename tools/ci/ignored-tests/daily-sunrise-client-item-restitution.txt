@@ -1,3 +1,3 @@
-sunrise-client game::item_contact_tests::item_restitution_uses_the_legacy_contact_on_both_simulating_sides lib daily resources
-sunrise-client game::item_contact_tests::tnt_cart_fall_dispatches_restitution_only_if_the_cart_survives lib daily resources
-sunrise-client game::remote_projectiles::nested_spawn_tests::client_falling_block_keeps_collision_bounce_through_drag lib daily resources
+sunrise-client cut_layout::game::server_side::item_contact_tests::item_restitution_uses_the_legacy_contact_on_both_simulating_sides lib daily resources
+sunrise-client cut_layout::game::server_side::item_contact_tests::tnt_cart_fall_dispatches_restitution_only_if_the_cart_survives lib daily resources
+sunrise-client-gameplay game::client_side::remote_projectiles::nested_spawn_tests::client_falling_block_keeps_collision_bounce_through_drag lib daily resources

@@ -1,1 +1,1 @@
-sunrise-client game::native_console_tests::each_console_listener_gets_the_original_overflow_count lib daily resources
+sunrise-client cut_layout::game::server_side::native_console_tests::each_console_listener_gets_the_original_overflow_count lib daily resources

@@ -1,5 +1,5 @@
 # Daily rows for #1760: the block walk and freezing run before cramming and the water's hurt, with the prepared mob types and blocks.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client-lib mobs::ai::aistep_order_tests::a_crammed_frozen_enderman_is_hurt_by_the_freeze_first lib daily resources
-sunrise-client-lib mobs::ai::aistep_order_tests::a_wet_frozen_enderman_is_hurt_by_the_freeze_first lib daily resources
-sunrise-client-lib mobs::ai::aistep_order_tests::a_zombie_out_of_powder_snow_since_last_tick_does_not_burn_yet lib daily resources
+sunrise-sim mobs::ai::aistep_order_tests::a_crammed_frozen_enderman_is_hurt_by_the_freeze_first lib daily resources
+sunrise-sim mobs::ai::aistep_order_tests::a_wet_frozen_enderman_is_hurt_by_the_freeze_first lib daily resources
+sunrise-sim mobs::ai::aistep_order_tests::a_zombie_out_of_powder_snow_since_last_tick_does_not_burn_yet lib daily resources

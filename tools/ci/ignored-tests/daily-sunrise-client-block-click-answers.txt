@@ -1,2 +1,2 @@
 # Blocks that answer a held item's click on the client as vanilla's client level (#3144).
-sunrise-client game::remote::placement_prediction_tests::blocks_answer_a_held_item_s_click_on_the_client_as_vanilla lib daily resources
+sunrise-client cut_layout::game::remote::placement_prediction_tests::blocks_answer_a_held_item_s_click_on_the_client_as_vanilla lib daily resources

@@ -17,12 +17,12 @@ sys.path.insert(0, str(ROOT))
 from tools import lab, oracle_harness as harness, test_rust_parity as base, test_model_baking_parity as baking
 
 TESTS = [
-    'game::crosshair_pick_tests::primed_tnt_and_falling_blocks_match_26_3_witness',
-    'game::crosshair_pick_tests::nested_ride_root_vehicle_exclusion_matches_26_3_witness',
-    'game::crosshair_pick_tests::review_parity_cases_match_26_3_witness',
-    'game::crosshair_pick_tests::singleplayer_and_unstored_pick_share_unified_query_and_root_exclusion_26_3',
-    'game::crosshair_pick_tests::middle_click_sends_pick_item_from_entity_for_tnt_and_falling_block',
-    'game::crosshair_pick_tests::dynamic_redirectable_tag_controls_arrow_pick_and_in_ground_stops_it',
+    'game::client_side::crosshair_pick_tests::primed_tnt_and_falling_blocks_match_26_3_witness',
+    'game::client_side::crosshair_pick_tests::nested_ride_root_vehicle_exclusion_matches_26_3_witness',
+    'game::client_side::crosshair_pick_tests::review_parity_cases_match_26_3_witness',
+    'game::client_side::crosshair_pick_tests::singleplayer_and_unstored_pick_share_unified_query_and_root_exclusion_26_3',
+    'game::client_side::crosshair_pick_tests::middle_click_sends_pick_item_from_entity_for_tnt_and_falling_block',
+    'game::client_side::crosshair_pick_tests::dynamic_redirectable_tag_controls_arrow_pick_and_in_ground_stops_it',
 ]
 
 

@@ -1,2 +1,2 @@
 # LevelRef::structures_with_piece_at and structures_at (#5305): a stronghold start over the test resources.
-sunrise-client game::native_level_refs::environment_read_tests::structures_at_reads_the_loaded_chunks_references lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_refs::environment_read_tests::structures_at_reads_the_loaded_chunks_references lib daily resources

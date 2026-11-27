@@ -1,2 +1,2 @@
 # SUNRISE_STILL's toasts (#5730): the game test reads the prepared 26.3 data.
-sunrise-client game::toast_manager::still_tests::a_still_game_posts_toasts_into_nothing lib daily resources
+sunrise-client-gameplay game::toast_manager::still_tests::a_still_game_posts_toasts_into_nothing lib daily resources

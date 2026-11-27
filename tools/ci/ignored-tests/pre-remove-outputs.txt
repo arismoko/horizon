@@ -1,5 +1,5 @@
-sunrise-client game::spill::tests::removal_keep_contents_suppresses_slot_scatter lib daily resources
-sunrise-client game::spill::tests::removal_spawn_has_exact_position_and_default_delay lib daily resources
-sunrise-client game::spill::tests::removal_experience_awards_positioned_orbs lib daily resources
-sunrise-client game::spill::tests::removal_empty_slot_draws_three_doubles_without_spawning lib daily resources
-sunrise-client game::spill::tests::removal_unanswered_part_leaves_random_untouched lib daily resources
+sunrise-client cut_layout::game::server_side::spill::tests::removal_keep_contents_suppresses_slot_scatter lib daily resources
+sunrise-client cut_layout::game::server_side::spill::tests::removal_spawn_has_exact_position_and_default_delay lib daily resources
+sunrise-client cut_layout::game::server_side::spill::tests::removal_experience_awards_positioned_orbs lib daily resources
+sunrise-client cut_layout::game::server_side::spill::tests::removal_empty_slot_draws_three_doubles_without_spawning lib daily resources
+sunrise-client cut_layout::game::server_side::spill::tests::removal_unanswered_part_leaves_random_untouched lib daily resources

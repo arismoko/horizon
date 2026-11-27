@@ -16,7 +16,7 @@ pub trait Hooks {
         side = "server",
         contract = "listen",
         context = "loop",
-        target = "sunrise_client_lib::lan::guest::native_block_interaction_range",
+        target = "sunrise_sim::lan::guest::native_block_interaction_range",
         neoforge = "none (vanilla Player.isWithinBlockInteractionRange; NeoForge adds no event)"
     )]
     fn block_interaction_range(player: u128, pos: BlockPos, buffer: f64, within: &mut bool);

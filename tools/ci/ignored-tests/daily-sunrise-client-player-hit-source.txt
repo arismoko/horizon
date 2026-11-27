@@ -1,1 +1,1 @@
-sunrise-client game::native_damage_tests::player_melee_hit_preserves_the_attackers_position_and_direct_entity lib daily resources
+sunrise-client cut_layout::game::server_side::native_damage_tests::player_melee_hit_preserves_the_attackers_position_and_direct_entity lib daily resources

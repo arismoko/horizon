@@ -1,6 +1,6 @@
 version = 1
 doc = "A path a mod supplies through `move_to_path` leaves the navigation's recompute target as it was, as `PathNavigation.moveTo(Path, speed)` does: a block change on the path re-searches to the target the navigation last searched for, and with none the path is kept. The stuck check still drops it."
 tests = [
-  "crates/sunrise-client/src/mobs/nav.rs::a_block_change_keeps_a_supplied_path_with_no_searched_target",
-  "crates/sunrise-client/src/mobs/nav.rs::a_block_change_re_searches_to_the_last_searched_target",
+  "crates/sunrise-sim/src/mobs/nav.rs::a_block_change_keeps_a_supplied_path_with_no_searched_target",
+  "crates/sunrise-sim/src/mobs/nav.rs::a_block_change_re_searches_to_the_last_searched_target",
 ]

@@ -20,7 +20,7 @@ pub trait Hooks {
         inert = "*handled = true;",
         key = "state",
         version = 2,
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_tick_block",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_tick_block",
         neoforge = "none (vanilla BlockBehaviour.tick; NeoForge adds no event or extension for it)"
     )]
     fn tick_block(
