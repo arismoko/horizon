@@ -38,6 +38,7 @@ fn register_entity_spectator_shaders(
 }
 ```"#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_entity_spectator_shaders::native_register_entity_spectator_shaders",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

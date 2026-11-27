@@ -1,1 +1,1 @@
-sunrise-client game::remote::recipe_properties::client_logging_out_tests::client_player_logging_out_fires_once_before_teardown_and_handles_no_player_transitions lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::client_logging_out_tests::client_player_logging_out_fires_once_before_teardown_and_handles_no_player_transitions lib daily child-process

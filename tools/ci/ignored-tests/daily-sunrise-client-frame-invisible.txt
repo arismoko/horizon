@@ -1,1 +1,1 @@
-sunrise-client game::native_hanging_tests::a_frame_is_hidden_and_shown_through_its_handle lib daily resources
+sunrise-client cut_layout::game::server_side::native_hanging_tests::a_frame_is_hidden_and_shown_through_its_handle lib daily resources

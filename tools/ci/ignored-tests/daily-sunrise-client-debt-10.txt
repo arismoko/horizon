@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::screen_position_tests::screen_extra_data_borrows_only_the_open_windows_bytes lib daily resources
+sunrise-client-gameplay game::native_hooks::screen_position_tests::screen_extra_data_borrows_only_the_open_windows_bytes lib daily resources

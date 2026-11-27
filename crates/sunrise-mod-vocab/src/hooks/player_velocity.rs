@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// A server applied `velocity` to a player, when syncing changed motion to that player's client.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_velocity",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_velocity",
         dispatch = "flat",
         side = "server",
         contract = "listen",

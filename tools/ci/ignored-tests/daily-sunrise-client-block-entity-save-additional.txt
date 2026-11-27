@@ -1,3 +1,3 @@
-sunrise-client game::native_hooks::block_entity_save_additional_tests::tests::break_only_serializes_admitted_loot_not_removal_notices lib daily resources
-sunrise-client game::native_hooks::block_entity_save_additional_tests::tests::command_and_unload_capture_the_live_payload_without_mutating_storage lib daily resources
-sunrise-client game::native_hooks::block_entity_save_additional_tests::tests::structure_capture_refuses_lossy_listener_keys_and_strings lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_save_additional_tests::tests::break_only_serializes_admitted_loot_not_removal_notices lib daily resources
+sunrise-client cut_layout::game::native_hooks::block_entity_save_additional_tests::tests::command_and_unload_capture_the_live_payload_without_mutating_storage lib daily resources
+sunrise-client cut_layout::game::server_side::native_hooks_server::block_entity_save_additional_tests::tests::structure_capture_refuses_lossy_listener_keys_and_strings lib daily resources

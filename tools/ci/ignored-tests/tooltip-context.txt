@@ -1,1 +1,1 @@
-sunrise-client game::stations::tests::tooltip_part_context_tracks_flags_and_client_tick_rate lib daily resources
+sunrise-client-gameplay game::client_side::stations::tests::tooltip_part_context_tracks_flags_and_client_tick_rate lib daily resources

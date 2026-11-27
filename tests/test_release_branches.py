@@ -12,6 +12,7 @@ from tools.ci import vendored_yaml
 ROOT = Path(__file__).resolve().parents[1]
 yaml = vendored_yaml.load()
 
+from tests.git_fixture import git_in
 from tests.os_support import needs_runner_shell
 from tools import release_file
 from tools import release_train as train
@@ -22,17 +23,12 @@ REPO, DISPATCH = "sunrise-org/sunrise", "workflow_dispatch"
 WORKFLOWS = ROOT / ".github/workflows"
 
 
-def git_in(folder):
-    def git(*args):
-        return subprocess.check_output(["git", *args], cwd=folder, text=True, stderr=subprocess.DEVNULL).strip()
-    return git
-
-
 def repository(folder):
     """A bare origin and a clone of it with three commits on main, the clone's origin/main at the newest."""
     origin, clone = Path(folder, "origin"), Path(folder, "clone")
-    subprocess.check_call(["git", "init", "-q", "--bare", "-b", "main", str(origin)])
-    subprocess.check_call(["git", "clone", "-q", str(origin), str(clone)], stderr=subprocess.DEVNULL)
+    setup_git = git_in(folder)
+    setup_git("init", "-q", "--bare", "-b", "main", str(origin))
+    setup_git("clone", "-q", str(origin), str(clone))
     git = git_in(clone)
     git("config", "user.name", "Test")
     git("config", "user.email", "test@example.invalid")
@@ -57,6 +53,22 @@ def run_gate(script, **env):
                   **env}
         subprocess.run(["bash", "-e", "-c", script], cwd=ROOT, env=values, check=True, capture_output=True)
         return dict(line.split("=", 1) for line in out.read_text().splitlines())
+
+
+class RepositoryFixtureTests(unittest.TestCase):
+    def test_synthetic_history_ignores_inherited_commit_and_tag_signing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = Path(folder, "inherited.gitconfig")
+            # A nonexistent signer makes signing fail without ever using a real key.
+            signer = Path(folder, "no-signer").as_posix()
+            config.write_text('[commit]\n\tgpgsign = true\n[tag]\n\tgpgsign = true\n[gpg]\n\tformat = openpgp\n'
+                              f'[gpg "openpgp"]\n\tprogram = "{signer}"\n', encoding="utf-8")
+            with mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": str(config)}):
+                git, commits = repository(folder)
+                self.assertEqual(git("show", "-s", "--format=%ce", commits[-1]), "test@example.invalid")
+                git("tag", "-a", "fixture", "-m", "fixture tag", commits[-1])
+                self.assertEqual(git("rev-parse", "refs/tags/fixture^{}"), commits[-1])
+                self.assertTrue(git("cat-file", "-p", "refs/tags/fixture").endswith("\n\nfixture tag"))
 
 
 class StableTagTests(unittest.TestCase):

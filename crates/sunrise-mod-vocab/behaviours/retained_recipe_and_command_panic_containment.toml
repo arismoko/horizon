@@ -1,7 +1,7 @@
 version = 2
 doc = "Retained ingredient predicates, registered recipe writers and native command executors use the shared dispatch failure boundary. A panic logs the mod's name, queues the local client error toast and disables only that mod's callback for the ingredient definition at its recipe occurrence, serializer ID or command usage for the session, even when reloaded. A normal non-match, writer error or command failure does not disable the callback. A panicking command does not publish an execute-store result and aborts its savepoint in the caller's open transaction. A failed invocation aborts any frames it opened and left unfinished, even without a caller's transaction, but never undoes unjournaled effects."
 tests = [
-    "crates/sunrise-client/src/stations/recipe_load_tests.rs::panicking_ingredient_predicate_disables_only_its_definition_across_recipe_loads",
-    "crates/sunrise-client/src/crafting/mod_kinds_tests.rs::recipe_sync_panic_disables_just_that_writer_across_loads",
-    "crates/sunrise-client/src/game/modding/native_server.rs::panicking_command_executors_keep_other_usages_and_only_undo_journaled_writes",
+    "crates/sunrise-sim/src/stations/recipe_load_tests.rs::panicking_ingredient_predicate_disables_only_its_definition_across_recipe_loads",
+    "crates/sunrise-sim/src/crafting/mod_kinds_tests.rs::recipe_sync_panic_disables_just_that_writer_across_loads",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_server.rs::panicking_command_executors_keep_other_usages_and_only_undo_journaled_writes",
 ]

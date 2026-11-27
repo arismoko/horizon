@@ -1,1 +1,1 @@
-sunrise-client-lib mobs::creaking::tests::server_ai_step_counts_down_without_drawing_for_eye_flicker lib daily resources # builds a mob tick view from prepared resources
+sunrise-sim mobs::creaking::tests::server_ai_step_counts_down_without_drawing_for_eye_flicker lib daily resources # builds a mob tick view from prepared resources

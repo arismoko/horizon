@@ -42,8 +42,8 @@ SERVER_WITNESS_NAME = 'sulfur_cube_fuse_server.txt'
 CLIENT_WITNESS_NAME = 'sulfur_cube_fuse_client.txt'
 WITNESS_ENV = 'SUNRISE_SULFUR_CUBE_FUSE_WITNESS_DIR'
 CLIENT_TESTS = [
-    'game::lan::sources_tests::a_loaded_sulfur_cube_fuse_matches_the_pinned_oracle',
-    'game::remote_mob_data::tests::sulfur_cube_max_fuse_sets_the_client_fuse',
+    'game::server_side::lan::sources_tests::a_loaded_sulfur_cube_fuse_matches_the_pinned_oracle',
+    'game::client_side::remote_mob_data::tests::sulfur_cube_max_fuse_sets_the_client_fuse',
 ]
 LIB_TEST = 'mobs::sulfur_cube::tnt_rule_tests::a_loaded_fuse_is_kept_as_it_is_and_leaves_invulnerable_alone'
 
@@ -131,15 +131,15 @@ def main():
                lab.ROOT / 'tools/oracle_harness.py', lab.ROOT / 'tools/test_rust_parity.py',
                lab.ROOT / 'tools/test_model_baking_parity.py',
                lab.ROOT / 'tools/integration_env.py', lab.ROOT / 'Cargo.toml', lab.ROOT / 'Cargo.lock',
-               lab.ROOT / 'crates/sunrise-client/src/mobs.rs',
-               lab.ROOT / 'crates/sunrise-client/src/entity_nbt.rs',
-               lab.ROOT / 'crates/sunrise-client/src/entity_nbt/common.rs',
-               lab.ROOT / 'crates/sunrise-client/src/entity_nbt/mob_read.rs',
-               lab.ROOT / 'crates/sunrise-client/src/entity_nbt/mob_write.rs',
-               lab.ROOT / 'crates/sunrise-client/src/mobs/sulfur_cube.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/network/lan/mod.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/network/lan/sulfur_cube_meta_tests.rs',
-               lab.ROOT / 'crates/sunrise-client/src/game/network/remote_mob_data.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/entity_nbt.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/entity_nbt/common.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/entity_nbt/mob_read.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/entity_nbt/mob_write.rs',
+               lab.ROOT / 'crates/sunrise-sim/src/mobs/sulfur_cube.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/network/lan/mod.rs',
+               lab.ROOT / 'crates/sunrise-gameplay/src/game/network/lan/sulfur_cube_meta_tests.rs',
+               lab.ROOT / 'crates/sunrise-client-gameplay/src/game/network/remote_mob_data.rs',
                lab.ROOT / 'crates/sunrise-world/src/nbt_path.rs']
     hashes = base.source_hashes(sources)
     witness_dir, server_out, client_out, _, _ = record_witness(build, lock, jars, libraries)

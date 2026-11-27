@@ -48,8 +48,8 @@ class ScaffoldTest(unittest.TestCase):
         for rel, text in {
             'crates/sunrise-mod-vocab/src/lib.rs': 'pub struct Vec3;\n',
             'crates/sunrise-mod-vocab/src/world/point.rs': '//! Hand-written.\npub struct Keep;\n',
-            'crates/sunrise-client/src/game/modding/api_values.rs':
-                '#[path = "api_values/a.rs"]\npub(in crate::game) mod a;\n\nfn tail() {}\n',
+            'crates/sunrise-gameplay-common/src/game/modding/api_values.rs':
+                '#[path = "api_values/a.rs"]\npub mod a;\n\nfn tail() {}\n',
         }.items():
             self.write(rel, text)
         self.config = self.root / 'cfg.toml'
@@ -95,12 +95,13 @@ class ScaffoldTest(unittest.TestCase):
         self.assertIn('pub(crate) mod boat;', (api / 'entity/mod.rs').read_text())
         self.assertIn('pub struct BoatRef {', (api / 'entity/boat.rs').read_text())
         self.assertIn('fn boat_is_wet(&self, handle: BoatRef) -> Option<bool>;', (api / 'host/boat.rs').read_text())
-        conv = (self.root / 'crates/sunrise-client/src/game/modding/api_values/dir.rs').read_text()
+        conv = (self.root / 'crates/sunrise-gameplay-common/src/game/modding/api_values/dir.rs').read_text()
         self.assertIn('_ => return Err(UnsupportedDir)', conv)
-        boat = (self.root / 'crates/sunrise-client/src/game/modding/api_values/boat.rs').read_text()
+        boat = (self.root / 'crates/sunrise-gameplay-common/src/game/modding/api_values/boat.rs').read_text()
+        self.assertIn("impl crate::game::CommonGame<'_>", boat)
         self.assertIn('pub(crate) fn boat_is_wet(&self, handle: mod_api::BoatRef) -> Option<bool>', boat)
         self.assertIn('impl crate::__private::game::Fields for BoatRef', (api / 'entity/boat.rs').read_text())
-        values = (self.root / 'crates/sunrise-client/src/game/modding/api_values.rs').read_text()
+        values = (self.root / 'crates/sunrise-gameplay-common/src/game/modding/api_values.rs').read_text()
         self.assertIn('mod dir;', values)
         self.assertTrue(values.endswith('\n\nfn tail() {}\n'))
         self.assertLess(values.index('mod a;'), values.index('mod dir;'))
@@ -135,7 +136,7 @@ class ScaffoldTest(unittest.TestCase):
         self.config.write_text(CONFIG.replace('fields = ["x: i32", "y: i32"]',
                                               'fields = ["x: i32", "y: i32"]\nexhaustive = "two ints"'))
         self.assertEqual(self.run_tool('--apply').returncode, 0)
-        conv = (self.root / 'crates/sunrise-client/src/game/modding/api_values/point.rs').read_text()
+        conv = (self.root / 'crates/sunrise-gameplay-common/src/game/modding/api_values/point.rs').read_text()
         self.assertIn('mod_api::Pt { x: self.x, y: self.y }', conv)
         self.assertNotIn('pub const fn new', (self.root / 'crates/sunrise-mod-vocab/src/world/point.rs').read_text())
 

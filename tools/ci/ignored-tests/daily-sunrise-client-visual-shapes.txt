@@ -1,3 +1,3 @@
 # Visual block shapes in level clips and shape reads (#4677).
-sunrise-client game::native_entity_refs::tests::level_clip_visual_passes_see_through_blocks_and_stops_on_visual_shapes lib daily resources
-sunrise-client game::native_state_shapes::tests::visual_shape_follows_vanilla_overrides lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::level_clip_visual_passes_see_through_blocks_and_stops_on_visual_shapes lib daily resources
+sunrise-client cut_layout::game::native_state_shapes::tests::visual_shape_follows_vanilla_overrides lib daily resources

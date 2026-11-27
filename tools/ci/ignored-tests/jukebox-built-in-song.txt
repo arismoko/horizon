@@ -1,2 +1,2 @@
 # A client plays a data-less jukebox entry from its own built-in song (#5561).
-sunrise-client game::jukebox::tests::level_event_1010_plays_a_data_less_entry_from_the_clients_built_in_song lib daily resources
+sunrise-client-gameplay game::client_side::jukebox::tests::level_event_1010_plays_a_data_less_entry_from_the_clients_built_in_song lib daily resources

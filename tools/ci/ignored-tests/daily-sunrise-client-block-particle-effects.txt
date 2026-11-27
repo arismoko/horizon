@@ -1,2 +1,2 @@
-sunrise-client game::native_hooks::block_particle_effects_tests::break_event_uses_the_destroyed_state_and_keeps_its_sound lib daily child-process
-sunrise-client game::native_hooks::block_particle_effects_tests::hit_effect_replaces_the_crumb_but_not_the_sound_or_level_random lib daily child-process
+sunrise-client-gameplay game::native_hooks::block_particle_effects_tests::break_event_uses_the_destroyed_state_and_keeps_its_sound lib daily child-process
+sunrise-client-gameplay game::native_hooks::block_particle_effects_tests::hit_effect_replaces_the_crumb_but_not_the_sound_or_level_random lib daily child-process

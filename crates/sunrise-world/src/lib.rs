@@ -108,6 +108,7 @@ pub mod movement_properties;
 pub mod movement_restitution;
 pub mod movement_statistics;
 pub mod movement_support;
+pub mod moving_colliders;
 pub mod native_load_context;
 pub mod native_load_hooks;
 pub mod native_worldgen_hooks;

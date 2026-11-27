@@ -1,2 +1,2 @@
-sunrise-client game::server_packs::tests::optional_decline_replies_on_the_live_wire_and_saves_disabled_policy lib daily child-process
-sunrise-client game::server_packs::tests::required_decline_closes_the_wire_but_reports_locally_and_saves lib daily child-process
+sunrise-client cut_layout::game::client_side::server_packs::tests::optional_decline_replies_on_the_live_wire_and_saves_disabled_policy lib daily child-process
+sunrise-client cut_layout::game::client_side::server_packs::tests::required_decline_closes_the_wire_but_reports_locally_and_saves lib daily child-process

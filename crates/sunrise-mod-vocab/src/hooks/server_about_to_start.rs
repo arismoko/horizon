@@ -14,7 +14,7 @@ pub trait Hooks {
     /// `server_stopped`. `dedicated` tells a dedicated server from the single
     /// player one.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_server_about_to_start",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_server_about_to_start",
         dispatch = "flat",
         side = "server",
         contract = "listen",

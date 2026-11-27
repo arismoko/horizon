@@ -13,7 +13,7 @@ pub trait Hooks {
         out = "cancel",
         neoforge = "none (NeoForge has no such event; Bukkit's BlockIgniteEvent)",
         cancellable = true,
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_block_ignite"
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_block_ignite"
     )]
     fn block_ignite(
         dimension: LevelDimension,

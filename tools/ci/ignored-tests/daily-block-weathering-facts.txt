@@ -1,2 +1,2 @@
-sunrise-client game::integrated::tests::block_state_weathering_reverts_after_integrated_session_stops lib daily resources
-sunrise-client game::native_block_states::facts_tests::weathering_and_wax_reads_keep_shared_properties lib daily resources
+sunrise-client cut_layout::game::server_side::integrated::tests::block_state_weathering_reverts_after_integrated_session_stops lib daily resources
+sunrise-client cut_layout::game::native_block_states::facts_tests::weathering_and_wax_reads_keep_shared_properties lib daily resources

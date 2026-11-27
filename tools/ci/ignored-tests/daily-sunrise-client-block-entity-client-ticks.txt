@@ -1,9 +1,9 @@
 # Vanilla 26.3 ticker order, events, spins, animation and beacon beams (docs/parity/block-entity-client-ticks.jsonl; tools/test_block_entity_client_tick_parity.py).
 # Prepared-resource cases also exercise ticker enabling, unload/resend, pot events, and particle-engine timing.
-sunrise-client game::spawner_client_tick_tests::a_book_after_a_shulker_lid_reads_the_pushed_player lib daily child-process
-sunrise-client game::spawner_client_tick_tests::a_campfire_lit_before_the_first_ticker_pass_ticks_behind_the_spawner lib daily child-process
-sunrise-client game::spawner_client_tick_tests::a_campfires_smoke_joins_the_engine_in_the_tick_that_made_it lib daily child-process
-sunrise-client game::spawner_client_tick_tests::a_conduit_sent_again_between_ticks_starts_fresh lib daily child-process
-sunrise-client game::spawner_client_tick_tests::a_decorated_pots_wobble_survives_the_client_ticks lib daily child-process
-sunrise-client game::spawner_client_tick_tests::a_geyser_counts_its_eruption_from_the_tick_it_joined_the_level lib daily child-process
-sunrise-client game::spawner_client_tick_tests::client_ticks_match_the_vanilla_cases lib daily child-process
+sunrise-client cut_layout::game::client_side::spawner_client_tick_tests::a_book_after_a_shulker_lid_reads_the_pushed_player lib daily child-process
+sunrise-client cut_layout::game::client_side::spawner_client_tick_tests::a_campfire_lit_before_the_first_ticker_pass_ticks_behind_the_spawner lib daily child-process
+sunrise-client cut_layout::game::client_side::spawner_client_tick_tests::a_campfires_smoke_joins_the_engine_in_the_tick_that_made_it lib daily child-process
+sunrise-client cut_layout::game::client_side::spawner_client_tick_tests::a_conduit_sent_again_between_ticks_starts_fresh lib daily child-process
+sunrise-client cut_layout::game::client_side::spawner_client_tick_tests::a_decorated_pots_wobble_survives_the_client_ticks lib daily child-process
+sunrise-client cut_layout::game::client_side::spawner_client_tick_tests::a_geyser_counts_its_eruption_from_the_tick_it_joined_the_level lib daily child-process
+sunrise-client cut_layout::game::client_side::spawner_client_tick_tests::client_ticks_match_the_vanilla_cases lib daily child-process

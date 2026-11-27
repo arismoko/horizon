@@ -1,6 +1,6 @@
-sunrise-client game::creatures::borrowed_tick::mob_tick_access_tests::an_equipped_mob_discarded_by_despawn_does_not_report_equipment lib daily resources
-sunrise-client game::creatures::borrowed_tick::mob_tick_access_tests::mob_equipment_change_fires_before_post_and_skips_canceled_ticks lib daily resources
-sunrise-client game::creatures::borrowed_tick::mob_tick_access_tests::named_mobs_and_projectiles_yield_only_for_subscribed_phase lib daily resources
-sunrise-client game::fireworks::impact::tests::rocket_impact_rechecks_subscriptions_per_impact_moment lib daily child-process
-sunrise-client game::native_ticks::tests::told_follows_enabled_pre_and_post_subscriptions lib daily child-process
-sunrise-client game::remote_projectiles::entity_tick_tests::named_remote_projectiles_hand_back_only_for_subscribed_phase lib daily resources
+sunrise-client cut_layout::game::creatures::borrowed_tick::mob_tick_access_tests::an_equipped_mob_discarded_by_despawn_does_not_report_equipment lib daily resources
+sunrise-client cut_layout::game::creatures::borrowed_tick::mob_tick_access_tests::mob_equipment_change_fires_before_post_and_skips_canceled_ticks lib daily resources
+sunrise-client cut_layout::game::creatures::borrowed_tick::mob_tick_access_tests::named_mobs_and_projectiles_yield_only_for_subscribed_phase lib daily resources
+sunrise-client cut_layout::game::fireworks::impact::tests::rocket_impact_rechecks_subscriptions_per_impact_moment lib daily child-process
+sunrise-gameplay-common game::native_ticks::tests::told_follows_enabled_pre_and_post_subscriptions lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_projectiles::entity_tick_tests::named_remote_projectiles_hand_back_only_for_subscribed_phase lib daily resources

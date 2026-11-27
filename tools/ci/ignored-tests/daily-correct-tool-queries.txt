@@ -1,4 +1,4 @@
 # The correct-tool and harvest queries (#1622): need prepared resources and a LAN guest.
-sunrise-client game::native_harvest_queries::tests::the_correct_tool_is_the_stacks_rules_and_the_players_selected_slot lib daily resources
-sunrise-client game::native_harvest_queries::tests::the_query_from_inside_a_harvest_hook_answers_none lib daily resources
-sunrise-client game::native_player_break::tests::harvesting_uses_the_selected_slot_and_iron_doors_need_no_tool lib daily resources
+sunrise-client cut_layout::game::server_side::native_harvest_queries::tests::the_correct_tool_is_the_stacks_rules_and_the_players_selected_slot lib daily resources
+sunrise-client cut_layout::game::server_side::native_harvest_queries::tests::the_query_from_inside_a_harvest_hook_answers_none lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_break::tests::harvesting_uses_the_selected_slot_and_iron_doors_need_no_tool lib daily resources

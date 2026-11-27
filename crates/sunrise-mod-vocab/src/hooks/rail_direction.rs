@@ -18,7 +18,7 @@ pub trait Hooks {
         out = "shape",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::rails::GameLevel<'_>::native_rail_direction",
+        target = "sunrise_gameplay_common::game::native_hooks::rails::GameLevel<'_>::native_rail_direction",
         neoforge = "IBaseRailBlockExtension.getRailDirection"
     )]
     fn rail_direction(

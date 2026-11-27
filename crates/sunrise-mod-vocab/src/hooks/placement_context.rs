@@ -30,7 +30,7 @@ pub trait Hooks {
         scope = "item",
         key = "stack",
         out = "answer",
-        target = "sunrise_client::game::native_hooks::placement_context::GameLevel<'_>::native_placement_context",
+        target = "sunrise_gameplay_common::game::native_hooks::placement_context::GameLevel<'_>::native_placement_context",
         neoforge = "none (vanilla BlockItem.updatePlacementContext)",
         version = 3
     )]

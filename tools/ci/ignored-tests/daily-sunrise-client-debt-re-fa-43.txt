@@ -1,1 +1,1 @@
-sunrise-client game::native_server::tests::panicking_command_executors_keep_other_usages_and_only_undo_journaled_writes lib daily child-process
+sunrise-client cut_layout::game::native_server::tests::panicking_command_executors_keep_other_usages_and_only_undo_journaled_writes lib daily child-process

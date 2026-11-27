@@ -1,2 +1,2 @@
-sunrise-client game::lan_actions::guest_body::tests::travel::a_connected_players_report_never_exposes_stale_collision_flags lib daily resources
-sunrise-client game::native_local_player_writes::tests::player_collision_flags_distinguish_a_ceiling_from_the_floor_and_a_wall lib daily resources
+sunrise-client cut_layout::game::lan_actions::guest_body::tests::travel::a_connected_players_report_never_exposes_stale_collision_flags lib daily resources
+sunrise-client cut_layout::game::client_side::native_local_player_writes::tests::player_collision_flags_distinguish_a_ceiling_from_the_floor_and_a_wall lib daily resources

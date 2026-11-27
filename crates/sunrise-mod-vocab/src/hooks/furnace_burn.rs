@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A furnace at `pos` consumed fuel and began or resumed burning it.
     /// `fuel` is the item consumed from its fuel slot. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_furnace_burn",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_furnace_burn",
         dispatch = "flat",
         side = "server",
         contract = "listen",

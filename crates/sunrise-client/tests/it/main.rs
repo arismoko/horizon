@@ -4,4 +4,5 @@
 mod datapack_biome_sync;
 mod mod_api_hooks;
 mod mod_biome_sync;
+#[cfg(feature = "client")]
 mod skull_models;

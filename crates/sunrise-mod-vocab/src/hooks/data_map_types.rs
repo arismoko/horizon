@@ -23,7 +23,7 @@ pub trait Hooks {
     /// copy values only if you need them after the borrow. Server-side, not
     /// synced to clients.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_data_map_types",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_data_map_types",
         dispatch = "flat",
         side = "server",
         version = 2,

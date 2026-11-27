@@ -1,3 +1,3 @@
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
 # Terrain sources kept only while a shaders/ pack is loaded (#794).
-sunrise-client game::pack_sources_tests::terrain_sources_are_kept_only_while_a_pack_is_loaded lib daily child-process
+sunrise-client-gameplay game::client_side::pack_sources_tests::terrain_sources_are_kept_only_while_a_pack_is_loaded lib daily child-process

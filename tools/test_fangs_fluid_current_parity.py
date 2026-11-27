@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 from tools import harness_args, test_command_exec_parity as driver
 
 MINECRAFT_VERSION = '26.3'
-TEST = 'game::fangs::current_tests::fangs_in_a_current_are_pushed_and_fangs_in_still_water_are_not'
+TEST = 'game::server_side::fangs::current_tests::fangs_in_a_current_are_pushed_and_fangs_in_still_water_are_not'
 ORACLE = driver.lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaCommandExecOracle.java'
 TICKS = (0, 1, 2)
 MOTION_RE = re.compile(r'entity data: \[([^,\]]+)d, ([^,\]]+)d, ([^,\]]+)d\]$')

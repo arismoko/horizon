@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_data::tests::custom_name_reads_the_styled_name_or_none lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_data::tests::custom_name_reads_the_styled_name_or_none lib daily resources

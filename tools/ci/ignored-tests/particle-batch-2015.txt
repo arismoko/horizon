@@ -1,1 +1,1 @@
-sunrise-client game::native_level_effects::tests::particle_batch_is_atomic_and_follows_level_delivery_order lib daily child-process
+sunrise-client cut_layout::game::server_side::native_level_effects::tests::particle_batch_is_atomic_and_follows_level_delivery_order lib daily child-process

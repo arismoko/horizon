@@ -1,2 +1,2 @@
-sunrise-client game::remote::claimed_item_use_tests::interception_does_not_send_item_use_or_release_packets lib daily resources
-sunrise-client game::remote::claimed_item_use_tests::owner_gets_release_or_reset_with_live_typed_stack lib daily resources
+sunrise-client cut_layout::game::remote::claimed_item_use_tests::interception_does_not_send_item_use_or_release_packets lib daily resources
+sunrise-client cut_layout::game::client_side::remote_client::claimed_item_use_tests::owner_gets_release_or_reset_with_live_typed_stack lib daily resources

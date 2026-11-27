@@ -76,3 +76,98 @@ pub fn dissolve_mask(quads: &mut [Vertex], skin: [f32; 4], mask: [f32; 4]) {
         ];
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub fn run_dragon_render_parity_fixture() {
+        let path = std::env::var("SUNRISE_DRAGON_RENDER_OUTPUT").expect("harness output path");
+        let mut cases = Vec::new();
+        for t in [0.0, 0.05, 0.25, 0.5, 0.8, 0.9, 0.95, 1.0] {
+            let mut vertices = Vec::new();
+            dragon_rays(
+                glam::Mat4::IDENTITY,
+                t,
+                sunrise_client::hud::Rect {
+                    u0: 0.0,
+                    v0: 0.0,
+                    u1: 1.0,
+                    v1: 1.0,
+                    w: 1,
+                    h: 1,
+                },
+                &mut vertices,
+            );
+            // The fourth quad vertex only pads a triangle for our index buffer.
+            let triangles: Vec<_> = vertices
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .flat_map(|q| &q[..3])
+                .map(|v| serde_json::json!([v.pos[0], v.pos[1], v.pos[2], v.color]))
+                .collect();
+            cases.push(triangles);
+        }
+        std::fs::write(path, serde_json::to_vec(&cases).unwrap()).unwrap();
+    }
+
+    /// Driven by `tools/test_dragon_render_parity.py`; compares the actual
+    /// ray vertices with EnderDragonRenderer's captured VertexConsumer output.
+    #[test]
+    #[ignore]
+    fn dragon_render_parity_fixture() {
+        run_dragon_render_parity_fixture();
+    }
+
+    #[test]
+    fn the_dying_model_reads_the_mask_where_it_reads_the_skin() {
+        // The skin in the atlas's top-left quarter, the mask in its bottom-right one.
+        let mut quad = [Vertex {
+            pos: [0.0; 3],
+            uv: [0.25, 0.125],
+            layer: 0,
+            color: 0,
+            light: 0,
+            normal: [0; 4],
+            glint_uv: [0.0; 2],
+        }];
+        dissolve_mask(&mut quad, [0.0, 0.0, 0.5, 0.5], [0.5, 0.5, 1.0, 1.0]);
+        assert_eq!(quad[0].glint_uv, [0.75, 0.625]);
+        // ARGB.white(1 - deathTime / 200): floor(127.5), and past 200 the int shift wraps.
+        assert_eq!(dissolve_color(100.0), 0x7FFF_FFFF);
+        assert_eq!(dissolve_color(200.5), 0xFFFF_FFFF);
+    }
+
+    #[test]
+    fn death_rays_sample_inside_the_white_sprite() {
+        // A four-texel white sprite surrounded by transparent atlas pixels.
+        // A border UV can round outside it during perspective interpolation.
+        let size = 1024.0;
+        let white = sunrise_client::hud::Rect {
+            u0: 20.0 / size,
+            v0: 60.0 / size,
+            u1: 24.0 / size,
+            v1: 64.0 / size,
+            w: 4,
+            h: 4,
+        };
+        for t in [0.25, 0.8, 0.95, 1.0] {
+            let mut vertices = Vec::new();
+            dragon_rays(glam::Mat4::IDENTITY, t, white, &mut vertices);
+            assert!(!vertices.is_empty());
+            for v in &vertices {
+                assert!(
+                    v.uv[0] > white.u0 + 0.5 / size && v.uv[0] < white.u1 - 0.5 / size,
+                    "death-ray U touches the atlas border: {}",
+                    v.uv[0]
+                );
+                assert!(
+                    v.uv[1] > white.v0 + 0.5 / size && v.uv[1] < white.v1 - 0.5 / size,
+                    "death-ray V touches the atlas border: {}",
+                    v.uv[1]
+                );
+            }
+        }
+    }
+}

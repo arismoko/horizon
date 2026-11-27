@@ -10,6 +10,8 @@
 //! `sunrise-stage surface-catalogs ROOT SURFACE [--with-internals]`: add the source tree's
 //! engine catalogs to an existing SDK export, without regenerating its typed API records.
 //!
+//! `sunrise-stage function-index ROOT OUT`: write the pristine source index, with published loop copies.
+//!
 //! `sunrise-stage uses SURFACE MOD_DIR [--json OUT --made-for BUILD]`: list
 //! what the mod in MOD_DIR uses of SURFACE, each item with the place that brought it in, then
 //! how it builds each struct it builds with a literal; with `--json`, write the table a package
@@ -32,7 +34,10 @@ use mod_surface::Surface;
 use mod_surface::uses::{Fit, ManifestFacts, Origin, UsesTable, uses_contained};
 use std::path::{Path, PathBuf};
 use sunrise_mod_api_gen::staging::{self, Mode};
-use sunrise_mod_api_gen::surface::{ExportOptions, engine_catalogs, export_with};
+use sunrise_mod_api_gen::surface::{
+    ExportOptions, engine_catalogs_with_layout, export_with_layout,
+};
+use sunrise_mod_api_gen::{SourceLayout, functions};
 use sunrise_mod_package::manifest::{MANIFEST, Manifest};
 use sunrise_mod_package::native_route;
 
@@ -57,7 +62,9 @@ fn surface(args: &[PathBuf]) {
             std::process::exit(1);
         }
     };
-    let export = match export_with(&root, options) {
+    let export = match SourceLayout::read(&root)
+        .and_then(|layout| export_with_layout(&root, layout, options))
+    {
         Ok(export) => export,
         Err(error) => {
             eprintln!("sunrise-stage surface: {error}");
@@ -131,9 +138,25 @@ fn surface_catalogs(args: &[PathBuf]) {
         _ => fail("usage: sunrise-stage surface-catalogs ROOT SURFACE [--with-internals]"),
     };
     let surface = read_surface(path);
-    let items = engine_catalogs(root, with_internals).unwrap_or_else(|error| fail(error));
+    let layout = SourceLayout::read(root).unwrap_or_else(|error| fail(error));
+    let items = engine_catalogs_with_layout(root, layout, with_internals)
+        .unwrap_or_else(|error| fail(error));
     std::fs::write(path, surface.with_engine_items(items).to_json())
         .unwrap_or_else(|error| fail(format!("{}: {error}", path.display())));
+}
+
+fn function_index(args: &[PathBuf]) {
+    let [root, out] = args else {
+        fail("usage: sunrise-stage function-index ROOT OUT");
+    };
+    let root = std::fs::canonicalize(root).unwrap_or_else(|error| fail(error));
+    let layout = SourceLayout::read(&root).unwrap_or_else(|error| fail(error));
+    let index = functions::index_with_layout(&root, layout).unwrap_or_else(|error| fail(error));
+    std::fs::write(
+        out,
+        serde_json::to_vec(&index).expect("function index serializes"),
+    )
+    .unwrap_or_else(|error| fail(format!("{}: {error}", out.display())));
 }
 
 fn read_manifest_facts(dir: &Path) -> Result<ManifestFacts, String> {
@@ -410,6 +433,7 @@ fn main() {
     match args.first().and_then(|c| c.to_str()) {
         Some("surface") => return surface(&args[1..]),
         Some("surface-catalogs") => return surface_catalogs(&args[1..]),
+        Some("function-index") => return function_index(&args[1..]),
         Some("uses") => return uses_command(entry, &args[1..]),
         Some("fits") => fits_command(&args[1..]),
         Some("surface-diff") => surface_diff(&args[1..]),
@@ -437,7 +461,9 @@ fn main() {
     let build = staging::Build {
         commit: commit.to_owned(),
     };
-    match staging::stage(root, internals, mode, &build) {
+    match SourceLayout::read(root)
+        .and_then(|layout| staging::stage_with_layout(root, layout, internals, mode, &build))
+    {
         Ok(staging::Staged {
             replace,
             internals: widened,

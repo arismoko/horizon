@@ -1,2 +1,2 @@
 # P3-60: Mob travel keeps a finite velocity when the physical block-speed write overflows.
-sunrise-client-lib mobs::living::tests::an_overflowing_block_speed_product_preserves_the_mobs_finite_velocity lib daily child-process
+sunrise-sim mobs::living::tests::an_overflowing_block_speed_product_preserves_the_mobs_finite_velocity lib daily child-process

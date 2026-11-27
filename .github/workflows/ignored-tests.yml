@@ -142,7 +142,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
       - name: Generate the fishing test's vanilla reference inputs
-        if: steps.data.outputs.present != 'false' && (matrix.shard == 'sunrise-client' || startsWith(matrix.shard, 'sunrise-client#'))
+        if: steps.data.outputs.present != 'false' && (matrix.shard == 'sunrise-client' || startsWith(matrix.shard, 'sunrise-client#') || matrix.shard == 'sunrise-gameplay' || startsWith(matrix.shard, 'sunrise-gameplay#'))
         run: |
           reference=$(mktemp -d "$RUNNER_TEMP/fishing-reference.XXXXXX")
           python3 tools/test_fishing_rng_parity.py --prepare-reference "$reference" --env-file "$GITHUB_ENV"
@@ -157,12 +157,12 @@ jobs:
           witness=$(mktemp -d "$RUNNER_TEMP/crosshair-pick-witness.XXXXXX")
           python3 tools/test_crosshair_pick_parity.py --prepare-witness "$witness" --env-file "$GITHUB_ENV"
       - name: Generate the network parity tests' vanilla witnesses
-        if: steps.data.outputs.present != 'false' && (matrix.shard == 'sunrise-client' || startsWith(matrix.shard, 'sunrise-client#') || matrix.shard == 'sunrise-client-lib' || startsWith(matrix.shard, 'sunrise-client-lib#') || matrix.shard == 'daily-rows')
+        if: steps.data.outputs.present != 'false' && (matrix.shard == 'sunrise-client' || startsWith(matrix.shard, 'sunrise-client#') || matrix.shard == 'sunrise-client-lib' || startsWith(matrix.shard, 'sunrise-client-lib#') || matrix.shard == 'sunrise-gameplay-common' || startsWith(matrix.shard, 'sunrise-gameplay-common#') || matrix.shard == 'daily-rows')
         run: |
           witness=$(mktemp -d "$RUNNER_TEMP/network-witness.XXXXXX")
           python3 tools/ci/with_xvfb.py python3 tools/test_network_parity.py --prepare-witness "$witness" --env-file "$GITHUB_ENV"
       - name: Generate the item glint tests' vanilla witness
-        if: steps.data.outputs.present != 'false' && (matrix.shard == 'sunrise-client-lib' || startsWith(matrix.shard, 'sunrise-client-lib#') || matrix.shard == 'sunrise-client' || startsWith(matrix.shard, 'sunrise-client#'))
+        if: steps.data.outputs.present != 'false' && (matrix.shard == 'sunrise-client-lib' || startsWith(matrix.shard, 'sunrise-client-lib#') || matrix.shard == 'sunrise-client' || startsWith(matrix.shard, 'sunrise-client#') || matrix.shard == 'sunrise-client-gameplay' || startsWith(matrix.shard, 'sunrise-client-gameplay#'))
         run: |
           python3 tools/ci/with_xvfb.py python3 tools/test_glint_parity.py --record-only
           echo "SUNRISE_ITEM_GLINT_WITNESS=$PWD/.local/witness/26.3/glint/witness.json" >> "$GITHUB_ENV"

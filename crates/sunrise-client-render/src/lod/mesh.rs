@@ -93,7 +93,7 @@ impl Mesher {
             .styles
             .entry((span.state, direction as u8))
             .or_insert_with(|| {
-                let assets = &context.assets;
+                let assets = &context.chunk.assets;
                 let name = assets
                     .registry
                     .state(span.state)
@@ -109,7 +109,7 @@ impl Mesher {
                     } else {
                         "block/lava_still"
                     };
-                    let render = &context.render;
+                    let render = &context.mesh.render;
                     let layer = render
                         .sprite_layers
                         .get(sprite)
@@ -144,6 +144,7 @@ impl Mesher {
                     _ => Tint::Grass,
                 };
                 let models = context
+                    .mesh
                     .render
                     .model_catalog
                     .collect(span.state, BlockPos::new(0, 0, 0))
@@ -191,7 +192,7 @@ impl Mesher {
                     fluid,
                 }
             });
-        let biome = context.biomes.get(span.biome);
+        let biome = context.chunk.biomes.get(span.biome);
         let shade = match direction {
             Direction::Up => 1.0,
             Direction::Down => 0.5,
@@ -203,11 +204,11 @@ impl Mesher {
                 face.map(|face| {
                     let rgb = match face.tint {
                         Tint::None => 0xffffff,
-                        Tint::Grass => {
-                            context
-                                .biomes
-                                .grass(span.biome, f64::from(at[0]), f64::from(at[1]))
-                        }
+                        Tint::Grass => context.chunk.biomes.grass(
+                            span.biome,
+                            f64::from(at[0]),
+                            f64::from(at[1]),
+                        ),
                         Tint::Foliage => biome.foliage,
                         Tint::Dry => biome.dry_foliage,
                         Tint::Water => biome.water,
@@ -221,7 +222,7 @@ impl Mesher {
                         // keeps shining across the LOD boundary.
                         color: crate::mesher::emitting(
                             channel(16) | channel(8) << 8 | channel(0) << 16 | 0xff000000,
-                            context.tables.hdr_tier(span.state),
+                            context.mesh.tables.hdr_tier(span.state),
                         ),
                         translucent: face.translucent,
                     }

@@ -1,1 +1,1 @@
-sunrise-client-lib mobs::guardian::tests::a_seeded_flop_pins_the_motion lib daily resources
+sunrise-sim mobs::guardian::tests::a_seeded_flop_pins_the_motion lib daily resources

@@ -7,9 +7,9 @@
 //! [`VIEWED_LINGER`] after, and goes at once with its level.
 //!
 //! The sets are the meshes on the client's side; their copy into the renderer and their drawing
-//! are the next parts of #4187. Nothing here touches the player's world or its `Streaming`.
+//! are the next parts of #4187. Nothing here touches the player's world or its `MeshStreamer`.
 use super::{
-    MeshSettings, Streaming, WorkerContext,
+    MeshSettings, MeshStreamer, WorkerContext,
     mesh_job::{Faces, mesh_section},
 };
 use crate::{
@@ -57,7 +57,7 @@ pub struct MeshSource(Kind);
 
 #[derive(Clone)]
 enum Kind {
-    /// The player's mesher and graphics settings (`Streaming::viewed_mesh_source`).
+    /// The player's mesher and graphics settings (`MeshStreamer::viewed_mesh_source`).
     Mesher(Arc<WorkerContext>, MeshSettings),
     /// Any other mesher: a section `sy` of the region's centre column.
     Custom(Arc<dyn Fn(&Region, i32) -> SectionMesh + Send + Sync>),
@@ -100,11 +100,11 @@ impl MeshSource {
     }
 }
 
-impl Streaming {
+impl MeshStreamer {
     /// Viewed levels mesh with the player's mesher and graphics settings, each with its own
     /// dimension's shading.
     pub fn viewed_mesh_source(&self) -> MeshSource {
-        let context = self.shared.context.read().unwrap().clone();
+        let context = self.mesh_shared.context.read().unwrap().clone();
         MeshSource(Kind::Mesher(context, self.mesh_settings()))
     }
 }
@@ -379,7 +379,7 @@ impl ViewedMeshing {
                 continue;
             }
             // Other levels use unmodified meshing: the visibility hook lends the current-level Host.
-            let Some(region) = Streaming::region(world, x, z, false) else {
+            let Some(region) = MeshStreamer::region(world, x, z, false) else {
                 world.dirty_sections.take_column(x, z);
                 continue;
             };

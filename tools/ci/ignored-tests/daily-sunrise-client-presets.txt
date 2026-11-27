@@ -1,2 +1,2 @@
-sunrise-client game::world_loading::tests::a_pack_world_preset_replaces_the_default_presets_overworld lib daily resources
-sunrise-client game::world_loading::tests::a_level_stem_naming_a_pack_parameter_list_generates_per_that_list lib daily resources
+sunrise-gameplay game::server_side::world_loading::tests::a_pack_world_preset_replaces_the_default_presets_overworld lib daily resources
+sunrise-gameplay game::server_side::world_loading::tests::a_level_stem_naming_a_pack_parameter_list_generates_per_that_list lib daily resources

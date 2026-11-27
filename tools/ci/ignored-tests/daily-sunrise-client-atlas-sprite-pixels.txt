@@ -1,2 +1,2 @@
 # atlas_sprite_pixels (#4601) reads the published blocks atlas, so it needs prepared resources and a resource reload.
-sunrise-client game::baked_model_keys_tests::a_client_mod_reads_atlas_sprite_pixels lib daily resources
+sunrise-client cut_layout::game::baked_model_keys_tests::a_client_mod_reads_atlas_sprite_pixels lib daily resources

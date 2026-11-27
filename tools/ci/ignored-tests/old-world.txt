@@ -1,6 +1,6 @@
 # Plain known failures, not harness skips (#1028). Each test runs with --include-ignored in the
 # sunrise-client shard and fails at the absent H077_OLD_WORLD before engine logic; every assertion
 # stays. Remove these rows when a committed generation recipe or the exact private CI fixture exists.
-sunrise-client game::levels::tests::features_write_a_full_neighbour_only_through_its_sections #1028 # H077_OLD_WORLD private 1.20.4 fixture not in the repo
-sunrise-client game::levels::tests::an_old_chunk_saves_the_heights_its_new_neighbour_calculated #1028 # H077_OLD_WORLD private 1.20.4 fixture not in the repo
-sunrise-client game::levels::tests::the_overworld_cache_holds_the_edge_chunks_calculated_heights #1028 # H077_OLD_WORLD private 1.20.4 fixture not in the repo
+sunrise-client cut_layout::game::server_side::levels::tests::features_write_a_full_neighbour_only_through_its_sections lib # H077_OLD_WORLD private 1.20.4 fixture not in the repo
+sunrise-client cut_layout::game::server_side::levels::tests::an_old_chunk_saves_the_heights_its_new_neighbour_calculated lib # H077_OLD_WORLD private 1.20.4 fixture not in the repo
+sunrise-client cut_layout::game::server_side::levels::tests::the_overworld_cache_holds_the_edge_chunks_calculated_heights lib # H077_OLD_WORLD private 1.20.4 fixture not in the repo

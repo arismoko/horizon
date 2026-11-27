@@ -9,7 +9,7 @@ pub trait Hooks {
     /// draws itself. A later registration for the same type replaces the earlier one. A listener
     /// that panics leaves all previously registered factories in place and publishes none of its own.
     #[hook(
-        target = "sunrise_client::game::native_hooks::register_client_tooltip_component_factories::Game<'_>::native_register_client_tooltip_component_factories",
+        target = "sunrise_client_gameplay::game::native_hooks::register_client_tooltip_component_factories::native_register_client_tooltip_component_factories",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

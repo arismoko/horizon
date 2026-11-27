@@ -86,6 +86,9 @@ pub mod registry {
     }
 }
 mod game {
+    pub mod tables {
+        pub trait WorldTablesExt {}
+    }
     pub mod api_values {
         pub trait TryIntoApi {
             type Api;

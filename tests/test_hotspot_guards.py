@@ -9,6 +9,7 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
+from tests.git_fixture import isolated_git_env
 from tools.hotspots import check_guards as guards
 
 
@@ -53,7 +54,7 @@ class Repository(unittest.TestCase):
 
     def git(self, *args):
         subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=self.root, check=True,
-                       capture_output=True)
+                       env=isolated_git_env(), capture_output=True)
 
     def commit(self, message):
         self.git("add", ".")

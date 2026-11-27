@@ -1,1 +1,1 @@
-sunrise-client game::pointer_capture::tests::mod_host_releases_and_grabs_the_pointer_as_vanilla_does lib daily resources
+sunrise-client cut_layout::game::client_side::pointer_capture::tests::mod_host_releases_and_grabs_the_pointer_as_vanilla_does lib daily resources

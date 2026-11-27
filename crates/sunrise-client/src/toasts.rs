@@ -542,11 +542,51 @@ fn draw_now_playing_text(
     }
 }
 
+/// `ChatFormatting.RED`.
+fn red() -> u32 {
+    crate::hud::rgba(255, 85, 85, 255)
+}
+
+/// `SystemToast.onLowDiskSpace` (`SystemToastId.LOW_DISK_SPACE`: ten seconds).
+pub fn low_disk_space_toast() -> SystemToast {
+    SystemToast::new(
+        Text::tr("chunk.toast.lowDiskSpace", &[]),
+        Some(Text::tr("chunk.toast.lowDiskSpace.description", &[])),
+    )
+    .with_display_time(SystemToast::LONG_DISPLAY_TIME)
+}
+
+fn chunk_toast(key: &str, x: i32, z: i32) -> SystemToast {
+    // `Component.translationArg(ChunkPos)` is `ChunkPos.toString`.
+    let pos = format!("[{x}, {z}]");
+    SystemToast::new(
+        Text::tr(key, &[&pos]),
+        Some(Text::tr("chunk.toast.checkLog", &[])),
+    )
+    .with_title_color(red())
+}
+
+/// `SystemToast.onChunkLoadFailure`.
+pub fn load_failure_toast(x: i32, z: i32) -> SystemToast {
+    chunk_toast("chunk.toast.loadFailure", x, z)
+}
+
+/// `SystemToast.onChunkSaveFailure`.
+pub fn save_failure_toast(x: i32, z: i32) -> SystemToast {
+    chunk_toast("chunk.toast.saveFailure", x, z)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{MusicNotes, Slide, SystemToast, ToastClock};
-    use crate::text::Text;
+    use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn low_disk_space_toast_stays_ten_seconds() {
+        let toast = low_disk_space_toast();
+        assert_eq!(toast.display_time(), 10000.0);
+        assert_eq!(load_failure_toast(0, 0).display_time(), 5000.0);
+    }
 
     /// Every toast's state that a frame reads.
     fn state(toast: &SystemToast, notes: &MusicNotes) -> (f32, i64, u32) {

@@ -38,7 +38,7 @@ use crate::properties::Properties;
 use crate::random::{MAX_INDEX, Rules};
 
 /// Every texture a pack varies, by its atlas name.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RandomTextures {
     entries: HashMap<String, Entry>,
     rules: Vec<Rules>,
@@ -47,7 +47,7 @@ pub struct RandomTextures {
 }
 
 /// One texture's variants.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Entry {
     /// Index into [`RandomTextures::rules`]: the rules that choose this texture's variant.
     pub rules: Option<usize>,

@@ -10,7 +10,7 @@ pub trait Hooks {
     /// predicted crack still shows to the clicking player). Server-side, for
     /// every player of the world (the helpers read the acting one).
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_left_click_block",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_left_click_block",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

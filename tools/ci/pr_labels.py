@@ -36,43 +36,44 @@ KINDS = [
 ]
 KIND_LABELS = {label for _, label, _ in KINDS}
 
-_G = r"crates/sunrise-client(?:-render|-core|-input)?/src/"  # the client's crates
-_GAME = _G + r"(?:game/(?:[^/]+/)?)?"
+_G = r"crates/(?:sunrise-client(?:-render|-core|-input|-gameplay)?|sunrise-gameplay(?:-common)?)/src/"
+_GAME = _G + r"(?:(?:cut_layout/)?game/(?:[^/]+/)?)?"
+_SIDE = r"(?:_(?:common|server|client))?"
 # Area: (label, description, the paths). First match wins for each file.
 AREAS = [
     ("mods", "Area: mods, mod SDK, modpack porting",
      r"^crates/(?:sunrise-mod|cargo-sunrise-mod|sunrise-port-pack)|" + _GAME
-     + r"(?:native_hooks/|(?:mods|mod_content|mod_list|native_\w+)\.rs$)|^docs/(?:mods|native-mods|modpacks)"),
+     + r"(?:native_hooks/|(?:mods|mod_content|mod_list|native_\w+)" + _SIDE + r"\.rs$)|^docs/(?:mods|native-mods|modpacks)"),
     ("worldgen", "Area: world generation", r"^crates/sunrise-world/src/worldgen/|/vanillagen\.rs$"),
     ("mobs", "Area: mobs, their AI, spawning and models",
      r"/mobs/|/mobs\.rs$|" + _GAME + r"(?:creatures|natural_spawning|spawners?|dragon|wither|villagers|piglins|golems"
-     r"|raids|llamas|wardens?)\.rs$"),
+     r"|raids|llamas|wardens?)" + _SIDE + r"\.rs$"),
     ("rendering", "Area: the renderer, shaders, models, particles",
      r"\.wgsl$|/gfx(?:\.rs$|/)|/mesher(?:\.rs$|/)|/lod(?:\.rs$|/)|^crates/(?:sunrise-shader|sunrise-assets|sunrise-hdr)|"
      + _GAME + r"(?:particles|block_entity_render|item_render|fog|clouds|camera|first_person|render_tick|item_draw"
-     r"|sprites|atlas_sources|mipmap|model_library)\.rs$"),
+     r"|sprites|atlas_sources|mipmap|model_library)" + _SIDE + r"\.rs$"),
     ("server", "Area: dedicated and integrated server, hosting",
-     r"^crates/sunrise-server|/dedicated(?:\.rs$|/)|" + _GAME + r"(?:integrated|levels|server_travel)\.rs$"
+     r"^crates/sunrise-server|/dedicated(?:\.rs$|/)|" + _GAME + r"(?:integrated|levels|server_travel)" + _SIDE + r"\.rs$"
      r"|^docs/hosting"),
     ("multiplayer", "Area: protocol, LAN, multiplayer client, friends",
-     r"^crates/(?:sunrise-protocol|sunrise-friends|sunrise-relay)/|/lan/|" + _GAME + r"(?:lan\w*|remote\w*|net)\.rs$"),
+     r"^crates/(?:sunrise-protocol|sunrise-friends|sunrise-relay)/|/lan/|" + _GAME + r"(?:lan\w*|remote\w*|net)" + _SIDE + r"\.rs$"),
     ("saves", "Area: saving and loading worlds",
      r"^crates/sunrise-world/src/(?:region|nbt)\.rs$|/datafix/|" + _GAME
-     + r"(?:save|saving|persist|entity_nbt|block_entity_nbt)\.rs$"),
+     + r"(?:save|saving|persist|entity_nbt|block_entity_nbt)" + _SIDE + r"\.rs$"),
     ("commands", "Area: commands and functions",
      r"^crates/sunrise-command/|/commands(?:\.rs$|/)|" + _GAME + r"(?:scoreboard_cmd|data_cmd|functions"
-     r"|command_blocks)\.rs$"),
+     r"|command_blocks)" + _SIDE + r"\.rs$"),
     ("audio", "Area: sound and music",
-     _GAME + r"(?:audio|sound_\w+|music|ambience|subtitle_hud)\.rs$"),
+     _GAME + r"(?:audio|sound_\w+|music|ambience|subtitle_hud)" + _SIDE + r"\.rs$"),
     ("chunks", "Area: chunk streaming, light, sections, tickets",
      _GAME + r"(?:streaming|chunk|chunk_map|light|world|world_loading|ticket_levels|section\w*|\w+_sections"
-     r"|tick_chunk_membership)\.rs$|^crates/sunrise-core/src/paletted"),
+     r"|tick_chunk_membership)" + _SIDE + r"\.rs$|^crates/sunrise-core/src/paletted"),
     ("blocks", "Area: blocks, items, redstone, block entities",
      r"^crates/sunrise-world/src/level/|^crates/sunrise-items/|" + _GAME + r"(?:dispenser|machines|moving_pistons"
-     r"|block_entity_ticks|hand|consume|potions|crossbow|trident|fishing|shield|stations|crafting|menu)\.rs$"),
+     r"|block_entity_ticks|hand|consume|potions|crossbow|trident|fishing|shield|stations|crafting|menu)" + _SIDE + r"\.rs$"),
     ("ui", "Area: screens, menus, HUD, chat",
      r"^crates/sunrise-theme/|/title(?:\.rs$|/)|" + _GAME + r"(?:\w+_ui|\w+_screen|screens|screen_draw|ui|hud\w*"
-     r"|chat|tab_list|startup_menu|options|sign_edit|books|containers)\.rs$"),
+     r"|chat|tab_list|startup_menu|options|sign_edit|books|containers)" + _SIDE + r"\.rs$"),
     ("website", "Area: what playsunrise.net reads from this repository",
      r"^docs/api/|^roadmap/|^README\.md$"),
 ]

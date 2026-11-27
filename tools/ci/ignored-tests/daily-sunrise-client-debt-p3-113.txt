@@ -1,1 +1,1 @@
-sunrise-client game::levels::tests::late_chunk_saves_use_their_opened_levels_disk_context lib daily child-process # also needs prepared resources
+sunrise-client cut_layout::game::server_side::levels::tests::late_chunk_saves_use_their_opened_levels_disk_context lib daily child-process # also needs prepared resources

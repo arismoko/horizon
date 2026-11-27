@@ -12,7 +12,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         cancellable = false,
-        target = "sunrise_client_lib::motion::surface::native_block_jump_factor",
+        target = "sunrise_sim::motion::surface::native_block_jump_factor",
         neoforge = "none (vanilla Block.getJumpFactor; NeoForge adds no event or extension for it)"
     )]
     fn block_jump_factor(state: BlockState, factor: &mut f32);
@@ -24,7 +24,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         cancellable = false,
-        target = "sunrise_client_lib::motion::surface::native_block_speed_factor",
+        target = "sunrise_sim::motion::surface::native_block_speed_factor",
         neoforge = "none (vanilla Block.getSpeedFactor; NeoForge adds no event or extension for it)"
     )]
     fn block_speed_factor(state: BlockState, factor: &mut f32);

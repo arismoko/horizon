@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::build_creative_mode_tab_contents::tests::creative_catalog_builds_lazily_and_edits_before_filtering_on_both_sides lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::build_creative_mode_tab_contents::tests::creative_catalog_builds_lazily_and_edits_before_filtering_on_both_sides lib daily child-process

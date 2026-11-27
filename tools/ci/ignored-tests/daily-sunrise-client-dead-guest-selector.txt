@@ -1,1 +1,1 @@
-sunrise-client game::mob_discard_tests::dead_guest_leaves_at_e_but_reaches_a_registered_selector lib daily game-boot
+sunrise-client cut_layout::game::mob_discard_tests::dead_guest_leaves_at_e_but_reaches_a_registered_selector lib daily game-boot

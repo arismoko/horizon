@@ -1,74 +1,74 @@
-ServerBossEvent.setProgress	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateProgress goes out when a viewer's last-sent progress differs
-ServerBossEvent.setColor	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateStyle when colour or overlay differ from what the viewer was sent
-ServerBossEvent.setOverlay	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	same UpdateStyle packet as the colour
-ServerBossEvent.setDarkenScreen	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateProperties when darken, music or fog differ
-ServerBossEvent.setPlayBossMusic	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	same UpdateProperties packet
-ServerBossEvent.setCreateWorldFog	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	same UpdateProperties packet
-ServerBossEvent.setName	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateName when the name differs
-ServerBossEvent.broadcast	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::publish_boss_bars	bars are re-evaluated each tick per viewer and the diff is sent to that viewer only
-ServerBossEvent.addPlayer	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	a viewer in the bar's player list gets an Add the first time it is wanted
-ServerBossEvent.removePlayer	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	a Remove goes out once the viewer no longer wants the bar
-ServerBossEvent.removeAllPlayers	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::diff_boss_events	every viewer gets its Remove from the same diff
-ServerBossEvent.setVisible	inline	crates/sunrise-client/src/game/interface/bossbars.rs::Game::boss_events_for	a hidden bar is left out of the wanted list, so the diff sends Remove or Add
+ServerBossEvent.setProgress	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateProgress goes out when a viewer's last-sent progress differs
+ServerBossEvent.setColor	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateStyle when colour or overlay differ from what the viewer was sent
+ServerBossEvent.setOverlay	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	same UpdateStyle packet as the colour
+ServerBossEvent.setDarkenScreen	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateProperties when darken, music or fog differ
+ServerBossEvent.setPlayBossMusic	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	same UpdateProperties packet
+ServerBossEvent.setCreateWorldFog	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	same UpdateProperties packet
+ServerBossEvent.setName	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	UpdateName when the name differs
+ServerBossEvent.broadcast	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::publish_boss_bars	bars are re-evaluated each tick per viewer and the diff is sent to that viewer only
+ServerBossEvent.addPlayer	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	a viewer in the bar's player list gets an Add the first time it is wanted
+ServerBossEvent.removePlayer	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	a Remove goes out once the viewer no longer wants the bar
+ServerBossEvent.removeAllPlayers	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::diff_boss_events	every viewer gets its Remove from the same diff
+ServerBossEvent.setVisible	inline	crates/sunrise-gameplay/src/game/interface/bossbars.rs::Game::boss_events_for	a hidden bar is left out of the wanted list, so the diff sends Remove or Add
 ServerChunkCache.<init>	inline	crates/sunrise-client-render/src/streaming.rs::Streaming::new	builds the chunk map and workers per level; forced chunks are loaded in world_loading, no ticket storage object
 ServerChunkCache.storeInCache	skip:java		4-entry last-chunk lookup cache
 ServerChunkCache.getChunk	inline	crates/sunrise-client-render/src/streaming.rs::Streaming::update	chunks load and generate asynchronously around tickets; callers read World::chunks and skip an absent column, nothing waits for a target status
-ServerChunkCache.getChunkNow	port	crates/sunrise-client-render/src/world.rs::World::loaded	World::chunks.get is the lookup itself
+ServerChunkCache.getChunkNow	port	crates/sunrise-level/src/world.rs::World::loaded	World::chunks.get is the lookup itself
 ServerChunkCache.clearCache	skip:java		clears the 4-entry lookup cache
 ServerChunkCache.getChunkFuture	inline	crates/sunrise-client-render/src/streaming.rs::Streaming::update	no futures; the worker pool delivers columns to the game thread
 ServerChunkCache.getChunkFutureMainThread	inline	crates/sunrise-client-render/src/streaming.rs::Streaming::update	no futures or per-request tickets; streaming loads by distance
-ServerChunkCache.hasChunk	port	crates/sunrise-client-render/src/world.rs::World::loaded
-ServerChunkCache.getChunkForLighting	inline	crates/sunrise-client-render/src/streaming.rs::Streaming::light_region	the 3x3 region handed to the light workers
-ServerChunkCache.runDistanceManagerUpdates	inline	crates/sunrise-client/src/game.rs::Game::update_chunk_tickets	ticket levels are recomputed once a tick from players and forced chunks
-ServerChunkCache.isPositionTicking	port	crates/sunrise-client/src/game/blocks/level_access.rs::GameLevel::is_ticking_chunk	block-ticking ticket level and a lit chunk with its neighbours loaded
-ServerChunkCache.close	inline	crates/sunrise-client/src/game/world/autosave.rs::Game::save_game	save with wait; nothing else to close
-ServerChunkCache.broadcastChangedChunks	port	crates/sunrise-client/src/lan/hub/block_changes.rs::Hub::broadcast_block_changes	block changes grouped by section as BlockUpdate or SectionBlocksUpdate, plus block entity data; light is in broadcast_light_changes
-ServerChunkCache.getFullChunk	inline	crates/sunrise-client/src/game/mobs/natural_spawning.rs::Game::spawn_natural	the spawn pass reads World::chunks directly
-ServerChunkCache.blockChanged	inline	crates/sunrise-client-render/src/world.rs::World::set	World::set pushes the position onto block_log, which the hub drains
-ServerChunkCache.onLightUpdate	port	crates/sunrise-client/src/lan/hub/block_changes.rs::Hub::broadcast_light_changes	light_log read once a tick; sent to players for whom the column is on the tracked border
+ServerChunkCache.hasChunk	port	crates/sunrise-level/src/world.rs::World::loaded
+ServerChunkCache.getChunkForLighting	inline	crates/sunrise-level/src/chunk_streamer.rs::ChunkStreamer::light_region	the 3x3 region handed to the light workers
+ServerChunkCache.runDistanceManagerUpdates	inline	crates/sunrise-gameplay-common/src/game.rs::Game::update_chunk_tickets	ticket levels are recomputed once a tick from players and forced chunks
+ServerChunkCache.isPositionTicking	port	crates/sunrise-gameplay-common/src/game/blocks/level_access.rs::GameLevel::is_ticking_chunk	block-ticking ticket level and a lit chunk with its neighbours loaded
+ServerChunkCache.close	inline	crates/sunrise-gameplay/src/game/world/world_ops_server.rs::Game::save_game	save with wait; nothing else to close
+ServerChunkCache.broadcastChangedChunks	port	crates/sunrise-sim/src/lan/hub/block_changes.rs::Hub::broadcast_block_changes	block changes grouped by section as BlockUpdate or SectionBlocksUpdate, plus block entity data; light is in broadcast_light_changes
+ServerChunkCache.getFullChunk	inline	crates/sunrise-gameplay/src/game/mobs/natural_spawning.rs::Game::spawn_natural	the spawn pass reads World::chunks directly
+ServerChunkCache.blockChanged	inline	crates/sunrise-level/src/world.rs::World::set	World::set pushes the position onto block_log, which the hub drains
+ServerChunkCache.onLightUpdate	port	crates/sunrise-sim/src/lan/hub/block_changes.rs::Hub::broadcast_light_changes	light_log read once a tick; sent to players for whom the column is on the tracked border
 ServerChunkCache.addTicketAndLoadWithRadius	inline	crates/sunrise-client-render/src/streaming.rs::Streaming::update	spawn search and guest placement wait for streaming to produce the columns; no ticket-with-radius future
 ServerChunkCache.MainThreadExecutor.pollTask	inline	crates/sunrise-client-render/src/streaming.rs::Streaming::update	chunk-system updates run once per tick (streaming and ticket levels); there is no task queue to poll
-ServerEntity.isFullPrecisionEncodingRequired	port	crates/sunrise-client/src/lan/entity.rs::full_precision_required	an item's box against a wall after a vertical or horizontal collision decides the full position sync; primed TNT and a happy ghast take the precise branch before it
+ServerEntity.isFullPrecisionEncodingRequired	port	crates/sunrise-sim/src/lan/entity.rs::full_precision_required	an item's box against a wall after a vertical or horizontal collision decides the full position sync; primed TNT and a happy ghast take the precise branch before it
 ServerEntity.handleMinecartPosRot	skip:other		only for the experimental minecart_improvements movement; Sunrise has the old minecart movement only
-ServerEntity.addPairing	inline	crates/sunrise-client/src/lan/entity.rs::Entities::tick	a viewer that starts tracking an entity gets ServerEntity::pairing bundled, and the entity is remembered per viewer
+ServerEntity.addPairing	inline	crates/sunrise-sim/src/lan/entity.rs::Entities::tick	a viewer that starts tracking an entity gets ServerEntity::pairing bundled, and the entity is remembered per viewer
 ServerEntityGetter.getNearestPlayer	inline	crates/sunrise-gameplay/src/lan/mob_players.rs::player_for	each mob is given one player (the host or a guest) per tick, then Mob::can_target_player and friends apply the TargetingConditions
-ServerEntityGetter.getNearestEntity	inline	crates/sunrise-client/src/mobs/world.rs::MobWorld::nearby	nearest-first scan used by NearestTarget; the goal applies its own conditions
-ServerEntityGetter.getNearbyPlayers	inline	crates/sunrise-client/src/mobs/goals.rs::Mob::can_target_player	gap: minor: tests only the one player a mob sees, so a phantom or iron golem with several players around considers one of them
-ServerEntityGetter.getNearbyEntities	inline	crates/sunrise-client/src/mobs/world.rs::MobWorld::nearby	each caller (breed partner, raider shout, fox, evoker) scans this and filters itself
-ServerLevel.<init>	inline	crates/sunrise-client/src/game/world/world_loading.rs::WorldRequest::prepare
-ServerLevel.getNextEntityId	inline	crates/sunrise-client/src/game/network/lan_entities.rs::Game::lan_assign_ids	one counter, Game::next_entity, bumped wherever an entity is created; ids for guests' tracking are given here
-ServerLevel.tickCustomSpawners	inline	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::tick_creatures	wandering trader, patrol, cat and siege spawners; the phantom spawner runs from stats.rs
-ServerLevel.tickThunder	port	crates/sunrise-client/src/game/entities/lightning.rs::Game::tick_thunder
-ServerLevel.findLightningTargetAround	port	crates/sunrise-client/src/game/entities/lightning.rs::Game::lightning_target
-ServerLevel.announceSleepStatus	port	crates/sunrise-client/src/game/network/lan_actions/sleep.rs::Game::announce_sleep_status
-ServerLevel.getMoonBrightness	inline	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::local_difficulty	MOON_BRIGHTNESS table indexed by day / 24000 mod 8
-ServerLevel.prepareWeather	port	crates/sunrise-client/src/save/level.rs::Level::read	rain and thunder levels start at 1 when the saved flags are on
-ServerLevel.advanceWeatherCycle	port	crates/sunrise-client-render/src/world.rs::Weather::tick_timers	level fade in tick_levels, game events broadcast in Hub::sync_world
-ServerLevel.resetWeatherCycle	inline	crates/sunrise-client/src/game.rs::Game::tick_sleep	the sleep-through-night reset; /weather sets the timers itself
+ServerEntityGetter.getNearestEntity	inline	crates/sunrise-sim/src/mobs/world.rs::MobWorld::nearby	nearest-first scan used by NearestTarget; the goal applies its own conditions
+ServerEntityGetter.getNearbyPlayers	inline	crates/sunrise-sim/src/mobs/goals.rs::Mob::can_target_player	gap: minor: tests only the one player a mob sees, so a phantom or iron golem with several players around considers one of them
+ServerEntityGetter.getNearbyEntities	inline	crates/sunrise-sim/src/mobs/world.rs::MobWorld::nearby	each caller (breed partner, raider shout, fox, evoker) scans this and filters itself
+ServerLevel.<init>	inline	crates/sunrise-gameplay/src/game/world/world_loading.rs::WorldRequest::prepare
+ServerLevel.getNextEntityId	inline	crates/sunrise-gameplay/src/game/network/lan_entities.rs::Game::lan_assign_ids	one counter, Game::next_entity, bumped wherever an entity is created; ids for guests' tracking are given here
+ServerLevel.tickCustomSpawners	inline	crates/sunrise-gameplay/src/game/mobs/creatures/mod_server.rs::Game::tick_creatures	wandering trader, patrol, cat and siege spawners; the phantom spawner runs from stats.rs
+ServerLevel.tickThunder	port	crates/sunrise-gameplay/src/game/entities/lightning_server.rs::Game::tick_thunder
+ServerLevel.findLightningTargetAround	port	crates/sunrise-gameplay/src/game/entities/lightning_server.rs::Game::lightning_target
+ServerLevel.announceSleepStatus	port	crates/sunrise-gameplay/src/game/network/lan_actions/sleep_server.rs::Game::announce_sleep_status
+ServerLevel.getMoonBrightness	inline	crates/sunrise-gameplay-common/src/game/mobs/creatures/mod.rs::Game::local_difficulty	MOON_BRIGHTNESS table indexed by day / 24000 mod 8
+ServerLevel.prepareWeather	port	crates/sunrise-sim/src/save/level.rs::Level::read	rain and thunder levels start at 1 when the saved flags are on
+ServerLevel.advanceWeatherCycle	port	crates/sunrise-level/src/world.rs::Weather::tick_timers	level fade in tick_levels, game events broadcast in Hub::sync_world
+ServerLevel.resetWeatherCycle	inline	crates/sunrise-gameplay/src/game/game_server.rs::Game::tick_sleep	the sleep-through-night reset; /weather sets the timers itself
 ServerLevel.tickFluid	port	crates/sunrise-world/src/level/tick.rs::Behaviours::scheduled_step
 ServerLevel.tickBlock	port	crates/sunrise-world/src/level/tick.rs::Behaviours::scheduled_step
-ServerLevel.tickPassenger	inline	crates/sunrise-client/src/game/entities/passengers.rs::Game::sync_riders	a rider whose vehicle is gone or dead lets go; others are re-seated each tick
+ServerLevel.tickPassenger	inline	crates/sunrise-gameplay/src/game/entities/passengers.rs::Game::sync_riders	a rider whose vehicle is gone or dead lets go; others are re-seated each tick
 ServerLevel.updateNeighboursOnBlockSet	inline	crates/sunrise-world/src/level/update.rs::Sim::set_block_limit	neighbour and comparator updates inside setBlock
-ServerLevel.mayInteract	inline	crates/sunrise-client/src/game/network/lan_actions/packets.rs::Game::under_spawn_protection	gap: minor: spawn protection only for guests on a dedicated server; the world border check is a stub that always allows (hand.rs within_border), so blocks can be built and broken outside the border
-ServerLevel.save	port	crates/sunrise-client/src/game.rs::Game::save_level
-ServerLevel.saveLevelData	port	crates/sunrise-client/src/game/world/autosave.rs::Game::save_game_metadata
-ServerLevel.getEntities	inline	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::select_in_level	entity selectors filter the per-kind entity lists
-ServerLevel.addDuringTeleport	inline	crates/sunrise-client/src/game/blocks/nether_portal.rs::Game::resolve_arrivals	mobs, items, boats and carts waiting for a portal exit join the level with the chunk entities; players go through Hub::respawn
-ServerLevel.addPlayer	inline	crates/sunrise-client/src/lan/hub.rs::Hub::finish_player_join
-ServerLevel.addEntity	inline	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::spawn_mob	mobs go in Game::mobs; other kinds have their own lists
-ServerLevel.tryAddFreshEntityWithPassengers	inline	crates/sunrise-client/src/game/world/persist.rs::Game::load_mob	gap: minor: loads a mob with its Passengers but never refuses a UUID that is already loaded, so /summon with a fixed UUID twice makes two
-ServerLevel.unload	inline	crates/sunrise-client/src/game.rs::Game::update_world	unloaded columns drop their block entities and names, and their entities are saved out
-ServerLevel.playSeededSound	port	crates/sunrise-client/src/lan/containers.rs::Hub::sound
-ServerLevel.sendBlockUpdated	inline	crates/sunrise-client-render/src/world.rs::World::set	gap: minor: mobs never re-plan a path when a block on it changes (Mob::recompute_path is never triggered by a block update), so they walk a stale path until a goal re-paths
+ServerLevel.mayInteract	inline	crates/sunrise-gameplay/src/game/network/lan_actions/packets_server.rs::Game::under_spawn_protection	gap: minor: spawn protection only for guests on a dedicated server; the world border check is a stub that always allows (hand.rs within_border), so blocks can be built and broken outside the border
+ServerLevel.save	port	crates/sunrise-gameplay/src/game/world/saving_server.rs::ServerGame::save_level
+ServerLevel.saveLevelData	port	crates/sunrise-gameplay/src/game/world/autosave_server.rs::Game::save_game_metadata
+ServerLevel.getEntities	inline	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::select_in_level	entity selectors filter the per-kind entity lists
+ServerLevel.addDuringTeleport	inline	crates/sunrise-gameplay/src/game/blocks/nether_portal.rs::Game::resolve_arrivals	mobs, items, boats and carts waiting for a portal exit join the level with the chunk entities; players go through Hub::respawn
+ServerLevel.addPlayer	inline	crates/sunrise-sim/src/lan/hub.rs::Hub::finish_player_join
+ServerLevel.addEntity	inline	crates/sunrise-gameplay/src/game/mobs/creatures/mod_server.rs::Game::spawn_mob	mobs go in Game::mobs; other kinds have their own lists
+ServerLevel.tryAddFreshEntityWithPassengers	inline	crates/sunrise-gameplay/src/game/world/persist.rs::Game::load_mob	gap: minor: loads a mob with its Passengers but never refuses a UUID that is already loaded, so /summon with a fixed UUID twice makes two
+ServerLevel.unload	inline	crates/sunrise-gameplay/src/game/world/world_update_server.rs::ServerGame::server_update_world_with_eviction	unloaded columns drop their block entities and names, and their entities are saved out
+ServerLevel.playSeededSound	port	crates/sunrise-sim/src/lan/containers.rs::Hub::sound
+ServerLevel.sendBlockUpdated	inline	crates/sunrise-level/src/world.rs::World::set	gap: minor: mobs never re-plan a path when a block on it changes (Mob::recompute_path is never triggered by a block update), so they walk a stale path until a goal re-paths
 ServerLevel.neighborChanged	port	crates/sunrise-world/src/level/hooks.rs::Sim::neighbor_changed
-ServerLevel.getDestroyType	port	crates/sunrise-client/src/game/explosion.rs::Game::explode	mob explosions pick Keep, Destroy or DestroyWithDecay from mob_griefing and mob_explosion_drop_decay
+ServerLevel.getDestroyType	port	crates/sunrise-gameplay/src/game/entities/explosion.rs::ServerGame::explode	mob explosions pick Keep, Destroy or DestroyWithDecay from mob_griefing and mob_explosion_drop_decay
 ServerLevel.doBlockEvent	inline	crates/sunrise-world/src/level/pistons.rs::Behaviours::run_block_events
 ServerLevel.getEntityInAnyDimension	missing		minor: owner and target references resolve in the level in place only; parked levels are not searched
-ServerLevel.getEntityOrPart	inline	crates/sunrise-client/src/game/network/lan_actions/interaction.rs::Game::look_at_entity	an entity id from a guest finds a mob, an object or a tracked dragon part or end crystal
-ServerLevel.findClosestBiome3d	port	crates/sunrise-client/src/vanillagen.rs::VanillaTerrain::find_closest_biome
-ServerLevel.getWorldBorder	inline	crates/sunrise-client/src/game/interface/scoreboard/mod.rs::Game::load_scoreboard	the border is unpacked from saved data next to the scoreboard
+ServerLevel.getEntityOrPart	inline	crates/sunrise-gameplay/src/game/network/lan_actions/interaction_server.rs::Game::look_at_entity	an entity id from a guest finds a mob, an object or a tracked dragon part or end crystal
+ServerLevel.findClosestBiome3d	port	crates/sunrise-sim/src/vanillagen.rs::VanillaTerrain::find_closest_biome
+ServerLevel.getWorldBorder	inline	crates/sunrise-gameplay/src/game/interface/scoreboard/mod.rs::Game::load_scoreboard	the border is unpacked from saved data next to the scoreboard
 ServerLevel.setChunkForced	port	crates/sunrise-client-render/src/streaming.rs::Streaming::set_forced_loaded	load newly forced columns before returning; repeated adds and removals do not load
-ServerLevel.updatePOIOnBlockStateChange	inline	crates/sunrise-client-render/src/poi_sections.rs::PoiSections::get	no incremental records: a section's POI list is rebuilt from its blocks after any edit
+ServerLevel.updatePOIOnBlockStateChange	inline	crates/sunrise-level/src/poi_sections.rs::PoiSections::get	no incremental records: a section's POI list is rebuilt from its blocks after any edit
 ServerLevel.saveDebugReport	skip:debug
 ServerLevel.dumpEntities	skip:debug
 ServerLevel.dumpBlockEntityTickers	skip:debug
@@ -78,69 +78,69 @@ ServerLevel.getTypeCount	skip:debug
 ServerLevel.onStructureStartsAvailable	skip:other		Sunrise computes structure starts from the seed (VanillaTerrain) instead of caching them in a StructureCheck
 ServerLevel.waitForEntities	skip:other		entities load together with their chunk, so a spawning player has nothing to wait for
 ServerLevel.areEntitiesActuallyLoadedAndTicking	skip:debug		only game tests call it
-ServerLevel.anyPlayerCloseEnoughForSpawning	port	crates/sunrise-client/src/game/mobs/natural_spawning.rs::close_enough_for_spawning
+ServerLevel.anyPlayerCloseEnoughForSpawning	port	crates/sunrise-gameplay/src/game/mobs/natural_spawning.rs::close_enough_for_spawning
 ServerLevel.fillReportDetails	skip:debug		crash report detail
-ServerLevel.EntityCallbacks.onCreated	inline	crates/sunrise-client/src/lan/waypoints.rs::Waypoints::track	players are the only waypoint transmitters Sunrise has
-ServerLevel.EntityCallbacks.onDestroyed	inline	crates/sunrise-client/src/lan/waypoints.rs::Waypoints::untrack	a dead non-player entity also runs Scoreboard.entityRemoved (game/interface/scoreboard/mod.rs::score_entity_removed: its scores are reset and it leaves its team)
-ServerLevel.EntityCallbacks.onTrackingStart	inline	crates/sunrise-client/src/lan/entity.rs::Entities::tick	an entity is tracked the first tick the level lists it; guests, waypoints and the sleep list are polled each tick, and there are no separate dragon part entities
-ServerLevel.EntityCallbacks.onTrackingEnd	inline	crates/sunrise-client/src/lan/entity.rs::Entities::tick	an entity the level stops listing is removed from every viewer (RemoveEntities)
-ServerPlayer.<init>	port	crates/sunrise-client/src/lan/guest.rs::Guest::new
-ServerPlayer.readAdditionalSaveData	port	crates/sunrise-client/src/save/level.rs::Level::read_player	gap: minor: entered_nether_pos, last_explosion_impact_pos and spawn_extra_particles_on_fall are not read back (kept verbatim in player_extra); post_effects, previousPlayerGameType, the recipe book, respawn, shoulders, warden tracker and raid omen are read
-ServerPlayer.addAdditionalSaveData	port	crates/sunrise-client/src/save/level.rs::Level::player_tag	gap: minor: writes only what it reads; the keys still listed above come from the loaded file unchanged
-ServerPlayer.saveParentVehicle	port	crates/sunrise-client/src/save/level.rs::Level::player_tag	the RootVehicle {Attach, Entity} tree goes in the player compound (lan/playerdata.rs::store for a guest), so the ride comes back on the next login
-ServerPlayer.loadAndSpawnParentVehicle	port	crates/sunrise-client/src/game/world/persist.rs::Game::restore_saved_vehicle	the mount is spawned from RootVehicle.Entity and the player is put back on it (`riding`)
-ServerPlayer.saveEnderPearls	inline	crates/sunrise-client/src/game/world/persist.rs::Game::entity_chunks	a thrown pearl is saved with its chunk as an ordinary entity (entity_nbt::throwable_to_nbt), not in the player file; gap: minor: a pearl in a chunk that never saves, a stasis chamber's, is not kept
-ServerPlayer.loadAndSpawnEnderPearl	inline	crates/sunrise-client/src/game/world/persist.rs::Game::spawn_loaded_entities	entity_nbt::throwable_from_nbt spawns a saved pearl back, in the chunk's own level; there is no per-player list to read
-ServerPlayer.setExperiencePoints	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::change_experience	/xp set points
-ServerPlayer.setExperienceLevels	port	crates/sunrise-client/src/game/administration/commands/mod.rs::Game::change_experience	/xp set levels
+ServerLevel.EntityCallbacks.onCreated	inline	crates/sunrise-sim/src/lan/waypoints.rs::Waypoints::track	players are the only waypoint transmitters Sunrise has
+ServerLevel.EntityCallbacks.onDestroyed	inline	crates/sunrise-sim/src/lan/waypoints.rs::Waypoints::untrack	a dead non-player entity also runs Scoreboard.entityRemoved (game/interface/scoreboard/mod.rs::score_entity_removed: its scores are reset and it leaves its team)
+ServerLevel.EntityCallbacks.onTrackingStart	inline	crates/sunrise-sim/src/lan/entity.rs::Entities::tick	an entity is tracked the first tick the level lists it; guests, waypoints and the sleep list are polled each tick, and there are no separate dragon part entities
+ServerLevel.EntityCallbacks.onTrackingEnd	inline	crates/sunrise-sim/src/lan/entity.rs::Entities::tick	an entity the level stops listing is removed from every viewer (RemoveEntities)
+ServerPlayer.<init>	port	crates/sunrise-sim/src/lan/guest.rs::Guest::new
+ServerPlayer.readAdditionalSaveData	port	crates/sunrise-sim/src/save/level.rs::Level::read_player	gap: minor: entered_nether_pos, last_explosion_impact_pos and spawn_extra_particles_on_fall are not read back (kept verbatim in player_extra); post_effects, previousPlayerGameType, the recipe book, respawn, shoulders, warden tracker and raid omen are read
+ServerPlayer.addAdditionalSaveData	port	crates/sunrise-sim/src/save/level.rs::Level::player_tag	gap: minor: writes only what it reads; the keys still listed above come from the loaded file unchanged
+ServerPlayer.saveParentVehicle	port	crates/sunrise-sim/src/save/level.rs::Level::player_tag	the RootVehicle {Attach, Entity} tree goes in the player compound (lan/playerdata.rs::store for a guest), so the ride comes back on the next login
+ServerPlayer.loadAndSpawnParentVehicle	port	crates/sunrise-gameplay/src/game/world/persist.rs::Game::restore_saved_vehicle	the mount is spawned from RootVehicle.Entity and the player is put back on it (`riding`)
+ServerPlayer.saveEnderPearls	inline	crates/sunrise-gameplay/src/game/world/persist.rs::Game::entity_chunks	a thrown pearl is saved with its chunk as an ordinary entity (entity_nbt::throwable_to_nbt), not in the player file; gap: minor: a pearl in a chunk that never saves, a stasis chamber's, is not kept
+ServerPlayer.loadAndSpawnEnderPearl	inline	crates/sunrise-gameplay/src/game/world/persist/loaded_pass.rs::ServerGame::spawn_loaded_entities	entity_nbt::throwable_from_nbt spawns a saved pearl back, in the chunk's own level; there is no per-player list to read
+ServerPlayer.setExperiencePoints	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::change_experience	/xp set points
+ServerPlayer.setExperienceLevels	port	crates/sunrise-gameplay/src/game/administration/commands/mod.rs::Game::change_experience	/xp set levels
 ServerPlayer.onLeaveCombat	skip:other		the client ignores ClientboundPlayerCombatEnd
-ServerPlayer.playShoulderEntityAmbientSound	port	crates/sunrise-client/src/game/mobs/shoulders.rs::Game::play_shoulder_entity_ambient_sound	a parrot that is not Silent chirps or imitates a mob within 20 blocks, one tick in 200, from handle_shoulder_entities
-ServerPlayer.respawnEntityOnShoulder	port	crates/sunrise-client/src/game/mobs/shoulders.rs::Game::remove_entities_on_shoulder
-ServerPlayer.trackStartFallingPosition	port	crates/sunrise-client/src/game/interface/advancements/mod.rs::Game::tick_marks	the fall start and the lava ride feed `DistanceTrigger` (`fall_from_height`, `ride_entity_in_lava`)
-ServerPlayer.trackEnteredOrExitedLavaOnVehicle	port	crates/sunrise-client/src/game/interface/advancements/mod.rs::Game::tick_marks	the fall start and the lava ride feed `DistanceTrigger` (`fall_from_height`, `ride_entity_in_lava`)
-ServerPlayer.updateScoreForCriteria	port	crates/sunrise-client/src/game/interface/scoreboard/mod.rs::Game::tick_scoreboard	health, food, air, armor, xp and level objectives
-ServerPlayer.tellNeutralMobsThatIDied	port	crates/sunrise-client/src/game/mobs/creatures/mod.rs::Game::tell_neutral_mobs_player_died	mobs within 32 blocks across and 10 up and down forgive a dead player when the rule is on
-ServerPlayer.handleTeamKill	inline	crates/sunrise-client/src/game/interface/scoreboard/mod.rs::Game::score_player_killed	teamkill and killedByTeam objectives
-ServerPlayer.hurtServer	port	crates/sunrise-client/src/game/network/lan_pvp.rs::Game::pvp_land	pvp rule and team friendly fire gate the damage
-ServerPlayer.addPostEffect	port	crates/sunrise-client/src/game/administration/commands/extra.rs::Game::cmd_posteffect	each target keeps its own list (change_post_effects: the player's here, a guest's on its record); the client builds its post chain from the player's, and a guest's is sent when it changes (Hub::send_post_effects)
-ServerPlayer.clearPostEffects	port	crates/sunrise-client/src/game/administration/commands/extra.rs::Game::cmd_posteffect	the same per-target lists; clearing empties the target's
-ServerPlayer.removePostEffect	port	crates/sunrise-client/src/game/administration/commands/extra.rs::Game::cmd_posteffect	the same per-target lists; removing takes the one effect out
-ServerPlayer.forceSetRotation	inline	crates/sunrise-client/src/game/administration/commands/world_cmds.rs::Game::cmd_rotate	/rotate turns a guest through a teleport packet with the new rotation
-ServerPlayer.triggerDimensionChangeTriggers	port	crates/sunrise-client/src/game/interface/advancements/mod.rs::Game::trigger_dimension	nether_travel fires on the way back to the Overworld from the position the Nether was entered at (adv.marks.nether); gap: minor: that position is not restored from entered_nether_pos after a reload
-ServerPlayer.broadcastToPlayer	port	crates/sunrise-client/src/lan/entity.rs::broadcast_to_player	a spectator viewer sees a player only while its camera is that player; anyone else never sees a spectator
-ServerPlayer.startSleeping	port	crates/sunrise-client/src/game.rs::Game::try_sleep
-ServerPlayer.isReachableBedBlock	inline	crates/sunrise-client/src/game.rs::Game::try_sleep	the reachable closure: 3 blocks sideways, 2 vertically
-ServerPlayer.isInvulnerableTo	inline	crates/sunrise-client/src/game/network/lan_mobs.rs::Game::lan_guest_views	gap: minor: only the not-loaded part (a guest that has not sent PlayerLoaded is ignored by mobs); no invulnerability while a dimension change is pending
-ServerPlayer.openNautilusInventory	inline	crates/sunrise-client/src/game/interface/mount_menu.rs::Game::open_mount_menu	the nautilus opens the same mount screen (NautilusInventoryMenu's two slots) as the horse; game/network/lan_mount_menu.rs sends it to guests
-ServerPlayer.doCloseContainer	inline	crates/sunrise-client/src/lan/containers.rs::Hub::container_closed	the carried stack and a crafting grid go back through Game::guest_carried_back and lan_crafting_closed
-ServerPlayer.rideTick	inline	crates/sunrise-client/src/game/interface/stats.rs::Game::movement_stats	only the riding statistics part; the ride itself is per vehicle
-ServerPlayer.didNotMove	inline	crates/sunrise-client/src/game/interface/stats.rs::Game::movement_stats	a move of 0 cm counts nothing
-ServerPlayer.awardStat	port	crates/sunrise-client/src/game/interface/stats.rs::Stats::add	scoreboard objectives follow in stat_criteria_changed
-ServerPlayer.resetStat	port	crates/sunrise-client/src/game/interface/stats.rs::Stats::reset
-ServerPlayer.disconnect	inline	crates/sunrise-client/src/game/network/lan/mod.rs::Game::tick_lan	HostEvent::Left: the guest is saved and removed; its mount just loses its rider (no eject or forced wake)
-ServerPlayer.transferInventoryXpAndScore	inline	crates/sunrise-client/src/game/interface/screens.rs::Game::respawn_player	keep_inventory keeps the inventory and Experience::respawn keeps xp
-ServerPlayer.onEffectUpdated	port	crates/sunrise-client/src/lan/hub.rs::Hub::sync_effects	the effects_changed trigger exists (advancements.rs::Game::trigger_effects_changed, from the end-of-tick comparison of the effect list); gap: minor: that comparison reads the host player's list, while this path only sends a guest its effects
-ServerPlayer.onEffectsRemoved	port	crates/sunrise-client/src/lan/hub.rs::Hub::sync_effects	same effect comparison and trigger as onEffectUpdated
-ServerPlayer.magicCrit	port	crates/sunrise-client/src/lan/containers.rs::Hub::critical_hit
-ServerPlayer.onUpdateAbilities	inline	crates/sunrise-client/src/lan/hub.rs::Hub::set_game_mode	abilities go out with a game mode change; there is no other way abilities change
-ServerPlayer.createCommandSourceStack	inline	crates/sunrise-client/src/game/network/lan_actions/commands.rs::Game::run_guest_command	the guest is swapped in as the acting player and its permission level applied
-ServerPlayer.sendSystemMessage	port	crates/sunrise-client/src/lan/hub/chat.rs::Hub::system_message
-ServerPlayer.sendBuildLimitMessage	port	crates/sunrise-client/src/game/network/lan_actions/packets.rs::Game::build_limit_message	the build.tooHigh and build.tooLow overlay at the world height limits
+ServerPlayer.playShoulderEntityAmbientSound	port	crates/sunrise-gameplay/src/game/mobs/shoulders.rs::Game::play_shoulder_entity_ambient_sound	a parrot that is not Silent chirps or imitates a mob within 20 blocks, one tick in 200, from handle_shoulder_entities
+ServerPlayer.respawnEntityOnShoulder	port	crates/sunrise-gameplay/src/game/mobs/shoulders.rs::Game::remove_entities_on_shoulder
+ServerPlayer.trackStartFallingPosition	port	crates/sunrise-gameplay/src/game/interface/advancements/mod.rs::Game::tick_marks	the fall start and the lava ride feed `DistanceTrigger` (`fall_from_height`, `ride_entity_in_lava`)
+ServerPlayer.trackEnteredOrExitedLavaOnVehicle	port	crates/sunrise-gameplay/src/game/interface/advancements/mod.rs::Game::tick_marks	the fall start and the lava ride feed `DistanceTrigger` (`fall_from_height`, `ride_entity_in_lava`)
+ServerPlayer.updateScoreForCriteria	port	crates/sunrise-gameplay/src/game/interface/scoreboard/mod.rs::Game::tick_scoreboard	health, food, air, armor, xp and level objectives
+ServerPlayer.tellNeutralMobsThatIDied	port	crates/sunrise-gameplay/src/game/mobs/creatures/mod_server.rs::Game::tell_neutral_mobs_player_died	mobs within 32 blocks across and 10 up and down forgive a dead player when the rule is on
+ServerPlayer.handleTeamKill	inline	crates/sunrise-gameplay/src/game/interface/scoreboard/mod.rs::Game::score_player_killed	teamkill and killedByTeam objectives
+ServerPlayer.hurtServer	port	crates/sunrise-gameplay/src/game/network/lan_pvp.rs::Game::pvp_land	pvp rule and team friendly fire gate the damage
+ServerPlayer.addPostEffect	port	crates/sunrise-gameplay/src/game/administration/commands/extra.rs::Game::cmd_posteffect	each target keeps its own list (change_post_effects: the player's here, a guest's on its record); the client builds its post chain from the player's, and a guest's is sent when it changes (Hub::send_post_effects)
+ServerPlayer.clearPostEffects	port	crates/sunrise-gameplay/src/game/administration/commands/extra.rs::Game::cmd_posteffect	the same per-target lists; clearing empties the target's
+ServerPlayer.removePostEffect	port	crates/sunrise-gameplay/src/game/administration/commands/extra.rs::Game::cmd_posteffect	the same per-target lists; removing takes the one effect out
+ServerPlayer.forceSetRotation	inline	crates/sunrise-gameplay/src/game/administration/commands/world_cmds_server.rs::Game::cmd_rotate	/rotate turns a guest through a teleport packet with the new rotation
+ServerPlayer.triggerDimensionChangeTriggers	port	crates/sunrise-gameplay/src/game/interface/advancements/mod.rs::Game::trigger_dimension	nether_travel fires on the way back to the Overworld from the position the Nether was entered at (adv.marks.nether); gap: minor: that position is not restored from entered_nether_pos after a reload
+ServerPlayer.broadcastToPlayer	port	crates/sunrise-sim/src/lan/entity.rs::broadcast_to_player	a spectator viewer sees a player only while its camera is that player; anyone else never sees a spectator
+ServerPlayer.startSleeping	port	crates/sunrise-gameplay/src/game/game_server.rs::Game::try_sleep
+ServerPlayer.isReachableBedBlock	inline	crates/sunrise-gameplay/src/game/game_server.rs::Game::try_sleep	the reachable closure: 3 blocks sideways, 2 vertically
+ServerPlayer.isInvulnerableTo	inline	crates/sunrise-gameplay/src/game/network/lan_mobs.rs::Game::lan_guest_views	gap: minor: only the not-loaded part (a guest that has not sent PlayerLoaded is ignored by mobs); no invulnerability while a dimension change is pending
+ServerPlayer.openNautilusInventory	inline	crates/sunrise-client-gameplay/src/game/interface/mount_menu.rs::Game::open_mount_menu	the nautilus opens the same mount screen (NautilusInventoryMenu's two slots) as the horse; game/network/lan_mount_menu.rs sends it to guests
+ServerPlayer.doCloseContainer	inline	crates/sunrise-sim/src/lan/containers.rs::Hub::container_closed	the carried stack and a crafting grid go back through Game::guest_carried_back and lan_crafting_closed
+ServerPlayer.rideTick	inline	crates/sunrise-gameplay/src/game/interface/stats.rs::Game::movement_stats	only the riding statistics part; the ride itself is per vehicle
+ServerPlayer.didNotMove	inline	crates/sunrise-gameplay/src/game/interface/stats.rs::Game::movement_stats	a move of 0 cm counts nothing
+ServerPlayer.awardStat	port	crates/sunrise-gameplay-common/src/stats.rs::Stats::add	scoreboard objectives follow in stat_criteria_changed
+ServerPlayer.resetStat	port	crates/sunrise-gameplay-common/src/stats.rs::Stats::reset
+ServerPlayer.disconnect	inline	crates/sunrise-gameplay/src/game/network/lan/mod.rs::Game::tick_lan	HostEvent::Left: the guest is saved and removed; its mount just loses its rider (no eject or forced wake)
+ServerPlayer.transferInventoryXpAndScore	inline	crates/sunrise-client-gameplay/src/game/interface/screens.rs::Game::respawn_player	keep_inventory keeps the inventory and Experience::respawn keeps xp
+ServerPlayer.onEffectUpdated	port	crates/sunrise-sim/src/lan/hub.rs::Hub::sync_effects	the effects_changed trigger exists (advancements.rs::Game::trigger_effects_changed, from the end-of-tick comparison of the effect list); gap: minor: that comparison reads the host player's list, while this path only sends a guest its effects
+ServerPlayer.onEffectsRemoved	port	crates/sunrise-sim/src/lan/hub.rs::Hub::sync_effects	same effect comparison and trigger as onEffectUpdated
+ServerPlayer.magicCrit	port	crates/sunrise-sim/src/lan/containers.rs::Hub::critical_hit
+ServerPlayer.onUpdateAbilities	inline	crates/sunrise-sim/src/lan/hub.rs::Hub::set_game_mode	abilities go out with a game mode change; there is no other way abilities change
+ServerPlayer.createCommandSourceStack	inline	crates/sunrise-gameplay/src/game/network/lan_actions/commands_server.rs::Game::run_guest_command	the guest is swapped in as the acting player and its permission level applied
+ServerPlayer.sendSystemMessage	port	crates/sunrise-sim/src/lan/hub/chat.rs::Hub::system_message
+ServerPlayer.sendBuildLimitMessage	port	crates/sunrise-gameplay/src/game/network/lan_actions/packets_server.rs::Game::build_limit_message	the build.tooHigh and build.tooLow overlay at the world height limits
 ServerPlayer.getIpAddress	skip:server		for ban-ip and the dedicated server log
-ServerPlayer.updateOptions	port	crates/sunrise-client/src/lan/hub/moves.rs::Hub::process_inbox	the ClientInformation arm: view distance, main hand, model parts and chat visibility are kept
+ServerPlayer.updateOptions	port	crates/sunrise-sim/src/lan/hub/moves.rs::Hub::process_inbox	the ClientInformation arm: view distance, main hand, model parts and chat visibility are kept
 ServerPlayer.clientInformation	skip:java		getter
-ServerPlayer.sendServerStatus	port	crates/sunrise-client/src/lan/hub.rs::Hub::finish_player_join	ServerData with the motd and icon at join
-ServerPlayer.updateInvisibilityStatus	inline	crates/sunrise-client/src/lan/hub.rs::guest_body	a spectator is always invisible, else the invisibility effect decides; guest_body feeds the shared flags sent by ServerEntity.sendDirtyEntityData (shared_flags)
-ServerPlayer.drop	port	crates/sunrise-client/src/game.rs::Game::player_drop	item_dropped and drop statistics, thrower set
-ServerPlayer.calculateGameModeForNewPlayer	port	crates/sunrise-client/src/game/network/lan/mod.rs::Game::lan_guest_joined	default or forced game mode for a new or force-gamemode guest
-ServerPlayer.storeGameTypes	port	crates/sunrise-client/src/save/level.rs::Level::player_tag	both are saved: playerGameType, and previousPlayerGameType (absent when unset, as storeNullable is), read back into previous_game_mode
+ServerPlayer.sendServerStatus	port	crates/sunrise-sim/src/lan/hub.rs::Hub::finish_player_join	ServerData with the motd and icon at join
+ServerPlayer.updateInvisibilityStatus	inline	crates/sunrise-sim/src/lan/hub.rs::guest_body	a spectator is always invisible, else the invisibility effect decides; guest_body feeds the shared flags sent by ServerEntity.sendDirtyEntityData (shared_flags)
+ServerPlayer.drop	port	crates/sunrise-gameplay/src/game/world/world_ops_server.rs::Game::player_drop	item_dropped and drop statistics, thrower set
+ServerPlayer.calculateGameModeForNewPlayer	port	crates/sunrise-gameplay/src/game/network/lan/mod.rs::Game::lan_guest_joined	default or forced game mode for a new or force-gamemode guest
+ServerPlayer.storeGameTypes	port	crates/sunrise-sim/src/save/level.rs::Level::player_tag	both are saved: playerGameType, and previousPlayerGameType (absent when unset, as storeNullable is), read back into previous_game_mode
 ServerPlayer.shouldFilterMessageTo	skip:service		text filtering
-ServerPlayer.mayInteract	inline	crates/sunrise-client/src/game/network/lan_actions/packets.rs::Game::under_spawn_protection	gap: minor: same as ServerLevel.mayInteract, no world border check
-ServerPlayer.onItemPickup	port	crates/sunrise-client/src/game/interface/advancements/mod.rs::Game::trigger_thrown_picked_up_by_player	a taken stack whose owner is another player fires thrown_item_picked_up_by_player, whole or partial
+ServerPlayer.mayInteract	inline	crates/sunrise-gameplay/src/game/network/lan_actions/packets_server.rs::Game::under_spawn_protection	gap: minor: same as ServerLevel.mayInteract, no world border check
+ServerPlayer.onItemPickup	port	crates/sunrise-gameplay/src/game/interface/advancements/mod.rs::Game::trigger_thrown_picked_up_by_player	a taken stack whose owner is another player fires thrown_item_picked_up_by_player, whole or partial
 ServerPlayer.getChatSession	skip:java		getter with an expiry check
-ServerPlayer.startRiding	inline	crates/sunrise-client/src/game/network/lan_entities.rs::Game::lan_riding	gap: minor: SetPassengers goes out, but the mount's active effects (a horse's speed) are not sent to the rider
-ServerPlayer.removeVehicle	inline	crates/sunrise-client/src/game/network/lan_entities.rs::Game::lan_riding	gap: minor: SetPassengers updates, vehicle effects are not removed from the rider
-ServerPlayer.getKnownSpeed	port	crates/sunrise-client/src/game/items/spear.rs::Game::known_player_movement	a rider's speed is its root vehicle's (mob_speed walks up the mounts); a guest's is the movement it last reported
-ServerPlayer.onEquippedItemBroken	port	crates/sunrise-client/src/game.rs::Game::damage_held	gap: minor: only the held item counts toward the broken statistic; breaking armour is not counted
+ServerPlayer.startRiding	inline	crates/sunrise-gameplay/src/game/network/lan_entities.rs::Game::lan_riding	gap: minor: SetPassengers goes out, but the mount's active effects (a horse's speed) are not sent to the rider
+ServerPlayer.removeVehicle	inline	crates/sunrise-gameplay/src/game/network/lan_entities.rs::Game::lan_riding	gap: minor: SetPassengers updates, vehicle effects are not removed from the rider
+ServerPlayer.getKnownSpeed	port	crates/sunrise-gameplay-common/src/game/items/held_items.rs::Game::known_player_movement	a rider's speed is its root vehicle's (mob_speed walks up the mounts); a guest's is the movement it last reported
+ServerPlayer.onEquippedItemBroken	port	crates/sunrise-gameplay/src/game/items/item_durability.rs::ServerGame::damage_held	gap: minor: only the held item counts toward the broken statistic; breaking armour is not counted
 ServerPlayer.registerAndUpdateEnderPearlTicket	missing		minor: a thrown ender pearl holds no chunk of its own (no ENDER_PEARL ticket); it is saved only with a chunk that saves, so one in an unloaded chunk is gone
-ServerPlayer.debugSubscriptions	port	crates/sunrise-client/src/lan/containers.rs::Hub::tick_time_subscribers	the stored request is read only for an operator
+ServerPlayer.debugSubscriptions	port	crates/sunrise-sim/src/lan/containers.rs::Hub::tick_time_subscribers	the stored request is read only for an operator

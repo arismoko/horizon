@@ -1,2 +1,2 @@
-sunrise-client game::native_hooks::death_source_tests::a_guest_killed_after_a_hit_reports_generic_kill lib daily resources
-sunrise-client game::native_hooks::death_source_tests::an_arrow_killed_guest_reports_the_arrow_to_living_drops lib daily resources
+sunrise-client cut_layout::game::native_hooks::death_source_tests::a_guest_killed_after_a_hit_reports_generic_kill lib daily resources
+sunrise-client cut_layout::game::native_hooks::death_source_tests::an_arrow_killed_guest_reports_the_arrow_to_living_drops lib daily resources

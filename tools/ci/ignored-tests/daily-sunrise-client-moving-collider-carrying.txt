@@ -1,9 +1,9 @@
 # Moving colliders carrying the bodies that stand on them, on a real game.
-sunrise-client game::native_colliders_tests::a_body_on_a_moving_collider_is_carried lib daily resources
-sunrise-client game::native_colliders_tests::a_carried_body_stops_at_a_wall_and_the_collider_goes_on lib daily resources
-sunrise-client game::native_colliders_tests::a_carried_vehicle_takes_its_passengers_and_theirs_with_it lib daily resources
-sunrise-client game::native_colliders_tests::a_collider_on_a_collider_passes_the_displacement_on lib daily child-process
-sunrise-client game::native_colliders_tests::a_listener_hears_a_carry_and_may_cancel_it lib daily resources
-sunrise-client game::native_colliders_tests::a_rising_collider_carries_the_body_up lib daily resources
-sunrise-client game::native_colliders_tests::a_tilting_collider_lifts_the_body_by_its_contact_point lib daily resources
-sunrise-client game::native_colliders_tests::a_turning_collider_carries_the_body_along_the_arc lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_body_on_a_moving_collider_is_carried lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_carried_body_stops_at_a_wall_and_the_collider_goes_on lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_carried_vehicle_takes_its_passengers_and_theirs_with_it lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_collider_on_a_collider_passes_the_displacement_on lib daily child-process
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_listener_hears_a_carry_and_may_cancel_it lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_rising_collider_carries_the_body_up lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_tilting_collider_lifts_the_body_by_its_contact_point lib daily resources
+sunrise-client cut_layout::game::server_side::native_colliders_tests::a_turning_collider_carries_the_body_along_the_arc lib daily resources

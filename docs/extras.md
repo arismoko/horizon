@@ -14,8 +14,8 @@ again restores vanilla's behaviour completely.
 | Dynamic lights: item glow, nearest sources | `crates/sunrise-client-render/src/dynamic_light.rs` (unit tested), `game/interface/dynamic_lights.rs`, `terrain.wgsl` and `entity.wgsl` (`dynamic_block_light`) |
 | HUD drawing (mods' panels, corner stacking) | `crates/sunrise-client/src/extras_hud.rs` |
 | Auto-reconnect: its setting, its row, the policy and the backoff | crate `sunrise-reconnect`, which the official executable registers ([forking.md](forking.md#modding-and-rendering)); the engine shows its countdown and connects again when it asks (`Hooks::retry`, `game/network/remote/connection.rs`) |
-| Game glue (input hooks, per-frame update) | `crates/sunrise-client/src/game/interface/extras.rs`; each extra's own glue in a child module, `game/interface/extras/` |
-| Mouse Tweaks-style controls, sort buttons | `crates/sunrise-client/src/game/interface/extras/mouse_tweaks.rs`, `game/interface/extras/sorting.rs` |
+| Game glue (input hooks, per-frame update) | `crates/sunrise-client-gameplay/src/game/interface/extras.rs`; each extra's own glue in a child module, `crates/sunrise-client-gameplay/src/game/interface/extras/` |
+| Mouse Tweaks-style controls, sort buttons | `crates/sunrise-client-gameplay/src/game/interface/extras/mouse_tweaks.rs`, `crates/sunrise-client-gameplay/src/game/interface/extras/sorting.rs` |
 | Sort order and its clicks | `crates/sunrise-client/src/inv_sort.rs` (pure, unit tested) |
 | The music page's rows, and the pools it filters | `options_ui.rs` (`Page::Music`), `crates/sunrise-client/src/music.rs` (`track_groups`, `MusicManager::set_off`), `sound_events.rs` (`sound_except`) |
 | The settings page | `extras_ui.rs`, shown as **Options → Sunrise Settings... → Gameplay** (`sunrise_ui.rs`); fullbright, dynamic lights and hiding block-break particles are on its Quality page instead (`graphics_ui.rs`), the shader pack key on its Shaders page, No AI on its AI Agent page (Tools) |
@@ -85,7 +85,7 @@ The **FPS counter**, **Keystrokes** and **Zoom** are official native mods now (i
 horizon-rust/horizon-mods under `native/<name>/`, [mods.md](modding/src/players/installing-mods.md#sunrises-own-mods)), with the same look and
 options. Players install them from the launcher's Mods page, and the launcher builds them into the game
 ([modding/src/how-to/native-mods.md](modding/src/how-to/native-mods.md)). The game keeps
-the hook points they use (`crates/sunrise-client/src/game/native_hooks/`). Sunrise Settings' Gameplay page keeps a **Zoom** group while the
+the hook points they use (`crates/sunrise-gameplay-common/src/game/native_hooks/`, `crates/sunrise-gameplay/src/game/native_hooks/`, and `crates/sunrise-client-gameplay/src/game/native_hooks/`). Sunrise Settings' Gameplay page keeps a **Zoom** group while the
 mod is built in: its switch and Settings button.
 
 ### Own name tag (`ownNameTag`, default off)

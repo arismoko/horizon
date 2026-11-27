@@ -1,4 +1,4 @@
-sunrise-client-lib collision_parts::collision_parts_bench::collision_parts_bench lib daily slow
-sunrise-client-lib lan::hub::tests::collision_part_tests::a_client_and_a_server_that_disagree_about_a_parts_state_get_a_correction lib daily resources
-sunrise-client-lib mobs::world::scaffolding_sight_tests::a_part_answers_for_the_viewer_through_the_sight_fast_path lib daily resources
-sunrise-client-lib lan::hub::tests::carried_check_tests::a_carried_guests_settle_asks_a_part_about_the_guest lib daily resources
+sunrise-sim collision_parts::collision_parts_bench::collision_parts_bench lib daily slow
+sunrise-sim lan::hub::tests::collision_part_tests::a_client_and_a_server_that_disagree_about_a_parts_state_get_a_correction lib daily resources
+sunrise-sim mobs::world::scaffolding_sight_tests::a_part_answers_for_the_viewer_through_the_sight_fast_path lib daily resources
+sunrise-sim lan::hub::tests::carried_check_tests::a_carried_guests_settle_asks_a_part_about_the_guest lib daily resources

@@ -1,5 +1,5 @@
-sunrise-client game::creatures::projectile_batch_tests::a_subscriber_enabled_by_a_section_callback_hears_the_flights_after_it lib daily resources
-sunrise-client game::lan_crafting::lending_tests::menu_links_answers_do_not_reach_a_menu_the_listener_replaced lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::a_departure_from_an_unenterable_level_still_closes_the_heard_menu lib daily resources
-sunrise-client game::native_menus::owned_slots_tests::an_open_asked_during_a_save_close_publishes_only_after_the_save_if_the_player_stays lib daily resources
-sunrise-client game::recipe_book_variants_tests::a_recipe_click_listener_replacing_the_menu_stops_the_placement lib daily resources
+sunrise-client cut_layout::game::creatures::projectile_batch_tests::a_subscriber_enabled_by_a_section_callback_hears_the_flights_after_it lib daily resources
+sunrise-client cut_layout::game::server_side::lan_crafting::lending_tests::menu_links_answers_do_not_reach_a_menu_the_listener_replaced lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::a_departure_from_an_unenterable_level_still_closes_the_heard_menu lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::an_open_asked_during_a_save_close_publishes_only_after_the_save_if_the_player_stays lib daily resources
+sunrise-client cut_layout::game::server_side::recipe_book_variants_tests::a_recipe_click_listener_replacing_the_menu_stops_the_placement lib daily resources

@@ -15,7 +15,7 @@ pub trait Hooks {
     /// id; if it is gone, or an empty frame being broken now holds an item, nothing
     /// breaks and nothing is removed.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_hanging_break",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_hanging_break",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

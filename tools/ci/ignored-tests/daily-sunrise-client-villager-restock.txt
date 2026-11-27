@@ -1,7 +1,7 @@
-sunrise-client game::lan_trade_decisions_tests::a_restock_prices_the_screen_for_the_player_as_the_work_step_saw_them lib daily child-process
-sunrise-client game::lan_trade_decisions_tests::a_restock_uses_price_changes_made_in_pre lib daily child-process
-sunrise-client game::lan_trade_decisions_tests::a_restock_while_a_guest_trades_reaches_the_screen_the_save_and_the_mob lib daily child-process
-sunrise-client game::lan_trade_decisions_tests::an_earlier_restock_does_not_skip_a_paused_mobs_first_action lib daily child-process
-sunrise-client game::lan_trade_decisions_tests::an_offer_edit_after_the_work_step_survives_the_restock lib daily child-process
-sunrise-client game::lan_trade_decisions_tests::an_unused_offer_stays_unchanged_when_the_villager_starts_work lib daily child-process
-sunrise-client game::lan_trading::tests::a_merchant_edit_reaches_the_guest_trading_with_it lib daily child-process
+sunrise-client cut_layout::game::server_side::lan_trade_decisions_tests::a_restock_prices_the_screen_for_the_player_as_the_work_step_saw_them lib daily child-process
+sunrise-client cut_layout::game::server_side::lan_trade_decisions_tests::a_restock_uses_price_changes_made_in_pre lib daily child-process
+sunrise-client cut_layout::game::server_side::lan_trade_decisions_tests::a_restock_while_a_guest_trades_reaches_the_screen_the_save_and_the_mob lib daily child-process
+sunrise-client cut_layout::game::server_side::lan_trade_decisions_tests::an_earlier_restock_does_not_skip_a_paused_mobs_first_action lib daily child-process
+sunrise-client cut_layout::game::server_side::lan_trade_decisions_tests::an_offer_edit_after_the_work_step_survives_the_restock lib daily child-process
+sunrise-client cut_layout::game::server_side::lan_trade_decisions_tests::an_unused_offer_stays_unchanged_when_the_villager_starts_work lib daily child-process
+sunrise-client cut_layout::game::server_side::lan_trading::tests::a_merchant_edit_reaches_the_guest_trading_with_it lib daily child-process

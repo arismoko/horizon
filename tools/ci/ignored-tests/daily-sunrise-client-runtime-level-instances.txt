@@ -1,7 +1,7 @@
 # Runtime levels as short-lived instances (#4985): load_chunk's failure and recent lookups, and the respawn target.
-sunrise-client game::native_level_refs::tests::a_resident_read_lets_load_chunk_answer_without_a_new_ticket lib daily child-process
-sunrise-client game::runtime_levels_tests::load_chunk_fails_where_a_mods_generator_panics lib daily child-process
-sunrise-client game::server_travel::respawn_target_tests::a_broken_bed_gives_the_world_spawn_with_missing_respawn_block lib daily resources
-sunrise-client game::server_travel::respawn_target_tests::a_charged_anchor_gives_its_position_and_keeps_the_charge lib daily resources
-sunrise-client game::server_travel::respawn_target_tests::a_point_in_another_level_is_refused_while_a_player_is_swapped_in lib daily resources
-sunrise-client game::server_travel::respawn_target_tests::no_respawn_point_gives_the_world_spawn lib daily resources
+sunrise-client cut_layout::game::server_side::native_level_refs::tests::a_resident_read_lets_load_chunk_answer_without_a_new_ticket lib daily child-process
+sunrise-client cut_layout::game::server_side::runtime_levels_tests::load_chunk_fails_where_a_mods_generator_panics lib daily child-process
+sunrise-client cut_layout::game::server_side::server_travel::respawn_target_tests::a_broken_bed_gives_the_world_spawn_with_missing_respawn_block lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::respawn_target_tests::a_charged_anchor_gives_its_position_and_keeps_the_charge lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::respawn_target_tests::a_point_in_another_level_is_refused_while_a_player_is_swapped_in lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::respawn_target_tests::no_respawn_point_gives_the_world_spawn lib daily resources

@@ -1,2 +1,2 @@
-sunrise-client game::slot_take_tests::a_pending_part_cursor_write_does_not_overwrite_a_take_listeners_transfer lib daily child-process # Uses prepared resources.
-sunrise-client game::slot_take_tests::closing_on_the_first_part_take_returns_only_its_owed_cursor lib daily child-process # Uses prepared resources.
+sunrise-client cut_layout::game::server_side::slot_take_tests::a_pending_part_cursor_write_does_not_overwrite_a_take_listeners_transfer lib daily child-process # Uses prepared resources.
+sunrise-client cut_layout::game::server_side::slot_take_tests::closing_on_the_first_part_take_returns_only_its_owed_cursor lib daily child-process # Uses prepared resources.

@@ -1,1 +1,1 @@
-sunrise-client game::chat::submit_order_tests::enter_handles_the_line_before_the_chat_screen_closes lib daily resources
+sunrise-client-gameplay game::client_side::chat::submit_order_tests::enter_handles_the_line_before_the_chat_screen_closes lib daily resources

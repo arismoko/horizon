@@ -1,3 +1,3 @@
 version = 1
 doc = "On a mod block entity without declared inventory slots, Items is mod-owned NBT. The load and save hooks' tag and BlockEntityRef::data preserve the saved list order, even for canonical-looking item entries. Declared inventory slots remain engine-owned."
-tests = ["crates/sunrise-client/src/game/native_hooks/block_entity_tick/tests.rs::chunk_save_reloads_reordered_slotless_items"]
+tests = ["crates/sunrise-client/src/cut_layout/game/native_hooks/block_entity_tick/tests.rs::chunk_save_reloads_reordered_slotless_items"]

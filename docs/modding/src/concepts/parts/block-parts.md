@@ -323,7 +323,7 @@ notice, even during a quick move. Another block notifies normally.
 Entity/menu placeholder coordinates are not block notices. Explicit notices may read tentative items:
 
 ```rust,ignore
-{{#include ../../../../../crates/sunrise-client/src/game/blocks/machines/contents_changed_tests.rs:contents_changed_listener}}
+{{#include ../../../../../crates/sunrise-client/src/cut_layout/game/blocks/machines/contents_changed_tests.rs:contents_changed_listener}}
 ```
 
 ## Crop fertility and farmland hydration

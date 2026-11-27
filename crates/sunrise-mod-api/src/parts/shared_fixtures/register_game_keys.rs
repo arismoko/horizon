@@ -8,6 +8,7 @@ pub fn register_game_keys(
     schema: &mod_vocab::__private::RuleSchema<'_>,
     dimension_shape: fn(&crate::DimensionSettings) -> bool,
 ) {
+    crate::__private::initialize().expect("fixture registration requires the mod API runtime");
     let ids: std::collections::BTreeSet<String> = ids.into_iter().collect();
     mod_vocab::testing::rebuild_parts(|| {
         let mut registrar = super::with_active_rule_schema(schema, || {

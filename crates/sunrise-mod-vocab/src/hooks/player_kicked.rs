@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A network or fake guest was kicked, after the hub recorded the rendered `reason`. The guest's state is
     /// swapped in unless they were already removed in the same poll.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_kicked",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_kicked",
         dispatch = "flat",
         side = "server",
         version = 2,

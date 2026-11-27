@@ -1,2 +1,2 @@
 # Authoritative native mod settings store (debt p3-26).
-sunrise-client game::native_hooks::mod_settings::tests::single_owner_reads_writes_reloads_exact_f64_and_contains_callback_panics lib daily child-process
+sunrise-client-gameplay game::native_hooks::mod_settings_tests::single_owner_reads_writes_reloads_exact_f64_and_contains_callback_panics lib daily child-process

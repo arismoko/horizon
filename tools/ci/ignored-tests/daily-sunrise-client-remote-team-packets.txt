@@ -1,1 +1,1 @@
-sunrise-client game::remote::sync::team_packet_tests::unknown_team_packets_leave_scoreboard_unchanged lib daily child-process
+sunrise-client cut_layout::game::client_side::remote_client::sync_reads::team_packet_tests::unknown_team_packets_leave_scoreboard_unchanged lib daily child-process

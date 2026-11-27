@@ -1,6 +1,6 @@
 version = 1
 doc = "Inside a transaction opened in another level, dispense_container publishes a FLUIDS pickup event, a vanilla waterlogging tick, and a liquid-container Part's scheduled fluid tick only in the dispenser's level at root commit; none publishes on abort. A listener's transaction during fluid pickup replay does not delay attachment retirement for subsequent ordinary block-entity removals."
 tests = [
-    "crates/sunrise-client/src/game/blocks/dispense_container_tests.rs::nested_dispense_container_publishes_fluid_changes_only_in_the_source_level",
-    "crates/sunrise-client/src/game/blocks/dispense_container_tests.rs::a_transaction_in_the_fluid_pickup_listener_does_not_delay_later_attachment_removal",
+    "crates/sunrise-client/src/cut_layout/game/blocks/dispense_container_tests.rs::nested_dispense_container_publishes_fluid_changes_only_in_the_source_level",
+    "crates/sunrise-client/src/cut_layout/game/blocks/dispense_container_tests.rs::a_transaction_in_the_fluid_pickup_listener_does_not_delay_later_attachment_removal",
 ]

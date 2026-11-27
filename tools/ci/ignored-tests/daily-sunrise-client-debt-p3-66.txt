@@ -1,2 +1,2 @@
-sunrise-client game::item_entities::thrown_items_tests::a_client_take_shrinks_an_item_and_removes_it_only_when_empty lib daily resources
-sunrise-client game::lan_actions::pickups::pickup_post_tests::pre_pickup_edits_and_removals_match_on_host_and_guest lib daily resources
+sunrise-client cut_layout::game::server_side::item_entities::thrown_items_tests::a_client_take_shrinks_an_item_and_removes_it_only_when_empty lib daily resources
+sunrise-client cut_layout::game::lan_actions::pickups::pickup_post_tests::pre_pickup_edits_and_removals_match_on_host_and_guest lib daily resources

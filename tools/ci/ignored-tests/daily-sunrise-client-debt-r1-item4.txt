@@ -1,1 +1,1 @@
-sunrise-client game::attachment_index::query_tests::rolled_back_attachment_queries_cannot_read_or_write_a_resident_holder lib daily resources
+sunrise-client cut_layout::game::server_side::attachment_index::query_tests::rolled_back_attachment_queries_cannot_read_or_write_a_resident_holder lib daily resources

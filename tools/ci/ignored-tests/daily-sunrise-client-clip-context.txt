@@ -1,2 +1,2 @@
 # Level rays answer shapes for the entity in their collision context (#5083): needs prepared resources.
-sunrise-client game::native_entity_refs::tests::level_clip_answers_shapes_for_the_entity_in_its_context lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_refs::tests::level_clip_answers_shapes_for_the_entity_in_its_context lib daily resources

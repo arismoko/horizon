@@ -12,7 +12,7 @@ pub trait Hooks {
     /// list and is not saved.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_logged_out",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_logged_out",
         dispatch = "flat",
         side = "server",
         version = 3,

@@ -1,3 +1,3 @@
-sunrise-client game::commands::world_cmds::datapack_damage_tests::a_datapack_damage_type_hurts_a_mob lib daily resources
-sunrise-client game::commands::world_cmds::datapack_damage_tests::a_datapack_explosion_type_removes_a_crystal_quietly_and_hurts_the_dragon lib daily resources
-sunrise-client game::commands::world_cmds::datapack_damage_tests::a_datapack_types_tags_reach_the_mob_hurt_path lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::datapack_damage_tests::a_datapack_damage_type_hurts_a_mob lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::datapack_damage_tests::a_datapack_explosion_type_removes_a_crystal_quietly_and_hurts_the_dragon lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::datapack_damage_tests::a_datapack_types_tags_reach_the_mob_hurt_path lib daily resources

@@ -1,1 +1,1 @@
-sunrise-client game::native_surface::tests::a_server_friction_part_reads_its_block_entitys_saved_material lib daily resources
+sunrise-client cut_layout::game::native_surface::tests::a_server_friction_part_reads_its_block_entitys_saved_material lib daily resources

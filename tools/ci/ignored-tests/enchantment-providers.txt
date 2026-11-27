@@ -1,1 +1,1 @@
-sunrise-client game::mob_gear::tests::raid_pillager_crossbow_uses_pack_enchantment_provider lib daily resources
+sunrise-gameplay game::server_side::mob_gear::tests::raid_pillager_crossbow_uses_pack_enchantment_provider lib daily resources

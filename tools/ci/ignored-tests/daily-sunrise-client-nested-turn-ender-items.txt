@@ -1,1 +1,1 @@
-sunrise-client game::native_guest_turn_tests::with_own_record_swaps_ender_items_across_nested_turns lib daily resources
+sunrise-client cut_layout::game::server_side::native_guest_turn_tests::with_own_record_swaps_ender_items_across_nested_turns lib daily resources

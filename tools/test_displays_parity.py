@@ -34,15 +34,15 @@ LIB_TESTS = [
 ]
 
 CLIENT_TESTS = [
-    'game::text_displays::display_parity_tests::initial_start_min_value_and_duration_edge_cases_match_vanilla_26_3',
-    'game::text_displays::display_parity_tests::teleport_duration_unclamped_negative_same_target_and_rotation_match_vanilla_26_3',
-    'game::text_displays::display_parity_tests::display_shadow_respects_pre_tick_and_invisibility_flag_26_3',
-    'game::text_displays::display_parity_tests::display_camera_angles_and_billboard_use_active_camera_not_player_26_3',
-    'game::text_displays::display_parity_tests::display_lifecycle_pre_tick_deferred_swap_live_culling_and_culled_progress_26_3',
-    'game::text_displays::display_parity_tests::text_display_render_order_solid_split_and_see_through_sort_26_3',
-    'game::text_displays::display_parity_tests::text_display_resolves_inline_player_head_profiles_26_3',
-    'game::text_displays::display_parity_tests::bold_missing_glyph_displays_and_block_display_83224_match_vanilla_26_3',
-    'game::text_displays::display_parity_tests::review_parity_witness_matches_vanilla_26_3',
+    'game::client_side::text_displays::display_parity_tests::initial_start_min_value_and_duration_edge_cases_match_vanilla_26_3',
+    'game::client_side::text_displays::display_parity_tests::teleport_duration_unclamped_negative_same_target_and_rotation_match_vanilla_26_3',
+    'game::client_side::text_displays::display_parity_tests::display_shadow_respects_pre_tick_and_invisibility_flag_26_3',
+    'game::client_side::text_displays::display_parity_tests::display_camera_angles_and_billboard_use_active_camera_not_player_26_3',
+    'game::client_side::text_displays::display_parity_tests::display_lifecycle_pre_tick_deferred_swap_live_culling_and_culled_progress_26_3',
+    'game::client_side::text_displays::display_parity_tests::text_display_render_order_solid_split_and_see_through_sort_26_3',
+    'game::client_side::text_displays::display_parity_tests::text_display_resolves_inline_player_head_profiles_26_3',
+    'game::client_side::text_displays::display_parity_tests::bold_missing_glyph_displays_and_block_display_83224_match_vanilla_26_3',
+    'game::client_side::text_displays::display_parity_tests::review_parity_witness_matches_vanilla_26_3',
 ]
 
 

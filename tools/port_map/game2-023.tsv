@@ -10,7 +10,7 @@ FlowingFluid.BlockStatePairKey.equals	skip:java	-	cache key record equality
 FlowingFluid.BlockStatePairKey.hashCode	skip:java	-	cache key record hash
 FlowingFluid.SpreadContext.getBlockState	port	crates/sunrise-world/src/level/fluids.rs::Sim::context_state	-
 FlowingFluid.SpreadContext.isHole	port	crates/sunrise-world/src/level/fluids.rs::Sim::context_is_hole	-
-Fluid.getAABB	inline	crates/sunrise-client/src/entities/arrows/flight.rs::Ticker::collided_with_fluid	the fluid box (block to block plus height) is built inside collided_with_fluid for the sweep test
+Fluid.getAABB	inline	crates/sunrise-sim/src/entities/arrows/flight.rs::Ticker::collided_with_fluid	the fluid box (block to block plus height) is built inside collided_with_fluid for the sweep test
 FluidState.isSourceOfType	port	crates/sunrise-world/src/level/fluids.rs::Sim::is_source_of	family comparison instead of owner identity; same result for source states
 LavaFluid.hasFlammableNeighbours	inline	crates/sunrise-world/src/level/fluids.rs::Sim::lava_random_tick	the six-neighbour check is folded into the random tick; uses the plain IGNITED_BY_LAVA flag, no face argument
 LavaFluid.isFlammable	port	crates/sunrise-world/src/level/fluids.rs::Sim::lava_flammable	deprecated no-face overload; same build-height and chunk check and flag
@@ -21,57 +21,57 @@ LavaFluid.Flowing.createFluidStateDefinition	skip:data	-	state property list, re
 WaterFluid.beforeDestroyingBlock	port	crates/sunrise-world/src/level/update.rs::Sim::drop_resources	called from spread_to for water only
 WaterFluid.canBeReplacedWith	port	crates/sunrise-world/src/level/fluids.rs::Sim::can_be_replaced_with	-
 WaterFluid.Flowing.createFluidStateDefinition	skip:data	-	state property list, read from data tables
-MapColor.calculateARGBColor	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::packed_rgba	packed id with brightness in, ARGB out; id 0 is transparent as in vanilla NONE
-MapColor.getPackedId	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::render_biome_preview	the packed id (color << 2 | brightness) is built where map pixels are written (maps.rs:682 and in update_map)
+MapColor.calculateARGBColor	port	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::packed_rgba	packed id with brightness in, ARGB out; id 0 is transparent as in vanilla NONE
+MapColor.getPackedId	inline	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::Game::render_biome_preview	the packed id (color << 2 | brightness) is built where map pixels are written (maps.rs:682 and in update_map)
 AmphibiousNodeEvaluator.done	skip:other	-	vanilla sets the mob malus for WATER, WALKABLE and WATER_BORDER in prepare and restores it here; Sunrise never writes the mob malus, Finder::malus applies the amphibious values per search
-AmphibiousNodeEvaluator.isVerticalNeighborValid	inline	crates/sunrise-client/src/mobs/path.rs::Finder::walk_neighbors	the amphibious up and down neighbours need a valid node that is WATER; folded into the amphibious branch
+AmphibiousNodeEvaluator.isVerticalNeighborValid	inline	crates/sunrise-sim/src/mobs/path.rs::Finder::walk_neighbors	the amphibious up and down neighbours need a valid node that is WATER; folded into the amphibious branch
 BinaryHeap.remove	skip:other	-	no vanilla caller: the search only uses insert, pop and changeCost, Sunrise has heap_insert, heap_pop and change_cost
-FlyNodeEvaluator.getNeighbors	port	crates/sunrise-client/src/mobs/path.rs::Finder::fly_neighbors	fly neighbours
-FlyNodeEvaluator.hasMalus	inline	crates/sunrise-client/src/mobs/path.rs::Finder::fly_neighbors	the cost_malus >= 0 test is a closure inside fly_neighbors
-FlyNodeEvaluator.getCachedPathType	port	crates/sunrise-client/src/mobs/path.rs::Finder::fly_path_type	-
-FlyNodeEvaluator.iteratePathfindingStartNodeCandidatePositions	inline	crates/sunrise-client/src/mobs/path.rs::Finder::start	gap: minor: flying start candidates are the four corners only; the small-mob branch (ten random positions in the inflated box) is not ported
+FlyNodeEvaluator.getNeighbors	port	crates/sunrise-sim/src/mobs/path.rs::Finder::fly_neighbors	fly neighbours
+FlyNodeEvaluator.hasMalus	inline	crates/sunrise-sim/src/mobs/path.rs::Finder::fly_neighbors	the cost_malus >= 0 test is a closure inside fly_neighbors
+FlyNodeEvaluator.getCachedPathType	port	crates/sunrise-sim/src/mobs/path.rs::Finder::fly_path_type	-
+FlyNodeEvaluator.iteratePathfindingStartNodeCandidatePositions	inline	crates/sunrise-sim/src/mobs/path.rs::Finder::start	gap: minor: flying start candidates are the four corners only; the small-mob branch (ten random positions in the inflated box) is not ported
 pathfinder/Node.createDebugStreamCodec	skip:debug	-	stream codec for the debug path overlay
-pathfinder/Node.cloneAndMove	inline	crates/sunrise-client/src/mobs/path.rs::Path::raise_cauldron_nodes	the copy-and-move is written in place: PathNode is Copy, so the cauldron trim writes the raised y
+pathfinder/Node.cloneAndMove	inline	crates/sunrise-sim/src/mobs/path.rs::Path::raise_cauldron_nodes	the copy-and-move is written in place: PathNode is Copy, so the cauldron trim writes the raised y
 pathfinder/Node.createHash	skip:java	-	Java map key; Sunrise indexes nodes inside Finder
-pathfinder/Node.distanceTo	port	crates/sunrise-client/src/mobs/path.rs::Node::distance	both overloads: node to node and node to block position
+pathfinder/Node.distanceTo	port	crates/sunrise-sim/src/mobs/path.rs::Node::distance	both overloads: node to node and node to block position
 pathfinder/Node.distanceToXZ	missing	-	minor: only the Warden path finder uses horizontal distance as its cost; Sunrise costs use 3D distance everywhere (Finder::find)
 pathfinder/Node.distanceToSqr	skip:other	-	no vanilla caller in pathfinding or navigation; Sunrise has no squared node distance
-pathfinder/Node.distanceManhattan	port	crates/sunrise-client/src/mobs/path.rs::Node::manhattan	-
+pathfinder/Node.distanceManhattan	port	crates/sunrise-sim/src/mobs/path.rs::Node::manhattan	-
 pathfinder/Node.asVec3	skip:debug	-	only the pathfinding debug renderer calls it
-pathfinder/Node.equals	port	crates/sunrise-client/src/mobs/path.rs::Path::same_as	compares the node lists; Sunrise nodes are PathNode values that also compare kind, vanilla compares position only
-Path.getEndNode	port	crates/sunrise-client/src/mobs/path.rs::Path::end	-
-Path.truncateNodes	port	crates/sunrise-client/src/mobs/nav.rs::trim_path	GroundPathNavigation.trimPath with avoidSun: the path stops before the first node the sky sees
-Path.getPreviousNode	inline	crates/sunrise-client/src/mobs/villager_brain.rs::B::try_start	path.nodes[path.next - 1] is read directly for the door check (InteractWithDoor)
+pathfinder/Node.equals	port	crates/sunrise-sim/src/mobs/path.rs::Path::same_as	compares the node lists; Sunrise nodes are PathNode values that also compare kind, vanilla compares position only
+Path.getEndNode	port	crates/sunrise-sim/src/mobs/path.rs::Path::end	-
+Path.truncateNodes	port	crates/sunrise-sim/src/mobs/nav.rs::trim_path	GroundPathNavigation.trimPath with avoidSun: the path stops before the first node the sky sees
+Path.getPreviousNode	inline	crates/sunrise-sim/src/mobs/villager_brain.rs::B::try_start	path.nodes[path.next - 1] is read directly for the door check (InteractWithDoor)
 Path.equals	skip:java	-	Java equals; Path derives PartialEq and navigation compares paths with same_as
 Path.copy	skip:java	-	Path derives Clone
-PathFinder.reconstructPath	inline	crates/sunrise-client/src/mobs/path.rs::Finder::find	the came_from walk is the build closure inside find
-Target.updateBest	port	crates/sunrise-client/src/mobs/path.rs::Finder::best_h	keeps the best heuristic per target
-WalkNodeEvaluator.done	inline	crates/sunrise-client/src/mobs/sniffer.rs::ai_step	gap: minor: the per-search caches need no clearing (Sunrise caches live in one search); the Sniffer water malus is set from the wet state each tick, while vanilla also sets it to -1 right after each search in onPathfindingDone
-WalkNodeEvaluator.doesBlockHavePartialCollision	port	crates/sunrise-client/src/mobs/path.rs::Finder::partial_collision	-
-WalkNodeEvaluator.getCachedPathType	port	crates/sunrise-client/src/mobs/path.rs::Finder::path_type	-
-WalkNodeEvaluator.getPathTypeWithinMobBB	port	crates/sunrise-client/src/mobs/path.rs::Finder::within_bb	-
+PathFinder.reconstructPath	inline	crates/sunrise-sim/src/mobs/path.rs::Finder::find	the came_from walk is the build closure inside find
+Target.updateBest	port	crates/sunrise-sim/src/mobs/path.rs::Finder::best_h	keeps the best heuristic per target
+WalkNodeEvaluator.done	inline	crates/sunrise-sim/src/mobs/sniffer.rs::ai_step	gap: minor: the per-search caches need no clearing (Sunrise caches live in one search); the Sniffer water malus is set from the wet state each tick, while vanilla also sets it to -1 right after each search in onPathfindingDone
+WalkNodeEvaluator.doesBlockHavePartialCollision	port	crates/sunrise-sim/src/mobs/path.rs::Finder::partial_collision	-
+WalkNodeEvaluator.getCachedPathType	port	crates/sunrise-sim/src/mobs/path.rs::Finder::path_type	-
+WalkNodeEvaluator.getPathTypeWithinMobBB	port	crates/sunrise-sim/src/mobs/path.rs::Finder::within_bb	-
 MapItemSavedData.type	skip:data	-	saved-data type and codec; Sunrise saves map files in save_maps
-MapItemSavedData.<init>	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapData::fresh	gap: minor: sets the grid cell, scale and dimension; locked and the tracking flags are set by the caller or the NBT load
-MapItemSavedData.createForClient	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::remote_map_item_data	the client map is created from the packet (fresh map, locked flag from the packet)
-MapItemSavedData.mapMatcher	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::tick_maps	the carried maps are the map ids in the inventory and offhand, which is what the matcher finds
-MapItemSavedData.tickCarriedBy	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::tick_maps	gap: player: no framed-map marker when the map hangs in an item frame, and no removal of a player who wears map-invisibility gear
-MapItemSavedData.hasMapInvisibilityItemEquipped	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::Holder::new	ticked in #3517; `MapItemSavedData.hasMapInvisibilityItemEquipped` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:161
-MapItemSavedData.removeDecoration	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::tick_maps	decorations are rebuilt each tick (holder markers kept, the rest replaced) instead of removed by key
-MapItemSavedData.addDecoration	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::tick_maps	gap: player: only the item target decorations go through here; banner and frame markers never reach it
-MapItemSavedData.calculateDecorationLocationAndType	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::tick_maps	player branch and item branch both done inline, with clamping
-MapItemSavedData.playerDecorationTypeAndRotation	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::tick_maps	player marker sprite and rotation chosen inline (decoration_rotation for the rotation)
-MapItemSavedData.isInsideMap	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::tick_maps	the plus or minus 63 range test is inline
-MapItemSavedData.decorationTypeForPlayerOutsideMap	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::tick_maps	off-map and off-limits sprite choice inline
-MapItemSavedData.setColorsDirty	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapData::update_color	the holders dirty rectangle is updated in update_color
-MapItemSavedData.getHoldingPlayer	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapData::holder	-
-MapItemSavedData.toggleBanner	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapData::toggle_banner	ticked in #3517; `MapItemSavedData.toggleBanner` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:403
-MapItemSavedData.checkBanners	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapData::check_banners	ticked in #3517; `MapItemSavedData.checkBanners` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:443
-MapItemSavedData.removedFromFrame	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapData::removed_from_frame	ticked in #3517; `MapItemSavedData.removedFromFrame` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:387
-MapItemSavedData.setColor	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapData::update_color	-
-MapItemSavedData.addClientSideDecorations	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::remote_map_item_data	decorations are replaced from the packet list
-MapItemSavedData.HoldingPlayer.createPatch	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapData::update_packet	the dirty rectangle is copied into the patch
-MapItemSavedData.HoldingPlayer.markColorsDirty	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapData::update_color	the holder dirty rectangle is widened in update_color
-MapItemSavedData.MapPatch.applyToMap	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::remote_map_item_data	the patch loop writes each colour through update_color
+MapItemSavedData.<init>	port	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::MapData::fresh	gap: minor: sets the grid cell, scale and dimension; locked and the tracking flags are set by the caller or the NBT load
+MapItemSavedData.createForClient	port	crates/sunrise-client-gameplay/src/game/blocks/maps/mod_client.rs::Game::remote_map_item_data	the client map is created from the packet (fresh map, locked flag from the packet)
+MapItemSavedData.mapMatcher	inline	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::Game::tick_maps	the carried maps are the map ids in the inventory and offhand, which is what the matcher finds
+MapItemSavedData.tickCarriedBy	port	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::Game::tick_maps	gap: player: no framed-map marker when the map hangs in an item frame, and no removal of a player who wears map-invisibility gear
+MapItemSavedData.hasMapInvisibilityItemEquipped	port	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::Holder::new	ticked in #3517; `MapItemSavedData.hasMapInvisibilityItemEquipped` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:161
+MapItemSavedData.removeDecoration	inline	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::Game::tick_maps	decorations are rebuilt each tick (holder markers kept, the rest replaced) instead of removed by key
+MapItemSavedData.addDecoration	inline	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::Game::tick_maps	gap: player: only the item target decorations go through here; banner and frame markers never reach it
+MapItemSavedData.calculateDecorationLocationAndType	inline	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::Game::tick_maps	player branch and item branch both done inline, with clamping
+MapItemSavedData.playerDecorationTypeAndRotation	inline	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::Game::tick_maps	player marker sprite and rotation chosen inline (decoration_rotation for the rotation)
+MapItemSavedData.isInsideMap	inline	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::Game::tick_maps	the plus or minus 63 range test is inline
+MapItemSavedData.decorationTypeForPlayerOutsideMap	inline	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::Game::tick_maps	off-map and off-limits sprite choice inline
+MapItemSavedData.setColorsDirty	inline	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::MapData::update_color	the holders dirty rectangle is updated in update_color
+MapItemSavedData.getHoldingPlayer	port	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::MapData::holder	-
+MapItemSavedData.toggleBanner	port	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::MapData::toggle_banner	ticked in #3517; `MapItemSavedData.toggleBanner` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:403
+MapItemSavedData.checkBanners	port	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::MapData::check_banners	ticked in #3517; `MapItemSavedData.checkBanners` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:443
+MapItemSavedData.removedFromFrame	port	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::MapData::removed_from_frame	ticked in #3517; `MapItemSavedData.removedFromFrame` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:387
+MapItemSavedData.setColor	port	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::MapData::update_color	-
+MapItemSavedData.addClientSideDecorations	port	crates/sunrise-client-gameplay/src/game/blocks/maps/mod_client.rs::Game::remote_map_item_data	decorations are replaced from the packet list
+MapItemSavedData.HoldingPlayer.createPatch	port	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::MapData::update_packet	the dirty rectangle is copied into the patch
+MapItemSavedData.HoldingPlayer.markColorsDirty	inline	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::MapData::update_color	the holder dirty rectangle is widened in update_color
+MapItemSavedData.MapPatch.applyToMap	port	crates/sunrise-client-gameplay/src/game/blocks/maps/mod_client.rs::Game::remote_map_item_data	the patch loop writes each colour through update_color
 LootContext.createVisitedEntry	inline	crates/sunrise-world/src/loot.rs::Context::table_raw	gap: minor: only the loot-table cycle guard (visited list); predicates and modifiers are not tracked
 LootContext.EntityTarget.getByName	port	crates/sunrise-world/src/loot.rs::Context::target	-
 LootPool.addRandomItems	inline	crates/sunrise-world/src/loot.rs::Context::table_raw	pool condition, bonus rolls, the rolls loop and the pool modifier are in table_raw
@@ -79,7 +79,7 @@ LootPool.validate	skip:data	-	validation of references in datagen tables
 LootPool.Builder.addAll	skip:java	-	builder
 LootPool.Builder.build	skip:java	-	builder
 LootTable.validate	skip:data	-	validation of references in datagen tables
-LootTable.getAvailableSlots	inline	crates/sunrise-world/src/loot.rs::LootData::fill_with	gap: minor: every slot index is shuffled, not only the empty ones; the callers fill empty containers
+LootTable.getAvailableSlots	inline	crates/sunrise-world/src/loot/fill.rs::LootData::fill_with	gap: minor: every slot index is shuffled, not only the empty ones; the callers fill empty containers
 LootTable.Builder.build	skip:java	-	builder
 LootItem.lootTableItem	skip:java	-	builder factory for a loot entry
 LootPoolEntryContainer.commonFields	skip:java	-	codec field group
@@ -102,38 +102,38 @@ EnchantWithLevelsFunction.Builder.build	skip:java	-	builder
 ExplorationMapFunction.claimStructureAt	missing	-	minor: no structure reference is added for the explored structure when the map is filled; Sunrise keeps chunk references only (vanillagen.rs)
 ExplorationMapFunction.Builder.build	skip:java	-	builder
 ListOperation.codec	skip:data	-	codec
-ListOperation.Append.apply	inline	crates/sunrise-client/src/game/administration/commands/items.rs::list_operation	gap: minor: an append over 256 entries is truncated to 256, vanilla logs an error and keeps the original list
-CommandStorage.get	port	crates/sunrise-client/src/command_storage.rs::CommandStorage::get	-
-CommandStorage.getContainer	inline	crates/sunrise-client/src/command_storage.rs::CommandStorage::get	namespace lookup; Sunrise keeps every namespace in one map, so no container load
-CommandStorage.getOrCreateContainer	inline	crates/sunrise-client/src/command_storage.rs::CommandStorage::set	the namespace entry is created on write
-CommandStorage.Container.get	port	crates/sunrise-client/src/command_storage.rs::CommandStorage::get	-
-CommandStorage.Container.put	port	crates/sunrise-client/src/command_storage.rs::CommandStorage::set	empty contents remove the entry
-CommandStorage.Container.getKeys	port	crates/sunrise-client/src/command_storage.rs::CommandStorage::keys	-
+ListOperation.Append.apply	inline	crates/sunrise-gameplay/src/game/administration/commands/items.rs::list_operation	gap: minor: an append over 256 entries is truncated to 256, vanilla logs an error and keeps the original list
+CommandStorage.get	port	crates/sunrise-sim/src/command_storage.rs::CommandStorage::get	-
+CommandStorage.getContainer	inline	crates/sunrise-sim/src/command_storage.rs::CommandStorage::get	namespace lookup; Sunrise keeps every namespace in one map, so no container load
+CommandStorage.getOrCreateContainer	inline	crates/sunrise-sim/src/command_storage.rs::CommandStorage::set	the namespace entry is created on write
+CommandStorage.Container.get	port	crates/sunrise-sim/src/command_storage.rs::CommandStorage::get	-
+CommandStorage.Container.put	port	crates/sunrise-sim/src/command_storage.rs::CommandStorage::set	empty contents remove the entry
+CommandStorage.Container.getKeys	port	crates/sunrise-sim/src/command_storage.rs::CommandStorage::keys	-
 LevelStorageSource.LevelStorageAccess.releaseTemporarilyAndRun	skip:other	-	used only by the external datafixer tool (FileFixerUpper); Sunrise does not run it
 LevelStorageSource.LevelStorageAccess.safeClose	skip:other	-	closes the session lock and logs a failure; Sunrise releases its lock when the session drops
 LevelStorageSource.LevelStorageAccess.getLevelPath	skip:other	-	path helper for level resources; Sunrise builds these paths where they are used (save.rs::saved_data_path)
-LevelStorageSource.LevelStorageAccess.collectIssues	port	crates/sunrise-client/src/save/level_dat.rs::level_dat_issue	the issue line of each file on RecoverWorldDataScreen (title.rs)
-LevelStorageSource.LevelStorageAccess.fixAndGetSummaryFromTag	port	crates/sunrise-client/src/save/worlds.rs::list_worlds	gap: minor: the world list reads name and last played directly, without a data fix first
-LevelStorageSource.LevelStorageAccess.getUnfixedDataTagWithFallback	port	crates/sunrise-client/src/save/level_dat.rs::fall_back_to_level_dat_old	the dedicated server (Main) takes level.dat_old and restores it; the client asks on RecoverWorldDataScreen instead (WorldOpenFlows)
-LevelStorageSource.LevelStorageAccess.getUnfixedDataTag	inline	crates/sunrise-client/src/save/level.rs::Level::read	the Data compound of level.dat is read inside Level::read
-LevelStorageSource.LevelStorageAccess.saveDataTag	inline	crates/sunrise-client/src/save/level.rs::Level::write	level.dat is written inside Level::write
-LevelStorageSource.LevelStorageAccess.saveLevelData	port	crates/sunrise-client/src/save/level_dat.rs::write_dat	the temp file, the level.dat_old swap and the write are in write_dat
+LevelStorageSource.LevelStorageAccess.collectIssues	port	crates/sunrise-sim/src/save/level_dat.rs::level_dat_issue	the issue line of each file on RecoverWorldDataScreen (title.rs)
+LevelStorageSource.LevelStorageAccess.fixAndGetSummaryFromTag	port	crates/sunrise-sim/src/save/worlds.rs::list_worlds	gap: minor: the world list reads name and last played directly, without a data fix first
+LevelStorageSource.LevelStorageAccess.getUnfixedDataTagWithFallback	port	crates/sunrise-sim/src/save/level_dat.rs::fall_back_to_level_dat_old	the dedicated server (Main) takes level.dat_old and restores it; the client asks on RecoverWorldDataScreen instead (WorldOpenFlows)
+LevelStorageSource.LevelStorageAccess.getUnfixedDataTag	inline	crates/sunrise-sim/src/save/level.rs::Level::read	the Data compound of level.dat is read inside Level::read
+LevelStorageSource.LevelStorageAccess.saveDataTag	inline	crates/sunrise-sim/src/save/level.rs::Level::write	level.dat is written inside Level::write
+LevelStorageSource.LevelStorageAccess.saveLevelData	port	crates/sunrise-sim/src/save/level_dat.rs::write_dat	the temp file, the level.dat_old swap and the write are in write_dat
 LevelStorageSource.LevelStorageAccess.getIconFile	port	crates/sunrise-client/src/title.rs::Title::icon	gap: minor: no session-lock check; Sunrise reads icon.png whenever it is there
 LevelStorageSource.LevelStorageAccess.renameLevel	port	crates/sunrise-client/src/title/world_management.rs::rename	-
 LevelStorageSource.LevelStorageAccess.renameAndDropPlayer	port	crates/sunrise-client/src/realms/download.rs::rename_and_drop_player	when a downloaded Realms world has no links: level.dat's LevelName becomes the folder's name and singleplayer_uuid is dropped; a failure only logs
 LevelStorageSource.LevelStorageAccess.modifyLevelDataWithoutDatafix	inline	crates/sunrise-client/src/title/world_management.rs::rename	read, change the Data compound and write back; rename is the only edit Sunrise makes
 LevelStorageSource.LevelStorageAccess.makeWorldBackup	port	crates/sunrise-client/src/title/world_management.rs::backup	-
-LevelStorageSource.LevelStorageAccess.hasWorldData	inline	crates/sunrise-client/src/save/worlds.rs::list_worlds	gap: minor: listing checks for a regular level.dat or level.dat_old rather than mere existence; only level.dat is read for a normal summary
-LevelStorageSource.LevelStorageAccess.restoreLevelDataFromOld	port	crates/sunrise-client/src/save/level_dat.rs::restore_level_data_from_old	keeps the broken file as level.dat_corrupted_<time>; gap: minor: a failed move puts level.dat back and reports the failure (vanilla reports success with noRollback)
-PlayerDataStorage.backup	port	crates/sunrise-client/src/save/level_dat.rs::back_up_unreadable_player	a player file that does not read is copied to <uuid>_corrupted_<time>.dat before the save writes over it
-SavedDataStorage.getDataFile	port	crates/sunrise-client/src/save/saved_data.rs::saved_data_path	gap: minor: no check that the path stays inside the data folder; the names come from fixed callers
-SavedDataStorage.computeIfAbsent	inline	crates/sunrise-client/src/save.rs::compound_or_empty	the default is an empty compound when the file is absent
-SavedDataStorage.get	port	crates/sunrise-client/src/save/saved_data.rs::read_saved_data	gap: minor: reads the file on each call; vanilla caches the read per type
+LevelStorageSource.LevelStorageAccess.hasWorldData	inline	crates/sunrise-sim/src/save/worlds.rs::list_worlds	gap: minor: listing checks for a regular level.dat or level.dat_old rather than mere existence; only level.dat is read for a normal summary
+LevelStorageSource.LevelStorageAccess.restoreLevelDataFromOld	port	crates/sunrise-sim/src/save/level_dat.rs::restore_level_data_from_old	keeps the broken file as level.dat_corrupted_<time>; gap: minor: a failed move puts level.dat back and reports the failure (vanilla reports success with noRollback)
+PlayerDataStorage.backup	port	crates/sunrise-sim/src/save/level_dat.rs::back_up_unreadable_player	a player file that does not read is copied to <uuid>_corrupted_<time>.dat before the save writes over it
+SavedDataStorage.getDataFile	port	crates/sunrise-sim/src/save/saved_data.rs::saved_data_path	gap: minor: no check that the path stays inside the data folder; the names come from fixed callers
+SavedDataStorage.computeIfAbsent	inline	crates/sunrise-sim/src/save.rs::compound_or_empty	the default is an empty compound when the file is absent
+SavedDataStorage.get	port	crates/sunrise-sim/src/save/saved_data.rs::read_saved_data	gap: minor: reads the file on each call; vanilla caches the read per type
 SavedDataStorage.isGzip	inline	crates/sunrise-world/src/datafix/files.rs::read_saved_dat	the gzip magic test is inline
 SavedDataStorage.collectDirtyTagsToSave	skip:other	-	Sunrise writes each saved-data file when its owner saves; there is no dirty set
-SavedDataStorage.encodeUnchecked	inline	crates/sunrise-client/src/save/saved_data.rs::write_saved_data	DataVersion is added in write_saved_data; callers encode the data
-SavedDataStorage.tryWrite	port	crates/sunrise-client/src/save/saved_data.rs::write_saved_data	-
-SavedDataStorage.close	inline	crates/sunrise-client/src/save/level.rs::Level::write	the final save of the saved data happens in Level::write
+SavedDataStorage.encodeUnchecked	inline	crates/sunrise-sim/src/save/saved_data.rs::write_saved_data	DataVersion is added in write_saved_data; callers encode the data
+SavedDataStorage.tryWrite	port	crates/sunrise-sim/src/save/saved_data.rs::write_saved_data	-
+SavedDataStorage.close	inline	crates/sunrise-sim/src/save/level.rs::Level::write	the final save of the saved data happens in Level::write
 TagValueInput.DecodeFromListFailedProblem.description	skip:debug	-	error text for logs only
 TagValueInput.UnexpectedListElementTypeProblem.description	skip:debug	-	error text for logs only
 PortalShape.findPortalShape	port	crates/sunrise-world/src/level/portal.rs::Sim::find_empty_portal_shape	preferred axis first, then the other; here the predicate is an empty frame with no portal block
@@ -143,8 +143,8 @@ PortalShape.getDistanceUntilEdgeAboveFrame	port	crates/sunrise-world/src/level/p
 PortalShape.calculateHeight	inline	crates/sunrise-world/src/level/portal.rs::Sim::find_portal_shape	height rows loop and the 3 to 21 check are inline
 PortalShape.hasTopFrame	inline	crates/sunrise-world/src/level/portal.rs::Sim::find_portal_shape	the top frame row check is inline
 PortalShape.getDistanceUntilTop	inline	crates/sunrise-world/src/level/portal.rs::Sim::find_portal_shape	rows loop counts portal blocks as it goes, inline
-TeleportTransition.playPortalSound	inline	crates/sunrise-client/src/lan/hub/passage_cross.rs::Hub::land	level event 1032 is sent on arrival
-TeleportTransition.withRotation	inline	crates/sunrise-client/src/lan/hub/passage_cross.rs::Hub::finish_level_change	the turned yaw is applied with the level change
-TeleportTransition.withPosition	inline	crates/sunrise-client/src/lan/hub/passage_cross.rs::Hub::land	the exit position is applied on arrival
-TeleportTransition.transitionAsPassenger	port	crates/sunrise-client/src/game/world/server_travel.rs::Game::carry_riders_through_portals	riders travel with the vehicle and ride it again on arrival
+TeleportTransition.playPortalSound	inline	crates/sunrise-sim/src/lan/hub/passage_cross.rs::Hub::land	level event 1032 is sent on arrival
+TeleportTransition.withRotation	inline	crates/sunrise-sim/src/lan/hub/passage_cross.rs::Hub::finish_level_change	the turned yaw is applied with the level change
+TeleportTransition.withPosition	inline	crates/sunrise-sim/src/lan/hub/passage_cross.rs::Hub::land	the exit position is applied on arrival
+TeleportTransition.transitionAsPassenger	port	crates/sunrise-gameplay/src/game/world/server_travel.rs::Game::carry_riders_through_portals	riders travel with the vehicle and ride it again on arrival
 DefaultRedstoneWireEvaluator.calculateTargetStrength	inline	crates/sunrise-world/src/level/redstone.rs::Sim::wire_update_power	the 15 shortcut and the max with the incoming signal are inline

@@ -4,7 +4,7 @@ pub trait Hooks {
     /// Two mobs completed a breeding action. `child` is absent when vanilla
     /// lays an egg instead of creating a baby.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_breed",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_breed",
         dispatch = "flat",
         side = "server",
         contract = "listen",

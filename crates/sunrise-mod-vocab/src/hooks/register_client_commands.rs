@@ -14,7 +14,7 @@ pub trait Hooks {
     /// the usage is neither completed nor run. Server-only handle argument kinds (`player`,
     /// `players`, `entity`, `entities`, `dimension`) are refused.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_register_client_commands",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_register_client_commands",
         dispatch = "flat",
         side = "client",
         contract = "collect",

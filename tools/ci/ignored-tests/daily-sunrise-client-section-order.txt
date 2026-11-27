@@ -1,1 +1,1 @@
-sunrise-client game::persist::lookup_order_tests::a_crossing_without_a_listener_saves_after_the_entity_already_in_the_section lib daily resources
+sunrise-client cut_layout::game::server_side::persist::lookup_order_tests::a_crossing_without_a_listener_saves_after_the_entity_already_in_the_section lib daily resources

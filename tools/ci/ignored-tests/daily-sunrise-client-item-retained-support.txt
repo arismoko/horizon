@@ -1,1 +1,1 @@
-sunrise-client game::item_contact_tests::item_support_survives_idle_then_clears_on_an_airborne_move lib daily resources
+sunrise-client cut_layout::game::server_side::item_contact_tests::item_support_survives_idle_then_clears_on_an_airborne_move lib daily resources

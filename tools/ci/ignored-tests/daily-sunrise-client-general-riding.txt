@@ -1,2 +1,2 @@
-sunrise-client game::general::save_load_tests::mixed_passengers_sit_and_unload_with_their_actual_root lib daily resources
-sunrise-client game::general::tests::a_deep_passenger_chain_checks_iteratively lib daily slow
+sunrise-client cut_layout::game::general::save_load_tests::mixed_passengers_sit_and_unload_with_their_actual_root lib daily resources
+sunrise-gameplay-common game::general::tests::a_deep_passenger_chain_checks_iteratively lib daily slow

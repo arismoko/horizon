@@ -1,3 +1,3 @@
 # LevelRef::generator_type (#6032): the chunk generator a level was built with, over the test resources.
-sunrise-client game::native_level_world::tests::a_level_names_the_chunk_generator_it_was_built_with lib daily resources
-sunrise-client game::world_loading::tests::a_level_reports_the_generator_it_was_built_with lib daily child-process
+sunrise-client cut_layout::game::server_side::native_level_world::tests::a_level_names_the_chunk_generator_it_was_built_with lib daily resources
+sunrise-gameplay game::server_side::world_loading::tests::a_level_reports_the_generator_it_was_built_with lib daily child-process

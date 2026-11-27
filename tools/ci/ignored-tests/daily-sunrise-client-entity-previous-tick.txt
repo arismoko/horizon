@@ -1,6 +1,6 @@
 # EntityRef::previous_position, previous_rotation, position_at and is_alive (#4984).
-sunrise-client game::native_entity_previous_tests::a_walking_villagers_previous_tick_on_a_client lib daily resources
-sunrise-client game::native_entity_previous_tests::a_walking_villagers_previous_tick_on_the_server lib daily resources
-sunrise-client game::native_entity_previous_tests::a_zombies_client_copy_dies_with_its_synced_health lib daily resources
-sunrise-client game::native_entity_previous_tests::an_arrows_previous_position_is_before_its_last_move lib daily resources
-sunrise-client game::native_entity_previous_tests::position_at_eases_from_the_previous_position lib daily resources
+sunrise-client-gameplay game::client_side::native_entity_previous_tests_client::a_walking_villagers_previous_tick_on_a_client lib daily resources
+sunrise-gameplay game::server_side::native_entity_previous_tests_server::a_walking_villagers_previous_tick_on_the_server lib daily resources
+sunrise-client-gameplay game::client_side::native_entity_previous_tests_client::a_zombies_client_copy_dies_with_its_synced_health lib daily resources
+sunrise-gameplay game::server_side::native_entity_previous_tests_server::an_arrows_previous_position_is_before_its_last_move lib daily resources
+sunrise-gameplay game::server_side::native_entity_previous_tests_server::position_at_eases_from_the_previous_position lib daily resources

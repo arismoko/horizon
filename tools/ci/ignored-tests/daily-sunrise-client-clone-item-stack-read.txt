@@ -1,2 +1,2 @@
 # getCloneItemStack for a player (#5289): needs prepared resources, a LAN guest and a fresh process for its Parts.
-sunrise-client game::block_items::tests::the_clone_item_stack_read_gives_the_pick_answer lib daily resources
+sunrise-client cut_layout::game::server_side::block_items_server::styled_name_model_tests::the_clone_item_stack_read_gives_the_pick_answer lib daily resources

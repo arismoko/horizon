@@ -1,3 +1,3 @@
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::inventory_release_post_distinguishes_quick_craft_from_swallowed_release lib daily child-process
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::native_and_mounted_press_tab_and_preedit_use_the_receiving_screen lib daily child-process
-sunrise-client game::native_hooks::base::screen_widgets_tests::input_routing::release_drag_and_wheel_cancellation_preserve_input_bookkeeping lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::inventory_release_post_distinguishes_quick_craft_from_swallowed_release lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::native_and_mounted_press_tab_and_preedit_use_the_receiving_screen lib daily child-process
+sunrise-client cut_layout::game::client_side::native_hooks_client::base::screen_widgets_tests::input_routing::release_drag_and_wheel_cancellation_preserve_input_bookkeeping lib daily child-process

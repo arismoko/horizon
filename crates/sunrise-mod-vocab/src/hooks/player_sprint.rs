@@ -10,7 +10,7 @@ pub trait Hooks {
     /// hunger, a wall) is not reported. The player's state is swapped in, so
     /// the helpers and `PlayerRef::tell` work. Once for each change, on a server.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_sprint",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_sprint",
         dispatch = "flat",
         side = "server",
         contract = "listen",

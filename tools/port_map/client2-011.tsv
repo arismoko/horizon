@@ -1,49 +1,49 @@
-MultilineTextField.setCharacterLimit	port	crates/sunrise-client/src/game/interface/books.rs::book_page_box	gap: minor: only the book page sets a character limit (PAGE_CHARS); other MultiLineEditBox users are not ported
-MultilineTextField.setLineLimit	inline	crates/sunrise-client/src/game/interface/books.rs::Game::page_keep	the 14-line limit (LINES) is checked in page_keep; there is no limit field
+MultilineTextField.setCharacterLimit	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::book_page_box	gap: minor: only the book page sets a character limit (PAGE_CHARS); other MultiLineEditBox users are not ported
+MultilineTextField.setLineLimit	inline	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::page_keep	the 14-line limit (LINES) is checked in page_keep; there is no limit field
 MultilineTextField.setValue	port	crates/sunrise-client-render/src/ui.rs::EditBox::set_value	gap: minor: no line-limit check when the text is set (allowOverflowLineLimit path)
 MultilineTextField.insertText	port	crates/sunrise-client-render/src/ui.rs::EditBox::insert_text	the line limit is checked by Game::page_keep, not here
 MultilineTextField.deleteText	port	crates/sunrise-client-render/src/ui.rs::EditBox::delete_chars
-MultilineTextField.getSelected	port	crates/sunrise-client-render/src/ui.rs::EditBox::selected
-MultilineTextField.getLineAtCursor	port	crates/sunrise-client/src/game/interface/books.rs::Game::caret_on	the visual row holding the caret, with its x
-MultilineTextField.getLineView	port	crates/sunrise-client/src/game/interface/books.rs::Game::page_rows	visual rows as character ranges
+MultilineTextField.getSelected	port	crates/sunrise-client-render/src/multiline_edit.rs::MultiLineEdit::selected
+MultilineTextField.getLineAtCursor	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::caret_on	the visual row holding the caret, with its x
+MultilineTextField.getLineView	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::page_rows	visual rows as character ranges
 MultilineTextField.seekCursor	port	crates/sunrise-client-render/src/ui.rs::EditBox::set_cursor
-MultilineTextField.seekCursorLine	port	crates/sunrise-client/src/game/interface/books.rs::Game::book_move_line
-MultilineTextField.seekCursorToPoint	port	crates/sunrise-client/src/game/interface/books.rs::Game::page_index_at
+MultilineTextField.seekCursorLine	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::book_move_line
+MultilineTextField.seekCursorToPoint	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::page_index_at
 MultilineTextField.selectWordAtCursor	port	crates/sunrise-client-render/src/ui.rs::EditBox::select_word_at_cursor	double click on a book page selects the word before the caret (Game::book_page_click)
-MultilineTextField.keyPressed	port	crates/sunrise-client/src/game/interface/books.rs::Game::book_input	gap: player: Home and End go to the start and end of the whole page, not of the visual line (EditBox::key); Enter, arrows and Ctrl keys are handled
+MultilineTextField.keyPressed	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::book_input	gap: player: Home and End go to the start and end of the whole page, not of the visual line (EditBox::key); Enter, arrows and Ctrl keys are handled
 MultilineTextField.getSelectedText	port	crates/sunrise-client-render/src/ui.rs::EditBox::selected_text
-MultilineTextField.getCursorLineView	inline	crates/sunrise-client/src/game/interface/books.rs::Game::book_move_line	gap: player: Home and End do not use the caret's line range (see keyPressed)
+MultilineTextField.getCursorLineView	inline	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::book_move_line	gap: player: Home and End do not use the caret's line range (see keyPressed)
 MultilineTextField.getNextWord	port	crates/sunrise-mod-vocab/src/client/widgets_text_edit.rs::multiline_word_position	start of the next word; Ctrl+Right and Ctrl+Delete reach it through EditBox::word_position
 MultilineTextField.getWordEndPosition	inline	crates/sunrise-client-render/src/ui.rs::EditBox::select_word_at_cursor	the end of the word is found there; MultiLineEdit::word_end serves signs
-MultilineTextField.onValueChange	inline	crates/sunrise-client/src/game/interface/books.rs::Game::page_keep	the page text is stored there after the limit check; visual rows are computed on demand by page_rows
-MultilineTextField.reflowDisplayLines	port	crates/sunrise-client/src/game/interface/books.rs::Game::page_rows	same wrap breaks as font.split
+MultilineTextField.onValueChange	inline	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::page_keep	the page text is stored there after the limit check; visual rows are computed on demand by page_rows
+MultilineTextField.reflowDisplayLines	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::page_rows	same wrap breaks as font.split
 MultilineTextField.truncateFullText	port	crates/sunrise-client-render/src/ui.rs::EditBox::set_value	truncates to max_length characters
 MultilineTextField.truncateInsertionText	inline	crates/sunrise-client-render/src/ui.rs::EditBox::insert_text	room left under max_length
-MultilineTextField.overflowsLineLimit	port	crates/sunrise-client/src/game/interface/books.rs::Game::page_keep	counts page_rows, which adds the row after a trailing newline as vanilla does
+MultilineTextField.overflowsLineLimit	port	crates/sunrise-client-gameplay/src/game/interface/books.rs::Game::page_keep	counts page_rows, which adds the row after a trailing newline as vanilla does
 ObjectSelectionList.nextFocusPath	inline	crates/sunrise-client/src/title.rs::Title::arrow_key	arrow keys move the world list's selection; multiplayer.rs::Screen::arrow does the server list; pack lists take no keyboard
 ObjectSelectionList.updateWidgetNarration	skip:other		screen-reader narration; Sunrise has no narration output
-OptionsList.addBig	port	crates/sunrise-client-render/src/options_ui.rs::OptionsUi::layout	Row::Big: 310 wide at width/2 - 155
-OptionsList.addHeader	port	crates/sunrise-client-render/src/options_ui.rs::OptionsUi::layout	gap: minor: the header is centred text, not a focusable widget
+OptionsList.addBig	port	crates/sunrise-client-render/src/options_ui/layout.rs::OptionsUi::layout	Row::Big: 310 wide at width/2 - 155
+OptionsList.addHeader	port	crates/sunrise-client-render/src/options_ui/layout.rs::OptionsUi::layout	gap: minor: the header is centred text, not a focusable widget
 OptionsList.findOption	skip:ui		widget lookup only; rows are rebuilt from Settings in OptionsUi::layout each frame
 OptionsList.applyUnsavedChanges	inline	crates/sunrise-client-render/src/options_ui.rs::set_slider	gap: minor: delayed sliders (render, simulation, biome blend distance, wheel sensitivity) apply on every step, not 600 ms after the last move or on close
 OptionsList.resetOption	inline	crates/sunrise-client-render/src/options_ui.rs::OptionsUi::slider_shown	gap: minor: only sliders show the stored value at once; other options redraw from Settings each frame
 OptionsList.Entry.big	port	crates/sunrise-client-render/src/options_ui.rs::option_widget	310 wide; the row's place is OptionsUi::layout (Row::Big)
 OptionsList.Entry.small	port	crates/sunrise-client-render/src/options_ui.rs::option_widget	pair placement at width/2 - 155 and + 5 in OptionsUi::layout (Row::Pair)
-OptionsList.Entry.extractContent	inline	crates/sunrise-client-render/src/options_ui.rs::OptionsUi::layout	positions the row's widgets; OptionsUi::draw_standard_contents paints them
+OptionsList.Entry.extractContent	inline	crates/sunrise-client-render/src/options_ui/layout.rs::OptionsUi::layout	positions the row's widgets; OptionsUi::draw_standard_contents paints them
 OptionsList.Entry.findOption	skip:ui		widget lookup only; rows are rebuilt from Settings each frame
-OptionsList.HeaderEntry.extractContent	inline	crates/sunrise-client-render/src/options_ui.rs::OptionsUi::layout	header centred on the row (Row::Header)
+OptionsList.HeaderEntry.extractContent	inline	crates/sunrise-client-render/src/options_ui/layout.rs::OptionsUi::layout	header centred on the row (Row::Header)
 PlainTextButton.extractContents	inline	crates/sunrise-client/src/title/draw.rs::Title::draw_with_items	the bottom notice is the plain text button, underlined while hovered; Title::click opens the credits
 PlayerFaceExtractor.extractHat	port	crates/sunrise-client-render/src/tab_list.rs::face	hat layer: UV 40, flipped for Dinnerbone and Grumm
 PlayerFaceWidget.extractWidgetRenderState	skip:service		head in the friends list (AbstractFriendsEntryContainerWidget)
 PlayerSkinWidget.extractWidgetRenderState	skip:service		skin preview on the chat report screen (SkinReportScreen)
 PlayerSkinWidget.onDrag	skip:service		drag-to-rotate of the chat report skin preview
 PlayerTabOverlay.extractTablistScore	inline	crates/sunrise-client-render/src/tab_list.rs::TabList::layout	the score column is drawn in layout; hearts go through TabList::hearts
-PopupScreen.init	port	crates/sunrise-client/src/game/network/lan_screen.rs::Popup::new	gap: minor: only the lock question (title, message, Yes and No); images and extra buttons are not ported
-PopupScreen.buildButtonRow	inline	crates/sunrise-client/src/game/network/lan_screen.rs::Popup::new	two buttons min((214 - 6) / 2, 150) wide, 6 apart
-PopupScreen.repositionElements	inline	crates/sunrise-client/src/game/network/lan_screen.rs::Popup::new	centres the popup on the screen
-PopupScreen.extractBackground	port	crates/sunrise-client/src/game/network/lan_screen.rs::Game::draw_lock_question	dimmed gradient, then the popup background sprite
+PopupScreen.init	port	crates/sunrise-client-gameplay/src/game/network/lan_screen.rs::Popup::new	gap: minor: only the lock question (title, message, Yes and No); images and extra buttons are not ported
+PopupScreen.buildButtonRow	inline	crates/sunrise-client-gameplay/src/game/network/lan_screen.rs::Popup::new	two buttons min((214 - 6) / 2, 150) wide, 6 apart
+PopupScreen.repositionElements	inline	crates/sunrise-client-gameplay/src/game/network/lan_screen.rs::Popup::new	centres the popup on the screen
+PopupScreen.extractBackground	port	crates/sunrise-client-gameplay/src/game/network/lan_screen.rs::Game::draw_lock_question	dimmed gradient, then the popup background sprite
 PopupScreen.getNarrationMessage	skip:other		screen-reader text; Sunrise has no narration output
-PopupScreen.onClose	port	crates/sunrise-client/src/game/network/lan_screen.rs::Game::world_options_escape	Escape on the lock question returns to the options page
+PopupScreen.onClose	port	crates/sunrise-client-gameplay/src/game/network/lan_screen.rs::Game::world_options_escape	Escape on the lock question returns to the options page
 PopupScreen.Builder.addButton	skip:java		builder setter; Sunrise's lock popup has fixed Yes and No buttons
 PopupScreen.Builder.build	skip:java		builder; Sunrise constructs the popup directly
 RealmsButton.extractContents	skip:service		Realms button
@@ -57,7 +57,7 @@ ScrollableLayout.Container.getBorderForArrowNavigation	inline	crates/sunrise-cli
 ScrollableLayout.Container.setFocused	inline	crates/sunrise-client-render/src/options_ui.rs::OptionsUi::key	Tab and the arrows scroll a list row that took the focus into the visible area, 4 pixels past the edge it crossed, then clamp the list
 ScrollableLayout.Container.setX	skip:ui		positions set by each screen's layout
 ScrollableLayout.Container.setY	skip:ui		positions set by each screen's layout
-ScrollableLayout.Container.setScrollAmount	inline	crates/sunrise-client/src/game/network/server_links.rs::Game::server_links_scroll	gap: minor: clamps the server links list only; other scroll areas clamp in their own code
+ScrollableLayout.Container.setScrollAmount	inline	crates/sunrise-client-gameplay/src/game/network/server_links.rs::Game::server_links_scroll	gap: minor: clamps the server links list only; other scroll areas clamp in their own code
 SelectableEntry.mouseOverIcon	port	crates/sunrise-client-render/src/pack_screen.rs::PackScreen::entry_click	32 px icon of a pack row; the world row's icon uses the same test in Title::click_action
 SelectableEntry.mouseOverLeftHalf	port	crates/sunrise-client-render/src/pack_screen.rs::PackScreen::entry_click	left 16 px of the pack icon (unselect)
 SelectableEntry.mouseOverRightHalf	port	crates/sunrise-client/src/multiplayer.rs::over_right_half	join half of a server row
@@ -83,41 +83,41 @@ Tooltip.toCharSequence	port	crates/sunrise-client-render/src/screen_draw.rs::too
 WidgetSprites.get	port	crates/sunrise-client-render/src/ui.rs::button	disabled and hovered pick the sprite; gap: minor: keyboard focus does not pick the highlighted sprite
 WidgetTooltipHolder.refreshTooltipForNextRenderPass	port	crates/sunrise-client-render/src/ui.rs::tooltip	gap: minor: tooltips show only under the pointer, not for keyboard focus
 WidgetTooltipHolder.createTooltipPositioner	missing		minor: a keyboard-focused widget gets no tooltip placed below or above it
-DebugEntryBiome.display	port	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_biome_line	the biome's name at the feet, inside the build height
-DebugEntryBiome.printBiome	inline	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_biome_line	the biome's name is printed
-DebugEntryChunkGeneration.display	inline	crates/sunrise-client/src/game/interface/debug_keys.rs::DensityCache::line	gap: minor: the density line only; no blending status line
-DebugEntryChunkGeneration.update	port	crates/sunrise-client/src/game/interface/debug_keys.rs::DensityCache::line	sampled again only when the feet block or the dimension changes
-DebugEntryChunkSourceStats.display	port	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_chunk_source_lines	the client level's chunks, entities and sections, then the server level's
-DebugEntryDayCount.display	inline	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_entry_lines	Day # from the world time
+DebugEntryBiome.display	port	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_biome_line	the biome's name at the feet, inside the build height
+DebugEntryBiome.printBiome	inline	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_biome_line	the biome's name is printed
+DebugEntryChunkGeneration.display	inline	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::DensityCache::line	gap: minor: the density line only; no blending status line
+DebugEntryChunkGeneration.update	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::DensityCache::line	sampled again only when the feet block or the dimension changes
+DebugEntryChunkSourceStats.display	port	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_chunk_source_lines	the client level's chunks, entities and sections, then the server level's
+DebugEntryDayCount.display	inline	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_entry_lines	Day # from the world time
 DebugEntryDetailedMemory.display	skip:java		JVM heap and non-heap readout (MemoryMXBean); Rust has no JVM heap
 DebugEntryDetailedMemory.printMemoryUsage	skip:java		JVM memory format for the heap readout
-DebugEntryFps.display	port	crates/sunrise-client/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	first line: fps, framerate cap (inf), present mode and refresh rate
-DebugEntryFps.presentModeName	port	crates/sunrise-client/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	present mode suffix (immediate, mailbox, fifo)
+DebugEntryFps.display	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	first line: fps, framerate cap (inf), present mode and refresh rate
+DebugEntryFps.presentModeName	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	present mode suffix (immediate, mailbox, fifo)
 DebugEntryGpuUtilization.display	inline	crates/sunrise-client/src/debug_overlay.rs::gpu_line	the rounded percentage, red past 100
-DebugEntryHeightmap.display	port	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_heightmap_lines	the client chunk's heightmaps at the feet and the server chunk's
+DebugEntryHeightmap.display	port	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_heightmap_lines	the client chunk's heightmaps at the feet and the server chunk's
 DebugEntryLight.display	inline	crates/sunrise-client/src/debug_overlay.rs::light_line	gap: minor: the client's line only; Sunrise draws no server light values
-DebugEntryLocalDifficulty.display	inline	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_entry_lines	the server thread's difficulty line
-DebugEntryLookingAt.display	port	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_looking_at_block	the targeted block's state or its tags
+DebugEntryLocalDifficulty.display	inline	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_entry_lines	the server thread's difficulty line
+DebugEntryLookingAt.display	port	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_looking_at_block	the targeted block's state or its tags
 DebugEntryLookingAt.addTagEntries	inline	crates/sunrise-client/src/debug_overlay.rs::tag_lines	the block's tags, one line each
 DebugEntryLookingAt.DebugEntryLookingAtState.extractInfo	port	crates/sunrise-client/src/debug_overlay.rs::state_lines	the targeted block and its state
 DebugEntryLookingAt.DebugEntryLookingAtState.addStateProperties	inline	crates/sunrise-client/src/debug_overlay.rs::state_lines	the state's properties, one line each
 DebugEntryLookingAt.DebugEntryLookingAtState.getPropertyValueString	inline	crates/sunrise-client/src/debug_overlay.rs::state_lines	the property values in the state lines
-DebugEntryLookingAtEntity.display	inline	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_entry_lines	crosshair_entity_type names the targeted entity
-DebugEntryLookingAtEntityTags.display	inline	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_entry_lines	entity tags through debug_overlay::tag_lines
+DebugEntryLookingAtEntity.display	inline	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_entry_lines	crosshair_entity_type names the targeted entity
+DebugEntryLookingAtEntityTags.display	inline	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_entry_lines	entity tags through debug_overlay::tag_lines
 DebugEntryMemory.display	skip:java		JVM heap and allocation counters (Runtime, GC); Rust has none
 DebugEntryMemory.AllocationRateCalculator.bytesAllocatedPerSecond	skip:java		JVM allocation counter from GC data
 DebugEntryMemory.AllocationRateCalculator.gcCounts	skip:java		JVM garbage collector counts
-DebugEntryPlayerSpeed.display	inline	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_entry_lines	Speed: %.3f blocks/tick from the known movement
+DebugEntryPlayerSpeed.display	inline	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_entry_lines	Speed: %.3f blocks/tick from the known movement
 DebugEntryPosition.display	port	crates/sunrise-client/src/debug_overlay.rs::position	XYZ, block, chunk and facing lines
-DebugEntryPostEffects.display	inline	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_entry_lines	the applied post effect chain
+DebugEntryPostEffects.display	inline	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_entry_lines	the applied post effect chain
 DebugEntrySectionPosition.display	port	crates/sunrise-client/src/debug_overlay.rs::position	section-relative line
 DebugEntrySoundCache.display	inline	crates/sunrise-client/src/debug_overlay.rs::sound_cache_line	the decoded buffers and their size
 DebugEntrySoundMood.display	inline	crates/sunrise-client/src/debug_overlay.rs::sound_mood_line	the used channels and the mood
-DebugEntrySpawnCounts.display	inline	crates/sunrise-client/src/game/interface/debug_lines.rs::Game::debug_entry_lines	the server thread's spawn counts
-DebugEntrySystemSpecs.getCpuInfo	port	crates/sunrise-client/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	CPU name line
-DebugEntrySystemSpecs.display	port	crates/sunrise-client/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	gap: minor: no Java version line; CPU, display, window and GPU lines are drawn
-DebugEntrySystemSpecs.typeName	port	crates/sunrise-client/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	GPU type suffix (iGPU, dGPU, vGPU, software)
-DebugEntryTps.display	port	crates/sunrise-client/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	integrated or remote server line: tick ms against target, sprinting or frozen, tx and rx
+DebugEntrySpawnCounts.display	inline	crates/sunrise-client-gameplay/src/game/interface/debug_lines_client.rs::Game::debug_entry_lines	the server thread's spawn counts
+DebugEntrySystemSpecs.getCpuInfo	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	CPU name line
+DebugEntrySystemSpecs.display	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	gap: minor: no Java version line; CPU, display, window and GPU lines are drawn
+DebugEntrySystemSpecs.typeName	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	GPU type suffix (iGPU, dGPU, vGPU, software)
+DebugEntryTps.display	port	crates/sunrise-client-gameplay/src/game/interface/debug_keys.rs::Game::draw_debug_overlay	integrated or remote server line: tick ms against target, sprinting or frozen, tx and rx
 DebugScreenEntries.register	skip:debug		registry of F3 entries; Sunrise's overlay has a fixed profile
 DebugScreenEntryList.load	port	crates/sunrise-client/src/debug_entries.rs::DebugEntries::load	reads debug-profile.json from the game directory at startup; the default profile without a file, and a file that does not parse is reset to it and saved again
 DebugScreenEntryList.setStatus	port	crates/sunrise-client/src/debug_entries.rs::DebugEntries::set_status	the status is custom from then on (profile cleared) and saved; the F3+F6 DebugOptionsScreen writes the Off / In Overlay / Always buttons through it

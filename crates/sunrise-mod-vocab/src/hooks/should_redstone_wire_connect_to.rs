@@ -17,7 +17,7 @@ pub trait Hooks {
         out = "connected",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::should_redstone_wire_connect_to::GameLevel<'_>::native_should_redstone_wire_connect_to",
+        target = "sunrise_gameplay_common::game::native_hooks::should_redstone_wire_connect_to::GameLevel<'_>::native_should_redstone_wire_connect_to",
         neoforge = "none (vanilla BlockBehaviour.shouldRedstoneWireConnectTo; NeoForge adds no event or extension for it)"
     )]
     fn should_redstone_wire_connect_to(

@@ -38,7 +38,7 @@ impl Items {
         let registry = Arc::make_mut(&mut self.component_registry);
         registry.by_registry.insert(
             "minecraft:damage_type".into(),
-            sunrise_client_core::registries::RegistryIds {
+            sunrise_game_data::registries::RegistryIds {
                 ids,
                 tags: catalog.tags().map(str::to_owned).collect(),
             },
@@ -71,7 +71,7 @@ impl Items {
             .by_registry
             .insert(
                 "minecraft:damage_type".into(),
-                sunrise_client_core::registries::RegistryIds { ids, tags: names },
+                sunrise_game_data::registries::RegistryIds { ids, tags: names },
             );
         Arc::make_mut(&mut self.enchantments).damage_tags = tags
             .iter()
@@ -155,10 +155,10 @@ pub(crate) fn component_tables(
     overlay: &PackOverlay,
     source: LoadEntityTags<'_>,
 ) -> Result<(
-    Arc<sunrise_client_core::registries::Registries>,
+    Arc<sunrise_game_data::registries::Registries>,
     Arc<EntityTypeTags>,
 )> {
-    let mut registry = sunrise_client_core::registries::Registries::default();
+    let mut registry = sunrise_game_data::registries::Registries::default();
     let path = root.join("command-registries.json");
     if path.exists() {
         registry.fill_from_export(&serde_json::from_slice(&fs::read(path)?)?);
@@ -211,7 +211,7 @@ pub(crate) fn component_tables(
     registry.damage_types.clear();
     registry.by_registry.insert(
         "minecraft:damage_type".into(),
-        sunrise_client_core::registries::RegistryIds::default(),
+        sunrise_game_data::registries::RegistryIds::default(),
     );
     Ok((Arc::new(registry), entity_type_tags))
 }

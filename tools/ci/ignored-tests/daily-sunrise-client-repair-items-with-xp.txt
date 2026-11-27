@@ -1,1 +1,1 @@
-sunrise-client game::native_player_food::tests::repairing_with_experience_returns_what_mending_leaves lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_food_server::tests::repairing_with_experience_returns_what_mending_leaves lib daily resources

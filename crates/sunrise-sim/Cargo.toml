@@ -1,0 +1,73 @@
+[package]
+name = "sunrise-sim"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Portable simulation engines (entities, mobs, motion, health, crafting, menus, saves, worldgen, LAN); no desktop or GPU stack"
+
+[dependencies]
+sunrise-assets = { path = "../sunrise-assets" }
+sunrise-bench = { path = "../sunrise-bench" }
+sunrise-border = { path = "../sunrise-border" }
+sunrise-game-data = { path = "../sunrise-game-data" }
+sunrise-command = { path = "../sunrise-command" }
+sunrise-core = { path = "../sunrise-core" }
+sunrise-items = { path = "../sunrise-items" }
+sunrise-java-properties = { path = "../sunrise-java-properties" }
+sunrise-level = { path = "../sunrise-level" }
+sunrise-mod-api-macros = { path = "../sunrise-mod-api-macros" }
+sunrise-mod-package = { path = "../sunrise-mod-package", default-features = false }
+sunrise-mod-runtime = { path = "../sunrise-mod-runtime" }
+mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab" }
+sunrise-perf-format = { path = "../sunrise-perf-format" }
+sunrise-protocol = { path = "../sunrise-protocol" }
+sunrise-system = { path = "../sunrise-system" }
+sunrise-threads = { path = "../sunrise-threads" }
+sunrise-world = { path = "../sunrise-world" }
+sunrise-server-files = { path = "../sunrise-server-files" }
+chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"] }
+flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs", "runtime_detection"] }
+fs4 = { version = "1.1.0", default-features = false, features = ["sync"] }
+getrandom = "0.3"
+glam = "0.30"
+log = "0.4"
+mio = { version = "1.2.4", features = ["os-poll", "net"] }
+rayon = "1.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["raw_value"] }
+sha1 = "0.10"
+sha2 = "0.10.9"
+xxhash-rust = { version = "0.8.19", features = ["xxh3"] }
+zip = { version = "9.1.3", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "time", "process", "fs"] }
+
+[features]
+test-support = []
+test-menu-validity = []
+test-payload-probe = []
+test-publication-scope = []
+test-residency-observer = []
+test-dry-side = []
+# `FixedStep::still_for_tests`: a clock with SUNRISE_STILL on, for game fixtures only.
+test-still-clock = []
+test-mob-kind = []
+tracker-send-bench = []
+rng-trace = ["sunrise-core/rng-trace"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+mod_platform = { package = "sunrise-mod-api", path = "../sunrise-mod-api", features = ["testing"] }
+mod_api = { package = "sunrise-mod-vocab", path = "../sunrise-mod-vocab", features = ["testing"] }
+sunrise-items = { path = "../sunrise-items", features = ["test-support"] }
+sunrise-game-data = { path = "../sunrise-game-data", features = ["test-effect-registry"] }
+sunrise-world = { path = "../sunrise-world", features = ["test-support"] }
+png = "0.18"
+sunrise-level = { path = "../sunrise-level", features = ["test-support"] }
+sunrise-perf = { path = "../sunrise-perf" }
+sunrise-threads = { path = "../sunrise-threads", features = ["test-allocation-probe", "test-game-dir"] }

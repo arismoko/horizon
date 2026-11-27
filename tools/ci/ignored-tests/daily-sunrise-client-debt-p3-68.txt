@@ -1,3 +1,3 @@
-sunrise-client game::lan_crafting::furnace_take_tests::client_prediction_fires_item_smelted_with_client_host_and_no_xp lib daily resources
-sunrise-client game::lan_crafting::furnace_take_tests::pickup_awards_xp_before_item_smelted_and_keeps_cooking_separate lib daily resources
-sunrise-client game::lan_crafting::furnace_take_tests::quick_move_fires_item_smelted_once_and_swap_awards_xp_without_event lib daily resources
+sunrise-client-gameplay game::furnace_take_tests_client::client_prediction_fires_item_smelted_with_client_host_and_no_xp lib daily resources
+sunrise-gameplay game::server_side::lan_crafting::furnace_take_tests_server::pickup_awards_xp_before_item_smelted_and_keeps_cooking_separate lib daily resources
+sunrise-gameplay game::server_side::lan_crafting::furnace_take_tests_server::quick_move_fires_item_smelted_once_and_swap_awards_xp_without_event lib daily resources

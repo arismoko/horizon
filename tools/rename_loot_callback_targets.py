@@ -7,7 +7,7 @@ PATHS = [
     "crates/sunrise-world/src/loot.rs",
     "crates/sunrise-world/tests/native_load_hooks.rs",
     "crates/sunrise-items/src/items.rs",
-    "crates/sunrise-client/src/game/native_hooks/shared.rs",
+    "crates/sunrise-gameplay-common/src/game/native_hooks/shared.rs",
 ]
 
 for name in PATHS:

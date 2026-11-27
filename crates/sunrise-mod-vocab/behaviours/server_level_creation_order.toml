@@ -1,3 +1,3 @@
 version = 1
 doc = "`method:Levels::list_levels` lists the Overworld first, then the configured levels in registry traversal, then later runtime opens. A swap does not reorder levels, and eligible ticks, full saves and shutdown follow creation order."
-tests = ["crates/sunrise-client/src/game/world/server_lifecycle/server_lifecycle_tests.rs::datapack_dimensions_open_prepare_save_and_close_in_creation_order"]
+tests = ["crates/sunrise-gameplay/src/game/world/server_lifecycle/fixtures.rs::datapack_dimensions_open_prepare_save_and_close_in_creation_order"]

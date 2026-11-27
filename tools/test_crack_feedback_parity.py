@@ -31,8 +31,8 @@ def main():
     report.unlink(missing_ok=True)
     (build / 'rust.json').unlink(missing_ok=True)
     sources = [lab.ROOT / path for path in (
-        'crates/sunrise-client/src/game/network/lan_actions/mod.rs',
-        'crates/sunrise-client/src/game/network/lan_actions/tests/crack_feedback_tests.rs',
+        'crates/sunrise-gameplay-common/src/game/network/lan_actions/mod.rs',
+        'crates/sunrise-client/src/cut_layout/game/network/lan_actions/tests/crack_feedback_tests.rs',
         'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaCrackFeedbackOracle.java',
         'tools/test_crack_feedback_parity.py')]
     hashes = base.source_hashes(sources)

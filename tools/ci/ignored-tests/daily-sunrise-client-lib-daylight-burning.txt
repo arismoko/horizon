@@ -1,1 +1,1 @@
-sunrise-client-lib mobs::template_mob_tests::sunlight_ignition_follows_entity_type_tags lib daily resources
+sunrise-sim mobs::template_mob_tests::sunlight_ignition_follows_entity_type_tags lib daily resources

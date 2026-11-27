@@ -2,5 +2,5 @@ version = 1
 handle = "handle:LevelRef::explosion_destroy_blocks"
 doc = "LevelRef::explosion_destroy_blocks reads the block positions a blast would destroy after the explosion_detonate edits: a listener's removals spare blocks, additions and duplicates reach the block operation in the edited list's order before the later shuffle."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_explosion_destroy_tests.rs::a_detonate_listener_edits_reorders_and_adds_positions",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_explosion_destroy_tests.rs::a_detonate_listener_edits_reorders_and_adds_positions",
 ]

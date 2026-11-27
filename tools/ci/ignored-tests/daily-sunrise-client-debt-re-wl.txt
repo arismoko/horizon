@@ -1,1 +1,1 @@
-sunrise-client game::server_lifecycle::tests::a_world_saved_panic_discards_only_its_listeners_journal lib daily child-process
+sunrise-gameplay game::server_side::server_lifecycle_fixtures::a_world_saved_panic_discards_only_its_listeners_journal lib daily child-process

@@ -202,7 +202,7 @@ def main():
              'turn the player: the real LocalPlayer.applyInput moves xBob and yBob, the hands\' lag behind the view.')
     harness.differential(
         'rust-first-person-parity', 'VanillaFirstPersonOracle', 'first_person_probe', make_cases, scope,
-        sources=[lab.ROOT / 'crates/sunrise-client/src/first_person.rs', lab.ROOT / 'crates/sunrise-client/src/attack_strength.rs',
+        sources=[lab.ROOT / 'crates/sunrise-client/src/first_person.rs', lab.ROOT / 'crates/sunrise-sim/src/attack_strength.rs',
                  lab.ROOT / 'crates/sunrise-client-render/src/camera.rs',
                  lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/ParityData.java'])
 

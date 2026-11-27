@@ -1,1 +1,1 @@
-sunrise-client game::runtime_levels_tests::a_runtime_checkerboard_resolves_tags_before_admission_and_uses_their_biomes lib daily child-process
+sunrise-client cut_layout::game::server_side::runtime_levels_tests::a_runtime_checkerboard_resolves_tags_before_admission_and_uses_their_biomes lib daily child-process

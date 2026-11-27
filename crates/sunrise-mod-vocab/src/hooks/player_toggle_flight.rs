@@ -12,7 +12,7 @@ pub trait Hooks {
     /// client asks for is heard: not the flight a game-mode change starts or
     /// ends (`/gamemode`), and not a LAN host's own player.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_toggle_flight",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_toggle_flight",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

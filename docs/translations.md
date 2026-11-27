@@ -10,7 +10,7 @@ no difference: the mark lives in a file the game and the launcher never read.
 
 | | Files | Keys | Read by |
 |---|---|---|---|
-| Game | `crates/sunrise-client/assets/sunrise/lang/<code>.json` (`fr_fr`, `de_de`...) | `sunrise.options.foo` style; `en_us.json` is the reference | `crates/sunrise-client-core/src/lang.rs` (`Text::tr`, `lang::get`); a missing key falls back to English |
+| Game | `crates/sunrise-client/assets/sunrise/lang/<code>.json` (`fr_fr`, `de_de`...) | `sunrise.options.foo` style; `en_us.json` is the reference | `crates/sunrise-game-data/src/lang.rs` (`Text::tr`, `lang::get`); a missing key falls back to English |
 | A crate's own text | `crates/<name>/assets/lang/<code>.json`, the same shape | the crate's own keys, never one of the engine's | the same, once the crate registers them ([layers.md](layers.md#lang-files-sunrise_platformlang)) |
 | Launcher | `lang/<code>.json` in [sunrise-launcher](https://github.com/sunrise-org/sunrise-launcher) (`fr`, `de`, `pt-br`...) | the English sentence itself | `src/i18n.rs` there (`tr("…")`, `trf("… {arg} …")`) |
 | Review record | `tools/lang_review/game/<code>.json`, `tools/lang_review/<crate name>/<code>.json` | the same keys, with the text a person checked | `tools/lang_coverage.py` only |

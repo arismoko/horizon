@@ -1,1 +1,1 @@
-sunrise-client game::native_menus::tests::refused_swap_resends_the_menu_and_undisplayed_hotbar lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::tests::refused_swap_resends_the_menu_and_undisplayed_hotbar lib daily resources

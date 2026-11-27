@@ -1,2 +1,2 @@
 # Daily row for #5132: a client reads #piglin_loved from the server's tags.
-sunrise-client game::humanoid_setup_anim::piglin_loved_tests::a_client_reads_piglin_loved_from_the_servers_tags lib daily resources
+sunrise-client-gameplay game::client_side::humanoid_setup_anim::piglin_loved_tests::a_client_reads_piglin_loved_from_the_servers_tags lib daily resources

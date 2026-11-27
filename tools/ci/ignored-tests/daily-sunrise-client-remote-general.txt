@@ -1,2 +1,2 @@
-sunrise-client game::attachment_sync::general_snapshot_tests::a_general_row_always_has_a_first_snapshot_holding_what_it_holds_now lib daily resources
-sunrise-client game::remote::general::tests::the_window_keeps_moves_and_drops_the_rows_it_is_shown lib daily resources
+sunrise-client cut_layout::game::server_side::attachment_sync::general_snapshot_tests::a_general_row_always_has_a_first_snapshot_holding_what_it_holds_now lib daily resources
+sunrise-client cut_layout::game::remote::general::tests::the_window_keeps_moves_and_drops_the_rows_it_is_shown lib daily resources

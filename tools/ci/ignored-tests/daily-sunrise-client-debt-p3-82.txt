@@ -1,2 +1,2 @@
-sunrise-client game::native_feature_types::tests::a_panicking_feature_preserves_its_work_and_disables_only_its_registration lib daily child-process
-sunrise-client game::native_structure_types::tests::piece_and_after_place_panics_poison_only_their_operation_with_toast_notices lib daily child-process
+sunrise-gameplay-common game::native_feature_types::tests::a_panicking_feature_preserves_its_work_and_disables_only_its_registration lib daily child-process
+sunrise-gameplay-common game::native_structure_types::tests::piece_and_after_place_panics_poison_only_their_operation_with_toast_notices lib daily child-process

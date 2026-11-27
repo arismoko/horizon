@@ -1,1 +1,1 @@
-sunrise-client game::native_block_entity_refs::quiet_write_tests::a_quiet_write_marks_the_chunk_and_waits_for_sync lib daily child-process
+sunrise-client cut_layout::game::quiet_write_tests::a_quiet_write_marks_the_chunk_and_waits_for_sync lib daily child-process

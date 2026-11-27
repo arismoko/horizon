@@ -410,6 +410,61 @@ class DependencyPathTests(unittest.TestCase):
             self.assertEqual(records, {"local": record, "empty": {"dependencies": []}})
             self.assertEqual((local.read_bytes(), shared.read_bytes()), before)
 
+    def test_fixture_fallback_selects_and_runs_past_old_and_incomplete_passes(self):
+        with tempfile.TemporaryDirectory() as temp, mock.patch.object(parity, "ROOT", Path(temp)), \
+                mock.patch.object(parity, "SHARED", Path(temp, "shared")), \
+                mock.patch.object(parity, "STATE_DIR", Path(temp, "state")):
+            root = Path(temp)
+            marker = root / "crates/sunrise-mod-api-gen/source-layout"
+            marker.parent.mkdir(parents=True)
+            marker.write_text("split")
+            owners = ["fixture-common", "fixture-server", "fixture-client"]
+            paths = {owner: f"crates/{owner}/src/lib.rs" for owner in owners}
+            dispatcher = "crates/sunrise-parity-fixtures/src/main.rs"
+            for path in (*paths.values(), dispatcher):
+                (root / path).parent.mkdir(parents=True)
+                (root / path).write_text("fn run() {}")
+            mapping = root / parity.FIXTURE_ROOTS
+            mapping.parent.mkdir(parents=True)
+            roles = {
+                "lean": {"packages": owners[:2], "dispatcher": dispatcher, "inputs": [],
+                         "fixtures": {"legacy::serve": paths["fixture-server"]}},
+                "client-defaults": {"packages": owners, "dispatcher": dispatcher, "inputs": [],
+                                    "fixtures": {"legacy::render": paths["fixture-client"]}},
+            }
+            mapping.write_text(json.dumps({"version": parity.FIXTURE_RECORD_VERSION, "variants": roles}))
+            found = {name: root / f"tools/test_{name}.py" for name in roles}
+            hasher = lambda path: path.read_text() if path.is_file() else "missing"
+            records = {}
+            for variant, suffix, selector in (("lean", "no-default-features", "legacy::serve"),
+                                              ("client-defaults", "client-defaults", "legacy::render")):
+                record = {"status": "pass", "fixture_record_version": parity.FIXTURE_RECORD_VERSION,
+                          "fixture_ownership": True, "fixture_runs": parity.fixture_runs([
+                              [f"sunrise-parity-fixtures-{suffix}", selector, "--exact"],
+                          ]), "dependencies": [], "artifacts": []}
+                coverage = parity.fixture_coverage(record, roles)
+                self.assertIn(roles[variant]["fixtures"][selector], coverage[1])
+                record["dependencies"] = sorted(parity.fixture_inputs(coverage))
+                record["key"] = parity.key(record, hasher, "fixture")
+                records[variant] = record
+                self.assertFalse(parity.stale(variant, {"harnesses": records}, hasher, "fixture"))
+
+            added = "crates/fixture-common/src/new_mount.rs"
+            (root / added).write_text("pub fn reached_indirectly() {}")
+            self.assertEqual(parity.affected_harnesses(found, records, {added}, reach=False), set(found))
+            for variant in found:
+                self.assertTrue(parity.stale(variant, {"harnesses": records}, hasher, "fixture"))
+
+            old = {"status": "pass", "dependencies": [paths["fixture-common"]], "artifacts": []}
+            old["key"] = parity.key(old, hasher, "fixture")
+            parity.publish("lean", old)
+            self.assertTrue(parity.stale("lean", {"harnesses": {}}, hasher, "fixture"))
+            records["lean"] = old
+            self.assertEqual(parity.affected_harnesses(found, records, {added}, reach=False), set(found))
+            client_change = {paths["fixture-client"]}
+            self.assertEqual(parity.affected_harnesses(found, records, client_change, reach=False),
+                             {"client-defaults", "lean"})
+
     def test_changed_probes_and_oracles_accept_legacy_separators(self):
         with tempfile.TemporaryDirectory() as temp, mock.patch.object(parity, "ROOT", Path(temp)):
             found = {"probe": Path(temp, "tools/test_probe_parity.py")}

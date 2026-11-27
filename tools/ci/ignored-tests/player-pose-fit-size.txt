@@ -1,1 +1,1 @@
-sunrise-client game::entity_sizes::tests::pose_fit_uses_the_resolved_crouch_size_including_cloned_motion lib daily resources
+sunrise-gameplay game::server_side::entity_sizes::tests::pose_fit_uses_the_resolved_crouch_size_including_cloned_motion lib daily resources

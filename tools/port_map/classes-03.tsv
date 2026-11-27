@@ -6,41 +6,41 @@ BlockCollisions.computeNext	port	crates/sunrise-world/src/block_collision_scan.r
 BlockCollisions.getChunk	inline	crates/sunrise-world/src/block_collision_scan.rs::BlockCollisionScan::find_next	chunk fetch through collision_chunk inside find_next
 CardinalLighting.byFace	port	crates/sunrise-client-render/src/mesher/lighting.rs::cardinal	per-face directional shade; nether flag handled in the same fn
 ClipContext.getFluidShape	inline	crates/sunrise-world/src/world_ray.rs::clip_world	pick_fluid decides canPick; the shape is clipped in clip_world
-ColorMapColorUtil.get	port	crates/sunrise-client-render/src/biome.rs::sample	colormap lookup by temperature and downfall
-EntityBasedExplosionDamageCalculator.getBlockExplosionResistance	port	crates/sunrise-client/src/game/entities/explosion.rs::Game::exploded_positions	the blast source's own override: one block's resistance is passed in (the respawn anchor's water-like block), a dangerous wither skull caps a destroyable block at 0.8 and a TNT minecart spares rails
-ExplosionDamageCalculator.getEntityDamageAmount	inline	crates/sunrise-client/src/game/entities/explosion.rs::Game::explosion_hurt_entities	damage formula inline; the player copy is in explosion_hurt_player
+ColorMapColorUtil.get	port	crates/sunrise-level/src/biome.rs::sample	colormap lookup by temperature and downfall
+EntityBasedExplosionDamageCalculator.getBlockExplosionResistance	port	crates/sunrise-gameplay/src/game/entities/explosion.rs::Game::exploded_positions	the blast source's own override: one block's resistance is passed in (the respawn anchor's water-like block), a dangerous wither skull caps a destroyable block at 0.8 and a TNT minecart spares rails
+ExplosionDamageCalculator.getEntityDamageAmount	inline	crates/sunrise-gameplay/src/game/entities/explosion.rs::Game::explosion_hurt_entities	damage formula inline; the player copy is in explosion_hurt_player
 LevelSettings.copy	skip:java		immutable record copy; Sunrise keeps level fields on its own struct
-LevelSettings.parse	port	crates/sunrise-client/src/save/level.rs::Level::read	reads difficulty, lock, allowCommands and game type from level.dat
+LevelSettings.parse	port	crates/sunrise-sim/src/save/level.rs::Level::read	reads difficulty, lock, allowCommands and game type from level.dat
 LevelSettings.withAllowCommands	skip:java		immutable record builder
 LevelSettings.withDataConfiguration	skip:java		immutable record builder
 LevelSettings.withDifficulty	skip:java		immutable record builder
 LevelSettings.withDifficultyLock	skip:java		immutable record builder
 LevelSettings.withGameType	skip:java		immutable record builder
 PathNavigationRegion	skip:other		pathfinding reads the live level (mobs/path.rs); no region snapshot is built
-SimpleExplosionDamageCalculator.getBlockExplosionResistance	inline	crates/sunrise-client/src/game/interface/wind.rs::Game::wind_positions	gap: minor: only the wind charge tag stops the rays; enchantment immune_blocks are not read
-SimpleExplosionDamageCalculator.getKnockbackMultiplier	inline	crates/sunrise-client/src/game/interface/wind.rs::Game::wind_push_player	creative-flying zero is here; the enchantment multiplier is in post_attack_bursts (enchant_effects.rs)
+SimpleExplosionDamageCalculator.getBlockExplosionResistance	inline	crates/sunrise-gameplay/src/game/interface/wind.rs::Game::wind_positions	gap: minor: only the wind charge tag stops the rays; enchantment immune_blocks are not read
+SimpleExplosionDamageCalculator.getKnockbackMultiplier	inline	crates/sunrise-gameplay/src/game/interface/wind.rs::Game::wind_push_player	creative-flying zero is here; the enchantment multiplier is in post_attack_bursts (enchant_effects.rs)
 TicketStorage.activateAllDeactivatedTickets	skip:other		no deactivated-ticket state; ticket_levels.rs recomputes from players and forced chunks
-TicketStorage.addTicket	port	crates/sunrise-client/src/ticket_levels.rs::ChunkTickets::add_portal	the PORTAL ticket `Entity.placePortalTicket` adds: same type and level restarts the 300-tick timeout (`Ticket.resetTicksLeft`), else the ticket is added
-TicketStorage.addTicketWithRadius	inline	crates/sunrise-client/src/ticket_levels.rs::compute	the two radius adds: `addTicketWithRadius(PORTAL, pos, 3)` (level `FULL - 3`) and `addTicketWithRadius(DRAGON, new ChunkPos(0, 0), 9)` (level `FULL - 9`, while the fight's boss bar has a player; `Game::update_chunk_tickets` sets the source)
+TicketStorage.addTicket	port	crates/sunrise-sim/src/ticket_levels.rs::ChunkTickets::add_portal	the PORTAL ticket `Entity.placePortalTicket` adds: same type and level restarts the 300-tick timeout (`Ticket.resetTicksLeft`), else the ticket is added
+TicketStorage.addTicketWithRadius	inline	crates/sunrise-sim/src/ticket_levels.rs::compute	the two radius adds: `addTicketWithRadius(PORTAL, pos, 3)` (level `FULL - 3`) and `addTicketWithRadius(DRAGON, new ChunkPos(0, 0), 9)` (level `FULL - 9`, while the fight's boss bar has a player; `Game::update_chunk_tickets` sets the source)
 TicketStorage.canTicketExpire	skip:other		ticket expiry is not modelled; no timed tickets in ticket_levels.rs
 TicketStorage.deactivateTicketsOnClosing	skip:other		chunk-unload bookkeeping; no per-ticket state
 TicketStorage.forEachTicket	skip:other		iteration over stored tickets; ticket_levels.rs walks its own sources
 TicketStorage.fromPacked	skip:other		saved tickets are not read; Sunrise does not save chunk tickets
 TicketStorage.getAllChunksWithTicketThat	skip:other		query over stored tickets; ticket_levels.rs answers per chunk
-TicketStorage.getLowestTicket	port	crates/sunrise-client/src/ticket_levels.rs::Map::get	gap: minor: lowest level from the player, forced, PORTAL and dragon-fight arena sources; no saved tickets
+TicketStorage.getLowestTicket	port	crates/sunrise-sim/src/ticket_levels.rs::Map::get	gap: minor: lowest level from the player, forced, PORTAL and dragon-fight arena sources; no saved tickets
 TicketStorage.getOrCreateTickets	skip:java		per-chunk cache of tickets
 TicketStorage.getTicketDebugString	skip:debug		debug text
-TicketStorage.getTicketLevelAt	port	crates/sunrise-client/src/ticket_levels.rs::Map::get	gap: minor: levels from the player, forced, PORTAL and dragon-fight arena sources; no saved tickets
+TicketStorage.getTicketLevelAt	port	crates/sunrise-sim/src/ticket_levels.rs::Map::get	gap: minor: levels from the player, forced, PORTAL and dragon-fight arena sources; no saved tickets
 TicketStorage.isTicketSameTypeAndLevel	skip:other		compares stored tickets; Sunrise stores none, levels come from ticket_levels.rs
 TicketStorage.packTickets	skip:other		saves stored tickets; Sunrise saves forced chunks as their own file (save.rs save_forced_chunks)
-TicketStorage.purgeStaleTickets	port	crates/sunrise-client/src/ticket_levels.rs::ChunkTickets::tick_portal	the timed tickets are the PORTAL ones (`PORTAL_TIMEOUT` 300 ticks, dropped a tick later as `TicketType.PORTAL` does)
-TicketStorage.removeTicket	inline	crates/sunrise-client/src/game/administration/commands/terrain_cmds.rs::Game::cmd_forceload	gap: minor: only the forced-chunk path; portal and teleport tickets are not modelled
+TicketStorage.purgeStaleTickets	port	crates/sunrise-sim/src/ticket_levels.rs::ChunkTickets::tick_portal	the timed tickets are the PORTAL ones (`PORTAL_TIMEOUT` 300 ticks, dropped a tick later as `TicketType.PORTAL` does)
+TicketStorage.removeTicket	inline	crates/sunrise-gameplay/src/game/administration/commands/terrain_cmds.rs::Game::cmd_forceload	gap: minor: only the forced-chunk path; portal and teleport tickets are not modelled
 TicketStorage.removeTicketIf	skip:other		predicate removal over stored tickets; forced chunks are changed by cmd_forceload
-TicketStorage.removeTicketWithRadius	port	crates/sunrise-client/src/ticket_levels.rs::ChunkTickets::update	the levels are rebuilt from the sources each tick, so the fight's arena ticket is held only while `EnderDragonFight.tick` reports a watcher (`Game::update_chunk_tickets` clears the source, which is the removal of the radius-9 DRAGON ticket)
+TicketStorage.removeTicketWithRadius	port	crates/sunrise-sim/src/ticket_levels.rs::ChunkTickets::update	the levels are rebuilt from the sources each tick, so the fight's arena ticket is held only while `EnderDragonFight.tick` reports a watcher (`Game::update_chunk_tickets` clears the source, which is the removal of the radius-9 DRAGON ticket)
 TicketStorage.replaceTicketLevelOfType	skip:other		re-levels stored tickets; ticket_levels.rs computes levels from positions
-TicketStorage.shouldKeepDimensionActive	port	crates/sunrise-client/src/game/world/levels.rs::Game::levels_to_tick	a dimension with a portal ticket keeps ticking with no player in it
-TicketStorage.updateChunkForced	inline	crates/sunrise-client/src/game/administration/commands/terrain_cmds.rs::Game::cmd_forceload	the per-chunk add or remove of a forced chunk
-TicketStorage.updateForcedChunks	inline	crates/sunrise-client/src/save/dir.rs::SaveDir::load_forced_chunks	gap: minor: restores the saved forced set on load; no forced-chunk packet is sent here
+TicketStorage.shouldKeepDimensionActive	port	crates/sunrise-gameplay/src/game/world/levels.rs::Game::levels_to_tick	a dimension with a portal ticket keeps ticking with no player in it
+TicketStorage.updateChunkForced	inline	crates/sunrise-gameplay/src/game/administration/commands/terrain_cmds.rs::Game::cmd_forceload	the per-chunk add or remove of a forced chunk
+TicketStorage.updateForcedChunks	inline	crates/sunrise-sim/src/save/dir.rs::SaveDir::load_forced_chunks	gap: minor: restores the saved forced set on load; no forced-chunk packet is sent here
 BiomeSpecialEffects.Builder.build	skip:java		builder for biome effects; Sunrise reads the effects from biome data (biome.rs)
 CheckerboardColumnBiomeSource.getNoiseBiome	port	crates/sunrise-world/src/worldgen/biome_source.rs::CheckerboardBiomeSource::noise_biome	checkerboard column pick
 FeatureSorter.buildFeaturesPerStep	port	crates/sunrise-world/src/worldgen/feature_sort.rs::build_features_per_step
@@ -53,7 +53,7 @@ TheEndBiomeSource.collectPossibleBiomes	skip:java		the five End biomes are field
 TheEndBiomeSource.create	skip:java		factory; the End source is built from the dimension data
 TheEndBiomeSource.getNoiseBiome	port	crates/sunrise-world/src/worldgen/biome_source.rs::EndBiomeSource::noise_biome	central circle, then erosion bands
 AbstractFurnaceBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
-AbstractFurnaceBlock.createFurnaceTicker	port	crates/sunrise-client/src/game/blocks/block_entity_ticks.rs::Game::tick_furnace	furnace ticker
+AbstractFurnaceBlock.createFurnaceTicker	port	crates/sunrise-gameplay/src/game/blocks/block_entity_ticks_server.rs::Game::tick_furnace	furnace ticker
 AbstractFurnaceBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate
 AmethystBlock	home	crates/sunrise-client/src/game/mobs/creatures/mod.rs	onProjectileHit: `amethyst_projectile_hit` plays the chime for every projectile that hits the block (arrows included, through `projectile_hit`)
 AmethystClusterBlock.canSurvive	port	crates/sunrise-world/src/level/survive.rs::Sim::can_survive_class
@@ -62,7 +62,7 @@ AmethystClusterBlock.getFluidState	port	crates/sunrise-world/src/registry_fluid.
 AmethystClusterBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class
 AmethystClusterBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate
 AmethystClusterBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class
-AttachedStemBlock.getCloneItemStack	port	crates/sunrise-client/src/game/blocks/block_items.rs::clone_item	an attached pumpkin or melon stem picks its seed, since a stem has no block item
+AttachedStemBlock.getCloneItemStack	port	crates/sunrise-gameplay-common/src/game/blocks/block_items.rs::clone_item	an attached pumpkin or melon stem picks its seed, since a stem has no block item
 AttachedStemBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate
 AttachedStemBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class
 AzaleaBlock.isBonemealSuccess	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::bonemeal_success
@@ -103,7 +103,7 @@ BlastFurnaceBlock.openContainer	port	crates/sunrise-world/src/level/interact.rs:
 BonemealableFeaturePlacerBlock.performBonemeal	port	crates/sunrise-world/src/level/bonemeal.rs::Behaviours::place_feature	places the configured feature
 BrewingStandBlock.animateTick	port	crates/sunrise-client/src/animate_tick.rs::block_animate_tick	brewing bubbles
 BrewingStandBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
-BrewingStandBlock.getTicker	port	crates/sunrise-client-render/src/brewing.rs::BrewingStand::brew	the stand's brewing step
+BrewingStandBlock.getTicker	port	crates/sunrise-level/src/brewing.rs::BrewingStand::brew	the stand's brewing step
 BuddingAmethystBlock.randomTick	port	crates/sunrise-world/src/level/tick.rs::Sim::budding_amethyst_tick
 BushBlock.performBonemeal	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::perform_bonemeal
 CactusFlowerBlock.mayPlaceOn	port	crates/sunrise-world/src/level/survive.rs::Sim::may_place_on
@@ -179,7 +179,7 @@ FenceGateBlock.getShape	skip:data		block shape is a per-state table from the van
 FenceGateBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class
 FenceGateBlock.isPathfindable	skip:data		path types come from the per-state path data (mobs/path.rs)
 FenceGateBlock.neighborChanged	port	crates/sunrise-world/src/level/redstone.rs::Sim::gate_neighbor_changed
-FenceGateBlock.onExplosionHit	port	crates/sunrise-client/src/game/interface/wind.rs::Game::wind_trigger_block	ticked in #3516; `FenceGateBlock.onExplosionHit` is cited at crates/sunrise-client/src/game/interface/wind.rs:555 (in a comment, so `where` names the enclosing fn)
+FenceGateBlock.onExplosionHit	port	crates/sunrise-gameplay/src/game/interface/wind.rs::Game::wind_trigger_block	ticked in #3516; `FenceGateBlock.onExplosionHit` is cited at crates/sunrise-client/src/game/interface/wind.rs:555 (in a comment, so `where` names the enclosing fn)
 FenceGateBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class
 FenceGateBlock.useWithoutItem	port	crates/sunrise-world/src/level/interact.rs::Sim::use_without_item
 FireflyBushBlock.performBonemeal	port	crates/sunrise-world/src/level/bonemeal.rs::Sim::perform_bonemeal
@@ -189,7 +189,7 @@ FlowerBedBlock.performBonemeal	port	crates/sunrise-world/src/level/bonemeal.rs::
 FlowerBedBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate
 FlowerBlock.makeEffectList	skip:data		the constructor sites' effects are the table in sunrise-items/src/flowers.rs (floor(seconds * 20))
 FrogspawnBlock.mayPlaceOn	port	crates/sunrise-world/src/level/survive.rs::Sim::frogspawn_may_place_on
-FrogspawnBlock.spawnTadpoles	port	crates/sunrise-client/src/game.rs::Game::process_level_events	handles the hatch block event: 2 to 5 tadpoles
+FrogspawnBlock.spawnTadpoles	port	crates/sunrise-gameplay/src/game/game_server.rs::Game::server_process_level_events	handles the hatch block event: 2 to 5 tadpoles
 FrogspawnBlock.tick	port	crates/sunrise-world/src/level/tick.rs::Sim::tick_block
 FrogspawnBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class
 FrostedIceBlock.fewerNeigboursThan	port	crates/sunrise-world/src/level/hooks.rs::Sim::frosted_ice_fewer_neighbours_than
@@ -215,7 +215,7 @@ HeavyCoreBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs
 HeavyCoreBlock.updateShape	port	crates/sunrise-world/src/level/shapes.rs::Sim::update_shape_class
 HopperBlock.checkPoweredState	port	crates/sunrise-world/src/level/redstone.rs::Sim::hopper_check_powered
 HopperBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
-HopperBlock.entityInside	inline	crates/sunrise-client/src/game/blocks/machines/mod.rs::Game::suck_item_entities	gap: minor: the hopper pulls item entities every tick, not on contact
+HopperBlock.entityInside	inline	crates/sunrise-gameplay/src/game/blocks/machines/mod.rs::Game::suck_item_entities	gap: minor: the hopper pulls item entities every tick, not on contact
 HopperBlock.getStateForPlacement	port	crates/sunrise-world/src/level/place.rs::Sim::placement_class
 HopperBlock.makeShapes	skip:java		builds the VoxelShape arrays; shapes are data
 HopperBlock.onPlace	port	crates/sunrise-world/src/level/hooks.rs::Sim::on_place
@@ -243,9 +243,9 @@ LeafLitterBlock.canBeReplaced	port	crates/sunrise-world/src/level/place.rs::Sim:
 LeafLitterBlock.canSurvive	port	crates/sunrise-world/src/level/survive.rs::Sim::can_survive_class
 LeafLitterBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
 LeafLitterBlock.rotate	port	crates/sunrise-world/src/worldgen/structure.rs::StateTransforms::rotate
-LilyPadBlock.entityInside	port	crates/sunrise-client/src/game.rs::GameLevel::boat_trigger_boxes	ticked in #3516; `LilyPadBlock.entityInside` is cited at crates/sunrise-client/src/game.rs:878
+LilyPadBlock.entityInside	port	crates/sunrise-gameplay-common/src/game.rs::GameLevel::boat_trigger_boxes	ticked in #3516; `LilyPadBlock.entityInside` is cited at crates/sunrise-client/src/game.rs:878
 LilyPadBlock.mayPlaceOn	port	crates/sunrise-world/src/level/survive.rs::Sim::may_place_on
-MagmaBlock.stepOn	port	crates/sunrise-client/src/mobs/ai.rs::effects_from_blocks	a mob on the ground on magma takes the hot-floor point; the player's is in motion.rs
+MagmaBlock.stepOn	port	crates/sunrise-sim/src/mobs/ai.rs::effects_from_blocks	a mob on the ground on magma takes the hot-floor point; the player's is in motion.rs
 MangrovePropaguleBlock.canSurvive	port	crates/sunrise-world/src/level/survive.rs::Sim::can_survive_class
 MangrovePropaguleBlock.createBlockStateDefinition	skip:data		block state definition is data (blocks table in sunrise-items)
 MangrovePropaguleBlock.createNewHangingPropagule	inline	crates/sunrise-world/src/level/bonemeal.rs::Sim::perform_bonemeal	hanging state set when a propagule grows down

@@ -7,16 +7,17 @@ use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-use sunrise_telemetry::payload::{Crash, Display, Perf, Settings, System, Timings};
-use sunrise_telemetry::scrub::Scrubber;
+use sunrise_telemetry::payload::{Display, Perf, Settings, System, Timings};
+#[path = "crash_retention.rs"]
+mod crash_retention;
 use sunrise_telemetry::{Item, Payload, Source, outbox};
+
+#[path = "benchmark_retention.rs"]
+mod benchmark_retention;
+pub use benchmark_retention::{keep_benchmark, version};
 
 /// A session shorter than this says too little to keep.
 const MIN_SECONDS: f32 = 60.0;
-
-/// The details of a crash report that say what the game was doing, and only those: not the
-/// world, the server or the resource packs.
-const CRASH_DETAILS: [&str; 3] = ["Sunrise Version", "Graphics Adapter", "Render Settings"];
 
 static STARTED: OnceLock<Instant> = OnceLock::new();
 /// The screen the window opened on.
@@ -69,82 +70,12 @@ pub fn system() -> System {
     system
 }
 
-/// The release (`v0.2.3`), or the client's crate version for a build from source.
-pub fn version() -> String {
-    crate::crash::release_tag().unwrap_or_else(|| format!("dev {}", env!("CARGO_PKG_VERSION")))
-}
-
-/// What a crash report becomes when it may leave: the error and stack, the thread, and the
-/// details in [`CRASH_DETAILS`], with the world's name and folder and the server's address
-/// scrubbed wherever they appear. No log lines.
 pub fn crash_item(report: &crate::crash::Report) -> Item {
-    let mut scrubber = Scrubber::new();
-    for (key, value) in &report.details {
-        match key.as_str() {
-            // `Name (saves/folder)`, as game.rs sets it.
-            "World" => {
-                let (name, folder) = value.rsplit_once(" (saves/").unwrap_or((value, ""));
-                scrubber = scrubber.term(name).term(folder.trim_end_matches(')'));
-            }
-            "Server" => {
-                let host = value.rsplit_once(':').map_or(value.as_str(), |(h, _)| h);
-                scrubber = scrubber.term(value.as_str()).term(host);
-            }
-            _ => {}
-        }
-    }
-    let crash = Crash {
-        system: system(),
-        error: scrubber.scrub(&report.error),
-        stack: scrubber.scrub(&report.stack),
-        thread: report.thread.clone(),
-        details: report
-            .details
-            .iter()
-            .filter(|(k, _)| CRASH_DETAILS.contains(&k.as_str()))
-            .map(|(k, v)| (k.clone(), scrubber.scrub(v)))
-            .collect(),
-    };
-    let mut item = Item::new(Source::Game, version(), Payload::Crash(crash));
-    // A huge stack keeps its top, where the error is.
-    while item.validate().is_err() {
-        let Payload::Crash(crash) = &mut item.payload else {
-            break;
-        };
-        let keep = crash.stack.lines().count() * 3 / 4;
-        if keep == 0 {
-            crash.stack.clear();
-            break;
-        }
-        crash.stack = crash
-            .stack
-            .lines()
-            .take(keep)
-            .map(|l| format!("{l}\n"))
-            .collect();
-    }
-    item
+    crash_retention::crash_item(report, system, version)
 }
 
-/// Keeps the crash for the launcher to send, if the player allows crash reports.
 pub fn keep_crash(home: &Path, report: &crate::crash::Report) {
-    if let Err(e) = outbox::push(home, &crash_item(report)) {
-        log::warn!("Sunrise: could not keep the crash report to send: {e}");
-    }
-}
-
-/// Keeps a benchmark report (`--benchmark`) for the launcher to send, if the player allows
-/// benchmark uploads: the report as docs/benchmark-report.md defines it, dated to the day.
-pub fn keep_benchmark(home: &Path, report: &sunrise_bench::Report) {
-    let Ok(data) = serde_json::to_value(report.for_upload()) else {
-        return;
-    };
-    if let Err(e) = outbox::push(
-        home,
-        &Item::new(Source::Game, version(), Payload::Benchmark(data)),
-    ) {
-        log::warn!("Sunrise: could not keep the benchmark report to send: {e}");
-    }
+    crash_retention::keep_crash(home, report, system, version);
 }
 
 /// One play session's performance, from entering a world to leaving it: frame and tick

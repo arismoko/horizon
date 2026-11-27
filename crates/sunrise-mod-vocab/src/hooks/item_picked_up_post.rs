@@ -15,7 +15,7 @@ pub trait Hooks {
     /// `item_picked_up` changes none of this. A creative player always takes
     /// the whole stack. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::item_picked_up::Game<'_>::native_item_picked_up_post",
+        target = "sunrise_gameplay::game::native_hooks::item_picked_up::ServerGame<'_>::native_item_picked_up_post",
         dispatch = "flat",
         side = "server",
         contract = "listen",

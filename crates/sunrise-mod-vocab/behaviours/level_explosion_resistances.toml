@@ -2,6 +2,6 @@ version = 1
 handle = "handle:LevelRef::explosion_resistances"
 doc = "LevelRef::explosion_resistances answers each requested cell in call order (y after z after x for a box) using the calculator the blast's rays use, without a synthetic cell cap."
 tests = [
-    "crates/sunrise-client/src/game/modding/native_explosion_resistance_tests.rs::a_batched_read_answers_each_cell_in_order",
-    "crates/sunrise-client/src/game/modding/native_explosion_resistance_tests.rs::a_reads_calculator_is_the_one_the_blasts_rays_use",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_explosion_resistance_tests.rs::a_batched_read_answers_each_cell_in_order",
+    "crates/sunrise-client/src/cut_layout/game/modding/native_explosion_resistance_tests.rs::a_reads_calculator_is_the_one_the_blasts_rays_use",
 ]

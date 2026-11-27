@@ -1,1 +1,1 @@
-sunrise-client game::damage_item_tests::a_mod_wears_a_stack_nobody_holds_as_vanilla_does lib daily resources
+sunrise-client cut_layout::game::server_side::damage_item_tests::a_mod_wears_a_stack_nobody_holds_as_vanilla_does lib daily resources

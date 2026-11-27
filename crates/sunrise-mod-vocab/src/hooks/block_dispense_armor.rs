@@ -6,7 +6,7 @@ pub trait Hooks {
     /// The equip, item consumption, sound and game event have completed.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_block_dispense_armor",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_block_dispense_armor",
         dispatch = "flat",
         side = "server",
         contract = "listen",

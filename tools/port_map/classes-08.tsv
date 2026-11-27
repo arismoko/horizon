@@ -14,39 +14,39 @@ RedstoneWireEvaluator.getWireSignal	port	crates/sunrise-world/src/level/redstone
 SavedDataType	skip:java		equals over the saved-data type record; Sunrise keys saved data by name
 WanderingTraderData.setSpawnChance	inline	crates/sunrise-gameplay/src/wandering_trader.rs::Spawner::due	field write of spawn_chance inside the countdown; no setter
 WanderingTraderData.setSpawnDelay	inline	crates/sunrise-gameplay/src/wandering_trader.rs::Spawner::due	field write of spawn_delay inside the countdown; no setter
-MapBanner.fromWorld	port	crates/sunrise-client/src/game/blocks/banners.rs::Game::map_banner_at	ticked in #3517; `MapBanner.fromWorld` is cited at crates/sunrise-client/src/game/blocks/banners.rs:19
-MapBanner.getDecoration	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::MapBanner::sprite	ticked in #3517; `MapBanner.getDecoration` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:50
-MapBanner.getId	inline	crates/sunrise-client/src/game/blocks/maps/mod.rs::toggle_banner	a banner marker is filed under Key::Banner(pos): the id as an enum key, so the map keeps one marker per banner
+MapBanner.fromWorld	port	crates/sunrise-gameplay/src/game/blocks/banners_server.rs::Game::map_banner_at	ticked in #3517; `MapBanner.fromWorld` is cited at crates/sunrise-client/src/game/blocks/banners.rs:19
+MapBanner.getDecoration	port	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::MapBanner::sprite	ticked in #3517; `MapBanner.getDecoration` is cited at crates/sunrise-client/src/game/blocks/maps/mod.rs:50
+MapBanner.getId	inline	crates/sunrise-gameplay-common/src/game/blocks/maps/data.rs::toggle_banner	a banner marker is filed under Key::Banner(pos): the id as an enum key, so the map keeps one marker per banner
 MapDecorationTypes	skip:data		registry of map decoration types; maps.rs keeps its own DECORATION_TYPES table
 MapId.addToTooltip	port	crates/sunrise-client/src/item_tooltip.rs::PlayerHeadName::map_id_lines	ticked in #3517; `MapId.addToTooltip` is cited at crates/sunrise-client/src/item_tooltip.rs:412
-MapIndex.getNextMapId	port	crates/sunrise-client/src/game/blocks/maps/mod.rs::Game::next_map_id
+MapIndex.getNextMapId	port	crates/sunrise-gameplay/src/game/blocks/maps/mod.rs::ServerGame::new_map_id
 DerivedLevelData	skip:debug		crash report category
 LevelData	skip:debug		crash report category
-LevelStorageSource.createAccess	port	crates/sunrise-client/src/save/session.rs::SessionLock::acquire	gap: minor: takes the folder's session lock; there is no separate access object
+LevelStorageSource.createAccess	port	crates/sunrise-sim/src/save/session.rs::SessionLock::acquire	gap: minor: takes the folder's session lock; there is no separate access object
 LevelStorageSource.createDefault	skip:java		factory for the source with its symlink validator
-LevelStorageSource.findLevelCandidates	inline	crates/sunrise-client/src/save/worlds.rs::list_worlds	folders with a regular level.dat or level.dat_old, whether or not the data can be read
-LevelStorageSource.getFileModificationTime	inline	crates/sunrise-client/src/save/worlds.rs::list_worlds	level.dat mtime, used when LastPlayed is absent
-LevelStorageSource.getLevelDataAndDimensions	port	crates/sunrise-client/src/save/level.rs::Level::read	gap: minor: reads level.dat; dimension and world-gen registry setup happen elsewhere
+LevelStorageSource.findLevelCandidates	inline	crates/sunrise-sim/src/save/worlds.rs::list_worlds	folders with a regular level.dat or level.dat_old, whether or not the data can be read
+LevelStorageSource.getFileModificationTime	inline	crates/sunrise-sim/src/save/worlds.rs::list_worlds	level.dat mtime, used when LastPlayed is absent
+LevelStorageSource.getLevelDataAndDimensions	port	crates/sunrise-sim/src/save/level.rs::Level::read	gap: minor: reads level.dat; dimension and world-gen registry setup happen elsewhere
 LevelStorageSource.isNewLevelIdAcceptable	port	crates/sunrise-client/src/title.rs::Title::target_folder	gap: minor: sanitises the name and picks a free folder instead of rejecting it
 LevelStorageSource.levelExists	inline	crates/sunrise-client/src/title.rs::Title::target_folder	folder-exists check
-LevelStorageSource.loadLevelSummaries	port	crates/sunrise-client/src/save/worlds.rs::list_worlds
-LevelStorageSource.makeLevelSummary	inline	crates/sunrise-client/src/save/worlds.rs::list_worlds	per-folder name, version, mode and last played
-LevelStorageSource.parseFeatureFlagsFromSummary	port	crates/sunrise-client/src/save/level.rs::Level::read_summary	the summary read goes through read_root, which parses WorldDataConfiguration's enabled_features; gap: minor: the world list still shows no experimental marker for them
+LevelStorageSource.loadLevelSummaries	port	crates/sunrise-sim/src/save/worlds.rs::list_worlds
+LevelStorageSource.makeLevelSummary	inline	crates/sunrise-sim/src/save/worlds.rs::list_worlds	per-folder name, version, mode and last played
+LevelStorageSource.parseFeatureFlagsFromSummary	port	crates/sunrise-sim/src/save/level.rs::Level::read_summary	the summary read goes through read_root, which parses WorldDataConfiguration's enabled_features; gap: minor: the world list still shows no experimental marker for them
 LevelStorageSource.parseValidator	skip:other		symlink allow-list (allowed_symlinks.txt); Sunrise does not read that file
-LevelStorageSource.readDataConfig	port	crates/sunrise-client/src/save/level.rs::Level::read	DataPacks and enabled_features are read with the level (data_packs, enabled_features), and datapack::enabled_ids layers the world's own packs over the bundle with them
-LevelSummary.backupStatus	inline	crates/sunrise-client/src/save/worlds.rs::WorldEntry::should_backup	FILE_FIXING_REQUIRED when the world needs its files fixed or comes from a newer version; UPGRADE_TO_SNAPSHOT never applies to a stable build
-LevelSummary.compareTo	inline	crates/sunrise-client/src/save/worlds.rs::list_worlds	newest first by last played
+LevelStorageSource.readDataConfig	port	crates/sunrise-sim/src/save/level.rs::Level::read	DataPacks and enabled_features are read with the level (data_packs, enabled_features), and datapack::enabled_ids layers the world's own packs over the bundle with them
+LevelSummary.backupStatus	inline	crates/sunrise-sim/src/save/worlds.rs::WorldEntry::should_backup	FILE_FIXING_REQUIRED when the world needs its files fixed or comes from a newer version; UPGRADE_TO_SNAPSHOT never applies to a stable build
+LevelSummary.compareTo	inline	crates/sunrise-sim/src/save/worlds.rs::list_worlds	newest first by last played
 LevelSummary.createInfo	port	crates/sunrise-client/src/title.rs::world_info	locked, incompatible and corrupt rows in red, else the mode (hardcore in red), the commands marker and the version, italic or red when a backup is due
-LevelSummary.getLevelName	inline	crates/sunrise-client/src/save/worlds.rs::list_worlds	WorldEntry.name
-LevelSummary.getWorldVersionName	inline	crates/sunrise-client/src/save/worlds.rs::list_worlds	WorldEntry.version from Version.Name
-LevelSummary.isDisabled	port	crates/sunrise-client/src/save/worlds.rs::WorldEntry::disabled	locked, or saved by another series; primaryActionActive (can_play) and canEdit build on it
-LevelVersion.parse	inline	crates/sunrise-client/src/save/worlds.rs::list_worlds	reads Version.Name only
-PrimaryLevelData.createTag	port	crates/sunrise-client/src/save/level.rs::Level::write
-PrimaryLevelData.setModdedInfo	inline	crates/sunrise-client/src/save/level.rs::Level::write	gap: minor: writes WasModded 0 and the brand list; there is no modded save state
-PrimaryLevelData.stringCollectionToTag	inline	crates/sunrise-client/src/save/level.rs::Level::write	ServerBrands and DataPacks lists
-PrimaryLevelData.writeLastPlayed	inline	crates/sunrise-client/src/save/level.rs::Level::write	LastPlayed
-PrimaryLevelData.writeVersionHistory	inline	crates/sunrise-client/src/save/level.rs::Level::write	version_history
-PrimaryLevelData.writeVersionTag	inline	crates/sunrise-client/src/save/level.rs::Level::write	Version compound
+LevelSummary.getLevelName	inline	crates/sunrise-sim/src/save/worlds.rs::list_worlds	WorldEntry.name
+LevelSummary.getWorldVersionName	inline	crates/sunrise-sim/src/save/worlds.rs::list_worlds	WorldEntry.version from Version.Name
+LevelSummary.isDisabled	port	crates/sunrise-sim/src/save/worlds.rs::WorldEntry::disabled	locked, or saved by another series; primaryActionActive (can_play) and canEdit build on it
+LevelVersion.parse	inline	crates/sunrise-sim/src/save/worlds.rs::list_worlds	reads Version.Name only
+PrimaryLevelData.createTag	port	crates/sunrise-sim/src/save/level.rs::Level::write
+PrimaryLevelData.setModdedInfo	inline	crates/sunrise-sim/src/save/level.rs::Level::write	gap: minor: writes WasModded 0 and the brand list; there is no modded save state
+PrimaryLevelData.stringCollectionToTag	inline	crates/sunrise-sim/src/save/level.rs::Level::write	ServerBrands and DataPacks lists
+PrimaryLevelData.writeLastPlayed	inline	crates/sunrise-sim/src/save/level.rs::Level::write	LastPlayed
+PrimaryLevelData.writeVersionHistory	inline	crates/sunrise-sim/src/save/level.rs::Level::write	version_history
+PrimaryLevelData.writeVersionTag	inline	crates/sunrise-sim/src/save/level.rs::Level::write	Version compound
 ServerLevelData	skip:debug		crash report category
 TagValueInput	skip:java		NBT read helpers; Sunrise reads Tag values directly
 TagValueInput.CompoundListWrapper	skip:java		NBT list wrapper; Sunrise reads Tag values directly
@@ -70,7 +70,7 @@ IntRangePredicate.Line.validate	skip:data		validation at datapack load
 LootContextArg.ArgCodecBuilder	skip:java		codec builders for context arguments
 LootContextArg.Getter.get	skip:java		codec getter for a context argument
 LootDataType	skip:data		validation of loot data at datapack load
-LootParams.addDynamicDrops	port	crates/sunrise-client/src/game/blocks/spill.rs::Pending::dynamic	gap: minor: decorated pot sherds only; shulker contents are attached by Pending::attach
+LootParams.addDynamicDrops	port	crates/sunrise-gameplay-common/src/game/blocks/spill_common.rs::Pending::dynamic	gap: minor: decorated pot sherds only; shulker contents are attached by Pending::attach
 LootParams.Builder	skip:java		builder for loot params
 Validatable	skip:data		validation at datapack load
 ValidationContext	skip:data		validation at datapack load
@@ -149,6 +149,6 @@ SetLoreFunction.updateLore	inline	crates/sunrise-world/src/loot.rs::list_operati
 SetLoreFunction.getReferencedContextParams	skip:data		validation of referenced context params
 SetLoreFunction.Builder	skip:java		builder
 SetOminousBottleAmplifierFunction.run	port	crates/sunrise-world/src/loot.rs::Context::run	set_ominous_bottle_amplifier arm
-SetRandomDyesFunction.run	port	crates/sunrise-client/src/merchant.rs::Trades::apply_modifier	set_random_dyes arm
-SetRandomPotionFunction.run	port	crates/sunrise-client/src/merchant.rs::Trades::apply_modifier	set_random_potion arm
+SetRandomDyesFunction.run	port	crates/sunrise-sim/src/merchant.rs::Trades::apply_modifier	set_random_dyes arm
+SetRandomPotionFunction.run	port	crates/sunrise-sim/src/merchant.rs::Trades::apply_modifier	set_random_potion arm
 SetStewEffectFunction.run	port	crates/sunrise-world/src/loot.rs::Context::run	set_stew_effect arm

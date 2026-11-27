@@ -26,7 +26,7 @@ pub trait Hooks {
         side = "server",
         contract = "listen",
         neoforge = "none (NeoForge has no such event)",
-        target = "sunrise_client::game::native_hooks::fluid_passage::GameLevel<'_>::native_fluid_passage"
+        target = "sunrise_gameplay_common::game::native_hooks::fluid_passage::GameLevel<'_>::native_fluid_passage"
     )]
     fn fluid_passage(
         dimension: LevelDimension,

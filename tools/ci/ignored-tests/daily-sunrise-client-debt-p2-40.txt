@@ -1,3 +1,3 @@
-sunrise-client game::explosion::tests::explosion_loot_merges_and_joins_without_block_drops lib daily resources
-sunrise-client game::explosion::tests::mob_breaks_apply_block_drops lib daily resources
-sunrise-client game::spill::tests::disabled_block_drops_draw_offsets_without_constructing_items lib daily resources
+sunrise-gameplay game::server_side::explosion::tests::explosion_loot_merges_and_joins_without_block_drops lib daily resources
+sunrise-gameplay game::server_side::explosion::tests::mob_breaks_apply_block_drops lib daily resources
+sunrise-gameplay game::server_side::spill::tests::disabled_block_drops_draw_offsets_without_constructing_items lib daily resources

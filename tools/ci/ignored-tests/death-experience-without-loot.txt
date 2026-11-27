@@ -1,2 +1,2 @@
 # A real game death uses prepared resources and an isolated child process.
-sunrise-client game::creatures::death_weapon::tests::a_player_credited_death_drops_experience_without_a_loot_snapshot lib daily child-process
+sunrise-client cut_layout::game::server_side::creatures_server::death_weapon::tests::a_player_credited_death_drops_experience_without_a_loot_snapshot lib daily child-process

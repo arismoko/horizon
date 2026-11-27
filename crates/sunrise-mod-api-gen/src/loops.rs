@@ -34,9 +34,15 @@ impl PublishedLoop {
 
 /// The game's published loops, from the source at `root`, by name.
 pub fn collect(root: &Path) -> Result<Vec<PublishedLoop>, String> {
-    let src = root.join("crates/sunrise-client/src");
+    collect_with_layout(root, crate::SourceLayout::read(root)?)
+}
+
+pub(crate) fn collect_with_layout(
+    root: &Path,
+    layout: crate::source::SourceLayout,
+) -> Result<Vec<PublishedLoop>, String> {
     let mut loops = Vec::new();
-    for file in crate::source::game_files(&src, false)? {
+    for file in layout.files(root, false)? {
         let text = std::fs::read_to_string(&file.path)
             .map_err(|e| format!("{}: {e}", file.path.display()))?;
         if !text.contains("sunrise_loop") {

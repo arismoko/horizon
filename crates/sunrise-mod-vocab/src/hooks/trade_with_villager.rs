@@ -14,7 +14,7 @@ pub trait Hooks {
     /// to any player's inventory, cursor or menu storage makes the take stale.
     #[notes = "NeoForge's TradeWithVillagerEvent at MerchantResultSlot.onTake. This non-cancellable collect receives the post-take offer for each trade, with the acting player swapped in. Accepted offer edits affect the next iteration and reach the client's menu snapshot on commit; observing alone keeps the usual offer-refresh timing. MerchantRef edits and menu replacements that conflict with the active click are refused."]
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_trade_with_villager",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_trade_with_villager",
         dispatch = "direct",
         side = "server",
         contract = "collect",

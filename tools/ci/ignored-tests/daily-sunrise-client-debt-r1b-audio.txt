@@ -1,1 +1,1 @@
-sunrise-client game::server_packs::tests::an_audio_panic_toast_survives_its_mods_hud_veto_but_not_f1 lib daily child-process
+sunrise-client cut_layout::game::client_side::server_packs::tests::an_audio_panic_toast_survives_its_mods_hud_veto_but_not_f1 lib daily child-process

@@ -22,7 +22,7 @@ still crops. Pitcher crops are not `CropBlock`s and are not harvested by this be
 requires a farmer at work and `mob_griefing` enabled."#]
     /// Bare block IDs use the submitting mod ID; valid explicit names retain their namespace.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_blocks",
+        target = "sunrise_gameplay_common::game::native_hooks::base::native_blocks",
         receiver = "associated",
         dispatch = "flat",
         side = "both",

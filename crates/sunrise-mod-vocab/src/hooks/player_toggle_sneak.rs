@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A guest's client changed sneaking in its player input packet, after the hub applied the new state.
     /// The guest's state is swapped in. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_toggle_sneak",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_toggle_sneak",
         dispatch = "flat",
         side = "server",
         contract = "listen",

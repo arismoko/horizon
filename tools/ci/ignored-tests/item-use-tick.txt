@@ -1,7 +1,7 @@
-sunrise-client game::native_living_writes::tests::tick_cancel_and_nonpositive_durations_finish_without_releasing lib daily resources
-sunrise-client game::native_living_writes::tests::a_crossbows_run_out_counter_keeps_decrementing_until_release lib daily resources
-sunrise-client game::native_living_writes::tests::tick_completion_applies_the_finish_listeners_result_stack lib daily resources
-sunrise-client game::native_living_writes::tests::a_zero_start_begins_but_a_cancelled_stop_only_skips_release lib daily resources
-sunrise-client game::native_living_writes::tests::a_tick_replaces_the_remaining_counter_rather_than_the_original_duration lib daily resources
-sunrise-client game::native_living_writes::tests::an_item_part_can_extend_the_last_tick_or_shorten_a_use lib daily resources
-sunrise-client game::remote::item_use_tick_tests::client_tick_cancellation_skips_one_tick_and_countdown_continues lib daily resources
+sunrise-gameplay game::server_side::native_living_writes::tests::tick_cancel_and_nonpositive_durations_finish_without_releasing lib daily resources
+sunrise-gameplay game::server_side::native_living_writes::tests::a_crossbows_run_out_counter_keeps_decrementing_until_release lib daily resources
+sunrise-gameplay game::server_side::native_living_writes::tests::tick_completion_applies_the_finish_listeners_result_stack lib daily resources
+sunrise-gameplay game::server_side::native_living_writes::tests::a_zero_start_begins_but_a_cancelled_stop_only_skips_release lib daily resources
+sunrise-gameplay game::server_side::native_living_writes::tests::a_tick_replaces_the_remaining_counter_rather_than_the_original_duration lib daily resources
+sunrise-gameplay game::server_side::native_living_writes::tests::an_item_part_can_extend_the_last_tick_or_shorten_a_use lib daily resources
+sunrise-client cut_layout::game::remote::item_use_tick_tests::client_tick_cancellation_skips_one_tick_and_countdown_continues lib daily resources

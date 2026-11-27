@@ -1,2 +1,2 @@
-sunrise-client game::dragon::tests::a_hit_on_the_dragon_pushes_by_its_live_knockback_resistance lib daily resources
-sunrise-client game::native_knockback_tests::callable_knockback_reads_resistance_written_this_tick lib daily resources
+sunrise-client cut_layout::game::server_side::dragon::tests::a_hit_on_the_dragon_pushes_by_its_live_knockback_resistance lib daily resources
+sunrise-client cut_layout::game::server_side::native_knockback_tests::callable_knockback_reads_resistance_written_this_tick lib daily resources

@@ -9,7 +9,7 @@ pub trait Hooks {
     /// Does not fire if startup fails before that point; a failed startup still
     /// runs teardown and reaches `server_stopped`.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_server_starting",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_server_starting",
         dispatch = "flat",
         side = "server",
         contract = "listen",

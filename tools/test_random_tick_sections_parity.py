@@ -67,8 +67,8 @@ if __name__ == '__main__':
         'Which sections of a chunk random-tick (block and fluid counts over loads, sets and removals, not the palette) '
         'and the positions tickChunk draws in them, with each position\'s block and fluid random-tick flags. The '
         'blocks\' random-tick behaviour itself is test_random_tick_parity\'s.',
-        sources=[lab.ROOT / 'crates/sunrise-client/src/random_tick_sections.rs',
-                 lab.ROOT / 'crates/sunrise-client-render/src/chunk.rs',
+        sources=[lab.ROOT / 'crates/sunrise-sim/src/random_tick_sections.rs',
+                 lab.ROOT / 'crates/sunrise-level/src/chunk.rs',
                  lab.ROOT / 'crates/sunrise-core/src/paletted.rs',
                  lab.ROOT / 'crates/sunrise-world/src/level/tick.rs',
                  lab.ROOT / 'crates/sunrise-world/src/level/ticks.rs'],

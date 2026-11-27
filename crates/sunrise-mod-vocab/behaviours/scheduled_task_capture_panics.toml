@@ -1,3 +1,3 @@
 version = 1
 doc = "If a capture from ModStateServerHost::schedule_task panics while being dropped by cancel_task or world close, the game logs the panic against the scheduling mod, queues a named error toast for the owning window and disables that mod's delayed callbacks for the session. The caller's cancellation still succeeds and the world finishes closing."
-tests = ["crates/sunrise-client/src/game/modding/native_lifecycle.rs::panicking_scheduled_task_captures_do_not_interrupt_cancellation_or_close"]
+tests = ["crates/sunrise-client/src/cut_layout/game/modding/native_lifecycle.rs::panicking_scheduled_task_captures_do_not_interrupt_cancellation_or_close"]

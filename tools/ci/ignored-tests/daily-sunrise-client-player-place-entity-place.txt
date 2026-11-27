@@ -1,4 +1,4 @@
-sunrise-client game::native_player_place_tests::a_plain_write_before_placement_preserves_the_staged_chest_transfer lib daily child-process
-sunrise-client game::native_player_place_tests::chosen_placement_attributes_the_player_and_rolls_back_on_refusal lib daily child-process
-sunrise-client game::native_player_place_tests::set_placed_by_writes_are_part_of_player_placement lib daily child-process
-sunrise-client game::stateful_block_entity_tests::strict_edit_retires_the_staged_placement_entity_after_its_notification lib daily child-process
+sunrise-client cut_layout::game::native_player_place_tests::a_plain_write_before_placement_preserves_the_staged_chest_transfer lib daily child-process
+sunrise-client cut_layout::game::native_player_place_tests::chosen_placement_attributes_the_player_and_rolls_back_on_refusal lib daily child-process
+sunrise-client cut_layout::game::native_player_place_tests::set_placed_by_writes_are_part_of_player_placement lib daily child-process
+sunrise-client cut_layout::game::stateful_block_entity_tests::strict_edit_retires_the_staged_placement_entity_after_its_notification lib daily child-process

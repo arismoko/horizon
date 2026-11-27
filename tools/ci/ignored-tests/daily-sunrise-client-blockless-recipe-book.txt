@@ -1,2 +1,2 @@
 # The blockless-menu recipe book test builds a client game, which needs prepared resources.
-sunrise-client game::native_hooks::book_screen::lifecycle_tests::a_registered_recipe_book_screen_opens_for_a_blockless_menu lib daily resources
+sunrise-client cut_layout::game::client_side::native_hooks_client::book_screen::lifecycle_tests::a_registered_recipe_book_screen_opens_for_a_blockless_menu lib daily resources

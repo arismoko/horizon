@@ -1,2 +1,2 @@
-sunrise-client game::mods::startup_registration_tests::startup_register_layer_definitions_fails_closed_before_publishing lib daily child-process
-sunrise-client game::mods::startup_registration_tests::startup_register_render_pipelines_rejects_collisions_before_publishing lib daily child-process
+sunrise-client-gameplay game::client_side::mods_client::startup_registration_tests::startup_register_layer_definitions_fails_closed_before_publishing lib daily child-process
+sunrise-client-gameplay game::client_side::mods_client::startup_registration_tests::startup_register_render_pipelines_rejects_collisions_before_publishing lib daily child-process

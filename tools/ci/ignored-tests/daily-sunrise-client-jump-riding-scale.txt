@@ -1,1 +1,1 @@
-sunrise-client game::remote::tests::client_vanilla_reads_tests::the_jump_riding_scale_follows_the_charge_on_a_jumpable_mount lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_vanilla_reads_tests::the_jump_riding_scale_follows_the_charge_on_a_jumpable_mount lib daily resources

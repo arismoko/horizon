@@ -1,1 +1,1 @@
-sunrise-client game::native_lifecycle::tests::a_scheduled_transaction_refusal_rolls_back_without_disabling_later_tasks lib daily child-process
+sunrise-client cut_layout::game::server_side::native_lifecycle::tests::a_scheduled_transaction_refusal_rolls_back_without_disabling_later_tasks lib daily child-process

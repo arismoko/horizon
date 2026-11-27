@@ -12,7 +12,9 @@ use sunrise_client::{
     light::LightTables,
     mesher::MeshTables,
     models,
-    streaming::{ChunkGenerator, Proto, Streaming, WorkerContext},
+    streaming::{
+        ChunkGenerator, ChunkWorkerContext, MeshStreamer, MeshWorkerContext, Proto, WorkerContext,
+    },
     world::World,
 };
 use sunrise_world::{native_load_context::DataLoadOrigin, registry::BlockStateId};
@@ -126,13 +128,13 @@ impl ChunkGenerator for Recorder {
 
 /// The game's part: columns saved when they unload and when the world saves.
 struct Session {
-    streaming: Streaming,
+    streaming: MeshStreamer,
     world: World,
     generator: Arc<Recorder>,
 }
 impl Session {
     fn new(generator: Arc<Recorder>, context: Arc<WorkerContext>) -> Self {
-        let mut streaming = Streaming::new(generator.clone(), context, 3);
+        let mut streaming = MeshStreamer::new(generator.clone(), context, 3);
         streaming.radius = 4;
         Self {
             streaming,
@@ -202,27 +204,31 @@ impl Session {
 fn worker_context(root: &Path) -> Arc<WorkerContext> {
     let assets = Arc::new(Assets::load(root).unwrap());
     let render = Arc::new(
-        assets
-            .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
+        sunrise_client::assets::RenderAssets::load(
+            &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
+        )
+        .unwrap(),
     );
     let facts = BlockFacts::load(root, assets.registry).unwrap();
     let visibility = models::load_visibility(root, assets.registry).unwrap();
     Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
-        light: Arc::new(LightTables::load(root, assets.registry, &facts).unwrap()),
-        biomes: Arc::new(
-            Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
-        ),
-        assets,
-        render: render.clone(),
-        hidden_states: Arc::from([]),
-        part_tables: Default::default(),
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(root, assets.registry, &facts).unwrap()),
+            biomes: Arc::new(
+                Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
+                    root.to_path_buf(),
+                ))
+                .unwrap(),
+            ),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
+            render: render.clone(),
+            hidden_states: Arc::from([]),
+            part_tables: Default::default(),
+        },
     })
 }
 
@@ -317,27 +323,31 @@ fn proto_chunks_are_viewed_once_per_state() {
     };
     let assets = Arc::new(Assets::load(&root).unwrap());
     let render = Arc::new(
-        assets
-            .reload(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
+        sunrise_client::assets::RenderAssets::load(
+            &sunrise_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
+            &assets,
+        )
+        .unwrap(),
     );
     let facts = BlockFacts::load(&root, assets.registry).unwrap();
     let visibility = models::load_visibility(&root, assets.registry).unwrap();
     let context = Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-        biomes: Arc::new(
-            Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
-                root.to_path_buf(),
-            ))
-            .unwrap(),
-        ),
-        assets,
-        render: render.clone(),
-        hidden_states: Arc::from([]),
-        part_tables: Default::default(),
+        chunk: ChunkWorkerContext {
+            light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
+            biomes: Arc::new(
+                Biomes::load(&sunrise_assets::resource_source::ResourceRoot::directory(
+                    root.to_path_buf(),
+                ))
+                .unwrap(),
+            ),
+            assets: assets.clone(),
+        },
+        mesh: MeshWorkerContext {
+            tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility, None).unwrap()),
+            render: render.clone(),
+            hidden_states: Arc::from([]),
+            part_tables: Default::default(),
+        },
     });
     let generator = Arc::new(Recorder::default());
     let mut session = Session::new(generator.clone(), context);

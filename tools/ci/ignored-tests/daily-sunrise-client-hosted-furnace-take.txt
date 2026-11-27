@@ -1,1 +1,1 @@
-sunrise-client game::stacked_on_other_tests::item_part_tests::hosted_furnace_counts_transfers_separately_from_smelted_callbacks lib daily child-process # Uses prepared resources in the isolated host.
+sunrise-gameplay game::stacked_on_other_tests::item_part_tests::hosted_furnace_counts_transfers_separately_from_smelted_callbacks lib daily child-process # Uses prepared resources in the isolated host.

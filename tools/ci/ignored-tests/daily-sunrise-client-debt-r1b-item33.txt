@@ -1,1 +1,1 @@
-sunrise-client game::raids::spawn_placement_tests::spawners_check_registered_placements_for_types_outside_the_mob_table lib daily resources
+sunrise-client cut_layout::game::server_side::raids::spawn_placement_tests::spawners_check_registered_placements_for_types_outside_the_mob_table lib daily resources

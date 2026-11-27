@@ -1,2 +1,2 @@
-sunrise-client-render streaming::tests::redirtying_a_batch_keeps_its_worker_slots_until_the_results_are_consumed lib daily resources
-sunrise-client-render streaming::tests::resend_marker_is_released_by_its_covering_job_while_later_requests_pile_up lib daily resources
+sunrise-level chunk_streamer::tests::redirtying_a_batch_keeps_its_worker_slots_until_the_results_are_consumed lib daily resources
+sunrise-level chunk_streamer::tests::resend_marker_is_released_by_its_covering_job_while_later_requests_pile_up lib daily resources

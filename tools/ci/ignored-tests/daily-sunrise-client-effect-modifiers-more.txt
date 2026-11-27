@@ -1,6 +1,6 @@
 # Daily rows for #1988: a mob's given Jump Boost, Absorption and Invisibility modifiers reach /attribute, the waypoint check and the attribute packet, and a loaded effect's none, with the prepared mob types.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::commands::world_cmds::effect_attribute_tests::a_given_invisibility_hides_a_mobs_waypoint_and_a_loaded_one_does_not lib daily resources
-sunrise-client game::commands::world_cmds::effect_attribute_tests::attribute_reads_the_modifier_a_given_effect_stored_and_none_for_a_loaded_one lib daily resources
-sunrise-client game::commands::world_cmds::effect_attribute_tests::modifier_value_get_finds_a_mods_transient_modifier lib daily resources
-sunrise-client game::lan_attributes::effect_modifier_tests::the_attribute_packet_carries_given_jump_boost_and_absorption_modifiers_once lib daily resources
+sunrise-client cut_layout::game::server_side::commands_server::world_cmds::effect_attribute_tests::a_given_invisibility_hides_a_mobs_waypoint_and_a_loaded_one_does_not lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::effect_attribute_tests::attribute_reads_the_modifier_a_given_effect_stored_and_none_for_a_loaded_one lib daily resources
+sunrise-client cut_layout::game::server_side::commands::world_cmds::effect_attribute_tests::modifier_value_get_finds_a_mods_transient_modifier lib daily resources
+sunrise-client cut_layout::game::server_side::lan_attributes::effect_modifier_tests::the_attribute_packet_carries_given_jump_boost_and_absorption_modifiers_once lib daily resources

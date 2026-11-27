@@ -1,1 +1,1 @@
-sunrise-client game::mod_toasts::tests::client_toasts_share_the_draw_list_and_admit_replacements_before_updating lib daily resources
+sunrise-client cut_layout::game::client_side::mod_toasts::tests::client_toasts_share_the_draw_list_and_admit_replacements_before_updating lib daily resources

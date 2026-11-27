@@ -79,7 +79,7 @@ before returning it: `setPlacedBy` does not recheck its companion cell.
         out = "answer",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::base::LevelView<'_>::native_state_for_placement",
+        target = "sunrise_gameplay_common::game::native_hooks::base::LevelView<'_>::native_state_for_placement",
         neoforge = "none (vanilla Block.getStateForPlacement; NeoForge adds no event or extension for it)"
     )]
     fn state_for_placement(

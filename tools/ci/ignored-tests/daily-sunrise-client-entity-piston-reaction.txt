@@ -1,2 +1,2 @@
-sunrise-client game::general::save_load_tests::a_piston_ignored_general_row_moves_for_a_shulker_lid lib daily resources
-sunrise-client game::native_entity_kind::tests::piston_reaction_and_hanging_class_follow_server_and_client_entities lib daily resources
+sunrise-client cut_layout::game::general::save_load_tests::a_piston_ignored_general_row_moves_for_a_shulker_lid lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_kind::tests::piston_reaction_and_hanging_class_follow_server_and_client_entities lib daily resources

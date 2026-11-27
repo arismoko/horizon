@@ -9,7 +9,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         neoforge = "IBlockExtension.getWeakChanges",
-        target = "sunrise_client::game::native_hooks::block_entity_neighbors::GameLevel<'_>::native_weak_changes"
+        target = "sunrise_gameplay_common::game::native_hooks::block_entity_neighbors::GameLevel<'_>::native_weak_changes"
     )]
     fn weak_changes(
         dimension: LevelDimension,

@@ -258,7 +258,7 @@ impl LootCandidate {
                 if let Some(tag) = self.stack.data().and_then(|d| d.other(base)) {
                     self.names.push((
                         base.to_owned(),
-                        sunrise_client_core::scoreboard::tag_to_json(tag),
+                        sunrise_game_data::scoreboard::tag_to_json(tag),
                     ));
                 }
             }
@@ -569,7 +569,7 @@ impl LootStackEditAccess for LootCandidate {
     }
 
     fn push_name_value(&mut self, id: String, value: Value) {
-        let tag = Some(sunrise_client_core::scoreboard::json_to_tag(&value));
+        let tag = Some(sunrise_game_data::scoreboard::json_to_tag(&value));
         // Names preserve ordered entries; the codec stores the last name for a key.
         let previous = std::mem::take(&mut self.names);
         self.write_typed_component(&id, tag);
@@ -589,10 +589,7 @@ impl LootStackEditAccess for LootCandidate {
             }
         }
         for (id, value) in &names {
-            self.write_typed_component(
-                id,
-                Some(sunrise_client_core::scoreboard::json_to_tag(value)),
-            );
+            self.write_typed_component(id, Some(sunrise_game_data::scoreboard::json_to_tag(value)));
         }
         self.names = names;
     }

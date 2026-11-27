@@ -1,2 +1,2 @@
 # The failed startup recovery regression loads prepared resources in two isolated child processes.
-sunrise-client game::packs::clouds_reload_tests::startup_saves_the_cleared_selection_even_when_a_required_pack_fails lib daily child-process
+sunrise-client cut_layout::game::client_side::packs::clouds_reload_tests::startup_saves_the_cleared_selection_even_when_a_required_pack_fails lib daily child-process

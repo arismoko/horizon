@@ -64,6 +64,7 @@ built-in; panicking in the decoder or per-stack callback disables that mod's cal
 surfaces an error toast. A node type no mod registered is an error naming it: the item definition holding it
 isn't loaded, and the item draws the missing model."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_item_models::native_register_item_models",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

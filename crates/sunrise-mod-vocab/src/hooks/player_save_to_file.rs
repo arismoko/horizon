@@ -14,7 +14,7 @@ pub trait Hooks {
     /// these notifications finish before the first `level_save`; placed players
     /// stay online. A world save before any player joins has no player to save.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_save_to_file",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_save_to_file",
         dispatch = "flat",
         side = "server",
         contract = "listen",

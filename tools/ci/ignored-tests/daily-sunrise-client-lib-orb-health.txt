@@ -1,1 +1,1 @@
-sunrise-client-lib entities::orb_lava_tests::nonpositive_health_orbs_age_in_air_and_take_damage_in_lava lib daily resources
+sunrise-sim entities::orb_lava_tests::nonpositive_health_orbs_age_in_air_and_take_damage_in_lava lib daily resources

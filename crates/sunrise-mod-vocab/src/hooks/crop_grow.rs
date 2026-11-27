@@ -15,7 +15,7 @@ pub trait Hooks {
         side = "server",
         contract = "listen",
         neoforge = "CropGrowEvent.Pre",
-        target = "sunrise_client::game::native_hooks::crop_grow::GameLevel<'_>::native_crop_grow_pre"
+        target = "sunrise_gameplay_common::game::native_hooks::crop_grow::GameLevel<'_>::native_crop_grow_pre"
     )]
     fn crop_grow_pre(
         dimension: LevelDimension,
@@ -36,7 +36,7 @@ pub trait Hooks {
         contract = "listen",
         neoforge = "CropGrowEvent.Post",
         version = 2,
-        target = "sunrise_client::game::native_hooks::crop_grow::GameLevel<'_>::native_crop_grow_post"
+        target = "sunrise_gameplay_common::game::native_hooks::crop_grow::GameLevel<'_>::native_crop_grow_post"
     )]
     fn crop_grow_post(
         dimension: LevelDimension,

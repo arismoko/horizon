@@ -1546,7 +1546,7 @@ pub struct ResolvedItem {
 }
 
 /// All item definitions and the default components of every item.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct ItemModels {
     pub definitions: BTreeMap<String, ClientItem>,
     pub prototypes: Arc<BTreeMap<String, Components>>,

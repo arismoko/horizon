@@ -1,0 +1,17 @@
+use mod_api::EntityRef;
+use sunrise_core::position::BlockPos;
+use sunrise_world::registry::BlockStateId;
+
+/// The hook points. Each does nothing in Sunrise.
+impl crate::game::ServerGame<'_> {
+    /// A minecart passed over a rail with a part for it. The part gets `&mut dyn ServerHost`
+    /// once the cart's batch has ticked, so its writes are not lost to the cart's own tick.
+    pub(in crate::game) fn native_minecart_pass(
+        &mut self,
+        state: BlockStateId,
+        pos: BlockPos,
+        entity: EntityRef,
+    ) {
+        self.fire_minecart_pass(state, pos, entity);
+    }
+}

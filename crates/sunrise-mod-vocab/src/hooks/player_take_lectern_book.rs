@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A server player took the book from a lectern, after the menu and block entity changed. `book`
     /// is the removed item id. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_player_take_lectern_book",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_player_take_lectern_book",
         dispatch = "flat",
         side = "server",
         contract = "listen",

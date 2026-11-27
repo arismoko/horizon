@@ -12,7 +12,7 @@ pub trait Hooks {
         neoforge = "none (NeoForge has no such event)",
         paper = "MoistureChangeEvent",
         cancellable = true,
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_moisture_change"
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_moisture_change"
     )]
     fn moisture_change(
         dimension: LevelDimension,

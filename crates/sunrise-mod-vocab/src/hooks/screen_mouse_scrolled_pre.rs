@@ -21,7 +21,7 @@ pub trait Hooks {
     /// event (including the control socket's `scroll-at`) fires it; a gamepad or
     /// keyboard focus move does not.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_screen_mouse_scrolled_pre",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_screen_mouse_scrolled_pre",
         receiver = "read",
         dispatch = "flat",
         side = "client",

@@ -1,2 +1,2 @@
 # Cached client entity fluid reads (#4697).
-sunrise-client game::native_entity_state::tests::client_fluid_reads_use_cached_local_and_tracked_bodies lib daily resources
+sunrise-client cut_layout::game::server_side::native_entity_state::tests::client_fluid_reads_use_cached_local_and_tracked_bodies lib daily resources

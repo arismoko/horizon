@@ -13,10 +13,10 @@ from tools import lab, test_rust_parity as parity
 
 
 SOURCES = [
-    'crates/sunrise-client/src/game/entities/vehicle_removal_tests.rs',
-    'crates/sunrise-client/src/game/modding/native_entity_remove.rs',
-    'crates/sunrise-client/src/game/modding/native_entity_riding.rs',
-    'crates/sunrise-client/src/game/mobs/creatures/borrowed_tick.rs',
+    'crates/sunrise-client/src/cut_layout/game/entities/vehicle_removal_tests.rs',
+    'crates/sunrise-gameplay/src/game/modding/native_entity_remove.rs',
+    'crates/sunrise-gameplay/src/game/modding/native_entity_riding.rs',
+    'crates/sunrise-gameplay-common/src/game/mobs/creatures/borrowed_tick.rs',
     'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaVehicleRemovalOracle.java',
 ]
 
@@ -44,7 +44,7 @@ def main():
             print('Vanilla removal trace recorded')
             return
         parity.run([lab.parity_fixtures(),
-                    'game::vehicle_removal_tests::mob_removal_order_witness', '--exact', '--ignored'],
+                    'game::server_side::vehicle_removal_tests::mob_removal_order_witness', '--exact', '--ignored'],
                    env=lab.game_env(SUNRISE_TEST_RESOURCES=str(args.resources.resolve()),
                                     SUNRISE_VEHICLE_REMOVAL_TRACE=str(sunrise)))
         count = parity.compare(vanilla, sunrise)

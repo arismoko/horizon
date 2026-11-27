@@ -1,1 +1,1 @@
-sunrise-client game::native_hooks::remove_block_tests::removal_exposes_default_and_honours_the_parts_answer lib daily resources
+sunrise-client cut_layout::game::native_hooks::remove_block_tests::removal_exposes_default_and_honours_the_parts_answer lib daily resources

@@ -8,9 +8,9 @@ folder.
 |---|---|
 | `new <path> --template native [--sunrise <build>]` | Makes a code mod pinned to the current Nightly's build, or the one named, and fetches its SDK. Without `--template` it makes a content mod, which has no SDK. Both templates scaffold [`page.toml` and `page/`](../../how-to/publish.md#your-mods-page) and the [release workflow caller](#release). |
 | `build [--with <path>]…` | Compiles a native mod and its [declared libraries](../../concepts/dependencies.md) against the pinned SDK, then packs only the project into a `.smod` with its [`uses.json`](04-fit.md#usesjson). For content-only mods it just packs the project. If the project has `page.toml`, writes the page and its named images separately to `target/sunrise-mod/<id>.page.tar`. See [`build` for a native mod](#build-for-a-native-mod). |
-| [`release [<version>\|patch\|minor\|major] [--check] [--pull-request]`](#release) | Checks a registered mod, commits the version bump, and pushes the branch and tag. `--check` previews without changing the checkout; `--pull-request` commits on a new `release/<tag>` branch instead. |
+| [`release [<version>\|patch\|minor\|major] [--check] [--pull-request]`](#release) | Checks a mod in a registered repository, commits the version bump, and pushes the branch and tag. `--check` previews without changing the checkout; `--pull-request` commits on a new `release/<tag>` branch instead. |
 | [`release setup`](#release) | Updates only the shared workflow caller and removes old release files. No registration or commit required. |
-| [`collection [--check]`](../../how-to/collections.md) | Checks the registry collection kept in this folder with the registry's rules, pushes it to your fork of sunrise-org/sunrise-mods and prints the link that opens its pull request. Without `collection.toml` it writes one listing the projects registered from this repository. `--check` stops after the checks. |
+| [`collection [--check]`](../../how-to/collections.md) | Checks the registry collection kept in this folder with the registry's rules, pushes it to your fork of sunrise-org/sunrise-mods and prints the link that opens its pull request. Without `collection.toml` it writes one listing this repository's published projects from the signed registry index. `--check` stops after the checks. |
 | `run [--resources <folder>] [--jars <dir>] [--with <path>]… [-- <game args>]` | For a native mod, builds, stages the game with the mod and its libraries in `target/sunrise-mod/run/` and starts it. |
 | `check [--uses] [--with <path>]…` | Checks the package rules and each [render pipeline shader](../../how-to/client/render-pipelines.md). For a native mod it then type-checks through the same SDK route and with the same libraries as `build`, without packaging or linking mod binaries, and reports what the project uses of its pinned build. `--uses` lists each item with the line that brought it in, and how the mod builds each struct it builds with a literal. [Page problems](../../how-to/publish.md#your-mods-page) are reported without failing the check. Only pages that select categories fetch the registry's list; if the list is unavailable, category IDs and their kinds cannot be checked. |
 | `check [<file.smod>] --build <name> [--build <name>]…` | Reports fit for each named build instead of running the ordinary check. Takes no other options. Name the build `nightly` to check the current Nightly. Exits 0 when all fit, 1 when one does not fit, and 2 when fit cannot be judged. |
@@ -73,7 +73,7 @@ for the default store, `--jars <dir>` and the development home requirements.
 
 ## `release`
 
-Run from a registered mod's package folder with a clean Git working tree and `origin` pointing at GitHub.
+Run from a mod's package folder in a registered repository with a clean Git working tree and `origin` pointing at GitHub.
 The default version bump is `patch`. The version must increase and its tag must not already exist, either
 locally or on `origin`. A root package gets `v<version>` and `.github/workflows/sunrise-release.yml`; a
 subfolder package gets `<id>/v<version>` and `.github/workflows/sunrise-release-<id>.yml`. A native release
@@ -159,7 +159,7 @@ or declarations. A mod with no declared internals needs no catalogs to update. Q
 Rust lifetimes or other shell metacharacters, for example:
 
 ```sh
-cargo sunrise-mod internals add 'sunrise_client::game::Game' "sunrise_client::game::maps::Game<'_>::dimension_id"
+cargo sunrise-mod internals add 'sunrise_gameplay::game::ServerGame' "sunrise_gameplay::game::server_side::maps_server::ServerGame<'_>::dimension_id"
 cargo sunrise-mod internals sync
 cargo sunrise-mod pin
 ```

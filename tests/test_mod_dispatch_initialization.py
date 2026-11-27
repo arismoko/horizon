@@ -34,7 +34,8 @@ def violations(root):
     failures = []
     for crate in ('sunrise-mod-api', 'sunrise-mod-host',
                   'sunrise-mod-render', 'sunrise-client',
-                  'sunrise-client-lib'):
+                  'sunrise-client-lib', 'sunrise-gameplay-common',
+                  'sunrise-gameplay', 'sunrise-client-gameplay'):
         for path in (root / 'crates' / crate).rglob('*.rs'):
             relative = path.relative_to(root).as_posix()
             source = path.read_text()
@@ -48,7 +49,7 @@ def violations(root):
             for name, body in bodies:
                 dispatch = DISPATCH.search(body)
                 # This fixture constructs a Game through with_game_at first.
-                game_fixture = relative == 'crates/sunrise-client/src/game/blocks/cauldron_interactions/tests.rs' and 'fixture(' in body
+                game_fixture = relative == 'crates/sunrise-client/src/cut_layout/game/blocks/cauldron_interactions/tests.rs' and 'fixture(' in body
                 if dispatch and not game_fixture and not READY.search(body[:dispatch.start()]):
                     failures.append(f'{relative}:{name}: initialize before mod dispatch')
     return failures

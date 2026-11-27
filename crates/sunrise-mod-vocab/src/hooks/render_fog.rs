@@ -5,7 +5,7 @@ pub trait Hooks {
     /// option, before upload. Title panoramas skip it. Invalid color or distance values retain the
     /// original whole fog.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_render_fog",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_render_fog",
         receiver = "read",
         dispatch = "flat",
         side = "client",

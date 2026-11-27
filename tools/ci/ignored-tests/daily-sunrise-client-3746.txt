@@ -1,2 +1,2 @@
-sunrise-client game::general::save_load_tests::a_general_rider_fills_a_chest_boat_and_keeps_it_from_being_pushed lib daily resources
-sunrise-client game::general::save_load_tests::a_general_rider_keeps_minecart_drag_and_pickup_occupied lib daily resources
+sunrise-client cut_layout::game::general::save_load_tests::a_general_rider_fills_a_chest_boat_and_keeps_it_from_being_pushed lib daily resources
+sunrise-client cut_layout::game::general::save_load_tests::a_general_rider_keeps_minecart_drag_and_pickup_occupied lib daily resources

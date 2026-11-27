@@ -24,7 +24,7 @@ pub trait Hooks {
     /// rule is on. Set `canceled` to leave the clock where it is; the players wake
     /// and weather resets as usual either way. This is the only wake-up clock event.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_sleep_finished_time",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_sleep_finished_time",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

@@ -1,3 +1,3 @@
 # Daily rows for #4473: a content mod effect's declared modifier reaches the attribute packet as the entity's other modifiers do, with the prepared mob types.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::lan_attributes::effect_modifier_tests::a_declared_baby_modifier_replaces_the_bonus_in_the_packet lib daily resources
+sunrise-client cut_layout::game::server_side::lan_attributes::effect_modifier_tests::a_declared_baby_modifier_replaces_the_bonus_in_the_packet lib daily resources

@@ -1,2 +1,2 @@
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::creatures::projectile_block_effects_tests::fire_lava_and_water_reach_a_projectile_in_its_tick lib daily resources
+sunrise-gameplay game::server_side::creatures_server::projectile_block_effects_tests::fire_lava_and_water_reach_a_projectile_in_its_tick lib daily resources

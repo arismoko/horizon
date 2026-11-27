@@ -3,12 +3,12 @@
 //! data.
 use serde_json::Value;
 use std::path::PathBuf;
-use sunrise_client::{
+use sunrise_game_data::scoreboard::json_to_tag;
+use sunrise_level::{
     biome::{BiomeColors, Biomes},
     chunk::LevelShapes,
-    lan::data::{BIOME_REGISTRY, SyncData, client_biomes},
-    scoreboard::json_to_tag,
 };
+use sunrise_sim::lan::data::{BIOME_REGISTRY, SyncData, client_biomes};
 
 /// Removes the folder when the test ends, passed or not.
 struct Scratch(PathBuf);
@@ -66,7 +66,7 @@ fn a_pack_biome_is_sent_with_its_data_and_read_back_by_a_client() {
         ])
         .unwrap();
     let defaults = sunrise_world::item_defaults::read(&root).unwrap();
-    let items = sunrise_client::items::Items::catalog(
+    let items = sunrise_items::items::Items::catalog(
         &root,
         &sunrise_world::loot::PackOverlay::NONE,
         &defaults,
@@ -77,7 +77,7 @@ fn a_pack_biome_is_sent_with_its_data_and_read_back_by_a_client() {
         &sunrise_world::loot::PackOverlay::NONE,
         Some(&world),
         &defaults,
-        &sunrise_client::crafting::ResolvedSources::load(
+        &sunrise_sim::crafting::ResolvedSources::load(
             &root,
             &items,
             &sunrise_world::loot::PackOverlay::NONE,
@@ -255,9 +255,9 @@ fn wire_load_without_a_world_table_uses_only_prepared_vanilla_biomes() {
     )];
     let overlay = PackOverlay::new(&files);
     let defaults = sunrise_world::item_defaults::read(&root).unwrap();
-    let items = sunrise_client::items::Items::catalog(&root, &overlay, &defaults).unwrap();
+    let items = sunrise_items::items::Items::catalog(&root, &overlay, &defaults).unwrap();
     let sources =
-        sunrise_client::crafting::ResolvedSources::load(&root, &items, &overlay, &server_load())
+        sunrise_sim::crafting::ResolvedSources::load(&root, &items, &overlay, &server_load())
             .unwrap();
     let wire = SyncData::load(&root, &overlay, &defaults, &sources).unwrap();
     let network_biomes = wire
@@ -336,7 +336,7 @@ fn a_biome_the_mods_modifiers_changed_is_sent_to_a_client_that_knows_the_vanilla
     )
     .unwrap();
     let defaults = sunrise_world::item_defaults::read(&root).unwrap();
-    let items = sunrise_client::items::Items::catalog(
+    let items = sunrise_items::items::Items::catalog(
         &root,
         &sunrise_world::loot::PackOverlay::NONE,
         &defaults,
@@ -352,7 +352,7 @@ fn a_biome_the_mods_modifiers_changed_is_sent_to_a_client_that_knows_the_vanilla
             .unwrap(),
         ),
         &defaults,
-        &sunrise_client::crafting::ResolvedSources::load(
+        &sunrise_sim::crafting::ResolvedSources::load(
             &root,
             &items,
             &sunrise_world::loot::PackOverlay::NONE,

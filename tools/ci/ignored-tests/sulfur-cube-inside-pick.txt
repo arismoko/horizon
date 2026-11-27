@@ -1,1 +1,1 @@
-sunrise-client game::pick_accumulator::tests::a_sulfur_cube_holding_a_block_is_not_picked_from_inside lib daily resources
+sunrise-client cut_layout::game::client_side::pick_accumulator::tests::a_sulfur_cube_holding_a_block_is_not_picked_from_inside lib daily resources

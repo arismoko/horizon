@@ -1,1 +1,1 @@
-sunrise-client game::server_travel::respawn_tests::a_forced_spawnpoint_on_a_respawn_anchor_still_depletes_with_its_sound lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::respawn_tests::a_forced_spawnpoint_on_a_respawn_anchor_still_depletes_with_its_sound lib daily resources

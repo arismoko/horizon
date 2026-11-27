@@ -1,1 +1,1 @@
-sunrise-client game::native_general_renderers_tests::a_synced_field_larger_than_the_old_render_cap_reaches_submit lib daily child-process
+sunrise-client cut_layout::game::client_side::native_general_renderers_tests::a_synced_field_larger_than_the_old_render_cap_reaches_submit lib daily child-process

@@ -13,7 +13,22 @@ impl<'ast> Callee<'ast> {
     pub(super) fn from_expr(expr: &'ast Expr) -> Option<Self> {
         match expr {
             Expr::MethodCall(call) => Some(Self::Method(&call.method)),
-            Expr::Call(call) => Some(Self::Function(function_path(&call.func)?)),
+            Expr::Call(call) => {
+                let Expr::Path(path) = ungroup(&call.func) else {
+                    return None;
+                };
+                if let Some(qualified) = &path.qself
+                    && (qualified.as_token.is_none()
+                        || qualified.position + 1 != path.path.segments.len()
+                        || !matches!(&*qualified.ty, syn::Type::Path(ty) if ty.path.is_ident("Self"))
+                        || !call.args.first().is_some_and(|arg| {
+                            matches!(ungroup(arg), Expr::Path(expr) if expr.path.is_ident("self"))
+                        }))
+                {
+                    return None;
+                }
+                Some(Self::Function(&path.path))
+            }
             _ => None,
         }
     }
@@ -212,9 +227,10 @@ impl<'b, 'ast, F: FnMut(&syn::Path, usize, &[&UseTree]) -> bool> Calls<'b, 'ast,
     }
 
     fn helper_runs(&mut self, path: &syn::Path, argument: usize) -> bool {
-        // The engine's collision adapter uses crash::contain, which runs the closure under
-        // catch_unwind. That standard-library edge has no function body in the source index.
-        if path_is(path, "sunrise_client::crash::contain") {
+        // The crash boundary invokes its closure through a standard-library body outside the index.
+        if path_is(path, "sunrise_client::crash::contain")
+            || path_is(path, "sunrise_level::crash::contain")
+        {
             return argument == 0;
         }
         if let Some(helper) = self.local_function(path) {
@@ -451,10 +467,36 @@ impl<'b, 'i, 's> Routes<'b, 'i, 's> {
         self.index.module(package, &path)
     }
 
+    pub(super) fn bridge_module(
+        &mut self,
+        package: &str,
+        name: &str,
+    ) -> Result<(String, usize), String> {
+        let root = self.index.module(package, &[])?;
+        match self.index.resolve_path(root, &[name.to_owned()])? {
+            Found::Module(scope) => Ok((self.index.modules[scope].krate.clone(), scope)),
+            _ => Err(format!("{package}::{name} does not resolve to a module")),
+        }
+    }
+
     pub(super) fn functions(&self, scope: usize, name: &str) -> Vec<Block> {
         super::functions(self.index.modules[scope].items.iter(), name, self.build)
             .cloned()
             .collect()
+    }
+
+    pub(super) fn installers(&mut self, scope: usize, name: &str) -> Vec<(usize, Block)> {
+        let local = self.functions(scope, name);
+        if !local.is_empty() {
+            return local.into_iter().map(|body| (scope, body)).collect();
+        }
+        if let Ok(Found::Item(id)) = self.index.resolve_path(scope, &[name.to_owned()])
+            && let Item::Fn(installer) = self.index.item(id)
+            && self.build.enabled(&installer.attrs)
+        {
+            return vec![(id.module, (*installer.block).clone())];
+        }
+        Vec::new()
     }
 
     pub(super) fn has_slot(&self, scope: usize, table: &str, name: &str) -> bool {

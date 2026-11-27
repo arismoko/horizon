@@ -1,4 +1,4 @@
-sunrise-client game::native_console_tests::native_console_delivers_all_source_feedback_in_order lib daily resources
-sunrise-client game::native_console_tests::native_console_delivers_delayed_game_test_summary_and_closes lib daily resources
-sunrise-client game::native_console_tests::native_console_msg_routes_outgoing_confirmation_to_source lib daily resources
-sunrise-client game::native_console_tests::native_console_runs_in_world_spawn_level_and_restores_dimension lib daily resources
+sunrise-client cut_layout::game::server_side::native_console_tests::native_console_delivers_all_source_feedback_in_order lib daily resources
+sunrise-client cut_layout::game::server_side::native_console_tests::native_console_delivers_delayed_game_test_summary_and_closes lib daily resources
+sunrise-client cut_layout::game::server_side::native_console_tests::native_console_msg_routes_outgoing_confirmation_to_source lib daily resources
+sunrise-client cut_layout::game::server_side::native_console_tests::native_console_runs_in_world_spawn_level_and_restores_dimension lib daily resources

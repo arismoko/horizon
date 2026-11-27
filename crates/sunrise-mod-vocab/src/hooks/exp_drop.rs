@@ -11,7 +11,7 @@ pub trait Hooks {
         out = "experience",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::exp_drop::GameLevel<'_>::native_exp_drop",
+        target = "sunrise_gameplay_common::game::native_hooks::exp_drop::GameLevel<'_>::native_exp_drop",
         neoforge = "IBlockExtension.getExpDrop",
         version = 2
     )]

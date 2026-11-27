@@ -1,2 +1,2 @@
 # Item names (#4130): a Part names its stacks wherever the game names them; needs a Game with prepared resources.
-sunrise-client game::item_name_tests::a_part_names_its_stacks_everywhere_the_game_names_them lib daily child-process
+sunrise-client cut_layout::game::item_name_tests::a_part_names_its_stacks_everywhere_the_game_names_them lib daily child-process

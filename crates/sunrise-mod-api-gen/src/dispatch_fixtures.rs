@@ -118,17 +118,28 @@ fn push(
     Ok(())
 }
 
-pub(crate) fn generate(root: &Path, out: &Path) -> Result<(), String> {
+pub(crate) fn generate(root: &Path, out: &Path, catalog: &Catalog) -> Result<(), String> {
     let dir = root.join(DIRECTORY);
     crate::rerun_if_changed(&dir.display());
     let mut areas = sunrise_game_discovery::module_files(&root.join(DECLARATIONS))?;
     // A fixture can support a declared engine target as well as a declaration file.
     // Their boundaries need not match when declarations are split per hook.
     const NATIVE: &str = "sunrise_client::game::native_hooks::";
-    areas.extend(Catalog::load(root)?.hooks.iter().filter_map(|hook| {
-        let (area, _) = hook.target.strip_prefix(NATIVE)?.split_once("::")?;
-        Some(area.to_owned())
-    }));
+    for hook in &catalog.hooks {
+        let split = hook.gameplay_binding()?;
+        let relative = match &split {
+            Some(binding) => binding.module.strip_prefix("game::native_hooks::"),
+            None => hook.target.strip_prefix(NATIVE),
+        };
+        let area = if split.is_some() {
+            relative.and_then(|path| path.split("::").next())
+        } else {
+            relative.and_then(|path| path.split_once("::").map(|(area, _)| area))
+        };
+        if let Some(area) = area {
+            areas.push(area.into());
+        }
+    }
     let mut output = BTreeMap::new();
     let mut seen = BTreeSet::new();
     for area in sunrise_game_discovery::module_files(&dir)? {
@@ -179,6 +190,10 @@ pub(crate) fn generate(root: &Path, out: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    fn generate_fixture(root: &Path) -> Result<(), String> {
+        generate(root, root, &Catalog::load(root)?)
+    }
+
     #[test]
     fn scopes_discovery_and_rejection() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
@@ -190,7 +205,7 @@ mod tests {
         fs::create_dir_all(root.join(DECLARATIONS)).unwrap();
         fs::write(root.join(DECLARATIONS).join("alpha.rs"), "").unwrap();
         fs::write(dir.join("shared.rs"), "struct Common;").unwrap();
-        generate(&root, &root).unwrap();
+        generate_fixture(&root).unwrap();
         fs::write(
             dir.join("alpha.rs"),
             "fn check() {} mod root { mod runtime {} } mod stubs { struct Stub; } mod api { pub struct Api; } mod crate_root { mod item {} }",
@@ -198,7 +213,7 @@ mod tests {
         .unwrap();
         fs::write(root.join(DECLARATIONS).join("zeta.rs"), "").unwrap();
         fs::write(dir.join("zeta.rs"), "fn last() {}").unwrap();
-        generate(&root, &root).unwrap();
+        generate_fixture(&root).unwrap();
         let ordered = fs::read_to_string(root.join("dispatch_fixtures_root.rs")).unwrap();
         assert!(ordered.find("check").unwrap() < ordered.find("last").unwrap());
         for (scope, name) in [
@@ -222,7 +237,7 @@ mod tests {
         fs::create_dir_all(dir.join("api")).unwrap();
         fs::write(dir.join("stubs/Folded.rs"), "struct Folded; impl Folded {}").unwrap();
         fs::write(dir.join("api/Exposed.rs"), "pub struct Exposed;").unwrap();
-        generate(&root, &root).unwrap();
+        generate_fixture(&root).unwrap();
         for (scope, name) in [("stubs", "Folded"), ("api", "Exposed")] {
             let source =
                 fs::read_to_string(root.join(format!("dispatch_fixtures_{scope}.rs"))).unwrap();
@@ -235,17 +250,17 @@ mod tests {
             );
         }
         fs::write(dir.join("api/Stub.rs"), "pub struct Stub;").unwrap();
-        generate(&root, &root).unwrap();
+        generate_fixture(&root).unwrap();
         fs::write(dir.join("stubs/Stub.rs"), "struct Stub;").unwrap();
         assert!(
-            generate(&root, &root)
+            generate_fixture(&root)
                 .unwrap_err()
                 .contains("Stub.rs: duplicate fixture item in stubs: Stub")
         );
         fs::remove_dir_all(dir.join("stubs")).unwrap();
         fs::remove_dir_all(dir.join("api")).unwrap();
         fs::remove_file(dir.join("alpha.rs")).unwrap();
-        generate(&root, &root).unwrap();
+        generate_fixture(&root).unwrap();
         assert!(
             !fs::read_to_string(root.join("dispatch_fixtures_root.rs"))
                 .unwrap()
@@ -267,7 +282,7 @@ mod tests {
             ("struct Same; mod root { struct Same; }", "duplicate"),
         ] {
             fs::write(dir.join("alpha.rs"), source).unwrap();
-            assert!(generate(&root, &root).unwrap_err().contains(error));
+            assert!(generate_fixture(&root).unwrap_err().contains(error));
         }
         fs::remove_dir_all(root).unwrap();
     }

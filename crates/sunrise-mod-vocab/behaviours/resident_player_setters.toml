@@ -1,7 +1,7 @@
 version = 1
 doc = "The server's last-death location, inventory and ender chest slots, selected slot, hand items and item cooldowns can be edited on the resident player even at zero health. A stale handle or a record displaced by a nested player turn is still unavailable. Death respawn keeps the last-death location and ender chest, and copies inventory, hands and selection only with keep_inventory or for a spectator."
 tests = [
-  "crates/sunrise-client/src/game/modding/native_player_death.rs::edits_to_the_dead_players_record_follow_the_respawn_copy_policy",
-  "crates/sunrise-client/src/game/modding/native_player_inventory_tests.rs::each_inventory_refusal_has_its_own_name_and_writes_nothing",
-  "crates/sunrise-client/src/game/modding/native_player_ender_chest_tests.rs::each_ender_chest_refusal_has_its_own_name_and_writes_nothing",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_player_death.rs::edits_to_the_dead_players_record_follow_the_respawn_copy_policy",
+  "crates/sunrise-gameplay/src/game/modding/native_player_inventory_tests.rs::each_inventory_refusal_has_its_own_name_and_writes_nothing",
+  "crates/sunrise-client/src/cut_layout/game/modding/native_player_ender_chest_tests.rs::each_ender_chest_refusal_has_its_own_name_and_writes_nothing",
 ]

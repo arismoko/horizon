@@ -101,6 +101,11 @@ fn standalone() -> Option<Arc<StandaloneModels>> {
         .or_else(|| STANDALONE.get().cloned())
 }
 
+#[cfg(any(test, feature = "test-support"))]
+pub fn has_standalone_models() -> bool {
+    standalone().is_some()
+}
+
 /// Installs standalone declarations until dropped, including on the bake worker, without sealing
 /// process registration. Other fixture holders wait until the active fixture finishes.
 #[cfg(feature = "test-support")]

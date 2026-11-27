@@ -13,7 +13,7 @@ class ComputeFogColorHookTests(unittest.TestCase):
     def test_rgb_override_fallback_and_alpha(self):
         actual = rust_fn("native_fog_color_now")
         frame = rust_fn("frame_fog")
-        self.assertIn("if self.title.is_none() { fog.color = self.native_fog_color_now", " ".join(frame.split()))
+        self.assertIn("if self.client.title.0.is_none() { fog.color = self.native_fog_color_now", " ".join(frame.split()))
         fixture = r"""
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum FogType { Atmospheric, Water, Lava, PowderSnow }

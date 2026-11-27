@@ -31,19 +31,19 @@ def main():
         raise RuntimeError('Prepared resources required: set SUNRISE_TEST_RESOURCES')
     sources = [Path(__file__).resolve(),
         lab.ROOT / 'mods/sunrise/src/test/java/dev/sunriselab/parity/VanillaSourceSilenceOracle.java',
-        lab.ROOT / 'crates/sunrise-client/src/game.rs',
-        lab.ROOT / 'crates/sunrise-client/src/mobs.rs',
-        lab.ROOT / 'crates/sunrise-client/src/mobs/hostile.rs',
-        lab.ROOT / 'crates/sunrise-client/src/mobs/wither.rs',
-        lab.ROOT / 'crates/sunrise-client/src/mobs/sulfur_cube.rs',
-        lab.ROOT / 'crates/sunrise-client/src/game/entities/explosion.rs',
-        lab.ROOT / 'crates/sunrise-client/src/game/entities/tnt.rs',
-        lab.ROOT / 'crates/sunrise-client/src/game/items/potions.rs',
-        lab.ROOT / 'crates/sunrise-client/src/game/world/persist.rs',
-        lab.ROOT / 'crates/sunrise-client/src/game/mobs/creatures/mod.rs',
-        lab.ROOT / 'crates/sunrise-client/src/game/mobs/wither.rs',
-        lab.ROOT / 'crates/sunrise-client/src/game/mobs/dragon.rs',
-        lab.ROOT / 'crates/sunrise-client/src/game/entities/minecarts.rs',
+        lab.ROOT / 'crates/sunrise-gameplay-common/src/game.rs',
+        lab.ROOT / 'crates/sunrise-sim/src/mobs.rs',
+        lab.ROOT / 'crates/sunrise-sim/src/mobs/hostile.rs',
+        lab.ROOT / 'crates/sunrise-sim/src/mobs/wither.rs',
+        lab.ROOT / 'crates/sunrise-sim/src/mobs/sulfur_cube.rs',
+        lab.ROOT / 'crates/sunrise-gameplay/src/game/entities/explosion.rs',
+        lab.ROOT / 'crates/sunrise-gameplay/src/game/entities/tnt.rs',
+        lab.ROOT / 'crates/sunrise-client-gameplay/src/game/items/potions.rs',
+        lab.ROOT / 'crates/sunrise-gameplay/src/game/world/persist.rs',
+        lab.ROOT / 'crates/sunrise-gameplay-common/src/game/mobs/creatures/mod.rs',
+        lab.ROOT / 'crates/sunrise-gameplay/src/game/mobs/wither.rs',
+        lab.ROOT / 'crates/sunrise-gameplay/src/game/mobs/dragon.rs',
+        lab.ROOT / 'crates/sunrise-gameplay-common/src/game/entities/minecarts.rs',
     ]
     hashes = h.base.source_hashes(sources)
     classes, dependencies, _ = h.compile_oracle(build, 'VanillaSourceSilenceOracle',
@@ -55,7 +55,7 @@ def main():
             CARGO_BUILD_JOBS=os.environ.get('CARGO_BUILD_JOBS', '2'),
             RUST_TEST_THREADS='2')
         h.run_logged([lab.parity_fixtures(),
-            'game::tnt::tests::silent_', '--include-ignored', '--nocapture'], build, 'rust', env=env)
+            'game::server_side::tnt::tests::silent_', '--include-ignored', '--nocapture'], build, 'rust', env=env)
         rust = build / 'rust.txt'
         rust.write_text(''.join((Path(scratch) / f'{name}.txt').read_text()
             for name in ('explosion', 'potions', 'bottles')), encoding='utf-8')

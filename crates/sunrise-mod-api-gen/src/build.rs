@@ -1,5 +1,5 @@
 //! Cargo-facing generation: the mod API's and the game's generated files.
-use super::{Catalog, Target, game_hook_sources, host, sources};
+use super::{Catalog, Target, host, sources};
 use std::{fs, path::Path};
 mod vocab_boundary;
 
@@ -31,7 +31,30 @@ pub fn write_if_changed(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) -> std:
 /// Generate only this crate's files, tracking every source read by the generator.
 /// `root` is supplied at run time by the consuming crate's build script.
 pub fn generate(root: &Path, out_dir: &Path, target: Target) -> Result<(), String> {
+    generate_with_vocab(root, out_dir, target, None)
+}
+
+pub fn generate_gameplay_vocab(root: &Path, out_dir: &Path) -> Result<(), String> {
+    let catalog = super::gameplay::Routing::load(root)?.catalog(root)?;
+    generate_with_vocab(root, out_dir, Target::Vocab, Some(catalog))
+}
+
+fn generate_with_vocab(
+    root: &Path,
+    out_dir: &Path,
+    target: Target,
+    catalog: Option<Catalog>,
+) -> Result<(), String> {
     track(root)?;
+    if let Some(package) = gameplay_package(&target) {
+        crate::rerun_if_staged(root);
+        for (name, code) in super::gameplay::generate(root, package)? {
+            let code = generated_source(root, &target, name, code)?;
+            syn::parse_file(&code).map_err(|e| format!("generated Rust: {name}: {e}"))?;
+            write_if_changed(out_dir.join(name), code).map_err(|e| e.to_string())?;
+        }
+        return Ok(());
+    }
     let inventory = if matches!(target, Target::Vocab) {
         let path = root.join("tools/layering/mod_vocab_state.json");
         crate::rerun_if_changed(&path.display());
@@ -44,22 +67,13 @@ pub fn generate(root: &Path, out_dir: &Path, target: Target) -> Result<(), Strin
     } else {
         std::collections::BTreeSet::new()
     };
-    if matches!(&target, Target::Client) {
-        crate::rerun_if_staged(root);
-    }
     let outputs = match target {
-        Target::Client => vec![
-            (HOST_OUTPUT, game_host_generated(root)?),
-            ("mod_api_fire_generated.rs", game_hook_sources(root)?.fire),
-            // The mob tick's goal read view (#1077), included beside the
-            // engine's `GoalCx` in `mobs/part_goals.rs`.
-            (
-                "mod_api_goal_view_generated.rs",
-                host::generate_goal_view(root)?,
-            ),
-        ],
+        Target::GameplayCommon | Target::GameplayServer | Target::GameplayClient => unreachable!(),
         Target::Vocab => {
-            let generated = sources(root)?;
+            let generated = match catalog {
+                Some(catalog) => super::sources_from_catalog(root, &catalog)?,
+                None => sources(root)?,
+            };
             write_vocab_output(
                 out_dir,
                 super::parts::OUTPUT,
@@ -109,13 +123,23 @@ pub fn generate_api_parts(root: &Path, out_dir: &Path) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
+fn gameplay_package(target: &Target) -> Option<super::GameplayPackage> {
+    use super::GameplayPackage::*;
+    match target {
+        Target::GameplayCommon => Some(Common),
+        Target::GameplayServer => Some(Server),
+        Target::GameplayClient => Some(Client),
+        Target::Vocab => None,
+    }
+}
+
 fn generated_source(
     root: &Path,
     target: &Target,
     name: &str,
     code: String,
 ) -> Result<String, String> {
-    if matches!(target, Target::Client)
+    if gameplay_package(target).is_some()
         && matches!(
             name,
             "mod_api_fire_generated.rs" | "mod_api_goal_view_generated.rs"
@@ -143,7 +167,7 @@ mod generated_visibility_tests {
             "mod_api_goal_view_generated.rs",
         ] {
             assert_eq!(
-                generated_source(&root, &Target::Client, name, input.into()).unwrap(),
+                generated_source(&root, &Target::GameplayClient, name, input.into()).unwrap(),
                 input
             );
         }
@@ -153,7 +177,7 @@ mod generated_visibility_tests {
             "mod_api_goal_view_generated.rs",
         ] {
             assert_eq!(
-                generated_source(&root, &Target::Client, name, input.into()).unwrap(),
+                generated_source(&root, &Target::GameplayClient, name, input.into()).unwrap(),
                 "impl Game<'_> { pub fn fire(&mut self) {} }"
             );
             assert_eq!(
@@ -208,7 +232,7 @@ pub fn generate_render(root: &Path, out_dir: &Path) -> Result<(), String> {
         .and_then(|()| {
             write_if_changed(
                 out_dir.join("native_render_fire_generated.rs"),
-                generated.fire,
+                generated.render_fire,
             )
         })
         .map_err(|error| error.to_string())

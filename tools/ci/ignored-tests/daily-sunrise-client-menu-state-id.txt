@@ -1,2 +1,2 @@
-sunrise-client game::native_menus::owned_slots_tests::an_open_menus_state_id_is_the_one_its_content_was_sent_with lib daily resources
-sunrise-client game::remote::tests::client_menu_tests::client_menu_state_id_follows_its_windows_packets lib daily resources
+sunrise-client cut_layout::game::server_side::native_menus::owned_slots_tests::an_open_menus_state_id_is_the_one_its_content_was_sent_with lib daily resources
+sunrise-client cut_layout::game::remote::tests::client_menu_tests::client_menu_state_id_follows_its_windows_packets lib daily resources

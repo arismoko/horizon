@@ -14,7 +14,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         neoforge = "IBlockExtension.shouldCheckWeakPower",
-        target = "sunrise_client::game::native_hooks::should_check_weak_power::GameLevel<'_>::native_should_check_weak_power"
+        target = "sunrise_gameplay_common::game::native_hooks::should_check_weak_power::GameLevel<'_>::native_should_check_weak_power"
     )]
     fn should_check_weak_power(
         dimension: LevelDimension,

@@ -2,19 +2,19 @@ LinkFSPath	skip:other		Java path of the in-memory link filesystem; Sunrise links
 LinkFSProvider	skip:other		Java NIO provider of the link filesystem; Sunrise reads host folders and zips directly
 LinkFileSystem	skip:other		link filesystem and its getPath; Sunrise builds overlay folders instead (packs.rs::build_overlay)
 LinkFileSystem.Builder	skip:other		builder of the link filesystem tree; no equivalent, see packs.rs::build_overlay
-PackFormat.fullCodec	port	crates/sunrise-client-render/src/packs.rs::format_codec	supported_formats / pack_format as an int, or a list of 1 to 256 non-negative ints whose second is the minor
+PackFormat.fullCodec	port	crates/sunrise-level/src/pack_meta.rs::format_codec	supported_formats / pack_format as an int, or a list of 1 to 256 non-negative ints whose second is the minor
 PackFormat.validateHolderList	inline	crates/sunrise-client-render/src/packs.rs::overlays_of	gap: minor: a broken overlay entry is dropped alone; vanilla rejects the whole overlays list
-PackFormat.lastPreMinorVersion	port	crates/sunrise-client-render/src/packs.rs::last_pre_minor	the last major without a minor version, 81 for data packs and 64 for resource packs, which the old-format validator compares against
+PackFormat.lastPreMinorVersion	port	crates/sunrise-level/src/pack_meta.rs::last_pre_minor	the last major without a minor version, 81 for data packs and 64 for resource packs, which the old-format validator compares against
 PackFormat.packCodec	skip:java		codec wiring; the validation it runs is missing (IntermediaryFormat.validate)
 PackFormat.of	skip:java		constructor; Sunrise keeps (major, minor) tuples (packs.rs::RESOURCE_FORMAT)
 PackFormat.compareTo	skip:java		ordering; Sunrise compares the (major, minor) tuples directly (packs.rs::compatibility)
 PackFormat.toString	skip:debug		text form of a format, used in validation messages only
 PackFormat.IntermediaryFormat.fromRange	skip:java		encoder back to pack.mcmeta; Sunrise never writes pack.mcmeta
-PackFormat.IntermediaryFormat.effectiveMinMajorVersion	inline	crates/sunrise-client-render/src/packs.rs::validate_pack_format_for_range	feeds the range check
-PackFormat.IntermediaryFormat.validate	port	crates/sunrise-client-render/src/packs.rs::validate_pack_range	pack.mcmeta format fields are checked against the supported range
-PackFormat.IntermediaryFormat.validateNewFormat	port	crates/sunrise-client-render/src/packs.rs::validate_new_format	min above max and a missing supported_formats / pack_format are refused
-PackFormat.IntermediaryFormat.validateOldFormat	port	crates/sunrise-client-render/src/packs.rs::validate_old_format	an old range above the last pre-minor version is refused
-PackFormat.IntermediaryFormat.validatePackFormatForRange	port	crates/sunrise-client-render/src/packs.rs::validate_pack_format_for_range	a pack_format outside min to max is refused, and a multi-version pack may not support below format 15
+PackFormat.IntermediaryFormat.effectiveMinMajorVersion	inline	crates/sunrise-level/src/pack_meta.rs::validate_pack_format_for_range	feeds the range check
+PackFormat.IntermediaryFormat.validate	port	crates/sunrise-level/src/pack_meta.rs::validate_pack_range	pack.mcmeta format fields are checked against the supported range
+PackFormat.IntermediaryFormat.validateNewFormat	port	crates/sunrise-level/src/pack_meta.rs::validate_new_format	min above max and a missing supported_formats / pack_format are refused
+PackFormat.IntermediaryFormat.validateOldFormat	port	crates/sunrise-level/src/pack_meta.rs::validate_old_format	an old range above the last pre-minor version is refused
+PackFormat.IntermediaryFormat.validatePackFormatForRange	port	crates/sunrise-level/src/pack_meta.rs::validate_pack_format_for_range	a pack_format outside min to max is refused, and a multi-version pack may not support below format 15
 PackMetadataSection.codecForPackType	skip:java		codec for the pack section; packs.rs::pack reads the same fields
 PackMetadataSection.forPackType	skip:java		picks the section type per pack type; Sunrise reads one pack section
 BuiltInPackSource.loadPacks	port	crates/sunrise-client-render/src/packs.rs::discover	built-in Programmer Art and High Contrast packs; the vanilla pack is added by game/world/packs/mod.rs::pack_infos
@@ -29,16 +29,16 @@ Pack.readPackMetadata	inline	crates/sunrise-client-render/src/packs.rs::pack	gap
 Pack.equals	skip:java		identity by pack id; the selection model compares ids
 PackDetector.detectPackResources	inline	crates/sunrise-client-render/src/packs.rs::discover	gap: minor: no symlink validation; a folder without pack.mcmeta is dropped by pack()
 PackRepository.displayPackList	skip:debug		pack ids for the system report (MinecraftServer)
-PackRepository.reload	port	crates/sunrise-client/src/game/world/packs/mod.rs::Game::refresh_pack_lists	re-discovers the packs and resets the selection
+PackRepository.reload	port	crates/sunrise-client-gameplay/src/game/world/packs/mod.rs::Game::refresh_pack_lists	re-discovers the packs and resets the selection
 PackRepository.discoverAvailable	port	crates/sunrise-client-render/src/packs.rs::discover	scans the sources for packs
 PackRepository.isAbleToClearAnyPack	missing		vanilla compares the ordered selection with the selection rebuilt from an empty request; has_optional_pack only checks for an optional pack and does not detect reordering required packs
-PackRepository.addPack	inline	crates/sunrise-client-render/src/packs.rs::SelectionModel::activate	gap: minor: vanilla appends by id with no position rules
-PackRepository.removePack	inline	crates/sunrise-client-render/src/packs.rs::SelectionModel::activate	gap: minor: vanilla removes by id even when the pack is required; the screen never offers that
-PackRepository.getAvailablePacks	inline	crates/sunrise-client-render/src/packs.rs::SelectionModel::rebuild	rebuild also adds required packs (vanilla and active downloaded server packs from Game::pack_infos)
+PackRepository.addPack	inline	crates/sunrise-level/src/pack_meta.rs::SelectionModel::activate	gap: minor: vanilla appends by id with no position rules
+PackRepository.removePack	inline	crates/sunrise-level/src/pack_meta.rs::SelectionModel::activate	gap: minor: vanilla removes by id even when the pack is required; the screen never offers that
+PackRepository.getAvailablePacks	inline	crates/sunrise-level/src/pack_meta.rs::SelectionModel::rebuild	rebuild also adds required packs (vanilla and active downloaded server packs from Game::pack_infos)
 PackRepository.getRequestedFeatureFlags	missing		no pack's `feature_flags` are read from its metadata: the only feature list is the world's own `enabled_features` (`world_loading.rs`), which the game rules, the datapack function filter and the command dispatcher read
-PackSource.decorateWithSource	port	crates/sunrise-client-render/src/pack_screen.rs::PackInfo::extended_description	source label after the pack name (built-in, world, server)
-ServerPacksSource.createVanillaPackSource	port	crates/sunrise-client-render/src/datapack.rs::DataPack::builtin	the built-in vanilla data source (id vanilla), used by functions.rs
-ServerPacksSource.createPackRepository	port	crates/sunrise-client-render/src/datapack.rs::discover	gap: minor: finds world datapacks; the enable list is kept by functions.rs::reload_datapacks
+PackSource.decorateWithSource	port	crates/sunrise-level/src/pack_meta.rs::PackInfo::extended_description	source label after the pack name (built-in, world, server)
+ServerPacksSource.createVanillaPackSource	port	crates/sunrise-level/src/datapack.rs::DataPack::builtin	the built-in vanilla data source (id vanilla), used by functions.rs
+ServerPacksSource.createPackRepository	port	crates/sunrise-level/src/datapack.rs::discover	gap: minor: finds world datapacks; the enable list is kept by functions.rs::reload_datapacks
 ServerPacksSource.createVanillaTrustedRepository	skip:other		known-packs reply: Sunrise answers SelectKnownPacks with no packs (net.rs), so the server sends every registry entry
 FallbackResourceManager.push	inline	crates/sunrise-client-render/src/packs.rs::build_overlay_uncached	packs layered in load order, last wins
 FallbackResourceManager.pushInternal	inline	crates/sunrise-client-render/src/packs.rs::build_overlay_uncached	same layering, with an optional content filter
@@ -55,30 +55,30 @@ FallbackResourceManager.listResourceStacks	inline	crates/sunrise-client-render/s
 FallbackResourceManager.listPacks	skip:java		stream of the pack list; Sunrise passes the slice
 FallbackResourceManager.LeakedResourceWarningInputStream.finalize	skip:debug		leak warning when a stream is garbage collected unclosed
 FallbackResourceManager.PackEntry.filterAll	inline	crates/sunrise-client-render/src/packs.rs::build_overlay_uncached	files and stacks are dropped when a filter blocks them
-FallbackResourceManager.PackEntry.isFiltered	port	crates/sunrise-client-render/src/packs.rs::Filter::blocks	one pack's filter test
+FallbackResourceManager.PackEntry.isFiltered	port	crates/sunrise-level/src/pack_meta.rs::Filter::blocks	one pack's filter test
 IoSupplier.create	skip:java		lambda over Files.newInputStream; Sunrise reads files directly
 MultiPackResourceManager.<init>	inline	crates/sunrise-client-render/src/packs.rs::build_overlay_uncached	gap: minor: namespace-only filters are not kept; filters act on each file path
-MultiPackResourceManager.getPackFilterSection	port	crates/sunrise-client-render/src/packs.rs::filter_of	reads the pack's filter section
+MultiPackResourceManager.getPackFilterSection	port	crates/sunrise-level/src/pack_meta.rs::filter_of	reads the pack's filter section
 MultiPackResourceManager.getResource	skip:other		lookups read the built overlay folder (packs.rs::resource_root); no manager object
 MultiPackResourceManager.getResourceStack	skip:other		same overlay folder lookup
 MultiPackResourceManager.listResources	skip:other		same overlay folder listing
 MultiPackResourceManager.listResourceStacks	skip:other		same overlay folder listing
 MultiPackResourceManager.checkTrailingDirectoryPath	skip:java		argument check for the resource listing API, which Sunrise lacks
 ProfiledReloadInstance	skip:debug		reload timing log (profiler), which Sunrise does not keep
-ReloadableResourceManager.createReload	port	crates/sunrise-client/src/game/world/packs/mod.rs::Game::spawn_pack_reload	starts the reload worker; stage_pack builds the new overlay root and resources
+ReloadableResourceManager.createReload	port	crates/sunrise-client-gameplay/src/game/world/packs/mod.rs::Game::spawn_pack_reload	starts the reload worker; stage_pack builds the new overlay root and resources
 Resource	skip:other		lazy stream and sidecar metadata; Sunrise reads host files and each feature reads its own .png.mcmeta
-ResourceFilterSection.isNamespaceFiltered	inline	crates/sunrise-client-render/src/packs.rs::Filter::blocks	gap: minor: no namespace-only test; blocks checks the namespace inside a file path
-ResourceFilterSection.isPathFiltered	port	crates/sunrise-client-render/src/packs.rs::Filter::blocks	path test of a filter entry
-ResourceManagerReloadListener.reload	port	crates/sunrise-client/src/game/world/packs/mod.rs::Game::apply_staged_pack	the render-thread apply of a reload
-ResourceMetadata.fromJsonStream	port	crates/sunrise-client-render/src/packs.rs::read_meta	gap: minor: reads pack.mcmeta only; sections are read by key in pack()
+ResourceFilterSection.isNamespaceFiltered	inline	crates/sunrise-level/src/pack_meta.rs::Filter::blocks	gap: minor: no namespace-only test; blocks checks the namespace inside a file path
+ResourceFilterSection.isPathFiltered	port	crates/sunrise-level/src/pack_meta.rs::Filter::blocks	path test of a filter entry
+ResourceManagerReloadListener.reload	port	crates/sunrise-client-gameplay/src/game/world/packs/mod.rs::Game::apply_staged_pack	the render-thread apply of a reload
+ResourceMetadata.fromJsonStream	port	crates/sunrise-level/src/pack_meta.rs::read_meta	gap: minor: reads pack.mcmeta only; sections are read by key in pack()
 ResourceMetadata.of	skip:java		map-backed metadata constructor
 ResourceMetadata.getTypedSections	skip:java		typed view over sections; Sunrise reads sections by key
 ResourceProvider.getResourceOrThrow	skip:java		Option instead of a thrown FileNotFound
-SimpleJsonResourceReloadListener.prepare	port	crates/sunrise-client-render/src/datapack.rs::DataStore::load	functions and function tags are parsed, and the content tables' files (recipe, recipe_filter, loot_table, advancement, trade_set, villager_trade, dialog, data_maps, tags) are kept by id in `files` for those tables to merge over the resource root
-SimplePreparableReloadListener.reload	port	crates/sunrise-client/src/game/world/packs/mod.rs::stage_pack	gap: minor: the prepare half; apply_staged_pack does the apply
-SimpleReloadInstance.of	port	crates/sunrise-client/src/game/world/packs/mod.rs::PackReload::spawn	stage then apply, in one call: the worker stages, drive_pack_reload applies
-SimpleReloadInstance.startTasks	inline	crates/sunrise-client/src/game/world/packs/mod.rs::Game::reload_packs	defers while a world or rest loads; errors go to Options
-SimpleReloadInstance.prepareTasks	port	crates/sunrise-client/src/game/world/packs/mod.rs::stage_pack	gap: minor: one staging pass, no per-listener barrier chain
+SimpleJsonResourceReloadListener.prepare	port	crates/sunrise-level/src/datapack.rs::DataStore::load	functions and function tags are parsed, and the content tables' files (recipe, recipe_filter, loot_table, advancement, trade_set, villager_trade, dialog, data_maps, tags) are kept by id in `files` for those tables to merge over the resource root
+SimplePreparableReloadListener.reload	port	crates/sunrise-client-gameplay/src/game/world/packs/mod.rs::stage_pack	gap: minor: the prepare half; apply_staged_pack does the apply
+SimpleReloadInstance.of	port	crates/sunrise-client-gameplay/src/game/world/packs/mod.rs::PackReload::spawn	stage then apply, in one call: the worker stages, drive_pack_reload applies
+SimpleReloadInstance.startTasks	inline	crates/sunrise-client-gameplay/src/game/world/packs/mod.rs::Game::reload_packs	defers while a world or rest loads; errors go to Options
+SimpleReloadInstance.prepareTasks	port	crates/sunrise-client-gameplay/src/game/world/packs/mod.rs::stage_pack	gap: minor: one staging pass, no per-listener barrier chain
 SimpleReloadInstance.getActualProgress	skip:ui		progress fraction of the reload screen
 SimpleReloadInstance.weightProgress	skip:ui		progress weights of the reload screen
 SimpleReloadInstance.create	skip:debug		chooses profiled or plain reload
@@ -98,10 +98,10 @@ CachedUserNameToIdResolver.lookupGameProfile	port	crates/sunrise-server-files/sr
 CachedUserNameToIdResolver.getTopMRUProfiles	inline	crates/sunrise-server-files/src/user_cache.rs::UserCache::to_json	the 1000 most recently used entries
 CachedUserNameToIdResolver.writeGameProfile	inline	crates/sunrise-server-files/src/user_cache.rs::UserCache::to_json	entry JSON with expiresOn
 CachedUserNameToIdResolver.readGameProfile	port	crates/sunrise-server-files/src/user_cache.rs::UserCache::parse	reads entries with their expiry dates
-IpBanList.isBanned	port	crates/sunrise-client/src/game/interface/dedicated/mod.rs::Lists::can_login	the IP ban branch of the login check
-IpBanList.getIpFromAddress	inline	crates/sunrise-client/src/game/interface/dedicated/mod.rs::Lists::can_login	gap: minor: the address comes from IpAddr, not a cut of the text
-IpBanList.add	port	crates/sunrise-client/src/game/interface/dedicated/mod.rs::Game::console_command	ban-ip: adds, replies, kicks matching players; gap: minor: no JSON-RPC ipBanned notice
-IpBanList.remove	port	crates/sunrise-client/src/game/interface/dedicated/mod.rs::Game::console_command	pardon-ip: removes and replies; gap: minor: no JSON-RPC ipUnbanned notice
+IpBanList.isBanned	port	crates/sunrise-gameplay/src/game/interface/dedicated/mod.rs::Lists::can_login	the IP ban branch of the login check
+IpBanList.getIpFromAddress	inline	crates/sunrise-gameplay/src/game/interface/dedicated/mod.rs::Lists::can_login	gap: minor: the address comes from IpAddr, not a cut of the text
+IpBanList.add	port	crates/sunrise-gameplay/src/game/interface/dedicated/mod.rs::Game::console_command	ban-ip: adds, replies, kicks matching players; gap: minor: no JSON-RPC ipBanned notice
+IpBanList.remove	port	crates/sunrise-gameplay/src/game/interface/dedicated/mod.rs::Game::console_command	pardon-ip: removes and replies; gap: minor: no JSON-RPC ipUnbanned notice
 IpBanList.clear	skip:server		only the JSON-RPC ban API calls clear (MinecraftBanListServiceImpl); Sunrise has no JSON-RPC server
 IpBanListEntry.createIpInfo	port	crates/sunrise-server-files/src/user_lists.rs::BanEntry::from_json	reads the ip field of an entry
 IpBanListEntry.serialize	port	crates/sunrise-server-files/src/user_lists.rs::BanEntry::serialize	writes the ip field and the ban fields

@@ -62,7 +62,7 @@ impl BlockStates {
         context: Arc<WorkerContext>,
         split: u32,
     ) -> Self {
-        let registry = context.assets.registry;
+        let registry = context.chunk.assets.registry;
         let states = facts
             .states
             .iter()
@@ -88,7 +88,7 @@ impl BlockStates {
                 }
             })
             .collect();
-        let textures = crate::block_sprites::texture_names(&context.render.sprite_layers);
+        let textures = crate::block_sprites::texture_names(&context.mesh.render.sprite_layers);
         Self {
             states,
             context,
@@ -141,8 +141,12 @@ impl BlockStates {
 mod tests {
     use super::*;
     use crate::{
-        assets::Assets, biome::Biomes, block_sprites::parse_state, light::LightTables,
+        assets::Assets,
+        biome::Biomes,
+        block_sprites::parse_state,
+        light::LightTables,
         mesher::MeshTables,
+        streaming::{ChunkWorkerContext, MeshWorkerContext},
     };
     use std::{path::PathBuf, sync::OnceLock};
     use sunrise_assets::model::Direction;
@@ -160,20 +164,24 @@ mod tests {
             );
             let assets = Arc::new(Assets::load(&root).unwrap());
             let source = crate::resource_source::ResourceRoot::directory(root.clone());
-            let render = Arc::new(assets.reload(&source).unwrap());
+            let render = Arc::new(crate::assets::RenderAssets::load(&source, &assets).unwrap());
             let facts = BlockFacts::load(&root, assets.registry).unwrap();
             let collision = crate::collisions::load(&root, assets.registry).unwrap();
             let visibility = crate::models::load_visibility(&root, assets.registry).unwrap();
             let context = Arc::new(WorkerContext {
-                light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-                tables: Arc::new(
-                    MeshTables::new(&assets, &render, &facts, visibility, None).unwrap(),
-                ),
-                assets: assets.clone(),
-                render,
-                biomes: Arc::new(Biomes::load(&source).unwrap()),
-                hidden_states: Arc::from([]),
-                part_tables: Default::default(),
+                chunk: ChunkWorkerContext {
+                    light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
+                    assets: assets.clone(),
+                    biomes: Arc::new(Biomes::load(&source).unwrap()),
+                },
+                mesh: MeshWorkerContext {
+                    tables: Arc::new(
+                        MeshTables::new(&assets, &render, &facts, visibility, None).unwrap(),
+                    ),
+                    render,
+                    hidden_states: Arc::from([]),
+                    part_tables: Default::default(),
+                },
             });
             BlockStates::new(&facts, &collision, context, SMALL_SPLIT)
         })
@@ -181,7 +189,7 @@ mod tests {
 
     fn facts(text: &str) -> &'static BlockStateFacts {
         let states = states();
-        let id = parse_state(states.context.assets.registry, text).expect(text);
+        let id = parse_state(states.context.chunk.assets.registry, text).expect(text);
         states.get(id).unwrap()
     }
 
@@ -231,7 +239,7 @@ mod tests {
     #[ignore = "daily"]
     fn a_face_names_its_texture() {
         let states = states();
-        let id = parse_state(states.context.assets.registry, "grass_block").unwrap();
+        let id = parse_state(states.context.chunk.assets.registry, "grass_block").unwrap();
         let grass = states.sprites(id).unwrap();
         let top = grass.sides[Direction::Up as usize][0].sprite;
         assert_eq!(states.texture(top), Some("block/grass_block_top"));

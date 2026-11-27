@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A guest's fall flying state changed on the server. The change has
     /// already been applied.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_entity_toggle_glide",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_entity_toggle_glide",
         dispatch = "flat",
         side = "server",
         contract = "listen",

@@ -1,6 +1,6 @@
-sunrise-client game::item_entities::expire_tests::expiry_burst_lends_stacks_preserves_order_and_reuses_cells lib daily resources
-sunrise-client game::item_entities::expire_tests::item_expire_host_query_excludes_earlier_expired_drops lib daily resources
-sunrise-client game::native_hooks::register_mob_parts::tests::register_behaviors_fires_with_server_host_through_production_tick_and_rebuild lib daily resources
-sunrise-client game::native_hooks::register_mob_parts::tests::register_goals_lends_server_host_and_rolls_back_panicking_listener lib daily resources
-sunrise-client game::native_hooks::register_mob_parts::tests::register_goals_refuses_apply_when_listener_discards_mob lib daily resources
-sunrise-client game::potions::tick_effects_tests::bad_omen_production_tick_stops_on_raid_omen_insert_and_borrows_hidden_chains lib daily resources
+sunrise-client cut_layout::game::server_side::item_entities::expire_tests::expiry_burst_lends_stacks_preserves_order_and_reuses_cells lib daily resources
+sunrise-client cut_layout::game::server_side::item_entities::expire_tests::item_expire_host_query_excludes_earlier_expired_drops lib daily resources
+sunrise-gameplay game::native_hooks::register_mob_parts::tests::register_behaviors_fires_with_server_host_through_production_tick_and_rebuild lib daily resources
+sunrise-gameplay game::native_hooks::register_mob_parts::tests::register_goals_lends_server_host_and_rolls_back_panicking_listener lib daily resources
+sunrise-gameplay game::native_hooks::register_mob_parts::tests::register_goals_refuses_apply_when_listener_discards_mob lib daily resources
+sunrise-client cut_layout::game::server_side::potions_server::tick_effects_tests::bad_omen_production_tick_stops_on_raid_omen_insert_and_borrows_hidden_chains lib daily resources

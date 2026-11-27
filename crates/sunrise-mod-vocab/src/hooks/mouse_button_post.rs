@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// An accepted raw button event finished dispatch, including a screen handler's early return.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_mouse_button_post",
+        target = "sunrise_client_gameplay::game::native_hooks::base::ClientGame<'_>::native_mouse_button_post",
         dispatch = "flat",
         side = "client",
         contract = "listen",

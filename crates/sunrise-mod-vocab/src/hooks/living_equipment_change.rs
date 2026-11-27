@@ -31,7 +31,7 @@ pub trait Hooks {
     /// detected. The integrated server's host player is a connected player and
     /// uses the same check as a LAN or dedicated-server player. Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_living_equipment_change",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_living_equipment_change",
         dispatch = "api_carrier",
         side = "server",
         contract = "listen",

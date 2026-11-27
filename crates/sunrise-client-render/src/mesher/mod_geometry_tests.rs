@@ -218,9 +218,9 @@ impl World {
         let assets = Assets::load(&root).unwrap();
         let facts = BlockFacts::load(&root, assets.registry).unwrap();
         let biomes = Biomes::load(&ResourceRoot::directory(root.clone())).unwrap();
-        let render = assets
-            .reload(&ResourceRoot::directory(root.clone()))
-            .unwrap();
+        let render =
+            crate::assets::RenderAssets::load(&ResourceRoot::directory(root.clone()), &assets)
+                .unwrap();
         Some(Self {
             assets,
             render,

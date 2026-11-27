@@ -18,7 +18,7 @@ pub trait Hooks {
         contract = "listen",
         scope = "block",
         key = "state",
-        target = "sunrise_client::game::native_hooks::base::GameLevel<'_>::native_block_signal",
+        target = "sunrise_gameplay_common::game::native_hooks::base::GameLevel<'_>::native_block_signal",
         neoforge = "none (vanilla BlockBehaviour.getSignal and getDirectSignal; NeoForge adds no event or extension for it)"
     )]
     fn block_signal(

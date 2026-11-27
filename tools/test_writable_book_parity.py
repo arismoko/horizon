@@ -22,7 +22,7 @@ from tools import lab, oracle_harness, test_rust_parity as base, test_model_baki
 
 ORACLE = "VanillaWritableBookOracle"
 ITEMS_TEST = "item_data::ingredient_components::tests::writable_book_pages_keep_their_filtered_text"
-CLIENT_TEST = "game::native_client_screens::client_screen_tests::done_on_an_unedited_book_sends_it_and_drops_its_filtered_text"
+CLIENT_TEST = "game::client_side::native_client_screens::client_screen_tests::done_on_an_unedited_book_sends_it_and_drops_its_filtered_text"
 
 
 def java_version_string():

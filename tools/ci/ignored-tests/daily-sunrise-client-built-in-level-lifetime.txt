@@ -1,2 +1,2 @@
-sunrise-client game::levels::tests::built_in_levels_stay_open_across_idle_ticks_until_shutdown lib daily child-process
-sunrise-client game::runtime_levels_tests::a_ticket_a_chunk_unload_listener_adds_keeps_an_idle_custom_level_open lib daily child-process
+sunrise-client cut_layout::game::server_side::levels::tests::built_in_levels_stay_open_across_idle_ticks_until_shutdown lib daily child-process
+sunrise-client cut_layout::game::server_side::runtime_levels_tests::a_ticket_a_chunk_unload_listener_adds_keeps_an_idle_custom_level_open lib daily child-process

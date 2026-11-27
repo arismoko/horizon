@@ -391,7 +391,9 @@ SERVER_BUILD_CHECK = {".github/workflows/ci.yml", "tools/ci/rust_changes.py"}
 
 
 def needs_server_build(paths):
-    return any(path.startswith("crates/sunrise-client") or path.endswith("Cargo.toml") or path in ROOT_RUST
+    return any(path.startswith(("crates/sunrise-client", "crates/sunrise-gameplay",
+                                "crates/sunrise-game/", "crates/sunrise-game-data/"))
+               or path.endswith("Cargo.toml") or path in ROOT_RUST
                or path.startswith(".cargo/") or path in SERVER_BUILD_CHECK for path in paths)
 
 

@@ -1,1 +1,1 @@
-sunrise-client game::native_entity_commands::tests::suppressed_player_command_changes_game_mode_without_telling_player_or_ops lib daily child-process
+sunrise-client cut_layout::game::server_side::native_entity_commands::tests::suppressed_player_command_changes_game_mode_without_telling_player_or_ops lib daily child-process

@@ -1,1 +1,1 @@
-sunrise-client game::native_lifecycle::tests::panicking_scheduled_task_captures_do_not_interrupt_cancellation_or_close lib daily resources
+sunrise-client cut_layout::game::server_side::native_lifecycle::tests::panicking_scheduled_task_captures_do_not_interrupt_cancellation_or_close lib daily resources

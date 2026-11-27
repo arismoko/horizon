@@ -1,3 +1,3 @@
 # Daily row for #5014: a mod container's part decides which slots a hopper below pulls, with the prepared blocks.
 # PACKAGE TEST TARGET daily REASON; exact logical libtest identities, sorted.
-sunrise-client game::machines::can_take_item_through_face_tests::a_hopper_below_pulls_only_what_the_part_lets_through lib daily resources
+sunrise-gameplay game::server_side::machines::can_take_item_through_face_tests::a_hopper_below_pulls_only_what_the_part_lets_through lib daily resources

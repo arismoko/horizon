@@ -22,7 +22,7 @@ pub const LENGTH: u32 = 5;
 pub const FREQUENCY: u32 = 150;
 
 /// The pack's blinking textures, by the atlas name of the texture they replace.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Blinks {
     blinks: HashMap<String, Blink>,
     /// The blink frames of random variants: file and atlas name, for the atlas to pack.

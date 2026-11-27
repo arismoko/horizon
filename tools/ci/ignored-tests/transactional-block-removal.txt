@@ -1,1 +1,1 @@
-sunrise-client game::world_fluids_tests::journalled_removal_keeps_fluid_and_restores_a_block_entity_on_abort lib daily resources
+sunrise-client cut_layout::game::server_side::world_fluids_tests::journalled_removal_keeps_fluid_and_restores_a_block_entity_on_abort lib daily resources

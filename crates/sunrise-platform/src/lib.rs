@@ -38,6 +38,10 @@ pub mod world {
 #[cfg(feature = "server-files")]
 pub use sunrise_server_files as server_files;
 
+/// Online account lookups and Minecraft Services public-key fetches over HTTPS (`sunrise-server-profiles-http`).
+#[cfg(feature = "server-files")]
+pub use sunrise_server_profiles_http as server_profiles_http;
+
 /// `java.util.Properties` and the JDK's date text, for the files a server keeps in that format.
 #[cfg(feature = "server-files")]
 pub use sunrise_java_properties as java_properties;

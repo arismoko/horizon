@@ -137,6 +137,7 @@ and resolves to `Invalid`; it never fails the load. Compute pipelines and the GP
 bind outlive a resource reload and a world close, but a [`ComputePipelineRef`] goes stale on a
 reload like every pipeline handle: resolve it again in `client_resources_reloaded`."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_render_pipelines::native_register_render_pipelines",
         receiver = "associated",
         dispatch = "flat",
         side = "client",

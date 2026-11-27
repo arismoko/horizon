@@ -1,12 +1,13 @@
 //! Foxes and dolphins: what they take from the ground and where they go for it, on `MobLevel`.
-use crate::{item_areas::ItemAreas, mob_level::MobLevel};
-use sunrise_client::mobs::{
+use crate::mob_level::MobLevel;
+use sunrise_core::geometry::Vec3;
+use sunrise_gameplay_common::item_areas::ItemAreas;
+use sunrise_sim::mobs::{
     Species, dolphin,
     equip::Slot,
     finalize::{self, set_drop_chance, set_item_stack},
     fox,
 };
-use sunrise_core::geometry::Vec3;
 
 /// `Fox.ALLOWED_ITEMS` and the looting block of `Mob.aiStep` for foxes, once a tick.
 pub fn tick_foxes(level: &mut impl MobLevel) {
@@ -132,7 +133,7 @@ pub fn tick_dolphins(level: &mut impl MobLevel) {
                                 e.position.z.floor() as i32,
                             ))
                             .fluid
-                            == sunrise_client::blocks::Fluid::Water
+                            == sunrise_items::blocks::Fluid::Water
                 })
                 .map(|e| [e.position.x, e.position.y, e.position.z])
         } else {
@@ -143,7 +144,7 @@ pub fn tick_dolphins(level: &mut impl MobLevel) {
 }
 
 /// `Fox.isConsumableFood`.
-fn fox_food(items: &sunrise_client::items::Items, item: &str) -> bool {
+fn fox_food(items: &sunrise_items::items::Items, item: &str) -> bool {
     items
         .get(item)
         .is_some_and(|i| i.food.is_some() && i.consumable.is_some())
@@ -200,21 +201,21 @@ mod tests {
     use super::*;
     use crate::mob_level::MobParts;
     use std::sync::Arc;
-    use sunrise_client::{
+    use sunrise_items::{
         blocks::BlockFacts,
-        entities::ItemEntity,
-        fast_hash::FxHashSet,
         items::{ItemStack, Items},
+    };
+    use sunrise_level::{fast_hash::FxHashSet, world::World};
+    use sunrise_sim::{
+        entities::ItemEntity,
         join_seq::JoinList,
-        mobs::{Anim, Brain, Mob, MobType, Part},
-        world::World,
+        mobs::{Anim, Brain, Mob, MobType},
     };
     use sunrise_world::registry::BlockStateId;
 
     fn kind(id: &str, species: Species) -> Arc<MobType> {
         Arc::new(MobType {
             type_key: Default::default(),
-            shadow: None,
             id: id.into(),
             species,
             width: 0.6,
@@ -247,15 +248,6 @@ mod tests {
             max_head_y_rot: 75.0,
             ambient_interval: 80,
             flags: Default::default(),
-            model: Arc::new(Part {
-                name: "root".into(),
-                pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
-                polygons: Vec::new(),
-                children: Vec::new(),
-                layer: None,
-            }),
-            layers: Default::default(),
-            texture: String::new(),
             brain: Brain::Passive,
             anim: Anim::Rabbit,
             sounds: [""; 3],
@@ -291,9 +283,9 @@ mod tests {
             },
             vertical_collision: false,
             age: 0,
+            pickup_delay: 0,
             stack_revision: 0,
             lifespan: ItemEntity::LIFETIME,
-            pickup_delay: 0,
             bob_offset: 0.0,
             ticks: 0,
             needs_sync: false,

@@ -81,17 +81,20 @@ class ParityFixturesManifestTests(unittest.TestCase):
         from tools.ci import parity_fixtures_manifest as manifest
         client = tomllib.loads(manifest.CLIENT.read_text(encoding='utf-8'))
         fixtures = tomllib.loads(manifest.render())
-        names = set(client['dependencies']) | set(client['dev-dependencies'])
-        self.assertEqual(set(fixtures['dependencies']), names)
-        self.assertTrue(all(entry['optional'] for entry in fixtures['dependencies'].values()))
-        enabled = set(fixtures['features']['fixtures'])
-        self.assertTrue({f'dep:{name}' for name, entry in client['dependencies'].items()
-                         if not (isinstance(entry, dict) and entry.get('optional'))} <= enabled)
-        self.assertTrue({f'dep:{name}' for name in client['dev-dependencies']} <= enabled)
-        self.assertEqual(fixtures['features']['client-defaults'], client['features']['default'])
+        expected_deps = {'sunrise-client', 'sunrise-client-gameplay', 'sunrise-gameplay', 'sunrise-gameplay-common'}
+        self.assertEqual(set(fixtures['dependencies']), expected_deps)
+        self.assertTrue(all(entry['optional'] and not entry['default-features']
+                            for entry in fixtures['dependencies'].values()))
+        self.assertEqual(
+            set(fixtures['features']['fixtures']),
+            {'dep:sunrise-gameplay-common', 'dep:sunrise-gameplay',
+             'sunrise-gameplay-common/parity-fixtures', 'sunrise-gameplay/parity-fixtures'},
+        )
+        client_defaults = set(fixtures['features']['client-defaults'])
+        self.assertTrue({'fixtures', 'dep:sunrise-client-gameplay', 'dep:sunrise-client',
+                         'sunrise-client-gameplay/parity-fixtures', 'sunrise-client/parity-fixtures'} <= client_defaults)
+        self.assertTrue({f'sunrise-client/{name}' for name in client['features']['default']} <= client_defaults)
         self.assertNotIn('default', fixtures['features'])
-        self.assertEqual(fixtures['dependencies']['sunrise-client-lib']['features'],
-                         client['dev-dependencies']['sunrise-client-lib']['features'])
 
 
 if __name__ == '__main__':

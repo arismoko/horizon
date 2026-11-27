@@ -1,3 +1,3 @@
-sunrise-client game::item_contact_tests::step_on_edits_grounded_bodies_before_inside_effects_and_settle lib daily child-process
-sunrise-client game::item_contact_tests::step_on_hurts_the_stepping_body_and_guards_its_block_writes lib daily child-process
-sunrise-client game::item_contact_tests::step_on_refuses_only_the_invalid_part_outputs lib daily child-process
+sunrise-client cut_layout::game::server_side::item_contact_tests::step_on_edits_grounded_bodies_before_inside_effects_and_settle lib daily child-process
+sunrise-client cut_layout::game::server_side::item_contact_tests::step_on_hurts_the_stepping_body_and_guards_its_block_writes lib daily child-process
+sunrise-client cut_layout::game::server_side::item_contact_tests::step_on_refuses_only_the_invalid_part_outputs lib daily child-process

@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A vault at `pos` changed to `state`. Its block state is updated.
     /// Server-side.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_vault_change_state",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_vault_change_state",
         dispatch = "flat",
         side = "server",
         contract = "listen",

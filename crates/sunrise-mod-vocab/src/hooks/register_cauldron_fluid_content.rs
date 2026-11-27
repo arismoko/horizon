@@ -36,6 +36,7 @@ or that isn't an integer property, and a total of 0 or one that doesn't divide e
 number of levels. The rest of a mod's contents still apply. What a cauldron does when an item
 is used on it is not part of this hook."#]
     #[hook(
+        target = "sunrise_gameplay_common::game::native_hooks::register_cauldron_fluid_content::native_register_cauldron_fluid_content",
         receiver = "associated",
         dispatch = "flat",
         side = "server",

@@ -1,1 +1,1 @@
-sunrise-client-lib lan::hub::tests::entity_move_check_tests::an_accepted_move_still_yields_when_it_logs_moved_wrongly lib daily resources
+sunrise-sim lan::hub::tests::entity_move_check_tests::an_accepted_move_still_yields_when_it_logs_moved_wrongly lib daily resources

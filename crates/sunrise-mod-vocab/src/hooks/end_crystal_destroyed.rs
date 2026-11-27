@@ -9,7 +9,7 @@ pub trait Hooks {
     /// counted the pillars' crystals again and its dragon, when it lives, reacted. NeoForge
     /// has no such event.
     #[hook(
-        target = "sunrise_client::game::native_hooks::dragon_fight::Game<'_>::native_end_crystal_destroyed",
+        target = "sunrise_gameplay::game::native_hooks::dragon_fight::ServerGame<'_>::native_end_crystal_destroyed",
         dispatch = "flat",
         side = "server",
         contract = "listen",

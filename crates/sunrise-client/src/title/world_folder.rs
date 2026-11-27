@@ -1,11 +1,6 @@
 //! The folder a new world gets: `WorldCreationUiState.findResultFolder` through
 //! `FileUtil.findAvailableName`. Lengths are Java's, in UTF-16 units.
 
-/// `SharedConstants.ILLEGAL_FILE_CHARACTERS`, in its order.
-const ILLEGAL_FILE_CHARACTERS: [char; 15] = [
-    '/', '\n', '\r', '\t', '\0', '\u{c}', '`', '?', '*', '\\', '<', '>', '|', '"', ':',
-];
-
 /// `FileUtil.MAX_FILE_NAME`.
 const MAX_FILE_NAME: usize = 255;
 
@@ -29,15 +24,7 @@ pub(super) fn result_folder(name: &str, new_world: &str, taken: impl Fn(&str) ->
 
 /// `FileUtil.sanitizeName`.
 pub(crate) fn sanitize_name(name: &str) -> String {
-    name.chars()
-        .map(|c| {
-            if ILLEGAL_FILE_CHARACTERS.contains(&c) || matches!(c, '.' | '/' | '"') {
-                '_'
-            } else {
-                c
-            }
-        })
-        .collect()
+    crate::chunk_io::sanitize_world_name(name)
 }
 
 /// `FileUtil.COPY_COUNTER_PATTERN`, `(?<name>.*) \((?<count>\d*)\)`, matched whole: the name and

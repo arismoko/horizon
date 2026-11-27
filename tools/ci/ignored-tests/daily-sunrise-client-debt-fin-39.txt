@@ -1,2 +1,2 @@
-sunrise-client game::server_travel::respawn_tests::a_cold_end_exit_keeps_ticking_the_source_player_before_the_fallback_veto lib daily resources
-sunrise-client game::server_travel::respawn_tests::an_end_exit_resolves_a_cold_legacy_personal_column_and_keeps_facing lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::respawn_tests::a_cold_end_exit_keeps_ticking_the_source_player_before_the_fallback_veto lib daily resources
+sunrise-client cut_layout::game::server_side::server_travel::respawn_tests::an_end_exit_resolves_a_cold_legacy_personal_column_and_keeps_facing lib daily resources

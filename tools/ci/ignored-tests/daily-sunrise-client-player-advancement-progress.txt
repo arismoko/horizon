@@ -1,2 +1,2 @@
-sunrise-client game::native_player_stats::tests::player_advancement_progress_reads_live_state_and_refuses_unavailable lib daily resources
-sunrise-client game::native_player_stats::tests::player_award_and_revoke_advancement_route_through_engine_path lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_stats::tests::player_advancement_progress_reads_live_state_and_refuses_unavailable lib daily resources
+sunrise-client cut_layout::game::server_side::native_player_stats::tests::player_award_and_revoke_advancement_route_through_engine_path lib daily resources

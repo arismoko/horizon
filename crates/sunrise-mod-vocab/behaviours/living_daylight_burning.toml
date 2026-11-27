@@ -1,3 +1,3 @@
 version = 1
 doc = "A living content type can ignite in daylight only if its own id is in the minecraft:burn_in_daylight entity type tag. Its template does not decide membership."
-tests = ["crates/sunrise-client/src/mobs/template_mob_tests.rs::sunlight_ignition_follows_entity_type_tags"]
+tests = ["crates/sunrise-sim/src/mobs/template_mob_tests.rs::sunlight_ignition_follows_entity_type_tags"]

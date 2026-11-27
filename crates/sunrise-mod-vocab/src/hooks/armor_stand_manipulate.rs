@@ -19,7 +19,7 @@ pub trait Hooks {
     /// drop), a dispenser putting armour on one, a mod's own changes.
     /// Server-side, for every player of the world.
     #[hook(
-        target = "sunrise_client::game::native_hooks::base::Game<'_>::native_armor_stand_manipulate",
+        target = "sunrise_gameplay::game::native_hooks::base::ServerGame<'_>::native_armor_stand_manipulate",
         dispatch = "flat",
         side = "server",
         contract = "cancel",

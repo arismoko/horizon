@@ -1,12 +1,12 @@
 //! Allays on the logical side: the allay's tick, its liked player and its delivery, on `MobLevel`.
 use crate::mob_level::MobLevel;
-use sunrise_client::{
+use sunrise_core::{geometry::Vec3, random::RandomSource};
+use sunrise_items::items::ItemStack;
+use sunrise_sim::{
     entities::ItemEntity,
-    items::ItemStack,
     join_seq::JoinList,
     mobs::{Mob, Species, allay},
 };
-use sunrise_core::{geometry::Vec3, random::RandomSource};
 
 /// A player an allay can like: where they stand and where their eyes are.
 pub struct AllayPlayer {
